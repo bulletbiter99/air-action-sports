@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book Your Battle | Air Action Sports</title>
+<meta name="description" content="Book your next airsoft event with Air Action Sports. Fill in the mission briefing form to reserve your slot for milsim, skirmish, or private hire events.">
+<meta name="keywords" content="book airsoft, airsoft booking, milsim booking, skirmish booking, private hire airsoft">
+<link rel="icon" href="images/favicon.ico" type="image/x-icon">
+<!-- Open Graph -->
+<meta property="og:title" content="Book Your Battle | Air Action Sports">
+<meta property="og:description" content="Reserve your slot for tactical airsoft events. Milsim, skirmish, and private hire available.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://airactionsport.com/booking">
+<meta property="og:image" content="https://airactionsport.com/images/og-image.jpg">
+<link rel="stylesheet" href="css/shared.css">
+<style>
+  /* Confirmation Panel */
+  .booking-confirmation {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: rgba(0,0,0,0.85);
+    align-items: center; justify-content: center;
+  }
+  .booking-confirmation.visible { display: flex; }
+  .booking-confirmation-inner {
+    background: var(--mid); border: 1px solid rgba(200,184,154,0.2);
+    padding: 3rem 2.5rem; text-align: center; max-width: 480px; width: 90%;
+  }
+  .booking-confirmation-inner .section-label { margin-bottom: 1rem; }
+  .booking-confirmation-inner h2 { font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px; color: var(--cream); margin-bottom: 1rem; }
+  .booking-confirmation-inner p { color: var(--olive-light); font-size: 14px; line-height: 1.7; margin-bottom: 2rem; }
+
+  /* Private Hire Section */
+  .private-hire { background: var(--olive-dark); padding: 5rem 2rem; }
+  .private-hire-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin: 2rem 0; }
+  .private-hire-feature {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(200,184,154,0.1);
+    padding: 1.5rem; text-align: center;
+    font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--tan-light);
+  }
+  @media (max-width: 768px) {
+    .private-hire-features { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+  <a href="/" class="nav-logo">&#9658; Air Action Sports</a>
+  <div class="nav-links">
+    <a href="/#games">Games</a>
+    <a href="/#locations">Locations</a>
+    <a href="/#events">Events</a>
+    <a href="faq.html">FAQ</a>
+    <a href="contact.html">Contact</a>
+  </div>
+  <a href="booking.html" class="nav-cta">Book Now</a>
+  <button class="hamburger" aria-label="Menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-menu">
+  <a href="/#games">Games</a>
+  <a href="/#locations">Locations</a>
+  <a href="/#events">Events</a>
+  <a href="faq.html">FAQ</a>
+  <a href="contact.html">Contact</a>
+  <a href="booking.html" class="mobile-menu-cta">Book Now</a>
+</div>
+
+<!-- Main Content -->
+<div class="page-content">
+
+  <div class="section-label">&#9632; Book Your Battle</div>
+  <h1 class="section-title">Mission Briefing Form.</h1>
+  <div class="divider"></div>
+  <p class="section-sub" style="margin-bottom: 2.5rem;">Fill in your details below and we'll get back to you within 24 hours to confirm your booking. All fields marked are required.</p>
+
+  <!-- PLACEHOLDER: Wire up form to Formspree or backend -->
+
+  <form id="booking-form" novalidate>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="full-name">Full Name</label>
+        <input type="text" id="full-name" name="full-name" class="form-input" placeholder="Your full name" required>
+        <span class="form-error">Please enter your full name.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="email">Email</label>
+        <input type="email" id="email" name="email" class="form-input" placeholder="you@email.com" required>
+        <span class="form-error">Please enter a valid email address.</span>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="phone">Phone</label>
+        <input type="tel" id="phone" name="phone" class="form-input" placeholder="Your phone number" required>
+        <span class="form-error">Please enter a valid phone number (min 7 digits).</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="players">Number of Players</label>
+        <input type="number" id="players" name="players" class="form-input" placeholder="e.g. 6" min="1" required>
+        <span class="form-error">Please enter at least 1 player.</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="event-type">Event Type</label>
+      <select id="event-type" name="event-type" class="form-select" required>
+        <option value="">Select event type</option>
+        <option value="milsim">Milsim</option>
+        <option value="skirmish">Skirmish</option>
+        <option value="private-event">Private Event</option>
+      </select>
+      <span class="form-error">Please select an event type.</span>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="site">Preferred Site</label>
+      <select id="site" name="site" class="form-select" required>
+        <option value="">Select preferred site</option>
+        <option value="delta-base">Delta Base &mdash; Woodland</option>
+        <option value="echo-urban">Echo Urban &mdash; CQB</option>
+        <option value="foxtrot-fields">Foxtrot Fields &mdash; Open Field</option>
+      </select>
+      <span class="form-error">Please select a preferred site.</span>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="date">Preferred Date</label>
+        <input type="date" id="date" name="date" class="form-input" required>
+        <span class="form-error">Please select a date.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="referral">How Did You Hear About Us?</label>
+        <select id="referral" name="referral" class="form-select">
+          <option value="">Select an option</option>
+          <option value="google">Google</option>
+          <option value="social-media">Social Media</option>
+          <option value="word-of-mouth">Word of Mouth</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Do you need gear hire?</label>
+      <div class="form-radio-group">
+        <label class="form-radio">
+          <input type="radio" name="gear-hire" value="yes"> Yes
+        </label>
+        <label class="form-radio">
+          <input type="radio" name="gear-hire" value="no"> No
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="message">Message</label>
+      <textarea id="message" name="message" class="form-textarea" placeholder="Any additional details, special requests, or questions..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="form-checkbox">
+        <input type="checkbox" id="waiver" name="waiver" required>
+        I confirm all players have read and agree to the <a href="#" target="_blank">safety waiver</a>.
+      </label>
+      <span class="form-error">You must agree to the safety waiver to proceed.</span>
+    </div>
+
+    <button type="submit" class="form-submit">&#9658; Submit Booking Request</button>
+
+  </form>
+
+</div>
+
+<!-- Booking Confirmation Panel -->
+<div class="booking-confirmation" id="booking-confirmation">
+  <div class="booking-confirmation-inner">
+    <div class="section-label">&#9632; Mission Received!</div>
+    <h2>Booking Request Sent.</h2>
+    <p>Thanks for getting in touch. We've received your mission briefing and will confirm your booking via email within 24 hours. Check your inbox and get ready to deploy.</p>
+    <a href="/" class="btn-primary" id="confirmation-dismiss">&#9658; Back to Home</a>
+  </div>
+</div>
+
+<!-- Private Hire Section -->
+<section class="private-hire">
+  <div class="container">
+    <div class="section-label">&#9632; Private Hire</div>
+    <h2 class="section-title">Exclusive Site Hire.</h2>
+    <div class="divider"></div>
+    <p class="section-sub" style="margin-bottom: 1.5rem;">Looking to book an entire site for your group? We offer exclusive private hire for corporate team-building days, birthday battles, stag dos, and special occasions. Get the full site to yourselves with custom game modes and dedicated marshals.</p>
+    <div class="private-hire-features">
+      <div class="private-hire-feature">&#9632; Full Site Exclusive</div>
+      <div class="private-hire-feature">&#9632; Custom Game Modes</div>
+      <div class="private-hire-feature">&#9632; Dedicated Marshals</div>
+    </div>
+    <a href="contact.html" class="btn-primary" style="display: inline-block; margin-top: 1rem;">&#9658; Enquire About Private Hire</a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-brand">&#9658; Air Action Sports</div>
+      <p class="footer-tagline">Real terrain. Real tactics. Real fun.<br>Airsoft events across multiple elite sites.</p>
+    </div>
+    <div>
+      <div class="footer-heading">Explore</div>
+      <ul class="footer-links">
+        <li><a href="/#games">Game Types</a></li>
+        <li><a href="/#locations">Our Sites</a></li>
+        <li><a href="/#events">Upcoming Events</a></li>
+        <li><a href="booking.html">Book Now</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-heading">Info</div>
+      <ul class="footer-links">
+        <li><a href="#">Safety Rules</a></li>
+        <li><a href="#">Gear Hire</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-heading">Stay in the Loop</div>
+      <p style="font-size:12px;color:var(--olive-light);margin-bottom:10px;">Get event alerts and early access.</p>
+      <div class="newsletter">
+        <input type="email" placeholder="Your email...">
+        <button>Join</button>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-copy">&copy; 2026 Air Action Sports. All rights reserved.</div>
+    <div class="social-links">
+      <a href="https://facebook.com/YOUR-PAGE" target="_blank" rel="noopener" class="social-link">FB</a>
+      <a href="https://instagram.com/YOUR-HANDLE" target="_blank" rel="noopener" class="social-link">IG</a>
+      <a href="https://youtube.com/YOUR-CHANNEL" target="_blank" rel="noopener" class="social-link">YT</a>
+      <a href="https://tiktok.com/@YOUR-HANDLE" target="_blank" rel="noopener" class="social-link">TK</a>
+    </div>
+  </div>
+</footer>
+
+<!-- Back-to-top button -->
+<button class="back-to-top" aria-label="Back to top">&#9650;</button>
+
+<!-- Cookie consent banner -->
+<div class="cookie-banner">
+  <p>We use cookies to improve your experience. By continuing to use this site you agree to our <a href="privacy.html">Privacy Policy</a>.</p>
+  <div class="cookie-btns">
+    <button class="cookie-accept">Accept</button>
+    <button class="cookie-decline">Decline</button>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="js/shared.js"></script>
+<script>
+  /* Set minimum date on date picker to today */
+  const dateInput = document.getElementById('date');
+  const today = new Date().toISOString().split('T')[0];
+  dateInput.setAttribute('min', today);
+
+  /* Form Validation */
+  const form = document.getElementById('booking-form');
+  const confirmation = document.getElementById('booking-confirmation');
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    let isValid = true;
+
+    /* Clear previous errors */
+    form.querySelectorAll('.form-group').forEach(g => g.classList.remove('error'));
+
+    /* Full Name */
+    const name = document.getElementById('full-name');
+    if (!name.value.trim()) {
+      name.closest('.form-group').classList.add('error');
+      isValid = false;
+    }
+
+    /* Email */
+    const email = document.getElementById('email');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.value.trim() || !emailRegex.test(email.value.trim())) {
+      email.closest('.form-group').classList.add('error');
+      isValid = false;
+    }
+
+    /* Phone */
+    const phone = document.getElementById('phone');
+    const phoneDigits = phone.value.replace(/\D/g, '');
+    if (phoneDigits.length < 7) {
+      phone.closest('.form-group').classList.add('error');
+      isValid = false;
+    }
+
+    /* Players */
+    const players = document.getElementById('players');
+    if (!players.value || parseInt(players.value) < 1) {
+      players.closest('.form-group').classList.add('error');
+      isValid = false;
+    }
+
+    /* Event Type */
+    const eventType = document.getElementById('event-type');
+    if (!eventType.value) {
+      eventType.closest('.form-group').classList.add('error');
+      isValid = false;
+    }
+
+    /* Site */
+    const site = document.getElementById('site');
+    if (!site.value) {
+      site.closest('.form-group').classList.add('error');
+      isValid = false;
+    }
+
+    /* Date */
+    if (!dateInput.value) {
+      dateInput.closest('.form-group').classList.add('error');
+      isValid = false;
+    }
+
+    /* Waiver */
+    const waiver = document.getElementById('waiver');
+    if (!waiver.checked) {
+      waiver.closest('.form-group').classList.add('error');
+      isValid = false;
+    }
+
+    if (isValid) {
+      form.style.display = 'none';
+      confirmation.classList.add('visible');
+    }
+  });
+
+  /* Confirmation dismiss */
+  document.getElementById('confirmation-dismiss').addEventListener('click', function(e) {
+    e.preventDefault();
+    confirmation.classList.remove('visible');
+    form.reset();
+    form.style.display = 'block';
+    form.querySelectorAll('.form-group').forEach(g => g.classList.remove('error'));
+    window.location.href = '/';
+  });
+</script>
+
+</body>
+</html>
