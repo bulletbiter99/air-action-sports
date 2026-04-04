@@ -3,8 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- PLACEHOLDER: Update page title if business name changes -->
-<title>AIR ACTION SPORTS</title>
+<title>Air Action Sports — Airsoft Events Across Multiple Elite Outdoor Sites</title>
+<meta name="description" content="Air Action Sports runs tactical airsoft events across multiple outdoor sites. Milsim, skirmish, and private hire. Book your next battle today.">
+<meta name="keywords" content="airsoft, airsoft events, milsim, skirmish, tactical games, private hire airsoft, airsoft near me">
+<link rel="icon" href="images/favicon.ico" type="image/x-icon">
+<!-- Open Graph -->
+<meta property="og:title" content="Air Action Sports — Airsoft Events">
+<meta property="og:description" content="Tactical airsoft events across multiple elite outdoor sites. Milsim, skirmish, and private hire.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://airactionsport.com">
+<!-- PLACEHOLDER: Add og:image once you have a social sharing image -->
+<meta property="og:image" content="https://airactionsport.com/images/og-image.jpg">
 <style>
   /* ============================================================
      DESIGN TOKENS — Edit these variables to retheme the entire site
@@ -242,7 +251,7 @@
   .event-month { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); }
   .event-type { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; border: 1px solid; }
   .event-type.airsoft { color: #7bbfff; border-color: rgba(123,191,255,0.4); background: rgba(123,191,255,0.1); }
-  .event-type.paintball { color: #f5a623; border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.1); }
+  .event-type.skirmish { color: #f5a623; border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.1); }
   .event-body { padding: 1.5rem; }
   .event-title { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--cream); margin-bottom: 0.5rem; }
   .event-loc { font-size: 13px; color: var(--olive-light); margin-bottom: 1rem; }
@@ -305,6 +314,40 @@
   .social-link { width: 32px; height: 32px; background: rgba(255,255,255,0.06); border: 1px solid rgba(200,184,154,0.15); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--tan); cursor: pointer; }
   .social-link:hover { background: var(--orange); border-color: var(--orange); color: white; }
 
+  /* Back-to-top button */
+  .back-to-top {
+    position: fixed; bottom: 2rem; right: 2rem; z-index: 90;
+    width: 44px; height: 44px; border: 1px solid rgba(200,184,154,0.3);
+    background: rgba(26,28,24,0.9); color: var(--tan); font-size: 18px;
+    cursor: pointer; display: none; align-items: center; justify-content: center;
+    transition: all 0.3s ease;
+  }
+  .back-to-top.visible { display: flex; }
+  .back-to-top:hover { background: var(--orange); border-color: var(--orange); color: white; }
+
+  /* Cookie consent banner */
+  .cookie-banner {
+    position: fixed; bottom: 0; left: 0; width: 100%; z-index: 200;
+    background: var(--olive-dark); border-top: 1px solid rgba(200,184,154,0.2);
+    padding: 1rem 2rem; display: none; align-items: center; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap;
+  }
+  .cookie-banner.visible { display: flex; }
+  .cookie-banner p { font-size: 13px; color: var(--tan-light); margin: 0; flex: 1; min-width: 200px; }
+  .cookie-banner p a { color: var(--orange); text-decoration: underline; }
+  .cookie-btns { display: flex; gap: 0.5rem; }
+  .cookie-accept {
+    background: var(--orange); color: white; border: none; padding: 8px 20px;
+    font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+  }
+  .cookie-accept:hover { background: var(--orange-dark); }
+  .cookie-decline {
+    background: none; color: var(--tan); border: 1px solid rgba(200,184,154,0.3);
+    padding: 8px 16px; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; cursor: pointer;
+  }
+  .cookie-decline:hover { border-color: var(--tan); }
+
   /* ============================================================
      RESPONSIVE
      ============================================================ */
@@ -365,7 +408,7 @@
     <!-- PLACEHOLDER: Update headline -->
     <h1>Lock &amp;<span>Load Up.</span></h1>
     <!-- PLACEHOLDER: Update subheadline tagline -->
-    <p class="hero-sub">Real terrain. Real tactics. Real fun.<br>Airsoft &amp; paintball events across multiple elite outdoor sites.</p>
+    <p class="hero-sub">Real terrain. Real tactics. Real fun.<br>Airsoft events across multiple elite outdoor sites.</p>
     <div class="hero-btns">
       <!-- PLACEHOLDER: Link buttons to booking page / events section -->
       <button class="btn-primary">&#9658; Book Your Battle</button>
@@ -413,7 +456,7 @@
         <h2 class="section-title">Built by players,<br>run for players.</h2>
         <div class="divider"></div>
         <!-- PLACEHOLDER: Update brand story paragraph -->
-        <p class="section-sub">Air Action Sports was born in the field. We're a crew of hardcore airsoft and paintball enthusiasts who wanted more than just a casual skirmish. We built a multi-site operation that delivers elite-level gameplay experiences — from urban close-quarters combat to wide-open woodland warfare.</p>
+        <p class="section-sub">Air Action Sports was born in the field. We're a crew of hardcore airsoft enthusiasts who wanted more than just a casual skirmish. We built a multi-site operation that delivers elite-level gameplay experiences — from urban close-quarters combat to wide-open woodland warfare.</p>
       </div>
       <div class="about-visual">
         <!-- PLACEHOLDER: Update icons and labels to match your offering -->
@@ -435,25 +478,25 @@
     <div class="section-label">&#9632; Game Types</div>
     <h2 class="section-title">Choose Your Weapon.</h2>
     <div class="divider"></div>
-    <p class="section-sub">Two disciplines. Infinite scenarios. Pick your style — or play both.</p>
+    <p class="section-sub">Multiple formats. Infinite scenarios. Find your style and gear up.</p>
     <div class="games-grid">
       <div class="game-card">
         <div class="game-num">01</div>
-        <div class="game-title">Airsoft</div>
-        <p class="game-desc">Tactical precision gameplay with realistic replica weapons. Ideal for team-vs-team missions, scenario play, and milsim events. Gear up and communicate — every shot counts.</p>
-        <div class="game-tags"><span class="tag">Milsim</span><span class="tag">Team Deathmatch</span><span class="tag">Capture the Flag</span></div>
+        <div class="game-title">Milsim</div>
+        <p class="game-desc">Full military simulation events with realistic scenarios, squad tactics, and objective-based missions. The ultimate test of teamwork, communication, and precision.</p>
+        <div class="game-tags"><span class="tag">Scenario Ops</span><span class="tag">Squad Tactics</span><span class="tag">Objective Play</span></div>
       </div>
       <div class="game-card">
         <div class="game-num">02</div>
-        <div class="game-title">Paintball</div>
-        <p class="game-desc">High-energy, full-color combat. Paintball is fast, loud, and impossible to dispute. Perfect for groups, birthday battles, and anyone who wants to come home with proof of glory.</p>
-        <div class="game-tags"><span class="tag">Speedball</span><span class="tag">Woodsball</span><span class="tag">Scenario Games</span></div>
+        <div class="game-title">Skirmish</div>
+        <p class="game-desc">Fast-paced open play sessions. Team deathmatch, capture the flag, and domination modes. Perfect for all skill levels — walk in, gear up, and start shooting.</p>
+        <div class="game-tags"><span class="tag">Team Deathmatch</span><span class="tag">Capture the Flag</span><span class="tag">Domination</span></div>
       </div>
       <div class="game-card">
         <div class="game-num">03</div>
-        <div class="game-title">Mixed Events</div>
-        <p class="game-desc">Can't decide? Don't. Our mixed events combine airsoft and paintball squads on the same field in epic crossover battles. Unique formats you won't find anywhere else.</p>
-        <div class="game-tags"><span class="tag">Crossover</span><span class="tag">Private Hire</span><span class="tag">Custom Rules</span></div>
+        <div class="game-title">Private Events</div>
+        <p class="game-desc">Book a whole site for your group. Birthday battles, stag dos, corporate team-building, or custom game modes. Your site, your rules, our marshals.</p>
+        <div class="game-tags"><span class="tag">Private Hire</span><span class="tag">Corporate</span><span class="tag">Custom Games</span></div>
       </div>
     </div>
   </div>
@@ -489,7 +532,7 @@
           <div class="loc-features">
             <div class="loc-feature">Dense woodland + creek terrain</div>
             <div class="loc-feature">Bunkers &amp; fortified objectives</div>
-            <div class="loc-feature">Airsoft &amp; paintball compatible</div>
+            <div class="loc-feature">Multiple airsoft game modes</div>
             <div class="loc-feature">Parking + staging area onsite</div>
           </div>
         </div>
@@ -534,8 +577,8 @@
           </div>
           <div class="loc-features">
             <div class="loc-feature">Large-scale team battles</div>
-            <div class="loc-feature">Speedball &amp; woodsball zones</div>
-            <div class="loc-feature">Paintball specialist site</div>
+            <div class="loc-feature">Open terrain skirmish zones</div>
+            <div class="loc-feature">Milsim-ready staging areas</div>
             <div class="loc-feature">On-site catering planned</div>
           </div>
         </div>
@@ -580,7 +623,7 @@
       </div>
       <div class="gallery-item">
         <div class="gallery-photo g5"></div>
-        <div class="gallery-overlay"><div class="gallery-tag">&#9632; Paintball Zone</div></div>
+        <div class="gallery-overlay"><div class="gallery-tag">&#9632; Milsim Staging</div></div>
       </div>
     </div>
   </div>
@@ -622,27 +665,6 @@
       </div>
 
       <!-- PLACEHOLDER: Event 2 — update all details -->
-      <div class="event-card">
-        <div class="event-header">
-          <div class="event-date">
-            <div class="event-day">26</div>
-            <div class="event-month">Apr 2026</div>
-          </div>
-          <span class="event-type paintball">Paintball</span>
-        </div>
-        <div class="event-body">
-          <div class="event-title">Paint Storm Sunday</div>
-          <div class="event-loc">&#9679; Delta Base &mdash; Woodland</div>
-          <div class="event-meta">
-            <div class="event-meta-item"><strong>Time</strong>10:00 &ndash; 16:00</div>
-            <div class="event-meta-item"><strong>Slots</strong>24 Players</div>
-            <div class="event-meta-item"><strong>From</strong>$40/head</div>
-          </div>
-          <button class="btn-book">&#9658; Book Slot</button>
-        </div>
-      </div>
-
-      <!-- PLACEHOLDER: Event 3 — update all details -->
       <div class="event-card">
         <div class="event-header">
           <div class="event-date">
@@ -704,7 +726,7 @@
       </div>
       <div class="test-card">
         <div class="test-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-        <p class="test-text">"Took a group of 10 for a paintball day for my mate's birthday. Brilliant organisation, great gear on loan, and the woodland site was massive. 10/10."</p>
+        <p class="test-text">"Took a group of 10 for my mate's birthday. Brilliant organisation, great gear on loan, and the woodland site was massive. Everyone had a blast. 10/10."</p>
         <div class="test-author"><div class="test-avatar">SR</div><div><div class="test-name">Sam R.</div><div class="test-role">Private Group Booking</div></div></div>
       </div>
       <div class="test-card">
@@ -735,7 +757,7 @@
     <div>
       <div class="footer-brand">&#9658; Air Action Sports</div>
       <!-- PLACEHOLDER: Update tagline / short description -->
-      <p class="footer-tagline">Real terrain. Real tactics. Real fun.<br>Airsoft &amp; paintball events across multiple elite sites.</p>
+      <p class="footer-tagline">Real terrain. Real tactics. Real fun.<br>Airsoft events across multiple elite sites.</p>
     </div>
     <div>
       <div class="footer-heading">Explore</div>
@@ -770,14 +792,27 @@
     <!-- PLACEHOLDER: Update copyright year and legal links if needed -->
     <div class="footer-copy">&copy; 2026 Air Action Sports. All rights reserved.</div>
     <!-- PLACEHOLDER: Update social links with real profile URLs -->
+    <!-- PLACEHOLDER: Update social links with real profile URLs -->
     <div class="social-links">
-      <div class="social-link" onclick="openLink('https://facebook.com/YOUR-PAGE')">FB</div>
-      <div class="social-link" onclick="openLink('https://instagram.com/YOUR-HANDLE')">IG</div>
-      <div class="social-link" onclick="openLink('https://youtube.com/YOUR-CHANNEL')">YT</div>
-      <div class="social-link" onclick="openLink('https://tiktok.com/@YOUR-HANDLE')">TK</div>
+      <a href="https://facebook.com/YOUR-PAGE" target="_blank" rel="noopener" class="social-link">FB</a>
+      <a href="https://instagram.com/YOUR-HANDLE" target="_blank" rel="noopener" class="social-link">IG</a>
+      <a href="https://youtube.com/YOUR-CHANNEL" target="_blank" rel="noopener" class="social-link">YT</a>
+      <a href="https://tiktok.com/@YOUR-HANDLE" target="_blank" rel="noopener" class="social-link">TK</a>
     </div>
   </div>
 </footer>
+
+<!-- Back-to-top button -->
+<button class="back-to-top" aria-label="Back to top">&#9650;</button>
+
+<!-- Cookie consent banner -->
+<div class="cookie-banner">
+  <p>We use cookies to improve your experience. By continuing to use this site you agree to our <a href="privacy.html">Privacy Policy</a>.</p>
+  <div class="cookie-btns">
+    <button class="cookie-accept">Accept</button>
+    <button class="cookie-decline">Decline</button>
+  </div>
+</div>
 
 <!-- ============================================================
      JAVASCRIPT
@@ -831,6 +866,34 @@
       hamburger.setAttribute('aria-expanded', 'false');
       document.body.style.overflow = '';
     });
+  });
+
+  /* ----------------------------------------------------------
+     BACK-TO-TOP BUTTON
+     ---------------------------------------------------------- */
+  const backToTop = document.querySelector('.back-to-top');
+  window.addEventListener('scroll', () => {
+    backToTop.classList.toggle('visible', window.scrollY > 400);
+  });
+  backToTop.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  /* ----------------------------------------------------------
+     COOKIE CONSENT BANNER
+     Uses localStorage so it only shows once
+     ---------------------------------------------------------- */
+  const cookieBanner = document.querySelector('.cookie-banner');
+  if (!localStorage.getItem('cookieConsent')) {
+    cookieBanner.classList.add('visible');
+  }
+  document.querySelector('.cookie-accept').addEventListener('click', () => {
+    localStorage.setItem('cookieConsent', 'accepted');
+    cookieBanner.classList.remove('visible');
+  });
+  document.querySelector('.cookie-decline').addEventListener('click', () => {
+    localStorage.setItem('cookieConsent', 'declined');
+    cookieBanner.classList.remove('visible');
   });
 </script>
 
