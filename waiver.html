@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Player Waiver | Air Action Sports</title>
+<meta name="description" content="Complete your digital liability waiver before attending an Air Action Sports airsoft event. All players must sign before gameplay.">
+<link rel="icon" href="images/favicon.ico" type="image/x-icon">
+<!-- Open Graph -->
+<meta property="og:title" content="Player Waiver | Air Action Sports">
+<meta property="og:description" content="Complete your digital liability waiver before attending an Air Action Sports airsoft event. All players must sign before gameplay.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://airactionsport.com/waiver">
+<meta property="og:image" content="https://airactionsport.com/images/og-image.jpg">
+<link rel="stylesheet" href="css/shared.css">
+<style>
+  /* ============================================================
+     WAIVER PAGE — Page-specific styles
+     ============================================================ */
+  .print-header { display: none; text-align: center; margin-bottom: 2rem; }
+  .print-header h1 { font-size: 24px; font-weight: 900; text-transform: uppercase; }
+  .print-header p { font-size: 12px; color: #666; }
+  .waiver-intro { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); padding: 1.5rem; margin-bottom: 2rem; }
+  .waiver-intro p { font-size: 14px; color: var(--olive-light); line-height: 1.7; margin-bottom: 0.5rem; }
+  .waiver-intro strong { color: var(--cream); }
+  .waiver-section { margin-bottom: 2rem; }
+  .waiver-section h3 { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: var(--orange); margin-bottom: 1rem; border-left: 3px solid var(--orange); padding-left: 12px; }
+  .waiver-text { font-size: 13px; color: var(--olive-light); line-height: 1.8; margin-bottom: 1rem; }
+  .waiver-text ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+  .waiver-text ol li { margin-bottom: 0.5rem; }
+  .under18-section { background: rgba(212,84,26,0.08); border: 1px solid rgba(212,84,26,0.2); padding: 1.5rem; margin-top: 1.5rem; }
+  .under18-section h3 { color: var(--orange); border: none; padding: 0; margin-bottom: 1rem; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; }
+  .signature-field { border: 1px solid rgba(200,184,154,0.2); background: rgba(255,255,255,0.04); padding: 1rem; text-align: center; margin-top: 0.5rem; min-height: 80px; display: flex; align-items: center; justify-content: center; }
+  .signature-field input { background: none; border: none; border-bottom: 2px solid var(--orange); color: var(--cream); font-size: 18px; font-family: 'Georgia', serif; font-style: italic; text-align: center; width: 80%; padding: 8px 0; outline: none; }
+  .waiver-actions { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+  .btn-print { background: var(--mid); color: var(--tan); padding: 14px 32px; font-size: 13px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; border: 1px solid rgba(200,184,154,0.3); cursor: pointer; }
+  .btn-print:hover { border-color: var(--tan); color: var(--cream); }
+  .waiver-confirmation { display: none; background: rgba(0,0,0,0.85); position: fixed; inset: 0; z-index: 300; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 2rem; }
+  .waiver-confirmation.active { display: flex; }
+  .waiver-confirmation h2 { font-size: 28px; font-weight: 900; text-transform: uppercase; color: var(--orange); margin-bottom: 1rem; }
+  .waiver-confirmation p { font-size: 15px; color: var(--tan-light); margin-bottom: 2rem; max-width: 400px; }
+
+  /* Print stylesheet */
+  @media print {
+    nav, .mobile-menu, .back-to-top, .cookie-banner, .floating-book, footer, .waiver-actions { display: none !important; }
+    .page-content { padding-top: 1rem; }
+    .print-header { display: block !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     NAVIGATION
+     ============================================================ -->
+<nav>
+  <a href="/" class="nav-logo">&#9658; Air Action Sports</a>
+  <div class="nav-links">
+    <a href="/#games">Games</a>
+    <a href="locations.html">Locations</a>
+    <a href="events.html">Events</a>
+    <a href="faq.html">FAQ</a>
+    <a href="contact.html">Contact</a>
+  </div>
+  <a href="booking.html" class="nav-cta">Book Now</a>
+  <button class="hamburger" aria-label="Menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-menu">
+  <a href="/#games">Games</a>
+  <a href="locations.html">Locations</a>
+  <a href="events.html">Events</a>
+  <a href="faq.html">FAQ</a>
+  <a href="contact.html">Contact</a>
+  <a href="booking.html" class="mobile-menu-cta">Book Now</a>
+</div>
+
+<!-- ============================================================
+     MAIN CONTENT
+     ============================================================ -->
+<div class="page-content">
+
+  <!-- Print-only header -->
+  <div class="print-header">
+    <h1>Air Action Sports &mdash; Player Liability Waiver</h1>
+    <p>Digital waiver submission</p>
+  </div>
+
+  <div class="section-label">&#9632; Player Waiver</div>
+  <h2 class="section-title">Safety First.</h2>
+  <div class="divider"></div>
+
+  <!-- Waiver Intro -->
+  <div class="waiver-intro">
+    <p><strong>All players must complete this waiver before participating in any Air Action Sports event.</strong></p>
+    <p><strong>Players under 18</strong> must have a parent or guardian complete the additional section below.</p>
+    <p>This waiver must be submitted before your event date.</p>
+  </div>
+
+  <!-- Waiver Form -->
+  <!-- PLACEHOLDER: Wire up form submission to backend (Formspree, WaiverForever, or custom) -->
+  <form id="waiver-form" novalidate>
+
+    <!-- Section 1 — Player Information -->
+    <div class="waiver-section">
+      <h3>1. Player Information</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="w-name">Full Name *</label>
+          <input type="text" id="w-name" name="name" class="form-input" placeholder="Your full name" required>
+          <span class="form-error">Please enter your full name</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="w-dob">Date of Birth *</label>
+          <input type="date" id="w-dob" name="dob" class="form-input" required>
+          <span class="form-error">Please enter your date of birth</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="w-email">Email *</label>
+          <input type="email" id="w-email" name="email" class="form-input" placeholder="you@email.com" required>
+          <span class="form-error">Please enter a valid email</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="w-phone">Phone *</label>
+          <input type="tel" id="w-phone" name="phone" class="form-input" placeholder="Your phone number" required>
+          <span class="form-error">Please enter your phone number</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="w-emergency-name">Emergency Contact Name *</label>
+        <input type="text" id="w-emergency-name" name="emergency_name" class="form-input" placeholder="Emergency contact full name" required>
+        <span class="form-error">Please enter an emergency contact name</span>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="w-emergency-phone">Emergency Contact Phone *</label>
+          <input type="tel" id="w-emergency-phone" name="emergency_phone" class="form-input" placeholder="Emergency contact phone" required>
+          <span class="form-error">Please enter an emergency contact phone</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="w-relationship">Relationship</label>
+          <select id="w-relationship" name="relationship" class="form-input">
+            <option value="">Select...</option>
+            <option value="parent">Parent</option>
+            <option value="spouse">Spouse</option>
+            <option value="sibling">Sibling</option>
+            <option value="friend">Friend</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2 — Acknowledgement of Risk -->
+    <div class="waiver-section">
+      <h3>2. Acknowledgement of Risk</h3>
+      <div class="waiver-text">
+        <ol>
+          <li>I understand airsoft involves physical activity and inherent risks including but not limited to bruising, sprains, and eye injury.</li>
+          <li>I confirm I will wear mandatory face and eye protection at all times during gameplay.</li>
+          <li>I agree to follow all safety rules, marshal instructions, and FPS limits.</li>
+          <li>I accept that Air Action Sports, its staff, and site owners are not liable for injuries sustained during gameplay, provided reasonable safety measures are in place.</li>
+          <li>I confirm I am physically fit to participate and have no medical conditions that would prevent safe participation.</li>
+          <li>I understand that failure to follow safety rules may result in immediate removal from the event without refund.</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- Section 3 — Consent & Signature -->
+    <div class="waiver-section">
+      <h3>3. Consent &amp; Signature</h3>
+
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label class="form-label" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+          <input type="checkbox" id="w-agree" name="agree" required style="margin-top:3px;accent-color:var(--orange);">
+          <span>I have read, understood, and agree to the terms above *</span>
+        </label>
+        <span class="form-error">You must agree to the terms to continue</span>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.5rem;">
+        <label class="form-label" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+          <input type="checkbox" id="w-privacy" name="privacy" style="margin-top:3px;accent-color:var(--orange);">
+          <span>I consent to Air Action Sports storing my data as outlined in the <a href="privacy.html" style="color:var(--orange);text-decoration:underline;">Privacy Policy</a></span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Digital Signature *</label>
+        <p style="font-size:12px;color:var(--olive-light);margin-bottom:0.5rem;">Type your full name as your digital signature</p>
+        <div class="signature-field">
+          <input type="text" id="w-signature" name="signature" placeholder="Your full name" required>
+        </div>
+        <span class="form-error">Please type your full name as your signature</span>
+      </div>
+
+      <div class="form-group" style="margin-top:1rem;">
+        <label class="form-label" for="w-date">Date</label>
+        <input type="text" id="w-date" name="date" class="form-input" readonly>
+      </div>
+    </div>
+
+    <!-- Section 4 — Under 18s -->
+    <div class="waiver-section">
+      <div class="under18-section">
+        <h3>Parent / Guardian Consent (Under 18s Only)</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="w-parent-name">Parent / Guardian Name</label>
+            <input type="text" id="w-parent-name" name="parent_name" class="form-input" placeholder="Parent or guardian full name">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="w-parent-relationship">Relationship to Player</label>
+            <input type="text" id="w-parent-relationship" name="parent_relationship" class="form-input" placeholder="e.g. Mother, Father, Guardian">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input type="checkbox" id="w-parent-consent" name="parent_consent" style="margin-top:3px;accent-color:var(--orange);">
+            <span>I am the parent/guardian and give consent for the named player to participate</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Parent / Guardian Signature</label>
+          <div class="signature-field">
+            <input type="text" id="w-parent-signature" name="parent_signature" placeholder="Parent/guardian full name">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="waiver-actions">
+      <button type="submit" class="form-submit">&#9658; Submit Waiver</button>
+      <button type="button" class="btn-print" onclick="window.print()">Print Waiver</button>
+    </div>
+
+  </form>
+</div>
+
+<!-- Confirmation Panel -->
+<div class="waiver-confirmation" id="waiver-confirmation">
+  <h2>&#9632; Waiver Submitted!</h2>
+  <p>Your waiver has been received. You're cleared for action. See you on the battlefield.</p>
+  <a href="/" class="form-submit" style="text-decoration:none;display:inline-block;">Back to Home</a>
+</div>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-brand">&#9658; Air Action Sports</div>
+      <p class="footer-tagline">Real terrain. Real tactics. Real fun.<br>Airsoft events across multiple elite sites.</p>
+    </div>
+    <div>
+      <div class="footer-heading">Explore</div>
+      <ul class="footer-links">
+        <li><a href="/#games">Game Types</a></li>
+        <li><a href="/#locations">Our Sites</a></li>
+        <li><a href="/#events">Upcoming Events</a></li>
+        <li><a href="contact.html">Contact Us</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-heading">Info</div>
+      <ul class="footer-links">
+        <li><a href="faq.html">FAQ</a></li>
+        <li><a href="booking.html">Book Now</a></li>
+        <li><a href="privacy.html">Privacy Policy</a></li>
+        <li><a href="/#about">About Us</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-heading">Stay in the Loop</div>
+      <p style="font-size:12px;color:var(--olive-light);margin-bottom:10px;">Get event alerts and early access.</p>
+      <!-- PLACEHOLDER: Wire up newsletter form to your email provider (Mailchimp, etc.) -->
+      <div class="newsletter">
+        <input type="email" placeholder="Your email...">
+        <button>Join</button>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-copy">&copy; <script>document.write(new Date().getFullYear())</script> Air Action Sports. All rights reserved.</div>
+    <!-- PLACEHOLDER: Update social links with real profile URLs -->
+    <div class="social-links">
+      <a href="https://facebook.com/YOUR-PAGE" target="_blank" rel="noopener" class="social-link">FB</a>
+      <a href="https://instagram.com/YOUR-HANDLE" target="_blank" rel="noopener" class="social-link">IG</a>
+      <a href="https://youtube.com/YOUR-CHANNEL" target="_blank" rel="noopener" class="social-link">YT</a>
+      <a href="https://tiktok.com/@YOUR-HANDLE" target="_blank" rel="noopener" class="social-link">TK</a>
+    </div>
+  </div>
+</footer>
+
+<!-- Back-to-top button -->
+<button class="back-to-top" aria-label="Back to top">&#9650;</button>
+
+<!-- Cookie consent banner -->
+<div class="cookie-banner">
+  <p>We use cookies to improve your experience. By continuing to use this site you agree to our <a href="privacy.html">Privacy Policy</a>.</p>
+  <div class="cookie-btns">
+    <button class="cookie-accept">Accept</button>
+    <button class="cookie-decline">Decline</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script src="js/shared.js"></script>
+<script>
+  /* ----------------------------------------------------------
+     WAIVER FORM — Auto-fill date, validation, submission
+     ---------------------------------------------------------- */
+
+  // Auto-fill today's date
+  const dateField = document.getElementById('w-date');
+  const today = new Date();
+  dateField.value = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  // Email validation helper
+  function validateEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  // Clear all error states
+  function clearErrors() {
+    document.querySelectorAll('.form-group').forEach(g => g.classList.remove('error'));
+  }
+
+  // Form submission
+  const waiverForm = document.getElementById('waiver-form');
+  const confirmation = document.getElementById('waiver-confirmation');
+
+  waiverForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    clearErrors();
+
+    let valid = true;
+
+    // Full Name
+    const name = document.getElementById('w-name');
+    if (!name.value.trim()) {
+      name.closest('.form-group').classList.add('error');
+      valid = false;
+    }
+
+    // Date of Birth
+    const dob = document.getElementById('w-dob');
+    if (!dob.value) {
+      dob.closest('.form-group').classList.add('error');
+      valid = false;
+    }
+
+    // Email
+    const email = document.getElementById('w-email');
+    if (!email.value.trim() || !validateEmail(email.value.trim())) {
+      email.closest('.form-group').classList.add('error');
+      valid = false;
+    }
+
+    // Phone
+    const phone = document.getElementById('w-phone');
+    if (!phone.value.trim()) {
+      phone.closest('.form-group').classList.add('error');
+      valid = false;
+    }
+
+    // Emergency Contact Name
+    const emergName = document.getElementById('w-emergency-name');
+    if (!emergName.value.trim()) {
+      emergName.closest('.form-group').classList.add('error');
+      valid = false;
+    }
+
+    // Emergency Contact Phone
+    const emergPhone = document.getElementById('w-emergency-phone');
+    if (!emergPhone.value.trim()) {
+      emergPhone.closest('.form-group').classList.add('error');
+      valid = false;
+    }
+
+    // Consent checkbox
+    const agree = document.getElementById('w-agree');
+    if (!agree.checked) {
+      agree.closest('.form-group').classList.add('error');
+      valid = false;
+    }
+
+    // Digital signature
+    const signature = document.getElementById('w-signature');
+    if (!signature.value.trim()) {
+      signature.closest('.form-group').classList.add('error');
+      valid = false;
+    }
+
+    if (valid) {
+      // Hide form, show confirmation
+      document.querySelector('.page-content').style.display = 'none';
+      confirmation.classList.add('active');
+      window.scrollTo(0, 0);
+    }
+  });
+</script>
+
+</body>
+</html>
