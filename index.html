@@ -43,6 +43,33 @@
   .nav-cta { background: var(--orange); color: white; padding: 8px 20px; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; border: none; cursor: pointer; }
   .nav-cta:hover { background: var(--orange-dark); }
 
+  /* Hamburger button — hidden on desktop */
+  .hamburger { display: none; background: none; border: none; cursor: pointer; padding: 8px; z-index: 200; }
+  .hamburger span { display: block; width: 24px; height: 2px; background: var(--tan); margin: 5px 0; transition: all 0.3s ease; }
+  .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+  .hamburger.active span:nth-child(2) { opacity: 0; }
+  .hamburger.active span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+  /* Mobile menu overlay */
+  .mobile-menu {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(26,28,24,0.97); z-index: 150;
+    flex-direction: column; align-items: center; justify-content: center; gap: 2rem;
+  }
+  .mobile-menu.active { display: flex; }
+  .mobile-menu a {
+    font-size: 20px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--tan-light); text-decoration: none; padding: 12px 0;
+    transition: color 0.2s ease;
+  }
+  .mobile-menu a:hover { color: var(--orange); }
+  .mobile-menu-cta {
+    background: var(--orange); color: white; padding: 14px 40px; font-size: 14px;
+    font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    border: none; cursor: pointer; margin-top: 1rem;
+  }
+  .mobile-menu-cta:hover { background: var(--orange-dark); }
+
   /* ============================================================
      HERO SECTION
      Photo: Replace YOUR-HERO-IMAGE.jpg with your actual image file
@@ -282,7 +309,9 @@
      RESPONSIVE
      ============================================================ */
   @media (max-width: 768px) {
-    .nav-links { display: none; } /* TODO: Add mobile hamburger menu */
+    .nav-links { display: none; }
+    .nav-cta { display: none; }
+    .hamburger { display: block; }
     .about-grid { grid-template-columns: 1fr; }
     .footer-grid { grid-template-columns: 1fr 1fr; }
     .gallery-grid { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
@@ -308,7 +337,20 @@
   </div>
   <!-- PLACEHOLDER: Link Book Now button to your booking system URL -->
   <button class="nav-cta">Book Now</button>
+  <button class="hamburger" aria-label="Menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
 </nav>
+
+<!-- Mobile menu overlay -->
+<div class="mobile-menu">
+  <a href="#games">Games</a>
+  <a href="#locations">Locations</a>
+  <a href="#events">Events</a>
+  <a href="#gallery">Gallery</a>
+  <a href="#contact">Contact</a>
+  <button class="mobile-menu-cta">Book Now</button>
+</div>
 
 <!-- ============================================================
      SECTION: HERO
@@ -768,6 +810,28 @@
 
   updateCountdown();
   setInterval(updateCountdown, 1000);
+
+  /* ----------------------------------------------------------
+     MOBILE MENU TOGGLE
+     ---------------------------------------------------------- */
+  const hamburger = document.querySelector('.hamburger');
+  const mobileMenu = document.querySelector('.mobile-menu');
+
+  hamburger.addEventListener('click', () => {
+    hamburger.classList.toggle('active');
+    mobileMenu.classList.toggle('active');
+    hamburger.setAttribute('aria-expanded', hamburger.classList.contains('active'));
+    document.body.style.overflow = mobileMenu.classList.contains('active') ? 'hidden' : '';
+  });
+
+  mobileMenu.querySelectorAll('a, .mobile-menu-cta').forEach(link => {
+    link.addEventListener('click', () => {
+      hamburger.classList.remove('active');
+      mobileMenu.classList.remove('active');
+      hamburger.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+    });
+  });
 </script>
 
 </body>
