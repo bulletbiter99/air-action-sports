@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Events Calendar | Air Action Sports</title>
+<meta name="description" content="Browse upcoming airsoft events at Air Action Sports. Milsim, skirmish, and open play sessions across multiple sites. Book your slot today.">
+<meta name="keywords" content="airsoft events, airsoft calendar, milsim events, airsoft skirmish, airsoft booking">
+<link rel="icon" href="images/favicon.ico" type="image/x-icon">
+<!-- Open Graph -->
+<meta property="og:title" content="Events Calendar | Air Action Sports">
+<meta property="og:description" content="Browse upcoming airsoft events at Air Action Sports. Milsim, skirmish, and open play sessions across multiple sites.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://airactionsport.com/events.html">
+<meta property="og:image" content="https://airactionsport.com/images/og-image.jpg">
+<link rel="stylesheet" href="css/shared.css">
+<style>
+  /* ============================================================
+     EVENTS PAGE — Page-specific styles
+     ============================================================ */
+
+  /* Filter Bar */
+  .filter-bar {
+    background: var(--mid);
+    border: 1px solid rgba(200,184,154,0.1);
+    padding: 1.5rem 2rem;
+    margin-top: 2.5rem;
+  }
+  .filter-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 1rem;
+    display: block;
+  }
+  .filter-controls {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .filter-controls select {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: inherit;
+    letter-spacing: 1px;
+    background: var(--olive-dark);
+    border: 1px solid rgba(200,184,154,0.15);
+    color: var(--cream);
+    flex: 1;
+    min-width: 160px;
+    cursor: pointer;
+  }
+  .filter-controls select:focus {
+    outline: none;
+    border-color: var(--orange);
+  }
+
+  /* Events Grid */
+  .events-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+  }
+
+  /* Milsim event type badge */
+  .event-type.milsim { color: #6bbf59; border-color: rgba(107,191,89,0.4); background: rgba(107,191,89,0.1); }
+
+  /* Slots progress bar */
+  .slots-bar { height: 4px; background: rgba(200,184,154,0.1); margin: 0.75rem 0; border-radius: 2px; overflow: hidden; }
+  .slots-fill { height: 100%; background: var(--orange); border-radius: 2px; transition: width 0.3s ease; }
+  .slots-text { font-size: 11px; color: var(--olive-light); letter-spacing: 1px; }
+
+  /* Past Events */
+  .past-section { margin-top: 4rem; }
+  .past-section .events-grid .event-card { opacity: 0.5; }
+  .event-complete {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--olive-light);
+    border: 1px solid rgba(200,184,154,0.2);
+    padding: 8px 16px;
+  }
+
+  /* Empty state */
+  .empty-state {
+    display: none;
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--olive-light);
+    font-size: 14px;
+    letter-spacing: 1px;
+    line-height: 1.7;
+  }
+
+  /* CTA Band */
+  .cta-band { background: var(--orange); text-align: center; padding: 4rem 2rem; }
+  .cta-band h2 { font-size: clamp(28px, 5vw, 48px); font-weight: 900; text-transform: uppercase; letter-spacing: -1px; color: white; margin-bottom: 0.5rem; }
+  .cta-band p { color: rgba(255,255,255,0.8); font-size: 15px; letter-spacing: 1px; margin-bottom: 2rem; }
+
+  @media (max-width: 600px) {
+    .filter-controls { flex-direction: column; }
+    .filter-controls select { min-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+  <a href="/" class="nav-logo">&#9658; Air Action Sports</a>
+  <div class="nav-links">
+    <a href="/#games">Games</a>
+    <a href="/#locations">Locations</a>
+    <a href="events.html" class="active">Events</a>
+    <a href="faq.html">FAQ</a>
+    <a href="contact.html">Contact</a>
+  </div>
+  <a href="booking.html" class="nav-cta">Book Now</a>
+  <button class="hamburger" aria-label="Menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-menu">
+  <a href="/#games">Games</a>
+  <a href="/#locations">Locations</a>
+  <a href="events.html">Events</a>
+  <a href="faq.html">FAQ</a>
+  <a href="contact.html">Contact</a>
+  <a href="booking.html" class="mobile-menu-cta">Book Now</a>
+</div>
+
+<!-- Main Content -->
+<div class="page-content">
+  <div class="section-label">&#9632; Events Calendar</div>
+  <h1 class="section-title">Upcoming Operations.</h1>
+  <div class="divider"></div>
+  <p class="section-sub">Check dates, pick your battle, and book your slot. Events fill up fast — don't miss out.</p>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <span class="filter-label">&#9632; Filter Events</span>
+    <div class="filter-controls">
+      <select id="filter-type">
+        <option value="all">All Types</option>
+        <option value="milsim">Milsim</option>
+        <option value="skirmish">Skirmish</option>
+        <option value="airsoft">Airsoft</option>
+      </select>
+      <select id="filter-site">
+        <option value="all">All Sites</option>
+        <option value="delta">Delta Base</option>
+        <option value="echo">Echo Urban</option>
+        <option value="foxtrot">Foxtrot Fields</option>
+      </select>
+      <select id="filter-month">
+        <option value="all">All Months</option>
+        <option value="apr">April 2026</option>
+        <option value="may">May 2026</option>
+        <option value="jun">June 2026</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Events Grid -->
+  <div class="events-grid" id="events-grid">
+
+    <!-- Event 1 -->
+    <div class="event-card" data-type="airsoft" data-site="delta" data-month="apr">
+      <div class="event-header">
+        <div class="event-date">
+          <div class="event-day">19</div>
+          <div class="event-month">Apr 2026</div>
+        </div>
+        <span class="event-type airsoft">Airsoft</span>
+      </div>
+      <div class="event-body">
+        <div class="event-title">Operation Nightfall</div>
+        <div class="event-loc">&#9679; Delta Base &mdash; Woodland</div>
+        <div class="event-meta">
+          <div class="event-meta-item"><strong>Time</strong>09:00 &ndash; 17:00</div>
+          <div class="event-meta-item"><strong>Slots</strong>32 Players</div>
+          <div class="event-meta-item"><strong>From</strong>$35/head</div>
+        </div>
+        <div class="slots-bar"><div class="slots-fill" style="width: 56%;"></div></div>
+        <div class="slots-text">18 of 32 spots taken</div>
+        <a href="booking.html" class="btn-book">&#9658; Book Slot</a>
+      </div>
+    </div>
+
+    <!-- Event 2 -->
+    <div class="event-card" data-type="milsim" data-site="echo" data-month="apr">
+      <div class="event-header">
+        <div class="event-date">
+          <div class="event-day">26</div>
+          <div class="event-month">Apr 2026</div>
+        </div>
+        <span class="event-type milsim">Milsim</span>
+      </div>
+      <div class="event-body">
+        <div class="event-title">Shadow Protocol</div>
+        <div class="event-loc">&#9679; Echo Urban &mdash; CQB</div>
+        <div class="event-meta">
+          <div class="event-meta-item"><strong>Time</strong>10:00 &ndash; 18:00</div>
+          <div class="event-meta-item"><strong>Slots</strong>20 Players</div>
+          <div class="event-meta-item"><strong>From</strong>$45/head</div>
+        </div>
+        <div class="slots-bar"><div class="slots-fill" style="width: 70%;"></div></div>
+        <div class="slots-text">14 of 20 spots taken</div>
+        <a href="booking.html" class="btn-book">&#9658; Book Slot</a>
+      </div>
+    </div>
+
+    <!-- Event 3 -->
+    <div class="event-card" data-type="skirmish" data-site="delta" data-month="may">
+      <div class="event-header">
+        <div class="event-date">
+          <div class="event-day">3</div>
+          <div class="event-month">May 2026</div>
+        </div>
+        <span class="event-type skirmish">Skirmish</span>
+      </div>
+      <div class="event-body">
+        <div class="event-title">Open Play Saturday</div>
+        <div class="event-loc">&#9679; Delta Base &mdash; Woodland</div>
+        <div class="event-meta">
+          <div class="event-meta-item"><strong>Time</strong>09:00 &ndash; 16:00</div>
+          <div class="event-meta-item"><strong>Slots</strong>40 Players</div>
+          <div class="event-meta-item"><strong>From</strong>$25/head</div>
+        </div>
+        <div class="slots-bar"><div class="slots-fill" style="width: 25%;"></div></div>
+        <div class="slots-text">10 of 40 spots taken</div>
+        <a href="booking.html" class="btn-book">&#9658; Book Slot</a>
+      </div>
+    </div>
+
+    <!-- Event 4 -->
+    <div class="event-card" data-type="airsoft" data-site="echo" data-month="may">
+      <div class="event-header">
+        <div class="event-date">
+          <div class="event-day">10</div>
+          <div class="event-month">May 2026</div>
+        </div>
+        <span class="event-type airsoft">Airsoft</span>
+      </div>
+      <div class="event-body">
+        <div class="event-title">Urban Siege</div>
+        <div class="event-loc">&#9679; Echo Urban &mdash; CQB</div>
+        <div class="event-meta">
+          <div class="event-meta-item"><strong>Time</strong>12:00 &ndash; 20:00</div>
+          <div class="event-meta-item"><strong>Slots</strong>20 Players</div>
+          <div class="event-meta-item"><strong>From</strong>$45/head</div>
+        </div>
+        <div class="slots-bar"><div class="slots-fill" style="width: 40%;"></div></div>
+        <div class="slots-text">8 of 20 spots taken</div>
+        <a href="booking.html" class="btn-book">&#9658; Book Slot</a>
+      </div>
+    </div>
+
+    <!-- Event 5 -->
+    <div class="event-card" data-type="milsim" data-site="delta" data-month="may">
+      <div class="event-header">
+        <div class="event-date">
+          <div class="event-day">24</div>
+          <div class="event-month">May 2026</div>
+        </div>
+        <span class="event-type milsim">Milsim</span>
+      </div>
+      <div class="event-body">
+        <div class="event-title">Operation Viper</div>
+        <div class="event-loc">&#9679; Delta Base &mdash; Woodland</div>
+        <div class="event-meta">
+          <div class="event-meta-item"><strong>Time</strong>08:00 &ndash; 18:00</div>
+          <div class="event-meta-item"><strong>Slots</strong>48 Players</div>
+          <div class="event-meta-item"><strong>From</strong>$55/head</div>
+        </div>
+        <div class="slots-bar"><div class="slots-fill" style="width: 33%;"></div></div>
+        <div class="slots-text">16 of 48 spots taken</div>
+        <a href="booking.html" class="btn-book">&#9658; Book Slot</a>
+      </div>
+    </div>
+
+    <!-- Event 6 -->
+    <div class="event-card" data-type="skirmish" data-site="foxtrot" data-month="jun">
+      <div class="event-header">
+        <div class="event-date">
+          <div class="event-day">7</div>
+          <div class="event-month">Jun 2026</div>
+        </div>
+        <span class="event-type skirmish">Skirmish</span>
+      </div>
+      <div class="event-body">
+        <div class="event-title">Summer Skirmish Kickoff</div>
+        <div class="event-loc">&#9679; Foxtrot Fields &mdash; Open Field</div>
+        <div class="event-meta">
+          <div class="event-meta-item"><strong>Time</strong>09:00 &ndash; 17:00</div>
+          <div class="event-meta-item"><strong>Slots</strong>60 Players</div>
+          <div class="event-meta-item"><strong>From</strong>$30/head</div>
+        </div>
+        <div class="slots-bar"><div class="slots-fill" style="width: 15%;"></div></div>
+        <div class="slots-text">9 of 60 spots taken</div>
+        <a href="booking.html" class="btn-book">&#9658; Book Slot</a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-state" id="empty-state">
+    No events match your filters. Try adjusting your search or check back soon.
+  </div>
+
+  <!-- Past Events -->
+  <div class="past-section">
+    <div class="section-label" style="margin-top: 2rem;">&#9632; Past Operations</div>
+    <div class="divider"></div>
+    <div class="events-grid">
+
+      <!-- Past Event 1 -->
+      <div class="event-card">
+        <div class="event-header">
+          <div class="event-date">
+            <div class="event-day">8</div>
+            <div class="event-month">Mar 2026</div>
+          </div>
+          <span class="event-type skirmish">Skirmish</span>
+        </div>
+        <div class="event-body">
+          <div class="event-title">Spring Opener</div>
+          <div class="event-loc">&#9679; Delta Base &mdash; Woodland</div>
+          <div class="event-meta">
+            <div class="event-meta-item"><strong>Time</strong>09:00 &ndash; 16:00</div>
+            <div class="event-meta-item"><strong>Slots</strong>40 Players</div>
+            <div class="event-meta-item"><strong>From</strong>$25/head</div>
+          </div>
+          <span class="event-complete">Event Complete</span>
+        </div>
+      </div>
+
+      <!-- Past Event 2 -->
+      <div class="event-card">
+        <div class="event-header">
+          <div class="event-date">
+            <div class="event-day">22</div>
+            <div class="event-month">Mar 2026</div>
+          </div>
+          <span class="event-type milsim">Milsim</span>
+        </div>
+        <div class="event-body">
+          <div class="event-title">Operation Blackout</div>
+          <div class="event-loc">&#9679; Echo Urban &mdash; CQB</div>
+          <div class="event-meta">
+            <div class="event-meta-item"><strong>Time</strong>10:00 &ndash; 18:00</div>
+            <div class="event-meta-item"><strong>Slots</strong>20 Players</div>
+            <div class="event-meta-item"><strong>From</strong>$45/head</div>
+          </div>
+          <span class="event-complete">Event Complete</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- CTA Band -->
+<div class="cta-band">
+  <h2>Want a Custom Event?</h2>
+  <p>We build bespoke operations for groups, corporate teams, and private parties.</p>
+  <a href="booking.html" class="btn-white">&#9658; Enquire Now</a>
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-brand">&#9658; Air Action Sports</div>
+      <p class="footer-tagline">Real terrain. Real tactics. Real fun.<br>Airsoft events across multiple elite sites.</p>
+    </div>
+    <div>
+      <div class="footer-heading">Explore</div>
+      <ul class="footer-links">
+        <li><a href="/#games">Game Types</a></li>
+        <li><a href="/#locations">Our Sites</a></li>
+        <li><a href="events.html">Upcoming Events</a></li>
+        <li><a href="booking.html">Book Now</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-heading">Info</div>
+      <ul class="footer-links">
+        <li><a href="faq.html">FAQ</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="privacy.html">Privacy Policy</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-heading">Stay in the Loop</div>
+      <p style="font-size:12px;color:var(--olive-light);margin-bottom:10px;">Get event alerts and early access.</p>
+      <div class="newsletter">
+        <input type="email" placeholder="Your email...">
+        <button>Join</button>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-copy">&copy; 2026 Air Action Sports. All rights reserved.</div>
+    <div class="social-links">
+      <a href="https://facebook.com/YOUR-PAGE" target="_blank" rel="noopener" class="social-link">FB</a>
+      <a href="https://instagram.com/YOUR-HANDLE" target="_blank" rel="noopener" class="social-link">IG</a>
+      <a href="https://youtube.com/YOUR-CHANNEL" target="_blank" rel="noopener" class="social-link">YT</a>
+      <a href="https://tiktok.com/@YOUR-HANDLE" target="_blank" rel="noopener" class="social-link">TK</a>
+    </div>
+  </div>
+</footer>
+
+<!-- Back-to-top button -->
+<button class="back-to-top" aria-label="Back to top">&#9650;</button>
+
+<!-- Cookie consent banner -->
+<div class="cookie-banner">
+  <p>We use cookies to improve your experience. By continuing to use this site you agree to our <a href="privacy.html">Privacy Policy</a>.</p>
+  <div class="cookie-btns">
+    <button class="cookie-accept">Accept</button>
+    <button class="cookie-decline">Decline</button>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="js/shared.js"></script>
+<script>
+  /* ----------------------------------------------------------
+     EVENT FILTER LOGIC
+     ---------------------------------------------------------- */
+  (function() {
+    const filterType = document.getElementById('filter-type');
+    const filterSite = document.getElementById('filter-site');
+    const filterMonth = document.getElementById('filter-month');
+    const grid = document.getElementById('events-grid');
+    const emptyState = document.getElementById('empty-state');
+    const cards = grid.querySelectorAll('.event-card');
+
+    function applyFilters() {
+      const type = filterType.value;
+      const site = filterSite.value;
+      const month = filterMonth.value;
+      let visible = 0;
+
+      cards.forEach(function(card) {
+        const matchType = type === 'all' || card.dataset.type === type;
+        const matchSite = site === 'all' || card.dataset.site === site;
+        const matchMonth = month === 'all' || card.dataset.month === month;
+
+        if (matchType && matchSite && matchMonth) {
+          card.style.display = '';
+          visible++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      emptyState.style.display = visible === 0 ? 'block' : 'none';
+    }
+
+    filterType.addEventListener('change', applyFilters);
+    filterSite.addEventListener('change', applyFilters);
+    filterMonth.addEventListener('change', applyFilters);
+  })();
+</script>
+
+</body>
+</html>

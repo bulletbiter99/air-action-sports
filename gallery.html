@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gallery | Air Action Sports</title>
+<meta name="description" content="Photos and videos from Air Action Sports airsoft events. See our locations, game days, and tactical operations in action.">
+<link rel="icon" href="images/favicon.ico" type="image/x-icon">
+<!-- Open Graph -->
+<meta property="og:title" content="Gallery | Air Action Sports">
+<meta property="og:description" content="Photos and videos from Air Action Sports airsoft events. See our locations, game days, and tactical operations in action.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://airactionsport.com/gallery">
+<!-- PLACEHOLDER: Add og:image once you have a social sharing image -->
+<meta property="og:image" content="https://airactionsport.com/images/og-image.jpg">
+<link rel="stylesheet" href="css/shared.css">
+<style>
+  /* ============================================================
+     GALLERY PAGE — Page-specific styles
+     ============================================================ */
+
+  /* Filter Tabs */
+  .gallery-tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 2rem; }
+  .gallery-tab { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 6px 16px; background: none; border: 1px solid rgba(200,184,154,0.2); color: var(--tan); cursor: pointer; transition: all 0.2s ease; }
+  .gallery-tab.active, .gallery-tab:hover { background: var(--orange); border-color: var(--orange); color: white; }
+
+  /* Photo Grid */
+  .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .photo-item { position: relative; height: 240px; overflow: hidden; cursor: pointer; background: var(--olive-dark); border: 1px solid rgba(200,184,154,0.08); }
+  .photo-item.wide { grid-column: span 2; }
+  .photo-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
+  .photo-item:hover img { transform: scale(1.04); }
+  .photo-item::after { content: ''; position: absolute; inset: 0; background: rgba(20,22,18,0.25); transition: background 0.3s; pointer-events: none; }
+  .photo-item:hover::after { background: rgba(20,22,18,0.05); }
+  .photo-label { position: absolute; bottom: 0; left: 0; right: 0; padding: 0.75rem; background: linear-gradient(transparent, rgba(20,22,18,0.8)); z-index: 1; }
+  .photo-label span { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); }
+
+  /* Photo Placeholder (no real images yet) */
+  .photo-placeholder {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    color: rgba(200,184,154,0.35); text-align: center; padding: 1rem;
+  }
+
+  /* Lightbox */
+  .lightbox { display: none; position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; flex-direction: column; }
+  .lightbox.active { display: flex; }
+  .lightbox-img { max-width: 90%; max-height: 80vh; object-fit: contain; }
+  .lightbox-placeholder { width: 80%; max-width: 800px; height: 500px; background: var(--olive-dark); display: flex; align-items: center; justify-content: center; color: var(--tan); font-size: 14px; letter-spacing: 2px; text-transform: uppercase; }
+  .lightbox-close { position: absolute; top: 1.5rem; right: 1.5rem; background: none; border: none; color: white; font-size: 32px; cursor: pointer; z-index: 301; }
+  .lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.1); border: none; color: white; font-size: 24px; padding: 12px 16px; cursor: pointer; }
+  .lightbox-nav:hover { background: var(--orange); }
+  .lightbox-prev { left: 1rem; }
+  .lightbox-next { right: 1rem; }
+  .lightbox-caption { color: var(--tan); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-top: 1rem; }
+
+  /* Video Section */
+  .video-section { margin-top: 4rem; }
+  .video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
+  .video-placeholder {
+    width: 100%; height: 280px; background: var(--mid);
+    border: 1px solid rgba(200,184,154,0.1);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--olive-light); font-size: 12px; letter-spacing: 1px; gap: 0.75rem;
+  }
+  .video-play-icon { font-size: 48px; color: var(--tan); opacity: 0.4; }
+
+  /* Submit Photos CTA */
+  .submit-cta {
+    margin-top: 4rem; padding: 2.5rem;
+    background: var(--mid); border: 1px solid rgba(200,184,154,0.1);
+    text-align: center;
+  }
+  .submit-cta h3 {
+    font-size: 24px; font-weight: 900; text-transform: uppercase;
+    letter-spacing: 2px; color: var(--cream); margin-bottom: 0.75rem;
+  }
+  .submit-cta p {
+    font-size: 14px; color: var(--olive-light); line-height: 1.7;
+    margin-bottom: 1.5rem; max-width: 480px; margin-left: auto; margin-right: auto;
+  }
+
+  /* CTA Band */
+  .cta-band { background: var(--orange); text-align: center; padding: 3rem 2rem; margin-top: 4rem; }
+  .cta-band h2 { font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: white; margin-bottom: 0.5rem; }
+  .cta-band p { font-size: 14px; color: rgba(255,255,255,0.85); margin-bottom: 1.5rem; }
+
+  @media (max-width: 768px) {
+    .photo-grid { grid-template-columns: 1fr 1fr; }
+    .photo-item.wide { grid-column: span 1; }
+    .photo-item { height: 180px; }
+    .video-grid { grid-template-columns: 1fr; }
+    .video-placeholder { height: 220px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+  <a href="/" class="nav-logo">&#9658; Air Action Sports</a>
+  <div class="nav-links">
+    <a href="/#games">Games</a>
+    <a href="locations.html">Locations</a>
+    <a href="events.html">Events</a>
+    <a href="faq.html">FAQ</a>
+    <a href="contact.html">Contact</a>
+  </div>
+  <a href="booking.html" class="nav-cta">Book Now</a>
+  <button class="hamburger" aria-label="Menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-menu">
+  <a href="/#games">Games</a>
+  <a href="locations.html">Locations</a>
+  <a href="events.html">Events</a>
+  <a href="faq.html">FAQ</a>
+  <a href="contact.html">Contact</a>
+  <a href="booking.html" class="mobile-menu-cta">Book Now</a>
+</div>
+
+<!-- Page Content -->
+<div class="page-content">
+
+  <div class="section-label">&#9632; Gallery</div>
+  <h1 class="section-title">See the Battlefield.</h1>
+  <div class="divider"></div>
+
+  <!-- Filter Tabs -->
+  <div class="gallery-tabs">
+    <button class="gallery-tab active" data-filter="all">All</button>
+    <button class="gallery-tab" data-filter="delta">Delta Base</button>
+    <button class="gallery-tab" data-filter="echo">Echo Urban</button>
+    <button class="gallery-tab" data-filter="foxtrot">Foxtrot Fields</button>
+    <button class="gallery-tab" data-filter="events">Events</button>
+    <button class="gallery-tab" data-filter="action">Action Shots</button>
+  </div>
+
+  <!-- Photo Grid -->
+  <div class="photo-grid">
+
+    <div class="photo-item wide" data-category="delta" data-label="Delta Base — Woodland Overview" style="background:#3a4232;">
+      <div class="photo-placeholder">Woodland Overview Photo</div>
+      <div class="photo-label"><span>Delta Base &mdash; Woodland Overview</span></div>
+    </div>
+
+    <div class="photo-item" data-category="delta" data-label="Delta Base — Creek Crossing" style="background:#2c3127;">
+      <div class="photo-placeholder">Creek Crossing Photo</div>
+      <div class="photo-label"><span>Delta Base &mdash; Creek Crossing</span></div>
+    </div>
+
+    <div class="photo-item" data-category="echo" data-label="Echo Urban — CQB Corridor" style="background:#2e3229;">
+      <div class="photo-placeholder">CQB Corridor Photo</div>
+      <div class="photo-label"><span>Echo Urban &mdash; CQB Corridor</span></div>
+    </div>
+
+    <div class="photo-item" data-category="echo" data-label="Echo Urban — Multi-Floor" style="background:#353a30;">
+      <div class="photo-placeholder">Multi-Floor Photo</div>
+      <div class="photo-label"><span>Echo Urban &mdash; Multi-Floor</span></div>
+    </div>
+
+    <div class="photo-item wide" data-category="events" data-label="Operation Nightfall — Squad Advance" style="background:#1a1c18;">
+      <div class="photo-placeholder">Squad Advance Photo</div>
+      <div class="photo-label"><span>Operation Nightfall &mdash; Squad Advance</span></div>
+    </div>
+
+    <div class="photo-item" data-category="action" data-label="Game Day — Tactical Movement" style="background:#3a4232;">
+      <div class="photo-placeholder">Tactical Movement Photo</div>
+      <div class="photo-label"><span>Game Day &mdash; Tactical Movement</span></div>
+    </div>
+
+    <div class="photo-item" data-category="delta" data-label="Delta Base — Bunker System" style="background:#2c3127;">
+      <div class="photo-placeholder">Bunker System Photo</div>
+      <div class="photo-label"><span>Delta Base &mdash; Bunker System</span></div>
+    </div>
+
+    <div class="photo-item" data-category="action" data-label="Game Day — Gear Check" style="background:#353a30;">
+      <div class="photo-placeholder">Gear Check Photo</div>
+      <div class="photo-label"><span>Game Day &mdash; Gear Check</span></div>
+    </div>
+
+    <div class="photo-item wide" data-category="foxtrot" data-label="Foxtrot Fields — Open Terrain" style="background:#3a4232;">
+      <div class="photo-placeholder">Open Terrain Photo</div>
+      <div class="photo-label"><span>Foxtrot Fields &mdash; Open Terrain</span></div>
+    </div>
+
+    <div class="photo-item" data-category="events" data-label="Shadow Protocol — Night Ops" style="background:#1a1c18;">
+      <div class="photo-placeholder">Night Ops Photo</div>
+      <div class="photo-label"><span>Shadow Protocol &mdash; Night Ops</span></div>
+    </div>
+
+    <div class="photo-item" data-category="echo" data-label="Echo Urban — Low Light" style="background:#2e3229;">
+      <div class="photo-placeholder">Low Light Photo</div>
+      <div class="photo-label"><span>Echo Urban &mdash; Low Light</span></div>
+    </div>
+
+    <div class="photo-item" data-category="action" data-label="Game Day — Victory" style="background:#353a30;">
+      <div class="photo-placeholder">Victory Photo</div>
+      <div class="photo-label"><span>Game Day &mdash; Victory</span></div>
+    </div>
+
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" aria-label="Close lightbox">&times;</button>
+    <button class="lightbox-nav lightbox-prev" aria-label="Previous photo">&#8249;</button>
+    <button class="lightbox-nav lightbox-next" aria-label="Next photo">&#8250;</button>
+    <div class="lightbox-placeholder" id="lightbox-content">Photo Placeholder</div>
+    <div class="lightbox-caption" id="lightbox-caption"></div>
+  </div>
+
+  <!-- Video Section -->
+  <div class="video-section">
+    <div class="section-label">&#9632; Watch the Action</div>
+    <div class="divider"></div>
+    <!-- PLACEHOLDER: Replace with YouTube iframe embeds -->
+    <div class="video-grid">
+      <div class="video-placeholder">
+        <div class="video-play-icon">&#9654;</div>
+        YouTube Video Embed Placeholder
+      </div>
+      <div class="video-placeholder">
+        <div class="video-play-icon">&#9654;</div>
+        YouTube Video Embed Placeholder
+      </div>
+    </div>
+  </div>
+
+  <!-- Submit Photos CTA -->
+  <div class="submit-cta">
+    <h3>Got Photos?</h3>
+    <p>Tag us @airactionsports or email your best shots to be featured.</p>
+    <a href="contact.html" class="btn-primary">&#9658; Submit Photos</a>
+  </div>
+
+</div>
+
+<!-- CTA Band -->
+<div class="cta-band">
+  <h2>Ready to Deploy?</h2>
+  <p>Secure your spot at the next game day.</p>
+  <a href="booking.html" class="btn-white">Book Now</a>
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-brand">&#9658; Air Action Sports</div>
+      <p class="footer-tagline">Real terrain. Real tactics. Real fun.<br>Airsoft events across multiple elite sites.</p>
+    </div>
+    <div>
+      <div class="footer-heading">Explore</div>
+      <ul class="footer-links">
+        <li><a href="/#games">Game Types</a></li>
+        <li><a href="/#locations">Our Sites</a></li>
+        <li><a href="/#events">Upcoming Events</a></li>
+        <li><a href="contact.html">Contact Us</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-heading">Info</div>
+      <ul class="footer-links">
+        <li><a href="faq.html">FAQ</a></li>
+        <li><a href="booking.html">Book Now</a></li>
+        <li><a href="privacy.html">Privacy Policy</a></li>
+        <li><a href="/#about">About Us</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-heading">Stay in the Loop</div>
+      <p style="font-size:12px;color:var(--olive-light);margin-bottom:10px;">Get event alerts and early access.</p>
+      <!-- PLACEHOLDER: Wire up newsletter form to your email provider (Mailchimp, etc.) -->
+      <div class="newsletter">
+        <input type="email" placeholder="Your email...">
+        <button>Join</button>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-copy">&copy; <script>document.write(new Date().getFullYear())</script> Air Action Sports. All rights reserved.</div>
+    <!-- PLACEHOLDER: Update social links with real profile URLs -->
+    <div class="social-links">
+      <a href="https://facebook.com/YOUR-PAGE" target="_blank" rel="noopener" class="social-link">FB</a>
+      <a href="https://instagram.com/YOUR-HANDLE" target="_blank" rel="noopener" class="social-link">IG</a>
+      <a href="https://youtube.com/YOUR-CHANNEL" target="_blank" rel="noopener" class="social-link">YT</a>
+      <a href="https://tiktok.com/@YOUR-HANDLE" target="_blank" rel="noopener" class="social-link">TK</a>
+    </div>
+  </div>
+</footer>
+
+<!-- Back-to-top button -->
+<button class="back-to-top" aria-label="Back to top">&#9650;</button>
+
+<!-- Cookie consent banner -->
+<div class="cookie-banner">
+  <p>We use cookies to improve your experience. By continuing to use this site you agree to our <a href="privacy.html">Privacy Policy</a>.</p>
+  <div class="cookie-btns">
+    <button class="cookie-accept">Accept</button>
+    <button class="cookie-decline">Decline</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script src="js/shared.js"></script>
+<script>
+(function() {
+  // ---- Tab Filtering ----
+  const tabs = document.querySelectorAll('.gallery-tab');
+  const photos = document.querySelectorAll('.photo-item');
+
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      const filter = tab.getAttribute('data-filter');
+      photos.forEach(function(photo) {
+        if (filter === 'all' || photo.getAttribute('data-category') === filter) {
+          photo.style.display = '';
+        } else {
+          photo.style.display = 'none';
+        }
+      });
+    });
+  });
+
+  // ---- Lightbox ----
+  const lightbox = document.getElementById('lightbox');
+  const lightboxContent = document.getElementById('lightbox-content');
+  const lightboxCaption = document.getElementById('lightbox-caption');
+  const closeBtn = lightbox.querySelector('.lightbox-close');
+  const prevBtn = lightbox.querySelector('.lightbox-prev');
+  const nextBtn = lightbox.querySelector('.lightbox-next');
+  var currentIndex = -1;
+
+  function getVisiblePhotos() {
+    var visible = [];
+    photos.forEach(function(p) {
+      if (p.style.display !== 'none') visible.push(p);
+    });
+    return visible;
+  }
+
+  function openLightbox(index) {
+    var visible = getVisiblePhotos();
+    if (index < 0 || index >= visible.length) return;
+    currentIndex = index;
+    var label = visible[index].getAttribute('data-label') || '';
+    lightboxContent.textContent = label;
+    lightboxCaption.textContent = label;
+    lightbox.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    lightbox.classList.remove('active');
+    document.body.style.overflow = '';
+    currentIndex = -1;
+  }
+
+  function showPrev() {
+    var visible = getVisiblePhotos();
+    if (currentIndex > 0) openLightbox(currentIndex - 1);
+    else openLightbox(visible.length - 1);
+  }
+
+  function showNext() {
+    var visible = getVisiblePhotos();
+    if (currentIndex < visible.length - 1) openLightbox(currentIndex + 1);
+    else openLightbox(0);
+  }
+
+  photos.forEach(function(photo) {
+    photo.addEventListener('click', function() {
+      var visible = getVisiblePhotos();
+      var idx = visible.indexOf(photo);
+      if (idx !== -1) openLightbox(idx);
+    });
+  });
+
+  closeBtn.addEventListener('click', closeLightbox);
+  prevBtn.addEventListener('click', showPrev);
+  nextBtn.addEventListener('click', showNext);
+
+  lightbox.addEventListener('click', function(e) {
+    if (e.target === lightbox) closeLightbox();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (!lightbox.classList.contains('active')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') showPrev();
+    if (e.key === 'ArrowRight') showNext();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 /* ============================================================
    AIR ACTION SPORTS — SHARED JAVASCRIPT
-   Mobile menu, back-to-top, cookie consent
+   Mobile menu, back-to-top, cookie consent, scroll animations
    ============================================================ */
 
 /* Mobile Menu Toggle */
@@ -53,5 +53,31 @@ if (cookieDecline) {
   cookieDecline.addEventListener('click', () => {
     localStorage.setItem('cookieConsent', 'declined');
     cookieBanner.classList.remove('visible');
+  });
+}
+
+/* Scroll-Triggered Fade-In Animations */
+const fadeEls = document.querySelectorAll('.fade-in');
+if (fadeEls.length > 0) {
+  const fadeObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        fadeObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  fadeEls.forEach(el => fadeObserver.observe(el));
+}
+
+/* Floating Book Now Pill — appears after hero, hides near footer */
+const floatingBook = document.querySelector('.floating-book');
+if (floatingBook) {
+  window.addEventListener('scroll', () => {
+    const scrollY = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight;
+    const winHeight = window.innerHeight;
+    const nearBottom = scrollY + winHeight > docHeight - 400;
+    floatingBook.classList.toggle('visible', scrollY > 600 && !nearBottom);
   });
 }
