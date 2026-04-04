@@ -1,7 +1,7 @@
-# Action Air Sports — Landing Page
+# Air Action Sports — Landing Page
 
 ## Project Overview
-**Business:** Action Air Sports  
+**Business:** Air Action Sports  
 **Type:** Single-page marketing/landing site  
 **Stack:** Plain HTML + CSS + Vanilla JavaScript (no frameworks, no build tools)  
 **Aesthetic:** Dark military/tactical — olive, tan, charcoal palette with orange accents  
@@ -12,7 +12,7 @@
 
 ## File Structure
 ```
-action-air-sports/
+air-action-sports/
 ├── index.html           ← Entire site (HTML + CSS + JS in one file)
 ├── README.md            ← This file
 ├── placeholder-guide.txt ← Quick-reference checklist of all placeholders

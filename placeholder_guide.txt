@@ -1,12 +1,12 @@
 ============================================================
-  ACTION AIR SPORTS — PLACEHOLDER CHECKLIST
+  AIR ACTION SPORTS — PLACEHOLDER CHECKLIST
   Complete every item below before going live on GoDaddy
 ============================================================
 
 ---[ BUSINESS INFO ]----------------------------------------
 
  [ ] Business name
-     Current: "Action Air Sports"
+     Current: "Air Action Sports"
      Where: <title>, nav logo, about section, footer brand, footer copyright
 
  [ ] Tagline / subheadline (hero section)
