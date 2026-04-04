@@ -1,0 +1,167 @@
+============================================================
+  ACTION AIR SPORTS — PLACEHOLDER CHECKLIST
+  Complete every item below before going live on GoDaddy
+============================================================
+
+---[ BUSINESS INFO ]----------------------------------------
+
+ [ ] Business name
+     Current: "Action Air Sports"
+     Where: <title>, nav logo, about section, footer brand, footer copyright
+
+ [ ] Tagline / subheadline (hero section)
+     Current: "Real terrain. Real tactics. Real fun."
+     Where: .hero-sub, footer tagline
+
+ [ ] Brand story paragraph (about section)
+     Current: placeholder copy about being "born in the field"
+     Where: .section-sub inside #about
+
+ [ ] Copyright year
+     Current: 2026
+     Where: footer .footer-copy
+
+
+---[ STATS (hero section) ]---------------------------------
+
+ [ ] Number of battle sites
+     Current: "5+"
+
+ [ ] Total players deployed
+     Current: "2k+"
+
+ [ ] Total events run
+     Current: "50+"
+
+ [ ] Average rating
+     Current: "4.9"
+
+
+---[ IMAGES ]-----------------------------------------------
+
+ [ ] Hero background photo
+     File: images/YOUR-HERO-IMAGE.jpg
+     CSS: .hero-bg-photo { background-image }
+     Tip: 1920x1080px min, landscape, action/aerial shot of site
+
+ [ ] Site 1 photo (Delta Base)
+     File: images/YOUR-SITE-1-IMAGE.jpg
+     CSS: .loc-photo-placeholder { background-image }
+
+ [ ] Site 2 photo (Echo Urban)
+     File: images/YOUR-SITE-2-IMAGE.jpg
+     CSS: .loc-photo-placeholder.site2 { background-image }
+
+ [ ] Site 3 photo (Foxtrot Fields)
+     File: images/YOUR-SITE-3-IMAGE.jpg
+     CSS: .loc-photo-placeholder.site3 { background-image }
+
+ [ ] Gallery photo 1 (wide tile)
+     File: images/YOUR-GALLERY-1.jpg
+     CSS: .g1 { background-image }
+
+ [ ] Gallery photo 2
+     File: images/YOUR-GALLERY-2.jpg
+     CSS: .g2 { background-image }
+
+ [ ] Gallery photo 3
+     File: images/YOUR-GALLERY-3.jpg
+     CSS: .g3 { background-image }
+
+ [ ] Gallery photo 4
+     File: images/YOUR-GALLERY-4.jpg
+     CSS: .g4 { background-image }
+
+ [ ] Gallery photo 5 (wide tile)
+     File: images/YOUR-GALLERY-5.jpg
+     CSS: .g5 { background-image }
+
+
+---[ LOCATIONS ]--------------------------------------------
+
+ [ ] Site 1 — name, address/description, acreage, open/coming soon badge
+     Current: "Delta Base", "Woodland Site — 15 acres"
+
+ [ ] Site 2 — name, address/description, acreage, open/coming soon badge
+     Current: "Echo Urban", "CQB Site — Warehouse"
+
+ [ ] Site 3 — name, address/description, acreage, open/coming soon badge
+     Current: "Foxtrot Fields", "Open Field Site — 25 acres"
+
+ [ ] Site features lists (4 bullet points per site)
+     Where: .loc-feature items inside each .loc-card
+
+
+---[ COUNTDOWN TIMER ]--------------------------------------
+
+ [ ] Target event date and time
+     Current: new Date('2026-04-19T09:00:00')
+     Where: const COUNTDOWN_TARGET in <script> block
+     Format: 'YYYY-MM-DDTHH:MM:SS'
+
+ [ ] Event name label above timer
+     Current: "Operation Nightfall — Delta Base, Apr 19"
+     Where: .countdown-event-name in HTML
+
+
+---[ EVENTS ]-----------------------------------------------
+
+ [ ] Event 1 — date (day + month), type (airsoft/paintball),
+     title, location, time, slots, price
+     Current: Apr 19 / Airsoft / Operation Nightfall / $35/head
+
+ [ ] Event 2 — same fields
+     Current: Apr 26 / Paintball / Paint Storm Sunday / $40/head
+
+ [ ] Event 3 — same fields
+     Current: May 10 / Airsoft / Urban Siege CQB Special / $45/head
+
+ [ ] Book Slot button URLs (all 3 event cards + hero CTAs)
+     Current: no href, just placeholder buttons
+
+
+---[ TESTIMONIALS ]-----------------------------------------
+
+ [ ] Review 1 — quote text, reviewer name, initials, role
+     Current: "Jake D." — fictional placeholder
+
+ [ ] Review 2 — quote text, reviewer name, initials, role
+     Current: "Sam R." — fictional placeholder
+
+ [ ] Review 3 — quote text, reviewer name, initials, role
+     Current: "Marcus L." — fictional placeholder
+
+
+---[ FOOTER / CONTACT ]-------------------------------------
+
+ [ ] Facebook page URL
+     Current: onclick="openLink('https://facebook.com/YOUR-PAGE')"
+
+ [ ] Instagram handle URL
+     Current: onclick="openLink('https://instagram.com/YOUR-HANDLE')"
+
+ [ ] YouTube channel URL
+     Current: onclick="openLink('https://youtube.com/YOUR-CHANNEL')"
+
+ [ ] TikTok handle URL
+     Current: onclick="openLink('https://tiktok.com/@YOUR-HANDLE')"
+
+ [ ] Newsletter form — wire up to Mailchimp / ConvertKit / etc.
+     Current: static HTML input, no backend
+
+ [ ] Footer nav links — add real hrefs to Safety Rules, Gear Hire, FAQ, Private Hire pages
+
+
+---[ OPTIONAL BUT RECOMMENDED ]-----------------------------
+
+ [ ] Favicon — add <link rel="icon"> in <head>
+ [ ] Open Graph meta tags — for social sharing previews
+ [ ] Google Analytics or tracking pixel
+ [ ] Mobile menu — hamburger nav for screens under 768px
+ [ ] Contact form — name, email, event type, message
+ [ ] Google Maps embed for each location
+
+============================================================
+  When all boxes are checked, the site is ready to deploy.
+  Upload contents of project folder to public_html/ on GoDaddy.
+============================================================
