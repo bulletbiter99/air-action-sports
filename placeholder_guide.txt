@@ -48,8 +48,8 @@
      File: images/YOUR-SITE-1-IMAGE.jpg
      CSS: .loc-photo-placeholder { background-image }
 
- [ ] Site 2 photo (Echo Urban)
-     File: images/YOUR-SITE-2-IMAGE.jpg
+ [ ] Site 2 photo (Trench Warfare)
+     File: images/trench-warfare.jpg
      CSS: .loc-photo-placeholder.site2 { background-image }
 
  [ ] Site 3 photo (Foxtrot Fields)
@@ -83,7 +83,7 @@
      Current: "Delta Base", "Woodland Site — 15 acres"
 
  [ ] Site 2 — name, address/description, acreage, open/coming soon badge
-     Current: "Echo Urban", "CQB Site — Warehouse"
+     Current: "Trench Warfare", "CQB Site — Echo Urban Warehouse"
 
  [ ] Site 3 — name, address/description, acreage, open/coming soon badge
      Current: "Foxtrot Fields", "Open Field Site — 25 acres"

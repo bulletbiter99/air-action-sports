@@ -19,7 +19,7 @@ air-action-sports/
 └── images/
     ├── YOUR-HERO-IMAGE.jpg       ← Hero section full-bleed background
     ├── YOUR-SITE-1-IMAGE.jpg     ← Delta Base location card photo
-    ├── YOUR-SITE-2-IMAGE.jpg     ← Echo Urban location card photo
+    ├── trench-warfare.jpg        ← Trench Warfare (Echo Urban) location card photo
     ├── YOUR-SITE-3-IMAGE.jpg     ← Foxtrot Fields location card photo
     ├── YOUR-GALLERY-1.jpg        ← Gallery mosaic photo 1 (wide)
     ├── YOUR-GALLERY-2.jpg        ← Gallery mosaic photo 2
@@ -68,7 +68,7 @@ Replace `YOUR-HERO-IMAGE.jpg` with your actual filename.
 Find these CSS classes and replace the filenames:
 ```css
 .loc-photo-placeholder       { background-image: url('images/YOUR-SITE-1-IMAGE.jpg'); } /* Delta Base */
-.loc-photo-placeholder.site2 { background-image: url('images/YOUR-SITE-2-IMAGE.jpg'); } /* Echo Urban */
+.loc-photo-placeholder.site2 { background-image: url('images/trench-warfare.jpg'); } /* Trench Warfare */
 .loc-photo-placeholder.site3 { background-image: url('images/YOUR-SITE-3-IMAGE.jpg'); } /* Foxtrot Fields */
 ```
 **Recommended size:** 800×400px minimum. Landscape orientation.
