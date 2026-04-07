@@ -7,6 +7,7 @@
 <meta name="description" content="Book your next airsoft event with Air Action Sports. Fill in the mission briefing form to reserve your slot for milsim, skirmish, or private hire events.">
 <meta name="keywords" content="book airsoft, airsoft booking, milsim booking, skirmish booking, private hire airsoft">
 <link rel="icon" href="images/favicon.ico" type="image/x-icon">
+<link rel="canonical" href="https://airactionsport.com/booking.html">
 <!-- Open Graph -->
 <meta property="og:title" content="Book Your Battle | Air Action Sports">
 <meta property="og:description" content="Reserve your slot for tactical airsoft events. Milsim, skirmish, and private hire available.">
@@ -78,9 +79,8 @@
   <div class="divider"></div>
   <p class="section-sub" style="margin-bottom: 2.5rem;">Fill in your details below and we'll get back to you within 24 hours to confirm your booking. All fields marked are required.</p>
 
-  <!-- PLACEHOLDER: Wire up form to Formspree or backend -->
-
-  <form id="booking-form" novalidate>
+  <!-- PLACEHOLDER: Replace YOUR-FORM-ID with your Formspree endpoint -->
+  <form id="booking-form" action="https://formspree.io/f/YOUR-FORM-ID" method="POST" novalidate>
 
     <div class="form-row">
       <div class="form-group">
@@ -168,7 +168,7 @@
     <div class="form-group">
       <label class="form-checkbox">
         <input type="checkbox" id="waiver" name="waiver" required>
-        I confirm all players have read and agree to the <a href="#" target="_blank">safety waiver</a>.
+        I confirm all players have read and agree to the <a href="waiver.html" target="_blank">safety waiver</a>.
       </label>
       <span class="form-error">You must agree to the safety waiver to proceed.</span>
     </div>
