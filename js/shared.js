@@ -25,6 +25,14 @@ if (hamburger && mobileMenu) {
   });
 }
 
+/* Nav Shrink on Scroll */
+const nav = document.querySelector('nav');
+if (nav) {
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 100);
+  });
+}
+
 /* Back-to-Top Button */
 const backToTop = document.querySelector('.back-to-top');
 if (backToTop) {

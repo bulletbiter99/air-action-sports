@@ -18,6 +18,28 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   outline: 2px solid var(--orange); outline-offset: 2px;
 }
 
+/* Smooth Scroll */
+html { scroll-behavior: smooth; }
+
+/* Announcement Ticker Bar */
+.ticker-bar {
+  background: var(--orange); color: white; text-align: center;
+  padding: 8px 2rem; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; position: fixed; top: 0; left: 0; width: 100%;
+  z-index: 101;
+}
+.ticker-bar a { color: white; text-decoration: underline; margin-left: 8px; }
+.ticker-bar a:hover { color: var(--cream); }
+.ticker-bar ~ nav { top: 34px; }
+.ticker-bar ~ .mobile-menu { padding-top: 34px; }
+body.has-ticker { padding-top: 0; }
+.has-ticker .hero { padding-top: 8rem; }
+.has-ticker .page-content { padding-top: 134px; }
+.has-ticker .about-hero { padding-top: 7rem; margin-top: 94px; }
+.has-ticker .pricing-hero,
+.has-ticker .guide-hero,
+.has-ticker .event-hero { margin-top: 94px; }
+
 /* Design Tokens */
 :root {
   --olive: #4a5240;
@@ -44,7 +66,9 @@ nav {
   border-bottom: 1px solid rgba(200,184,154,0.15);
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 2rem; height: 60px;
+  transition: height 0.3s ease, padding 0.3s ease;
 }
+nav.scrolled { height: 48px; background: rgba(26,28,24,0.98); }
 .nav-logo { font-size: 18px; font-weight: 800; letter-spacing: 3px; color: var(--tan); text-transform: uppercase; text-decoration: none; }
 .nav-links { display: flex; gap: 2rem; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--tan-light); }
 .nav-links a:hover { color: var(--orange); }
