@@ -1,0 +1,68 @@
+export const locations = [
+  {
+    id: 'ghost-town',
+    siteNumber: '01',
+    name: 'Ghost Town',
+    address: 'Rural Neighborhood \u2014 19 Buildings',
+    badge: 'open',
+    photo: '/images/ghost-town.jpg',
+    features: [
+      'Bunkers & fortified objectives',
+      'Multiple airsoft game modes',
+      'Multi-Level rural combat terrain',
+      'Milsim & Skirmish Formats',
+    ],
+    fullFeatures: [
+      'Bunkers & fortified objectives',
+      'Multiple airsoft game modes',
+    ],
+    gameTypes: ['Milsim', 'Skirmish', 'Private Hire', 'Night Ops'],
+  },
+  {
+    id: 'trench-warfare',
+    siteNumber: '02',
+    name: 'Trench Warfare',
+    address: 'CQB Site \u2014 Echo Urban Warehouse',
+    badge: 'coming-soon',
+    photo: '/images/trench-warfare.jpg',
+    features: [
+      'Narrow trench corridors & tight kill zones',
+      'Multi-level urban combat terrain',
+      'Airsoft only \u2014 milsim & skirmish formats',
+      'Night ops & low-light scenario capability',
+    ],
+    // locations.html calls this site "Echo Urban"
+    fullFeatures: [
+      'Indoor close-quarters layout',
+      'Multi-floor action zones',
+      'Low-light scenario capability',
+      'Climate-controlled environment',
+      'Sound system for immersive ops',
+      'Locker room facilities',
+    ],
+    gameTypes: ['CQB Skirmish', 'Milsim', 'Private Hire', 'Corporate Events'],
+  },
+  {
+    id: 'foxtrot-fields',
+    siteNumber: '03',
+    name: 'Foxtrot Fields',
+    address: 'Open Field Site \u2014 25 acres',
+    badge: 'coming-soon',
+    photo: '/images/foxtrot-fields.jpeg',
+    features: [
+      'Large-scale team battles',
+      'Open terrain skirmish zones',
+      'Milsim-ready staging areas',
+      'Night ops & low-light scenario capability',
+    ],
+    fullFeatures: [
+      'Open terrain skirmish zones',
+      'Milsim-ready staging areas',
+      'Large-scale team battles',
+      'Vehicle access routes planned',
+      'On-site catering planned',
+      'Spectator viewing area',
+    ],
+    gameTypes: ['Large-scale Skirmish', 'Milsim', 'Private Hire'],
+  },
+];

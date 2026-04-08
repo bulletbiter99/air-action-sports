@@ -1,0 +1,145 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import SEO from '../components/SEO';
+import { events } from '../data/events';
+import '../styles/pages/events.css';
+
+export default function Events() {
+  const [filterType, setFilterType] = useState('all');
+  const [filterSite, setFilterSite] = useState('all');
+  const [filterMonth, setFilterMonth] = useState('all');
+
+  const upcomingEvents = events.filter((e) => !e.past);
+  const pastEvents = events.filter((e) => e.past);
+
+  const filteredEvents = upcomingEvents.filter((ev) => {
+    const matchType = filterType === 'all' || ev.type === filterType;
+    const matchSite = filterSite === 'all' || ev.site === filterSite;
+    const matchMonth = filterMonth === 'all' || ev.month === filterMonth;
+    return matchType && matchSite && matchMonth;
+  });
+
+  return (
+    <>
+      <SEO
+        title="Events Calendar | Air Action Sports"
+        description="Browse upcoming airsoft events at Air Action Sports. Milsim, skirmish, and open play sessions across multiple sites. Book your slot today."
+        canonical="https://airactionsport.com/events"
+        ogImage="https://airactionsport.com/images/og-image.jpg"
+      />
+
+      <div className="page-content">
+        <div className="section-label">&#9632; Events Calendar</div>
+        <h1 className="section-title">Upcoming Operations.</h1>
+        <div className="divider"></div>
+        <p className="section-sub">Check dates, pick your battle, and book your slot. Events fill up fast &mdash; don't miss out.</p>
+
+        {/* Filter Bar */}
+        <div className="filter-bar">
+          <span className="filter-label">&#9632; Filter Events</span>
+          <div className="filter-controls">
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+              <option value="all">All Types</option>
+              <option value="milsim">Milsim</option>
+              <option value="skirmish">Skirmish</option>
+              <option value="airsoft">Airsoft</option>
+            </select>
+            <select value={filterSite} onChange={(e) => setFilterSite(e.target.value)}>
+              <option value="all">All Sites</option>
+              <option value="delta">Ghost Town</option>
+              <option value="echo">Echo Urban</option>
+              <option value="foxtrot">Foxtrot Fields</option>
+            </select>
+            <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
+              <option value="all">All Months</option>
+              <option value="apr">April 2026</option>
+              <option value="may">May 2026</option>
+              <option value="jun">June 2026</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Events Grid */}
+        <div className="events-grid">
+          {filteredEvents.map((ev) => (
+            <div className="event-card" key={ev.id}>
+              <div className="event-header">
+                <div className="event-date">
+                  <div className="event-day">{ev.date.day}</div>
+                  <div className="event-month">{ev.date.month}</div>
+                </div>
+                <span className={`event-type ${ev.type}`}>
+                  {ev.type.charAt(0).toUpperCase() + ev.type.slice(1)}
+                </span>
+              </div>
+              <div className="event-body">
+                <div className="event-title">{ev.title}</div>
+                <div className="event-loc">&#9679; {ev.location}</div>
+                <div className="event-meta">
+                  <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
+                  <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
+                  <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
+                </div>
+                <div className="slots-bar">
+                  <div
+                    className="slots-fill"
+                    style={{ width: `${Math.round((ev.slots.taken / ev.slots.total) * 100)}%` }}
+                  ></div>
+                </div>
+                <div className="slots-text">
+                  {ev.slots.taken} of {ev.slots.total} spots taken
+                </div>
+                <Link to="/booking" className="btn-book">&#9658; Book Slot</Link>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Empty State */}
+        {filteredEvents.length === 0 && (
+          <div className="empty-state" style={{ display: 'block' }}>
+            No events match your filters. Try adjusting your search or check back soon.
+          </div>
+        )}
+
+        {/* Past Events */}
+        <div className="past-section">
+          <div className="section-label" style={{ marginTop: '2rem' }}>&#9632; Past Operations</div>
+          <div className="divider"></div>
+          <div className="events-grid">
+            {pastEvents.map((ev) => (
+              <div className="event-card" key={ev.id}>
+                <div className="event-header">
+                  <div className="event-date">
+                    <div className="event-day">{ev.date.day}</div>
+                    <div className="event-month">{ev.date.month}</div>
+                  </div>
+                  <span className={`event-type ${ev.type}`}>
+                    {ev.type.charAt(0).toUpperCase() + ev.type.slice(1)}
+                  </span>
+                </div>
+                <div className="event-body">
+                  <div className="event-title">{ev.title}</div>
+                  <div className="event-loc">&#9679; {ev.location}</div>
+                  <div className="event-meta">
+                    <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
+                    <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
+                    <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
+                  </div>
+                  <span className="event-complete">Event Complete</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Band */}
+      <div className="cta-band">
+        <h2>Want a Custom Event?</h2>
+        <p>We build bespoke operations for groups, corporate teams, and private parties.</p>
+        <Link to="/booking" className="btn-white">&#9658; Enquire Now</Link>
+      </div>
+    </>
+  );
+}

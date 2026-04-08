@@ -1,0 +1,32 @@
+/* ============================================================
+   BOOKING PAGE — Page-specific styles
+   ============================================================ */
+
+/* Confirmation Panel */
+.booking-confirmation {
+  display: none; position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,0.85);
+  align-items: center; justify-content: center;
+}
+.booking-confirmation.visible { display: flex; }
+.booking-confirmation-inner {
+  background: var(--mid); border: 1px solid rgba(200,184,154,0.2);
+  padding: 3rem 2.5rem; text-align: center; max-width: 480px; width: 90%;
+}
+.booking-confirmation-inner .section-label { margin-bottom: 1rem; }
+.booking-confirmation-inner h2 { font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px; color: var(--cream); margin-bottom: 1rem; }
+.booking-confirmation-inner p { color: var(--olive-light); font-size: 14px; line-height: 1.7; margin-bottom: 2rem; }
+
+/* Private Hire Section */
+.private-hire { background: var(--olive-dark); padding: 5rem 2rem; }
+.private-hire-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin: 2rem 0; }
+.private-hire-feature {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(200,184,154,0.1);
+  padding: 1.5rem; text-align: center;
+  font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--tan-light);
+}
+
+@media (max-width: 768px) {
+  .private-hire-features { grid-template-columns: 1fr; }
+}

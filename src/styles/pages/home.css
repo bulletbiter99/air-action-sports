@@ -1,0 +1,191 @@
+/* ============================================================
+   HOME PAGE — Page-specific styles
+   ============================================================ */
+
+/* ============================================================
+   HERO SECTION
+   ============================================================ */
+.hero {
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; padding: 6rem 2rem 4rem;
+  position: relative; overflow: hidden;
+}
+.hero-bg-photo {
+  position: absolute; inset: 0; z-index: 0;
+  background-image: url('/images/ghost-town.jpg');
+  background-size: cover; background-position: center;
+  background-color: #1a1c18;
+}
+.hero-bg-photo::after {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(20,22,18,0.78);
+}
+.hero-grid-overlay {
+  position: absolute; inset: 0; z-index: 1;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(200,184,154,0.03) 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(200,184,154,0.03) 40px);
+}
+.hero-content { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; }
+.hero-badge {
+  display: inline-block; border: 1px solid var(--orange); color: var(--orange);
+  font-size: 11px; font-weight: 700; letter-spacing: 3px;
+  text-transform: uppercase; padding: 6px 16px; margin-bottom: 1.5rem;
+}
+.hero h1 { font-size: clamp(44px, 9vw, 96px); font-weight: 900; letter-spacing: -2px; line-height: 0.9; text-transform: uppercase; color: var(--cream); margin-bottom: 0.5rem; }
+.hero h1 span { color: var(--orange); display: block; }
+.hero-sub { font-size: clamp(13px, 2vw, 16px); letter-spacing: 3px; text-transform: uppercase; color: var(--tan); margin: 1.5rem 0 2.5rem; max-width: 500px; line-height: 1.8; }
+.hero-btns { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; margin-bottom: 3rem; }
+.hero-stats { display: flex; gap: 3rem; flex-wrap: wrap; justify-content: center; border-top: 1px solid rgba(200,184,154,0.15); padding-top: 2rem; width: 100%; max-width: 600px; }
+.stat { text-align: center; }
+.stat-num { font-size: 32px; font-weight: 900; color: var(--orange); letter-spacing: -1px; }
+.stat-label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--olive-light); margin-top: 4px; }
+
+/* ============================================================
+   COUNTDOWN TIMER BAND
+   ============================================================ */
+.countdown-band {
+  background: var(--olive-dark);
+  border-top: 2px solid var(--orange);
+  border-bottom: 1px solid rgba(200,184,154,0.1);
+  padding: 2rem; text-align: center;
+}
+.countdown-label { font-size: 11px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; color: var(--orange); margin-bottom: 1.25rem; }
+.countdown-event-name { font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--cream); margin-bottom: 1.5rem; }
+.countdown-timer { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+.cd-block { background: var(--dark); border: 1px solid rgba(200,184,154,0.15); padding: 1rem 1.25rem; min-width: 80px; text-align: center; }
+.cd-num { font-size: 42px; font-weight: 900; color: var(--orange); line-height: 1; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+.cd-unit { font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--olive-light); margin-top: 4px; }
+.cd-sep { font-size: 36px; font-weight: 900; color: var(--olive); align-self: center; padding-bottom: 10px; }
+.countdown-sub { font-size: 12px; color: var(--olive-light); margin-top: 1.25rem; letter-spacing: 1px; }
+
+/* ============================================================
+   ABOUT SECTION
+   ============================================================ */
+.about { background: var(--mid); }
+.about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
+.about-visual { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.about-card { background: var(--dark); border: 1px solid rgba(200,184,154,0.1); padding: 1.5rem; text-align: center; }
+.about-card-icon { font-size: 28px; margin-bottom: 0.5rem; }
+.about-card-title { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); }
+
+/* ============================================================
+   GAME TYPES SECTION
+   ============================================================ */
+.games-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
+.game-card { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); padding: 2rem; position: relative; overflow: hidden; }
+.game-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--orange); }
+.game-num { font-size: 48px; font-weight: 900; color: rgba(200,184,154,0.08); position: absolute; top: 12px; right: 16px; line-height: 1; }
+.game-title { font-size: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--cream); margin-bottom: 0.5rem; }
+.game-desc { font-size: 14px; color: var(--olive-light); line-height: 1.6; margin-bottom: 1rem; }
+.game-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ============================================================
+   LOCATIONS SECTION
+   ============================================================ */
+.locations { background: var(--mid); }
+.locations-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
+.loc-card { background: var(--dark); border: 1px solid rgba(200,184,154,0.1); overflow: hidden; }
+.loc-photo { height: 160px; position: relative; overflow: hidden; background-color: var(--olive-dark); }
+.loc-photo-placeholder {
+  width: 100%; height: 100%;
+  background-image: url('/images/ghost-town.jpg');
+  background-size: cover; background-position: center;
+  background-color: var(--olive-dark);
+}
+.loc-photo-placeholder.site2 {
+  background-image: url('/images/trench-warfare.jpg');
+}
+.loc-photo-placeholder.site3 {
+  background-image: url('/images/foxtrot-fields.jpeg');
+}
+.loc-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(20,22,18,0.15), rgba(20,22,18,0.65)); }
+.loc-photo-label { position: absolute; bottom: 10px; left: 12px; z-index: 1; font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); border: 1px solid rgba(200,184,154,0.3); padding: 3px 8px; background: rgba(20,22,18,0.6); }
+.loc-body { padding: 1.25rem; }
+.loc-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 0.75rem; }
+.loc-badge { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; background: rgba(74,82,64,0.5); color: var(--tan); border: 1px solid rgba(200,184,154,0.2); white-space: nowrap; flex-shrink: 0; }
+.loc-badge.open { background: rgba(99,153,34,0.2); color: #8fb845; border-color: rgba(99,153,34,0.3); }
+.loc-name { font-size: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--cream); margin-bottom: 4px; }
+.loc-address { font-size: 13px; color: var(--olive-light); margin-bottom: 1rem; }
+.loc-features { display: flex; flex-direction: column; gap: 6px; }
+.loc-feature { font-size: 12px; color: var(--tan); display: flex; align-items: center; gap: 8px; }
+.loc-feature::before { content: ''; width: 6px; height: 6px; background: var(--orange); flex-shrink: 0; }
+
+/* ============================================================
+   GALLERY SECTION
+   ============================================================ */
+.gallery { background: var(--dark); }
+.gallery-intro { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; }
+.gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 220px 220px; gap: 8px; }
+.gallery-item { position: relative; overflow: hidden; cursor: pointer; background-color: var(--olive-dark); }
+.gallery-item:first-child { grid-column: span 2; }
+.gallery-item:last-child { grid-column: span 2; }
+.gallery-photo { width: 100%; height: 100%; background-size: cover; background-position: center; transition: transform 0.4s ease; }
+.gallery-item:hover .gallery-photo { transform: scale(1.04); }
+.g1 { background-image: url('/images/YOUR-GALLERY-1.jpg'); background-color: #3a4035; }
+.g2 { background-image: url('/images/YOUR-GALLERY-2.jpg'); background-color: #2f3a2b; }
+.g3 { background-image: url('/images/YOUR-GALLERY-3.jpg'); background-color: #384038; }
+.g4 { background-image: url('/images/YOUR-GALLERY-4.jpg'); background-color: #2a3328; }
+.g5 { background-image: url('/images/YOUR-GALLERY-5.jpg'); background-color: #353d30; }
+.gallery-item::after { content: ''; position: absolute; inset: 0; background: rgba(20,22,18,0.35); transition: background 0.3s; }
+.gallery-item:hover::after { background: rgba(20,22,18,0.15); }
+.gallery-overlay { position: absolute; bottom: 0; left: 0; right: 0; z-index: 1; padding: 1rem; background: linear-gradient(transparent, rgba(20,22,18,0.85)); }
+.gallery-tag { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); }
+.photo-hint { font-size: 11px; color: var(--olive-light); letter-spacing: 1px; margin-top: 0.5rem; }
+
+/* ============================================================
+   EVENTS SECTION
+   ============================================================ */
+.events-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
+.event-card { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); overflow: hidden; }
+.event-header { background: var(--olive-dark); padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+.event-date { text-align: center; }
+.event-day { font-size: 28px; font-weight: 900; color: var(--orange); line-height: 1; }
+.event-month { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); }
+.event-type { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; border: 1px solid; }
+.event-type.airsoft { color: #7bbfff; border-color: rgba(123,191,255,0.4); background: rgba(123,191,255,0.1); }
+.event-type.skirmish { color: #f5a623; border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.1); }
+.event-body { padding: 1.5rem; }
+.event-title { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--cream); margin-bottom: 0.5rem; }
+.event-loc { font-size: 13px; color: var(--olive-light); margin-bottom: 1rem; }
+.event-meta { display: flex; gap: 1.5rem; margin-bottom: 1.25rem; }
+.event-meta-item { font-size: 12px; color: var(--tan); }
+.event-meta-item strong { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--olive-light); margin-bottom: 2px; }
+
+/* ============================================================
+   WHY CHOOSE US SECTION
+   ============================================================ */
+.why-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
+.why-item { border-top: 2px solid var(--orange); padding-top: 1.25rem; }
+.why-icon { font-size: 24px; margin-bottom: 0.75rem; }
+.why-title { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--cream); margin-bottom: 0.5rem; }
+.why-desc { font-size: 13px; color: var(--olive-light); line-height: 1.6; }
+
+/* ============================================================
+   TESTIMONIALS SECTION
+   ============================================================ */
+.testimonials { background: var(--mid); }
+.test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
+.test-card { background: var(--dark); border: 1px solid rgba(200,184,154,0.1); padding: 1.75rem; }
+.test-stars { color: var(--orange); font-size: 14px; letter-spacing: 2px; margin-bottom: 1rem; }
+.test-text { font-size: 14px; color: var(--tan-light); line-height: 1.7; font-style: italic; margin-bottom: 1.25rem; }
+.test-author { display: flex; align-items: center; gap: 12px; }
+.test-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--olive); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--tan); flex-shrink: 0; }
+.test-name { font-size: 13px; font-weight: 700; color: var(--cream); }
+.test-role { font-size: 11px; color: var(--olive-light); letter-spacing: 1px; text-transform: uppercase; }
+
+/* ============================================================
+   CTA BAND
+   ============================================================ */
+.cta-band { background: var(--orange); padding: 4rem 2rem; text-align: center; }
+.cta-band h2 { font-size: clamp(28px, 5vw, 48px); font-weight: 900; text-transform: uppercase; letter-spacing: -1px; color: white; margin-bottom: 0.5rem; }
+.cta-band p { color: rgba(255,255,255,0.8); font-size: 15px; letter-spacing: 1px; margin-bottom: 2rem; }
+
+/* Responsive — page-specific */
+@media (max-width: 768px) {
+  .about-grid { grid-template-columns: 1fr; }
+  .gallery-grid { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
+  .gallery-item:first-child,
+  .gallery-item:last-child { grid-column: span 1; }
+}

@@ -1,0 +1,70 @@
+/* ============================================================
+   PRIVACY PAGE — Page-specific styles
+   ============================================================ */
+.privacy-content a {
+  color: var(--orange);
+  text-decoration: underline;
+}
+.privacy-content {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 100px 2rem 4rem;
+}
+.page-label {
+  font-size: 11px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--orange);
+  margin-bottom: 0.5rem;
+}
+.privacy-content h1 {
+  font-size: 32px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+  margin-bottom: 0.5rem;
+}
+.updated {
+  font-size: 12px;
+  color: var(--olive-light);
+  margin-bottom: 2rem;
+}
+.privacy-content h2 {
+  font-size: 18px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--tan);
+  margin: 2.5rem 0 0.75rem;
+  border-left: 3px solid var(--orange);
+  padding-left: 12px;
+}
+.privacy-content p,
+.privacy-content li {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--olive-light);
+  margin-bottom: 1rem;
+}
+.privacy-content ul {
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+.privacy-content li {
+  margin-bottom: 0.4rem;
+}
+.back-link {
+  display: inline-block;
+  margin-top: 2rem;
+  padding: 10px 24px;
+  background: var(--orange);
+  color: white;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.back-link:hover {
+  background: var(--orange-dark);
+}

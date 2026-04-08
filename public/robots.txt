@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://airactionsport.com/sitemap.xml

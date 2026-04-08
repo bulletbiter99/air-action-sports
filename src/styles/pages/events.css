@@ -1,0 +1,92 @@
+/* ============================================================
+   EVENTS PAGE — Page-specific styles
+   ============================================================ */
+
+/* Filter Bar */
+.filter-bar {
+  background: var(--mid);
+  border: 1px solid rgba(200,184,154,0.1);
+  padding: 1.5rem 2rem;
+  margin-top: 2.5rem;
+}
+.filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--orange);
+  margin-bottom: 1rem;
+  display: block;
+}
+.filter-controls {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.filter-controls select {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  letter-spacing: 1px;
+  background: var(--olive-dark);
+  border: 1px solid rgba(200,184,154,0.15);
+  color: var(--cream);
+  flex: 1;
+  min-width: 160px;
+  cursor: pointer;
+}
+.filter-controls select:focus {
+  outline: none;
+  border-color: var(--orange);
+}
+
+/* Events Grid */
+.events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+/* Milsim event type badge */
+.event-type.milsim { color: #6bbf59; border-color: rgba(107,191,89,0.4); background: rgba(107,191,89,0.1); }
+
+/* Slots progress bar */
+.slots-bar { height: 4px; background: rgba(200,184,154,0.1); margin: 0.75rem 0; border-radius: 2px; overflow: hidden; }
+.slots-fill { height: 100%; background: var(--orange); border-radius: 2px; transition: width 0.3s ease; }
+.slots-text { font-size: 11px; color: var(--olive-light); letter-spacing: 1px; }
+
+/* Past Events */
+.past-section { margin-top: 4rem; }
+.past-section .events-grid .event-card { opacity: 0.5; }
+.event-complete {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--olive-light);
+  border: 1px solid rgba(200,184,154,0.2);
+  padding: 8px 16px;
+}
+
+/* Empty state */
+.empty-state {
+  display: none;
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--olive-light);
+  font-size: 14px;
+  letter-spacing: 1px;
+  line-height: 1.7;
+}
+
+/* CTA Band */
+.cta-band { background: var(--orange); text-align: center; padding: 4rem 2rem; }
+.cta-band h2 { font-size: clamp(28px, 5vw, 48px); font-weight: 900; text-transform: uppercase; letter-spacing: -1px; color: white; margin-bottom: 0.5rem; }
+.cta-band p { color: rgba(255,255,255,0.8); font-size: 15px; letter-spacing: 1px; margin-bottom: 2rem; }
+
+@media (max-width: 600px) {
+  .filter-controls { flex-direction: column; }
+  .filter-controls select { min-width: 100%; }
+}

@@ -1,0 +1,41 @@
+/* ============================================================
+   EVENT DETAIL PAGE — Page-specific styles
+   ============================================================ */
+
+.event-hero { background: var(--mid); padding: 5rem 2rem 3rem; margin-top: 60px; border-bottom: 3px solid var(--orange); }
+.event-hero-content { max-width: 1100px; margin: 0 auto; }
+.event-hero-meta { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.event-hero-date { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--orange); }
+.event-hero-badge { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 4px 12px; border: 1px solid rgba(123,191,255,0.4); color: #7bbfff; background: rgba(123,191,255,0.1); }
+.event-hero h1 { font-size: clamp(32px, 6vw, 52px); font-weight: 900; text-transform: uppercase; letter-spacing: -1px; color: var(--cream); margin-bottom: 0.5rem; }
+.event-hero-site { font-size: 15px; color: var(--olive-light); }
+.event-detail-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 3rem; margin-top: 2rem; }
+.event-sidebar { position: sticky; top: 80px; }
+.detail-section { margin-bottom: 2.5rem; }
+.detail-section h2 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: var(--orange); margin-bottom: 1rem; border-left: 3px solid var(--orange); padding-left: 12px; }
+.detail-section p { font-size: 14px; color: var(--olive-light); line-height: 1.8; margin-bottom: 1rem; }
+.detail-section ul { list-style: none; padding: 0; }
+.detail-section li { font-size: 13px; color: var(--tan-light); padding: 6px 0; display: flex; align-items: center; gap: 8px; }
+.detail-section li::before { content: ''; width: 6px; height: 6px; background: var(--orange); flex-shrink: 0; }
+.pricing-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+.pricing-table th { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(200,184,154,0.15); }
+.pricing-table td { font-size: 14px; color: var(--tan-light); padding: 10px 12px; border-bottom: 1px solid rgba(200,184,154,0.06); }
+.pricing-table td:last-child { color: var(--orange); font-weight: 700; }
+.info-card { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); padding: 1.5rem; margin-bottom: 1.5rem; }
+.info-card-title { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--orange); margin-bottom: 1rem; }
+.info-card-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(200,184,154,0.06); font-size: 13px; }
+.info-card-item:last-child { border-bottom: none; }
+.info-card-label { color: var(--olive-light); }
+.info-card-value { color: var(--tan-light); font-weight: 600; }
+.share-btns { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.share-btn { padding: 8px 16px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; border: 1px solid rgba(200,184,154,0.2); background: none; color: var(--tan); cursor: pointer; text-decoration: none; }
+.share-btn:hover { border-color: var(--orange); color: var(--orange); }
+.countdown-mini { background: var(--olive-dark); border: 1px solid rgba(200,184,154,0.1); padding: 1.5rem; text-align: center; margin-bottom: 1.5rem; }
+.countdown-mini-label { font-size: 11px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--orange); margin-bottom: 0.75rem; }
+.countdown-mini-timer { display: flex; gap: 0.5rem; justify-content: center; }
+.cd-mini-block { background: var(--dark); padding: 8px 12px; text-align: center; min-width: 55px; }
+.cd-mini-num { font-size: 24px; font-weight: 900; color: var(--orange); line-height: 1; font-variant-numeric: tabular-nums; }
+.cd-mini-unit { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--olive-light); margin-top: 2px; }
+.related-events { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+
+@media (max-width: 768px) { .event-detail-grid { grid-template-columns: 1fr; } .event-sidebar { position: static; } }
