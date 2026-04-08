@@ -6,6 +6,7 @@ export const locations = [
     address: 'Rural Neighborhood \u2014 19 Buildings',
     badge: 'open',
     photo: '/images/ghost-town.jpg',
+    photoClass: '',
     features: [
       'Bunkers & fortified objectives',
       'Multiple airsoft game modes',
@@ -25,6 +26,7 @@ export const locations = [
     address: 'CQB Site \u2014 Echo Urban Warehouse',
     badge: 'coming-soon',
     photo: '/images/trench-warfare.jpg',
+    photoClass: 'site2',
     features: [
       'Narrow trench corridors & tight kill zones',
       'Multi-level urban combat terrain',
@@ -49,6 +51,7 @@ export const locations = [
     address: 'Open Field Site \u2014 25 acres',
     badge: 'coming-soon',
     photo: '/images/foxtrot-fields.jpeg',
+    photoClass: 'site3',
     features: [
       'Large-scale team battles',
       'Open terrain skirmish zones',
