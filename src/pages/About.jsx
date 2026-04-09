@@ -96,7 +96,7 @@ export default function About() {
                 airsoft experience in the region, every single game day.
               </p>
             </div>
-            <div className="origin-photo">Photo placeholder</div>
+            <div className="origin-photo"></div>
           </div>
 
           {/* Mission Panel */}
@@ -120,7 +120,7 @@ export default function About() {
         <div className="team-grid">
           {team.map((member) => (
             <div className="team-card" key={member.callsign}>
-              <div className="team-photo">Photo placeholder</div>
+              <div className="team-photo"></div>
               <div className="team-info">
                 <div className="team-name">{member.name}</div>
                 <div className="team-callsign">

@@ -101,12 +101,12 @@ export default function Gallery() {
               key={index}
               className={`photo-item ${item.wide ? 'wide' : ''}`}
               data-category={item.category}
+              aria-label={item.label}
+              role="img"
+              tabIndex="0"
               style={{ background: item.bg }}
               onClick={() => openLightbox(index)}
             >
-              <div className="photo-placeholder">
-                {item.label.split(' \u2014 ')[1] || item.label} Photo
-              </div>
               <div className="photo-label">
                 <span>{item.label}</span>
               </div>

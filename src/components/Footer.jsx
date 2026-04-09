@@ -38,7 +38,7 @@ export default function Footer() {
           </p>
           <div className="newsletter">
             <input type="email" placeholder="Your email..." />
-            <button>Join</button>
+            <button onClick={(e) => { e.preventDefault(); alert('Newsletter signup coming soon!'); }}>Join</button>
           </div>
         </div>
       </div>

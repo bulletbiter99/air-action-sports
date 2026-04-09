@@ -238,10 +238,7 @@ export default function Contact() {
 
         {/* Map Section */}
         <div className="map-section">
-          {/* PLACEHOLDER: Replace with Google Maps iframe embed */}
-          <div className="map-full">
-            &#9632; Google Maps embed &mdash; replace with your embed URL
-          </div>
+          {/* Google Maps embed — add iframe when ready */}
         </div>
       </div>
 

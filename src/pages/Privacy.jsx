@@ -9,6 +9,7 @@ export default function Privacy() {
         title="Privacy Policy | Air Action Sports"
         description="Air Action Sports privacy policy. How we collect, use, and protect your personal data."
         canonical="https://airactionsport.com/privacy"
+        ogImage="https://airactionsport.com/images/og-image.jpg"
       />
 
       <div className="privacy-content">

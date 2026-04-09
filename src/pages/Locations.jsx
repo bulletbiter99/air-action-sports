@@ -1,61 +1,9 @@
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { locations } from '../data/locations';
 import '../styles/pages/locations.css';
 
 export default function Locations() {
-  const siteData = [
-    {
-      name: 'Ghost Town',
-      meta: 'Rural Neighborhood \u2014 19 Buildings \u00b7 Airsoft',
-      status: 'open',
-      photo: '/images/Ghost Town - Main Photo.jpg',
-      photoPlaceholder: null,
-      features: [
-        'Bunkers & fortified objectives',
-        'Multiple airsoft game modes',
-      ],
-      gameTypes: ['Milsim', 'Skirmish', 'Private Hire', 'Night Ops'],
-      ctaText: 'Book This Site',
-      ctaLink: '/booking',
-    },
-    {
-      name: 'Echo Urban',
-      meta: 'CQB Site \u2014 Indoor Warehouse \u00b7 Airsoft',
-      status: 'open',
-      photo: null,
-      photoPlaceholder: 'SITE PHOTO \u2014 ECHO URBAN',
-      features: [
-        'Indoor close-quarters layout',
-        'Multi-floor action zones',
-        'Low-light scenario capability',
-        'Climate-controlled environment',
-        'Sound system for immersive ops',
-        'Locker room facilities',
-      ],
-      gameTypes: ['CQB Skirmish', 'Milsim', 'Private Hire', 'Corporate Events'],
-      ctaText: 'Book This Site',
-      ctaLink: '/booking',
-    },
-    {
-      name: 'Foxtrot Fields',
-      meta: 'Open Field Site \u2014 25 acres \u00b7 Airsoft',
-      status: 'coming-soon',
-      photo: null,
-      photoPlaceholder: 'SITE PHOTO \u2014 FOXTROT FIELDS',
-      features: [
-        'Open terrain skirmish zones',
-        'Milsim-ready staging areas',
-        'Large-scale team battles',
-        'Vehicle access routes planned',
-        'On-site catering planned',
-        'Spectator viewing area',
-      ],
-      gameTypes: ['Large-scale Skirmish', 'Milsim', 'Private Hire'],
-      ctaText: 'Register Interest',
-      ctaLink: '/booking',
-    },
-  ];
-
   return (
     <>
       <SEO
@@ -73,40 +21,34 @@ export default function Locations() {
           From dense woodland to tight urban quarters, each of our sites delivers a unique tactical experience. Explore the venues below and find the battlefield that suits your style.
         </p>
 
-        {siteData.map((site, index) => (
-          <div className="site-section" key={index}>
+        {locations.map((site, index) => (
+          <div className="site-section" key={site.id}>
             <div className="site-header">
               <div>
                 <div className="site-name">{site.name}</div>
-                <div className="site-meta">{site.meta}</div>
+                <div className="site-meta">{site.address}</div>
               </div>
-              <span className={`site-badge ${site.status === 'open' ? 'open' : 'coming-soon'}`}>
-                {site.status === 'open' ? 'Open' : 'Coming Soon'}
+              <span className={`site-badge ${site.badge === 'open' ? 'open' : 'coming-soon'}`}>
+                {site.badge === 'open' ? 'Open' : 'Coming Soon'}
               </span>
             </div>
 
-            {site.photo ? (
-              <div
-                className="site-photo"
-                style={{
-                  backgroundImage: `url('${site.photo}')`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }}
-              >
-                {/* Site photo */}
-              </div>
-            ) : (
-              <div className="site-photo">
-                {site.photoPlaceholder}
-              </div>
-            )}
+            <div
+              className="site-photo"
+              style={site.photo ? {
+                backgroundImage: `url('${site.photo}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              } : {}}
+            >
+              {/* Site photo */}
+            </div>
 
             <div className="site-grid">
               <div>
                 <div className="site-features-title">Site Features</div>
                 <ul className="site-features">
-                  {site.features.map((f, i) => (
+                  {(site.fullFeatures || site.features).map((f, i) => (
                     <li key={i}>{f}</li>
                   ))}
                 </ul>
@@ -122,7 +64,7 @@ export default function Locations() {
             </div>
 
             <div className="site-cta">
-              <Link to={site.ctaLink} className="btn-primary">&#9658; {site.ctaText}</Link>
+              <Link to="/booking" className="btn-primary">&#9658; {site.badge === 'open' ? 'Book This Site' : 'Register Interest'}</Link>
             </div>
           </div>
         ))}
