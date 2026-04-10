@@ -103,7 +103,7 @@ export default function Privacy() {
         <p>
           If you have questions about this policy or want to exercise your data
           rights, contact us at{' '}
-          <a href="mailto:info@airactionsport.com">info@airactionsport.com</a>.
+          <a href="mailto:actionairsport@gmail.com">actionairsport@gmail.com</a>.
         </p>
 
         <Link to="/" className="back-link">

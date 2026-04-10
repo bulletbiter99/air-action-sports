@@ -3,7 +3,7 @@ export const siteConfig = {
   tagline: 'Real terrain. Real tactics. Real fun.',
   phone: '(801) 833-5127',
   phoneLink: 'tel:8018335127',
-  email: 'info@airactionsport.com',
+  email: 'actionairsport@gmail.com',
   url: 'https://airactionsport.com',
   social: {
     facebook: 'https://www.facebook.com/groups/2545278778822344/',

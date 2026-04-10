@@ -123,11 +123,11 @@
 .gallery-item:last-child { grid-column: span 2; }
 .gallery-photo { width: 100%; height: 100%; background-size: cover; background-position: center; transition: transform 0.4s ease; }
 .gallery-item:hover .gallery-photo { transform: scale(1.04); }
-.g1 { background-image: url('/images/YOUR-GALLERY-1.jpg'); background-color: #3a4035; }
-.g2 { background-image: url('/images/YOUR-GALLERY-2.jpg'); background-color: #2f3a2b; }
-.g3 { background-image: url('/images/YOUR-GALLERY-3.jpg'); background-color: #384038; }
-.g4 { background-image: url('/images/YOUR-GALLERY-4.jpg'); background-color: #2a3328; }
-.g5 { background-image: url('/images/YOUR-GALLERY-5.jpg'); background-color: #353d30; }
+.g1 { background-image: url('/images/gallery-ghost-town-1.jpg'); background-color: #3a4035; }
+.g2 { background-image: url('/images/gallery-ghost-town-2.jpg'); background-color: #2f3a2b; }
+.g3 { background-image: url('/images/gallery-ghost-town-3.jpg'); background-color: #384038; }
+.g4 { background-image: url('/images/gallery-foxtrot-1.jpg'); background-color: #2a3328; }
+.g5 { background-image: url('/images/gallery-foxtrot-2.jpg'); background-color: #353d30; }
 .gallery-item::after { content: ''; position: absolute; inset: 0; background: rgba(20,22,18,0.35); transition: background 0.3s; }
 .gallery-item:hover::after { background: rgba(20,22,18,0.15); }
 .gallery-overlay { position: absolute; bottom: 0; left: 0; right: 0; z-index: 1; padding: 1rem; background: linear-gradient(transparent, rgba(20,22,18,0.85)); }
@@ -185,7 +185,7 @@
 /* Responsive — page-specific */
 @media (max-width: 768px) {
   .about-grid { grid-template-columns: 1fr; }
-  .gallery-grid { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
+  .gallery-grid { grid-template-columns: 1fr 1fr; grid-template-rows: 180px 180px 180px; }
   .gallery-item:first-child,
   .gallery-item:last-child { grid-column: span 1; }
 }

@@ -28,7 +28,7 @@ export default function Home() {
   "description": "Tactical airsoft events across multiple elite outdoor sites. Milsim, skirmish, and private hire.",
   "url": "https://airactionsport.com",
   "telephone": "+1-801-833-5127",
-  "email": "info@airactionsport.com",
+  "email": "actionairsport@gmail.com",
   "sameAs": [
     "https://www.facebook.com/groups/2545278778822344/",
     "https://www.instagram.com/kaysaircombat/"

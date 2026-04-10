@@ -4,16 +4,16 @@ import SEO from '../components/SEO';
 import '../styles/pages/gallery.css';
 
 const galleryItems = [
-  { category: 'delta', label: 'Ghost Town \u2014 Overview', bg: '#3a4232', wide: true },
-  { category: 'delta', label: 'Ghost Town \u2014 Streets', bg: '#2c3127', wide: false },
+  { category: 'delta', label: 'Ghost Town \u2014 Overview', img: '/images/gallery-ghost-town-1.jpg', bg: '#3a4232', wide: true },
+  { category: 'delta', label: 'Ghost Town \u2014 Mine Structures', img: '/images/gallery-ghost-town-2.jpg', bg: '#2c3127', wide: false },
+  { category: 'delta', label: 'Ghost Town \u2014 Streets', img: '/images/gallery-ghost-town-3.jpg', bg: '#2e3229', wide: false },
+  { category: 'foxtrot', label: 'Foxtrot Fields \u2014 The Cross', img: '/images/gallery-foxtrot-1.jpg', bg: '#353a30', wide: false },
+  { category: 'foxtrot', label: 'Foxtrot Fields \u2014 Woodland', img: '/images/gallery-foxtrot-2.jpg', bg: '#3a4232', wide: true },
   { category: 'echo', label: 'Echo Urban \u2014 CQB Corridor', bg: '#2e3229', wide: false },
   { category: 'echo', label: 'Echo Urban \u2014 Multi-Floor', bg: '#353a30', wide: false },
   { category: 'events', label: 'Operation Nightfall \u2014 Squad Advance', bg: '#1a1c18', wide: true },
   { category: 'action', label: 'Game Day \u2014 Tactical Movement', bg: '#3a4232', wide: false },
-  { category: 'delta', label: 'Ghost Town \u2014 Bunker System', bg: '#2c3127', wide: false },
   { category: 'action', label: 'Game Day \u2014 Gear Check', bg: '#353a30', wide: false },
-  { category: 'foxtrot', label: 'Foxtrot Fields \u2014 Open Terrain', bg: '#3a4232', wide: true },
-  { category: 'events', label: 'Shadow Protocol \u2014 Night Ops', bg: '#1a1c18', wide: false },
   { category: 'echo', label: 'Echo Urban \u2014 Low Light', bg: '#2e3229', wide: false },
   { category: 'action', label: 'Game Day \u2014 Victory', bg: '#353a30', wide: false },
 ];
@@ -104,7 +104,9 @@ export default function Gallery() {
               aria-label={item.label}
               role="img"
               tabIndex="0"
-              style={{ background: item.bg }}
+              style={item.img
+                ? { backgroundImage: `url(${item.img})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: item.bg }
+                : { background: item.bg }}
               onClick={() => openLightbox(index)}
             >
               <div className="photo-label">
@@ -128,10 +130,14 @@ export default function Gallery() {
           <button className="lightbox-nav lightbox-next" aria-label="Next photo" onClick={showNext}>
             &#8250;
           </button>
-          <div className="lightbox-placeholder">
-            {currentIndex >= 0 && visibleItems[currentIndex]
+          <div className="lightbox-placeholder" style={
+            currentIndex >= 0 && visibleItems[currentIndex]?.img
+              ? { backgroundImage: `url(${visibleItems[currentIndex].img})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
+              : {}
+          }>
+            {currentIndex >= 0 && visibleItems[currentIndex] && !visibleItems[currentIndex].img
               ? visibleItems[currentIndex].label
-              : 'Photo Placeholder'}
+              : !visibleItems[currentIndex]?.img ? 'Photo Placeholder' : ''}
           </div>
           <div className="lightbox-caption">
             {currentIndex >= 0 && visibleItems[currentIndex]
@@ -143,7 +149,7 @@ export default function Gallery() {
         {/* Submit Photos CTA */}
         <div className="submit-cta">
           <h3>Got Photos?</h3>
-          <p>Tag us @airactionsports or email your best shots to be featured.</p>
+          <p>Tag us @airactionsports or email your best shots to <a href="mailto:actionairsport@gmail.com">actionairsport@gmail.com</a> to be featured.</p>
           <Link to="/contact" className="btn-primary">&#9658; Submit Photos</Link>
         </div>
       </div>
