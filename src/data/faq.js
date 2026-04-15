@@ -28,7 +28,7 @@ export const faqCategories = [
       },
       {
         question: 'Do I need to sign a waiver?',
-        answer: 'Yes, all players must complete a liability waiver before stepping on the field. You can fill it out online ahead of time or complete one on-site at check-in. Players under 18 must have a parent or guardian sign on their behalf.',
+        answer: 'Yes, all players must complete a liability waiver before stepping on the field. After you book, we will email you the waiver to complete before game day. Players under 18 must have a parent or guardian sign on their behalf.',
       },
     ],
   },

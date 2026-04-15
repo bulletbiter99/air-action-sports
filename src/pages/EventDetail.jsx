@@ -195,7 +195,7 @@ export default function EventDetail() {
                 <li>FPS limits strictly enforced (350 AEG / 500 bolt-action)</li>
                 <li>No blind firing</li>
                 <li>No physical contact</li>
-                <li>Completed <Link to="/waiver" style={{ color: 'var(--orange)' }}>waiver</Link> required</li>
+                <li>Completed waiver required (emailed after booking)</li>
               </ul>
             </div>
 
@@ -269,9 +269,9 @@ export default function EventDetail() {
               &#9658; Book Now
             </a>
 
-            {/* Waiver Link */}
+            {/* Waiver Notice */}
             <p style={{ fontSize: '12px', color: 'var(--olive-light)', textAlign: 'center', marginBottom: '1.5rem' }}>
-              All players must complete the <Link to="/waiver" style={{ color: 'var(--orange)' }}>waiver</Link>
+              Waiver will be emailed after booking
             </p>
 
             {/* Share Buttons */}

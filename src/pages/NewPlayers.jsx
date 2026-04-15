@@ -227,7 +227,7 @@ export default function NewPlayers() {
             <ul>
               <li>Pick an event from our events calendar</li>
               <li>Fill out the booking form</li>
-              <li>Complete your waiver before game day</li>
+              <li>Complete the waiver we email you before game day</li>
             </ul>
             <div
               style={{
@@ -243,9 +243,6 @@ export default function NewPlayers() {
               <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">
                 &#9658; Book Now
               </a>
-              <Link to="/waiver" className="btn-white">
-                &#9658; Complete Waiver
-              </Link>
             </div>
           </div>
         </div>

@@ -132,7 +132,7 @@ export default function Pricing() {
         {/* Note Box */}
         <div className="note-box">
           <strong>Please Note</strong>
-          <p>All admission prices include full-day gameplay, safety briefing, and marshal support. Rental packages are separate from admission. Under 16s must be accompanied by a paying adult. Completed <Link to="/waiver" style={{ color: 'var(--orange)' }}>waiver</Link> required.</p>
+          <p>All admission prices include full-day gameplay, safety briefing, and marshal support. Rental packages are separate from admission. Under 16s must be accompanied by a paying adult. A completed waiver is required and will be emailed to you after booking.</p>
         </div>
       </div>
 

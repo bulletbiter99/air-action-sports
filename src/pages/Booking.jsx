@@ -15,7 +15,6 @@ export default function Booking() {
     referral: '',
     gearHire: '',
     message: '',
-    waiver: false,
   });
   const [errors, setErrors] = useState({});
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -44,7 +43,6 @@ export default function Booking() {
     if (!formData.eventType) newErrors.eventType = true;
     if (!formData.site) newErrors.site = true;
     if (!formData.date) newErrors.date = true;
-    if (!formData.waiver) newErrors.waiver = true;
 
     return newErrors;
   };
@@ -73,7 +71,6 @@ export default function Booking() {
       referral: '',
       gearHire: '',
       message: '',
-      waiver: false,
     });
     setErrors({});
   };
@@ -297,26 +294,9 @@ export default function Booking() {
             ></textarea>
           </div>
 
-          <div className={`form-group${errors.waiver ? ' error' : ''}`}>
-            <label className="form-checkbox">
-              <input
-                type="checkbox"
-                id="waiver"
-                name="waiver"
-                checked={formData.waiver}
-                onChange={handleChange}
-                required
-              />
-              I confirm all players have read and agree to the{' '}
-              <Link to="/waiver" target="_blank">
-                safety waiver
-              </Link>
-              .
-            </label>
-            <span className="form-error">
-              You must agree to the safety waiver to proceed.
-            </span>
-          </div>
+          <p style={{ fontSize: '12px', color: 'var(--olive-light)', marginBottom: '1.5rem' }}>
+            A safety waiver will be emailed to you after booking and must be completed before game day.
+          </p>
 
           <button type="submit" className="form-submit">
             &#9658; Submit Booking Request

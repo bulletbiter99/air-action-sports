@@ -13,7 +13,6 @@ const Pricing = lazy(() => import('./pages/Pricing'));
 const FAQ = lazy(() => import('./pages/FAQ'));
 const Booking = lazy(() => import('./pages/Booking'));
 const Contact = lazy(() => import('./pages/Contact'));
-const Waiver = lazy(() => import('./pages/Waiver'));
 const About = lazy(() => import('./pages/About'));
 const NewPlayers = lazy(() => import('./pages/NewPlayers'));
 const Privacy = lazy(() => import('./pages/Privacy'));
@@ -40,7 +39,6 @@ export default function App() {
             <Route path="faq" element={<FAQ />} />
             <Route path="booking" element={<Booking />} />
             <Route path="contact" element={<Contact />} />
-            <Route path="waiver" element={<Waiver />} />
             <Route path="about" element={<About />} />
             <Route path="new-players" element={<NewPlayers />} />
             <Route path="privacy" element={<Privacy />} />

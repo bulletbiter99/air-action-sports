@@ -28,7 +28,6 @@ export default function Footer() {
             <li><Link to="/new-players">New Players</Link></li>
             <li><Link to="/faq">FAQ</Link></li>
             <li><Link to="/about">About Us</Link></li>
-            <li><Link to="/waiver">Player Waiver</Link></li>
           </ul>
         </div>
         <div>
