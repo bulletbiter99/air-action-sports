@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { siteConfig } from '../data/siteConfig';
 
 export default function MobileMenu({ isOpen, onClose }) {
   useEffect(() => {
@@ -17,7 +18,7 @@ export default function MobileMenu({ isOpen, onClose }) {
       <Link to="/pricing" onClick={onClose}>Pricing</Link>
       <Link to="/faq" onClick={onClose}>FAQ</Link>
       <Link to="/contact" onClick={onClose}>Contact</Link>
-      <Link to="/booking" className="mobile-menu-cta" onClick={onClose}>Book Now</Link>
+      <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="mobile-menu-cta" onClick={onClose}>Book Now</a>
     </div>
   );
 }

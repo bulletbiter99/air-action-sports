@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { siteConfig } from '../data/siteConfig';
 import '../styles/pages/about.css';
 
 export default function About() {
@@ -177,9 +178,9 @@ export default function About() {
       <div className="about-cta-band">
         <h2>Ready to Join the Mission?</h2>
         <p>Book your first game and see what it's all about.</p>
-        <Link to="/booking" className="btn-white">
+        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">
           &#9658; Book Now
-        </Link>
+        </a>
       </div>
     </>
   );

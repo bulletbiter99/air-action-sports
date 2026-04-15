@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { siteConfig } from '../data/siteConfig';
 import { locations } from '../data/locations';
 import '../styles/pages/locations.css';
 
@@ -64,7 +65,7 @@ export default function Locations() {
             </div>
 
             <div className="site-cta">
-              <Link to="/booking" className="btn-primary">&#9658; {site.badge === 'open' ? 'Book This Site' : 'Register Interest'}</Link>
+              <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-primary">&#9658; {site.badge === 'open' ? 'Book This Site' : 'Register Interest'}</a>
             </div>
           </div>
         ))}
@@ -74,7 +75,7 @@ export default function Locations() {
       <div className="cta-band">
         <h2>Ready to Book?</h2>
         <p>Pick your site, pick your date, and get on the field.</p>
-        <Link to="/booking" className="btn-white">&#9658; Book Now</Link>
+        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">&#9658; Book Now</a>
       </div>
     </>
   );

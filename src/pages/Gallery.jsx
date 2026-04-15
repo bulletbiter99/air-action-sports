@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { siteConfig } from '../data/siteConfig';
 import '../styles/pages/gallery.css';
 
 const galleryItems = [
@@ -158,7 +159,7 @@ export default function Gallery() {
       <div className="cta-band">
         <h2>Ready to Deploy?</h2>
         <p>Secure your spot at the next game day.</p>
-        <Link to="/booking" className="btn-white">Book Now</Link>
+        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">Book Now</a>
       </div>
     </>
   );

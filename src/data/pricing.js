@@ -2,7 +2,7 @@ export const pricingPlans = [
   {
     id: 'walk-in',
     name: 'Walk-In',
-    price: '$35',
+    price: '$80',
     unit: '/per player',
     description: 'BYO gear, show up and play',
     featured: false,
@@ -13,7 +13,7 @@ export const pricingPlans = [
       'Free parking',
       'Tea/coffee at staging',
     ],
-    cta: { label: 'Book Now', href: '/booking' },
+    cta: { label: 'Book Now', href: '' // Uses siteConfig.bookingLink via PricingCard },
   },
   {
     id: 'walk-in-gear',
@@ -29,7 +29,7 @@ export const pricingPlans = [
       'Tactical vest',
       'BBs included (500 rounds)',
     ],
-    cta: { label: 'Book Now', href: '/booking' },
+    cta: { label: 'Book Now', href: '' // Uses siteConfig.bookingLink via PricingCard },
   },
   {
     id: 'private-hire',
@@ -49,11 +49,7 @@ export const pricingPlans = [
   },
 ];
 
-export const groupDiscounts = [
-  { size: '5\u201399 players', pricePerHead: '$30', savings: '14%' },
-  { size: '10\u201319 players', pricePerHead: '$25', savings: '29%' },
-  { size: '20+ players', pricePerHead: '$20', savings: '43%' },
-];
+export const groupDiscounts = [];
 
 export const addOns = [
   { name: 'Extra BBs', detail: '500 rounds', price: '$5' },

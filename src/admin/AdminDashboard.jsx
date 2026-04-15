@@ -16,7 +16,7 @@ const faqCategories = [
 
 const pricingItems = [
   { label: 'Walk-on (Skirmish)', price: '$25' },
-  { label: 'Standard Event', price: '$35' },
+  { label: 'Standard Event', price: '$80' },
   { label: 'Milsim Event', price: '$45-55' },
   { label: 'Gear Hire Bundle', price: '$15' },
 ];

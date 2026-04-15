@@ -90,7 +90,7 @@ export default function Home() {
             Airsoft events across multiple elite outdoor sites.
           </p>
           <div className="hero-btns">
-            <Link to="/booking" className="btn-primary">&#9658; Book Your Battle</Link>
+            <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-primary">&#9658; Book Your Battle</a>
             <Link to="/events" className="btn-secondary">View Upcoming Events</Link>
           </div>
           <div className="hero-stats">
@@ -317,14 +317,14 @@ export default function Home() {
                   <span className={`event-type ${ev.type}`}>{ev.type.charAt(0).toUpperCase() + ev.type.slice(1)}</span>
                 </div>
                 <div className="event-body">
-                  <div className="event-title">{ev.title}</div>
+                  <Link to={`/events/${ev.id}`} className="event-title" style={{ textDecoration: 'none', color: 'var(--cream)' }}>{ev.title}</Link>
                   <div className="event-loc">&#9679; {ev.location}</div>
                   <div className="event-meta">
                     <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
                     <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
                     <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
                   </div>
-                  <Link to="/booking" className="btn-book">&#9658; Book Slot</Link>
+                  <Link to={`/events/${ev.id}`} className="btn-book">&#9658; View Details</Link>
                 </div>
               </div>
             ))}
@@ -407,7 +407,7 @@ export default function Home() {
       <div className="cta-band">
         <h2>Ready to Deploy?</h2>
         <p>Slots go fast. Don't miss the next operation.</p>
-        <Link to="/booking" className="btn-white">&#9658; Book Your Battle Now</Link>
+        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">&#9658; Book Your Battle Now</a>
       </div>
     </>
   );

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { siteConfig } from '../data/siteConfig';
 import '../styles/pages/new-players.css';
 
 export default function NewPlayers() {
@@ -239,9 +240,9 @@ export default function NewPlayers() {
               <Link to="/events" className="btn-white">
                 &#9658; View Events
               </Link>
-              <Link to="/booking" className="btn-white">
+              <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">
                 &#9658; Book Now
-              </Link>
+              </a>
               <Link to="/waiver" className="btn-white">
                 &#9658; Complete Waiver
               </Link>

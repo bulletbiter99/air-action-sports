@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import TickerBar from './TickerBar';
+import { siteConfig } from '../data/siteConfig';
 
 export default function Navbar({ showTicker, onHamburgerClick, isMobileMenuOpen }) {
   const [scrolled, setScrolled] = useState(false);
@@ -26,7 +27,7 @@ export default function Navbar({ showTicker, onHamburgerClick, isMobileMenuOpen 
           <NavLink to="/faq">FAQ</NavLink>
           <NavLink to="/contact">Contact</NavLink>
         </div>
-        <Link to="/booking" className="nav-cta">Book Now</Link>
+        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="nav-cta">Book Now</a>
         <button
           className={`hamburger${isMobileMenuOpen ? ' active' : ''}`}
           aria-label="Menu"

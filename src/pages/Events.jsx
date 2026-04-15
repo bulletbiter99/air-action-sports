@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { siteConfig } from '../data/siteConfig';
 import { events } from '../data/events';
 import '../styles/pages/events.css';
 
@@ -73,7 +74,7 @@ export default function Events() {
                 </span>
               </div>
               <div className="event-body">
-                <div className="event-title">{ev.title}</div>
+                <Link to={`/events/${ev.id}`} className="event-title" style={{ textDecoration: 'none', color: 'var(--cream)' }}>{ev.title}</Link>
                 <div className="event-loc">&#9679; {ev.location}</div>
                 <div className="event-meta">
                   <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
@@ -89,7 +90,7 @@ export default function Events() {
                 <div className="slots-text">
                   {ev.slots.taken} of {ev.slots.total} spots taken
                 </div>
-                <Link to="/booking" className="btn-book">&#9658; Book Slot</Link>
+                <Link to={`/events/${ev.id}`} className="btn-book">&#9658; View Details</Link>
               </div>
             </div>
           ))}
@@ -138,7 +139,7 @@ export default function Events() {
       <div className="cta-band">
         <h2>Want a Custom Event?</h2>
         <p>We build bespoke operations for groups, corporate teams, and private parties.</p>
-        <Link to="/booking" className="btn-white">&#9658; Enquire Now</Link>
+        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">&#9658; Enquire Now</a>
       </div>
     </>
   );

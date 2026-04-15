@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { siteConfig } from '../data/siteConfig';
 
 export default function PricingCard({ plan, featured }) {
   return (
@@ -16,7 +17,11 @@ export default function PricingCard({ plan, featured }) {
         ))}
       </ul>
       <div className="price-cta">
-        <Link to={plan.ctaLink || '/booking'}>{plan.ctaText || 'Book Now'}</Link>
+        {plan.ctaLink ? (
+          <Link to={plan.ctaLink}>{plan.ctaText || 'Book Now'}</Link>
+        ) : (
+          <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer">{plan.ctaText || 'Book Now'}</a>
+        )}
       </div>
     </div>
   );

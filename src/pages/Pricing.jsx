@@ -1,14 +1,17 @@
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
-import { pricingPlans, groupDiscounts, addOns } from '../data/pricing';
+import { events } from '../data/events';
 import '../styles/pages/pricing.css';
 
 export default function Pricing() {
+  // Get the next upcoming event
+  const nextEvent = events.find((e) => !e.past);
+
   return (
     <>
       <SEO
         title="Pricing | Air Action Sports"
-        description="Transparent airsoft event pricing. Walk-in, group, and private hire rates. No hidden fees."
+        description="Transparent airsoft event pricing. Admission, rental packages, and BB purchases. No hidden fees."
         canonical="https://airactionsport.com/pricing"
         ogImage="https://airactionsport.com/images/og-image.jpg"
       />
@@ -19,85 +22,117 @@ export default function Pricing() {
         <h1 className="section-title">No Hidden Fees. No Surprises.</h1>
         <div className="divider"></div>
         <p className="section-sub">
-          Transparent pricing for every type of player. Walk-in, group, or private hire &mdash; you know exactly what you're paying before you book.
+          Transparent pricing for every type of player. Walk-in, rent, or bring your own gear &mdash; you know exactly what you're paying before you book.
         </p>
       </div>
 
-      {/* Pricing Cards */}
       <div className="page-content">
-        <div className="pricing-grid">
-          {pricingPlans.map((plan) => (
-            <div className={`price-card ${plan.featured ? 'featured' : ''}`} key={plan.id}>
-              <div className="price-header">
-                <div className="price-name">{plan.name}</div>
-                <div className="price-amount">
-                  {plan.price} <span>{plan.unit}</span>
-                </div>
-                <div className="price-desc">{plan.description}</div>
-              </div>
-              <ul className="price-features">
-                {plan.features.map((feature, i) => (
-                  <li key={i}>{feature}</li>
-                ))}
-              </ul>
-              <div className="price-cta">
-                <Link to={plan.cta.href}>{plan.cta.label}</Link>
-              </div>
+        {nextEvent && (
+          <>
+            {/* Event Title Banner */}
+            <div className="pricing-event-banner">
+              <div className="section-label">&#9632; Next Event</div>
+              <h2 className="section-title">
+                <Link to={`/events/${nextEvent.id}`} style={{ color: 'var(--cream)', textDecoration: 'none' }}>
+                  {nextEvent.title}
+                </Link>
+              </h2>
+              <div className="divider"></div>
+              <p className="pricing-event-details">
+                {nextEvent.date.month.replace(/\d{4}/, '').trim()} {nextEvent.date.day}, {nextEvent.date.month.match(/\d{4}/)?.[0] || '2026'} &mdash; {nextEvent.location.split(' —')[0] || nextEvent.location.split(' \u2014')[0]}
+              </p>
             </div>
-          ))}
-        </div>
 
-        {/* Group Discounts */}
-        <div className="addon-section">
-          <div className="section-label">&#9632; Group Discounts</div>
-          <h2 className="section-title">Bring Your Squad.</h2>
-          <div className="divider"></div>
-          <table className="group-table">
-            <thead>
-              <tr>
-                <th>Group Size</th>
-                <th>Price Per Head</th>
-                <th>You Save</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groupDiscounts.map((row, i) => (
-                <tr key={i}>
-                  <td>{row.size}</td>
-                  <td>{row.pricePerHead}</td>
-                  <td>{row.savings}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="note-box">
-            <strong>Note</strong>
-            <p>Group discounts apply to walk-in rate. Gear hire can be added for $15/head.</p>
-          </div>
-        </div>
-
-        {/* Add-Ons */}
-        <div className="addon-section">
-          <div className="section-label">&#9632; Add-Ons</div>
-          <h2 className="section-title">Upgrade Your Loadout.</h2>
-          <div className="divider"></div>
-          <div className="addon-grid">
-            {addOns.map((addon, i) => (
-              <div className="addon-item" key={i}>
-                <div>
-                  <div className="addon-name">{addon.name}</div>
-                  <div className="addon-detail">{addon.detail}</div>
+            {/* Pricing Cards */}
+            <div className="pricing-grid">
+              {/* Admission Card */}
+              <div className="price-card">
+                <div className="price-header">
+                  <div className="price-name">Admission</div>
+                  <div className="price-amount">
+                    {nextEvent.price.replace('/head', '')} <span>/per player</span>
+                  </div>
+                  <div className="price-desc">BYO gear &mdash; show up and play</div>
                 </div>
-                <div className="addon-price">{addon.price}</div>
+                <ul className="price-features">
+                  <li>Full-day gameplay ({nextEvent.checkIn?.split('–')[0]?.trim() || ''} &ndash; {nextEvent.endTime || ''})</li>
+                  <li>Check-in: {nextEvent.checkIn || '—'}</li>
+                  <li>First game: {nextEvent.firstGame || '—'}</li>
+                  <li>Safety briefing &amp; equipment check</li>
+                  <li>Trained marshals on field</li>
+                  <li>Free parking</li>
+                </ul>
+                <div className="price-cta">
+                  <Link to={`/events/${nextEvent.id}`}>View Event Details</Link>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
+
+              {/* Rental Package Cards */}
+              {nextEvent.rentals && nextEvent.rentals.map((rental, i) => (
+                <div className={`price-card ${i === 0 ? 'featured' : ''}`} key={i}>
+                  <div className="price-header">
+                    <div className="price-name">{rental.name}</div>
+                    <div className="price-amount">
+                      {rental.price} <span>/per player</span>
+                    </div>
+                    <div className="price-desc">Rental package</div>
+                  </div>
+                  <ul className="price-features">
+                    {rental.description.split(', ').map((item, j) => (
+                      <li key={j}>{item.charAt(0).toUpperCase() + item.slice(1)}</li>
+                    ))}
+                  </ul>
+                  <div className="price-cta">
+                    <Link to={`/events/${nextEvent.id}`}>View Event Details</Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* BB Purchases */}
+            {nextEvent.bbPurchases && nextEvent.bbPurchases.length > 0 && (
+              <div className="addon-section">
+                <div className="section-label">&#9632; BB Purchases</div>
+                <h2 className="section-title">Stock Up.</h2>
+                <div className="divider"></div>
+                <div className="addon-grid">
+                  {nextEvent.bbPurchases.map((bb, i) => (
+                    <div className="addon-item" key={i}>
+                      <div>
+                        <div className="addon-name">{bb.name}</div>
+                        <div className="addon-detail">Available at check-in</div>
+                      </div>
+                      <div className="addon-price">{bb.price}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Game Modes */}
+            {nextEvent.gameModes && nextEvent.gameModes.length > 0 && (
+              <div className="addon-section">
+                <div className="section-label">&#9632; Game Modes</div>
+                <h2 className="section-title">What You'll Play.</h2>
+                <div className="divider"></div>
+                <div className="addon-grid">
+                  {nextEvent.gameModes.map((mode, i) => (
+                    <div className="addon-item" key={i}>
+                      <div>
+                        <div className="addon-name">{mode}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {/* Note Box */}
         <div className="note-box">
           <strong>Please Note</strong>
-          <p>All prices include full-day gameplay, safety briefing, and marshal support. Prices may vary for special milsim events. Under 16s must be accompanied by a paying adult.</p>
+          <p>All admission prices include full-day gameplay, safety briefing, and marshal support. Rental packages are separate from admission. Under 16s must be accompanied by a paying adult. Completed <Link to="/waiver" style={{ color: 'var(--orange)' }}>waiver</Link> required.</p>
         </div>
       </div>
 

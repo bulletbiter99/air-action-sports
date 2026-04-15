@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BnxRlLMJ.js";import{t}from"./siteConfig-4GycK8mr.js";var n=e();function r(){return(0,n.jsxs)(`div`,{className:`ticker-bar`,children:[`Next Mission: `,t.nextEvent.name,` — `,t.nextEvent.location,`, `,t.nextEvent.shortDate,` `,(0,n.jsx)(`a`,{href:t.bookingLink,target:`_blank`,rel:`noopener noreferrer`,children:`Book Now →`})]})}export{r as t};

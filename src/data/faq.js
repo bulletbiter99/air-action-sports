@@ -18,6 +18,18 @@ export const faqCategories = [
         question: 'How far in advance should I book?',
         answer: 'We recommend booking at least 48 hours in advance. Popular events sell out fast, especially weekends and milsim days. Walk-ins are accepted if slots are still available on the day.',
       },
+      {
+        question: 'How do I find your locations?',
+        answer: 'Head to our Locations page for addresses, maps, and directions to each of our three sites. We recommend checking before your first visit as some sites are on rural roads.',
+      },
+      {
+        question: 'When do you run events?',
+        answer: 'Most of our public events run on Saturdays. Milsim ops and special events are scheduled throughout the year and posted on our Events page. Follow us on social media to stay in the loop.',
+      },
+      {
+        question: 'Do I need to sign a waiver?',
+        answer: 'Yes, all players must complete a liability waiver before stepping on the field. You can fill it out online ahead of time or complete one on-site at check-in. Players under 18 must have a parent or guardian sign on their behalf.',
+      },
     ],
   },
   {
@@ -38,6 +50,18 @@ export const faqCategories = [
       {
         question: 'Are there toilets and refreshments on site?',
         answer: 'Portable toilets are available at all sites. Some locations have refreshment stands, but we recommend bringing your own water and snacks to stay fuelled throughout the day.',
+      },
+      {
+        question: 'Can I bring my own BBs?',
+        answer: 'Yes, you are welcome to bring your own BBs. All weapons are chrono tested with .20g BBs on entry regardless of what weight you plan to use during the game.',
+      },
+      {
+        question: 'Are grenades and smoke grenades allowed?',
+        answer: 'Non-pyrotechnic grenades are allowed on the field. Smoke grenades are permitted and available for purchase on-site. Check with a marshal before using any pyrotechnic devices.',
+      },
+      {
+        question: 'Do I need a flashlight or tracer for night games?',
+        answer: 'Yes, a flashlight or tracer unit is required to participate in night games. We have flashlights and tracers available for purchase at the field while supplies last, so we recommend bringing your own to be safe.',
       },
     ],
   },
@@ -60,6 +84,14 @@ export const faqCategories = [
         question: 'What is your FPS limit?',
         answer: 'Our limit is 350 FPS for AEGs and 500 FPS for bolt-action snipers, which must observe a minimum engagement distance. All weapons are chrono tested on entry before any game begins.',
       },
+      {
+        question: 'Are real firearms allowed on site?',
+        answer: 'Absolutely not. Real firearms are strictly prohibited at all of our sites, no exceptions. Anyone found with a real firearm will be permanently banned. This is a zero-tolerance policy.',
+      },
+      {
+        question: 'What are the basic rules of engagement?',
+        answer: 'Call your hits honestly, no blind firing around corners, and observe the minimum engagement distance for high-powered replicas. The bang rule applies at close range. Full rules are covered in the safety briefing before every game.',
+      },
     ],
   },
   {
@@ -80,6 +112,14 @@ export const faqCategories = [
       {
         question: 'Do you offer gift vouchers?',
         answer: 'Gift vouchers are coming soon. In the meantime, contact us directly and we can arrange a pre-paid booking for someone else.',
+      },
+      {
+        question: 'What payment methods do you accept?',
+        answer: 'We accept both cash and card at the field. Online bookings can be paid by card at the time of booking.',
+      },
+      {
+        question: "What's included in gear hire?",
+        answer: 'Our gear hire package includes a full replica weapon, face mask with eye protection, a tactical vest, and 500 rounds of BBs. Extra BBs and upgraded replicas are available as add-ons.',
       },
     ],
   },

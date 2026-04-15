@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { siteConfig } from '../data/siteConfig';
 
 export default function FloatingBookPill() {
   const [visible, setVisible] = useState(false);
@@ -17,8 +17,8 @@ export default function FloatingBookPill() {
   }, []);
 
   return (
-    <Link to="/booking" className={`floating-book${visible ? ' visible' : ''}`}>
+    <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className={`floating-book${visible ? ' visible' : ''}`}>
       &#9658; Book Now
-    </Link>
+    </a>
   );
 }

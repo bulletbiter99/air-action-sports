@@ -40,6 +40,24 @@
   border-color: var(--orange);
 }
 
+/* Event Card Base Styles */
+.event-card { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); overflow: hidden; }
+.event-header { background: var(--olive-dark); padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+.event-date { text-align: center; }
+.event-day { font-size: 28px; font-weight: 900; color: var(--orange); line-height: 1; }
+.event-month { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); }
+.event-type { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; border: 1px solid; }
+.event-type.airsoft { color: #7bbfff; border-color: rgba(123,191,255,0.4); background: rgba(123,191,255,0.1); }
+.event-type.skirmish { color: #f5a623; border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.1); }
+.event-body { padding: 1.5rem; }
+.event-title { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--cream); margin-bottom: 0.5rem; }
+.event-loc { font-size: 13px; color: var(--olive-light); margin-bottom: 1rem; }
+.event-meta { display: flex; gap: 1.5rem; margin-bottom: 1.25rem; }
+.event-meta-item { font-size: 12px; color: var(--tan); }
+.event-meta-item strong { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--olive-light); margin-bottom: 2px; }
+.btn-book { display: block; text-align: center; padding: 12px; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; background: var(--orange); color: white; text-decoration: none; margin-top: 1rem; transition: background 0.2s; }
+.btn-book:hover { background: #c45a1a; }
+
 /* Events Grid */
 .events-grid {
   display: grid;

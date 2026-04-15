@@ -4,8 +4,12 @@
 
 .pricing-hero { background: var(--mid); padding: 5rem 2rem 3rem; margin-top: 60px; text-align: center; }
 .pricing-hero .section-sub { margin: 0 auto; }
-.pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
-.price-card { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); overflow: hidden; position: relative; }
+.pricing-event-banner { text-align: center; margin-bottom: 1rem; }
+.pricing-event-banner .section-title { margin-bottom: 0.5rem; }
+.pricing-event-banner .section-title a:hover { color: var(--orange) !important; }
+.pricing-event-details { font-size: 14px; color: var(--olive-light); letter-spacing: 1px; }
+.pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+.price-card { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); overflow: hidden; position: relative; display: flex; flex-direction: column; }
 .price-card.featured { border-color: var(--orange); }
 .price-card.featured::before { content: 'MOST POPULAR'; position: absolute; top: 0; left: 0; right: 0; background: var(--orange); color: white; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 2px; padding: 6px; }
 .price-header { padding: 2rem 1.5rem 1rem; text-align: center; }
@@ -18,7 +22,7 @@
 .price-features li { font-size: 13px; color: var(--tan-light); padding: 8px 0; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(200,184,154,0.06); list-style: none; }
 .price-features li:last-child { border-bottom: none; }
 .price-features li::before { content: '\2713'; color: var(--orange); font-weight: 700; flex-shrink: 0; }
-.price-cta { padding: 0 1.5rem 1.5rem; }
+.price-cta { padding: 0 1.5rem 1.5rem; margin-top: auto; }
 .price-cta a { display: block; text-align: center; background: var(--orange); color: white; padding: 12px; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; text-decoration: none; }
 .price-cta a:hover { background: var(--orange-dark); }
 .price-card:not(.featured) .price-cta a { background: none; border: 1px solid rgba(200,184,154,0.3); color: var(--tan); }

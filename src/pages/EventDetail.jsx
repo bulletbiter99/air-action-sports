@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import useCountdown from '../hooks/useCountdown';
+import { siteConfig } from '../data/siteConfig';
 import { events } from '../data/events';
 import '../styles/pages/event-detail.css';
 
@@ -60,6 +61,27 @@ export default function EventDetail() {
         <div className="event-detail-grid">
           {/* Left Column — Event Details */}
           <div>
+            {/* Schedule */}
+            <div className="detail-section">
+              <h2>Schedule</h2>
+              <table className="pricing-table">
+                <tbody>
+                  <tr>
+                    <td>Check-In</td>
+                    <td>{event.checkIn || '—'}</td>
+                  </tr>
+                  <tr>
+                    <td>First Game Starts</td>
+                    <td>{event.firstGame || '—'} — TDM</td>
+                  </tr>
+                  <tr>
+                    <td>End Time</td>
+                    <td>{event.endTime || '—'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
             {/* Mission Briefing */}
             <div className="detail-section">
               <h2>Mission Briefing</h2>
@@ -71,17 +93,97 @@ export default function EventDetail() {
               </p>
             </div>
 
+            {/* Game Modes */}
+            {event.gameModes && event.gameModes.length > 0 && (
+              <div className="detail-section">
+                <h2>Game Modes</h2>
+                <ul>
+                  {event.gameModes.map((mode, i) => (
+                    <li key={i}>{mode}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* What's Included */}
             <div className="detail-section">
               <h2>What's Included</h2>
               <ul>
-                <li>Full-day airsoft gameplay</li>
+                <li>Full-day airsoft gameplay ({event.checkIn?.split('–')[0]?.trim() || '6:30 AM'} check-in through {event.endTime || '8:00 PM'})</li>
                 <li>Safety briefing and equipment check</li>
                 <li>Trained marshals on field</li>
-                <li>Tea/coffee at staging area</li>
                 <li>Free parking</li>
-                <li>Gear hire available (additional cost)</li>
+                <li>Rental gear available (see below)</li>
               </ul>
+            </div>
+
+            {/* Rental Packages */}
+            {event.rentals && event.rentals.length > 0 && (
+              <div className="detail-section">
+                <h2>Rental Packages</h2>
+                <table className="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Package</th>
+                      <th>Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {event.rentals.map((rental, i) => (
+                      <tr key={i}>
+                        <td>
+                          <strong>{rental.name}</strong>
+                          <br />
+                          <span style={{ fontSize: '12px', color: 'var(--olive-light)' }}>{rental.description}</span>
+                        </td>
+                        <td>{rental.price}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* BB Purchases */}
+            {event.bbPurchases && event.bbPurchases.length > 0 && (
+              <div className="detail-section">
+                <h2>BB Purchases</h2>
+                <table className="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {event.bbPurchases.map((bb, i) => (
+                      <tr key={i}>
+                        <td>{bb.name}</td>
+                        <td>{bb.price}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Admission Pricing */}
+            <div className="detail-section">
+              <h2>Admission</h2>
+              <table className="pricing-table">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Individual (BYO gear)</td>
+                    <td>{event.price.replace('/head', '')}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             {/* Rules & Requirements */}
@@ -108,37 +210,6 @@ export default function EventDetail() {
                   : 'Foxtrot Fields is a 25-acre open field site with varied terrain zones and purpose-built staging areas.'}
               </p>
             </div>
-
-            {/* Pricing */}
-            <div className="detail-section">
-              <h2>Pricing</h2>
-              <table className="pricing-table">
-                <thead>
-                  <tr>
-                    <th>Type</th>
-                    <th>Price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Individual (BYO gear)</td>
-                    <td>{event.price.replace('/head', '')}</td>
-                  </tr>
-                  <tr>
-                    <td>Individual + Gear Hire</td>
-                    <td>${parseInt(event.price.replace(/[^0-9]/g, '')) + 15}</td>
-                  </tr>
-                  <tr>
-                    <td>Group 5-9 (per head)</td>
-                    <td>${parseInt(event.price.replace(/[^0-9]/g, '')) - 5}</td>
-                  </tr>
-                  <tr>
-                    <td>Group 10+ (per head)</td>
-                    <td>${parseInt(event.price.replace(/[^0-9]/g, '')) - 10}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
           </div>
 
           {/* Right Column — Sidebar */}
@@ -154,8 +225,16 @@ export default function EventDetail() {
                 <span className="info-card-value">{dateFull}</span>
               </div>
               <div className="info-card-item">
-                <span className="info-card-label">Time</span>
-                <span className="info-card-value">{event.time}</span>
+                <span className="info-card-label">Check-In</span>
+                <span className="info-card-value">{event.checkIn || event.time}</span>
+              </div>
+              <div className="info-card-item">
+                <span className="info-card-label">First Game</span>
+                <span className="info-card-value">{event.firstGame || '—'}</span>
+              </div>
+              <div className="info-card-item">
+                <span className="info-card-label">End Time</span>
+                <span className="info-card-value">{event.endTime || '—'}</span>
               </div>
               <div className="info-card-item">
                 <span className="info-card-label">Location</span>
@@ -180,13 +259,15 @@ export default function EventDetail() {
             </div>
 
             {/* Book Now Button */}
-            <Link
-              to="/booking"
+            <a
+              href={siteConfig.bookingLink}
+              target="_blank"
+              rel="noopener noreferrer"
               className="form-submit"
               style={{ display: 'block', textAlign: 'center', textDecoration: 'none', marginBottom: '1.5rem' }}
             >
               &#9658; Book Now
-            </Link>
+            </a>
 
             {/* Waiver Link */}
             <p style={{ fontSize: '12px', color: 'var(--olive-light)', textAlign: 'center', marginBottom: '1.5rem' }}>
@@ -253,7 +334,7 @@ export default function EventDetail() {
                     <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
                     <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
                   </div>
-                  <Link to="/booking" className="btn-book">&#9658; Book Slot</Link>
+                  <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-book">&#9658; Book Slot</a>
                 </div>
               </div>
             ))}
