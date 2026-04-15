@@ -1,1 +1,0 @@
-import{r as e,t}from"./jsx-runtime-BIkaqo8o.js";import{t as n}from"./siteConfig-DDsyApBO.js";var r=t();function i(){return(0,r.jsxs)(`div`,{className:`ticker-bar`,children:[`Next Mission: `,n.nextEvent.name,` — `,n.nextEvent.location,`, `,n.nextEvent.shortDate,` `,(0,r.jsx)(e,{to:`/booking`,children:`Book Now →`})]})}export{i as t};

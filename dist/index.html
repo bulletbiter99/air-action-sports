@@ -3,13 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/images/favicon.ico" type="image/x-icon" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/favicon-192.png" />
+    <link rel="apple-touch-icon" href="/images/favicon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Air Action Sports</title>
-    <script type="module" crossorigin src="/assets/index-BdzS-cFr.js"></script>
+    <!-- Peek Booking Widget -->
+    <script type="text/javascript">
+      (function(config) {
+        window._peekConfig = config || {};
+        var idPrefix = 'peek-book-button';
+        var id = idPrefix+'-js'; if (document.getElementById(id)) return;
+        var head = document.getElementsByTagName('head')[0];
+        var el = document.createElement('script'); el.id = id;
+        var date = new Date; var stamp = date.getMonth()+"-"+date.getDate();
+        var basePath = "https://js.peek.com";
+        el.src = basePath + "/widget_button.js?ts="+stamp;
+        head.appendChild(el); id = idPrefix+'-css'; el = document.createElement('link'); el.id = id;
+        el.href = basePath + "/widget_button.css?ts="+stamp;
+        el.rel="stylesheet"; el.type="text/css"; head.appendChild(el);
+      })({key: 'd574de43-d3b6-435c-a6d9-88e23b3131e7'});
+    </script>
+    <script type="module" crossorigin src="/assets/index-DiNYWcSe.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/jsx-runtime-BIkaqo8o.js">
     <link rel="modulepreload" crossorigin href="/assets/index.esm-C9y2WJpj.js">
-    <link rel="modulepreload" crossorigin href="/assets/siteConfig-DDsyApBO.js">
-    <link rel="modulepreload" crossorigin href="/assets/TickerBar-DnTT9S9_.js">
+    <link rel="modulepreload" crossorigin href="/assets/siteConfig-kKj9PI4a.js">
+    <link rel="modulepreload" crossorigin href="/assets/TickerBar-DPn07Rrq.js">
     <link rel="stylesheet" crossorigin href="/assets/index-C-55nyeY.css">
   </head>
   <body>
