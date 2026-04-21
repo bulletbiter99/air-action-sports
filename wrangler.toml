@@ -28,3 +28,52 @@ SITE_URL = "https://air-action-sports.bulletbiter99.workers.dev"
 FROM_EMAIL = "Air Action Sports <noreply@airactionsport.com>"
 REPLY_TO_EMAIL = "actionairsport@gmail.com"
 ADMIN_NOTIFY_EMAIL = "actionairsport@gmail.com"
+
+# ---------------------------------------------------------------------------
+# Rate limiting bindings (Workers Rate Limiting — Cloudflare beta).
+# Each binding has its own namespace_id (arbitrary int, unique per account)
+# and enforces `limit` requests per `period` seconds per key.
+# Workers RL only supports period=10 or 60.
+# ---------------------------------------------------------------------------
+
+# Login: 5 attempts per minute per IP (brute-force guard).
+[[unsafe.bindings]]
+name = "RL_LOGIN"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 5, period = 60 }
+
+# Forgot-password: 3/min/IP — rate-caps outbound email & token enumeration.
+[[unsafe.bindings]]
+name = "RL_FORGOT"
+type = "ratelimit"
+namespace_id = "1002"
+simple = { limit = 3, period = 60 }
+
+# Token verification (invite + reset): 10/min/IP — online token oracle guard.
+[[unsafe.bindings]]
+name = "RL_VERIFY_TOKEN"
+type = "ratelimit"
+namespace_id = "1003"
+simple = { limit = 10, period = 60 }
+
+# Password-setting flows (reset, accept-invite): 5/min/IP.
+[[unsafe.bindings]]
+name = "RL_RESET_PWD"
+type = "ratelimit"
+namespace_id = "1004"
+simple = { limit = 5, period = 60 }
+
+# Booking checkout: 10/min/IP — caps pending-booking seat-DoS + Stripe spam.
+[[unsafe.bindings]]
+name = "RL_CHECKOUT"
+type = "ratelimit"
+namespace_id = "1005"
+simple = { limit = 10, period = 60 }
+
+# Public bearer-token lookups (booking detail, waiver): 30/min/IP.
+[[unsafe.bindings]]
+name = "RL_TOKEN_LOOKUP"
+type = "ratelimit"
+namespace_id = "1006"
+simple = { limit = 30, period = 60 }

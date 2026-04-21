@@ -4,6 +4,7 @@ import { createSession, setCookie, clearCookie } from '../../lib/session.js';
 import { requireAuth, publicUser } from '../../lib/auth.js';
 import { randomId } from '../../lib/ids.js';
 import { sendPasswordReset } from '../../lib/emailSender.js';
+import { rateLimit } from '../../lib/rateLimit.js';
 
 const auth = new Hono();
 
@@ -46,7 +47,7 @@ auth.post('/setup', async (c) => {
     });
 });
 
-auth.post('/login', async (c) => {
+auth.post('/login', rateLimit('RL_LOGIN'), async (c) => {
     const body = await c.req.json().catch(() => null);
     if (!body?.email || !body?.password) {
         return c.json({ error: 'email and password required' }, 400);
@@ -80,7 +81,7 @@ const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 // POST /api/admin/auth/forgot-password
 // Always returns success even if email doesn't exist (prevents account enumeration).
 // Sends email via Resend (async via waitUntil).
-auth.post('/forgot-password', async (c) => {
+auth.post('/forgot-password', rateLimit('RL_FORGOT'), async (c) => {
     const body = await c.req.json().catch(() => null);
     const email = body?.email?.trim().toLowerCase();
     if (!email) return c.json({ error: 'email required' }, 400);
@@ -122,7 +123,7 @@ auth.post('/forgot-password', async (c) => {
 
 // POST /api/admin/auth/reset-password
 // Consumes a reset token, sets new password, logs user in.
-auth.post('/reset-password', async (c) => {
+auth.post('/reset-password', rateLimit('RL_RESET_PWD'), async (c) => {
     const body = await c.req.json().catch(() => null);
     if (!body?.token || !body?.password) {
         return c.json({ error: 'token and password required' }, 400);
@@ -169,7 +170,7 @@ auth.post('/reset-password', async (c) => {
 });
 
 // GET /api/admin/auth/verify-invite/:token — public check before showing the accept form
-auth.get('/verify-invite/:token', async (c) => {
+auth.get('/verify-invite/:token', rateLimit('RL_VERIFY_TOKEN'), async (c) => {
     const row = await c.env.DB.prepare(
         `SELECT * FROM invitations WHERE token = ?`
     ).bind(c.req.param('token')).first();
@@ -181,7 +182,7 @@ auth.get('/verify-invite/:token', async (c) => {
 });
 
 // POST /api/admin/auth/accept-invite — consume token, create user, auto-login
-auth.post('/accept-invite', async (c) => {
+auth.post('/accept-invite', rateLimit('RL_RESET_PWD'), async (c) => {
     const body = await c.req.json().catch(() => null);
     if (!body?.token || !body?.password || !body?.displayName?.trim()) {
         return c.json({ error: 'token, password, and displayName required' }, 400);
@@ -226,7 +227,7 @@ auth.post('/accept-invite', async (c) => {
 
 // GET /api/admin/auth/verify-reset-token/:token
 // Used by the reset page to validate the link before showing the form.
-auth.get('/verify-reset-token/:token', async (c) => {
+auth.get('/verify-reset-token/:token', rateLimit('RL_VERIFY_TOKEN'), async (c) => {
     const row = await c.env.DB.prepare(
         `SELECT pr.expires_at, pr.used_at, u.email
          FROM password_resets pr JOIN users u ON u.id = pr.user_id

@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import { formatEvent } from '../lib/formatters.js';
 import { randomId } from '../lib/ids.js';
+import { rateLimit } from '../lib/rateLimit.js';
 
 const waivers = new Hono();
 
 // GET /api/waivers/:qrToken
 // Public lookup: returns attendee info pre-filled on the waiver page.
-waivers.get('/:qrToken', async (c) => {
+waivers.get('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
     const qrToken = c.req.param('qrToken');
     const row = await c.env.DB.prepare(
         `SELECT a.*, b.event_id, b.full_name AS buyer_name, b.email AS buyer_email, b.phone AS buyer_phone
@@ -41,7 +42,7 @@ waivers.get('/:qrToken', async (c) => {
 
 // POST /api/waivers/:qrToken
 // Accept and store a signed waiver. Ties to attendee via qr_token.
-waivers.post('/:qrToken', async (c) => {
+waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
     const qrToken = c.req.param('qrToken');
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: 'Invalid body' }, 400);

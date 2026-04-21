@@ -3,6 +3,7 @@ import { formatEvent, formatTicketType, formatBooking, safeJson } from '../lib/f
 import { calculateQuote, centsToDollars, loadActiveTaxesFees } from '../lib/pricing.js';
 import { bookingId } from '../lib/ids.js';
 import { createCheckoutSession } from '../lib/stripe.js';
+import { rateLimit } from '../lib/rateLimit.js';
 
 const bookings = new Hono();
 
@@ -129,7 +130,7 @@ bookings.post('/quote', async (c) => {
 });
 
 // POST /api/bookings/checkout — create pending booking + Stripe Checkout session
-bookings.post('/checkout', async (c) => {
+bookings.post('/checkout', rateLimit('RL_CHECKOUT'), async (c) => {
     const body = await c.req.json().catch(() => null);
     if (!body?.eventId) return c.json({ error: 'eventId required' }, 400);
 
@@ -299,7 +300,7 @@ bookings.post('/checkout', async (c) => {
 });
 
 // GET /api/bookings/:token — public confirmation lookup (no auth; id is unguessable)
-bookings.get('/:token', async (c) => {
+bookings.get('/:token', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
     const row = await c.env.DB.prepare(
         `SELECT * FROM bookings WHERE id = ?`
     ).bind(c.req.param('token')).first();
