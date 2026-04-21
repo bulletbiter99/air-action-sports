@@ -1,4 +1,12 @@
 node_modules/
 static-backup/
-.claude/
+.claude/*
+!.claude/skills/
 dist/
+.env
+.env.*
+!.env.example
+.dev.vars
+.wrangler/
+*.sqlite
+*.sqlite3
