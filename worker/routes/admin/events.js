@@ -33,7 +33,14 @@ function parseEventBody(body, { partial = false } = {}) {
     for (const [k, col] of Object.entries(map)) {
         if (body[k] === undefined) continue;
         if (EVENT_STRING_FIELDS.includes(col)) {
-            patch[col] = body[k] === null ? null : String(body[k]).trim();
+            let v = body[k] === null ? null : String(body[k]).trim();
+            // slug must be URL-safe. Enforced on both create and update so it
+            // can't ever contain characters that'd break the /events/:slug
+            // HTML rewriter or the OG URL in meta tags.
+            if (col === 'slug' && v !== null && v !== '' && !/^[a-z0-9-]+$/.test(v)) {
+                return { error: 'slug must contain only lowercase letters, numbers, and hyphens' };
+            }
+            patch[col] = v;
         } else if (EVENT_INT_FIELDS.includes(col)) {
             if (body[k] === null || body[k] === '') patch[col] = null;
             else {

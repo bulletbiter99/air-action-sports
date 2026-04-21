@@ -22,11 +22,39 @@ import adminUploads from './routes/admin/uploads.js';
 
 const app = new Hono();
 
-app.use('/api/*', cors({
-    origin: '*',
+// CORS policy is tied to SITE_URL — never wildcard. Browsers that try to hit
+// the API from any other origin (incl. attacker pages) get no CORS headers
+// and their fetch fails. /api/webhooks/stripe deliberately gets no CORS
+// middleware because it's server-to-server — browsers shouldn't touch it.
+//
+// Hono passes (originHeader, context) to the function. Return the origin to
+// echo it back, or null to refuse CORS headers entirely.
+function corsOrigin(reqOrigin, c) {
+    const allowed = c.env.SITE_URL;
+    return reqOrigin && allowed && reqOrigin === allowed ? reqOrigin : null;
+}
+
+// Public GET endpoints: events, taxes-fees, waivers, bookings lookup. No cookies.
+app.use('/api/events/*', cors({ origin: corsOrigin, allowMethods: ['GET', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
+app.use('/api/events', cors({ origin: corsOrigin, allowMethods: ['GET', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
+app.use('/api/taxes-fees', cors({ origin: corsOrigin, allowMethods: ['GET', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
+app.use('/api/waivers/*', cors({ origin: corsOrigin, allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
+
+// Public booking checkout + lookup. No cookies; POSTs from the site.
+app.use('/api/bookings/*', cors({ origin: corsOrigin, allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
+app.use('/api/bookings', cors({ origin: corsOrigin, allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
+
+// Admin: cookie-bearing. credentials:true requires an explicit origin, never '*'.
+app.use('/api/admin/*', cors({
+    origin: corsOrigin,
+    credentials: true,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'Stripe-Signature'],
+    allowHeaders: ['Content-Type', 'Authorization'],
 }));
+
+app.use('/api/health', cors({ origin: corsOrigin, allowMethods: ['GET', 'OPTIONS'] }));
+
+// /api/webhooks/* intentionally has NO cors middleware — server-to-server.
 
 // Never cache API responses — they're dynamic and booking-sensitive.
 app.use('/api/*', async (c, next) => {
@@ -172,7 +200,9 @@ async function rewriteEventOg(request, env, slug) {
 
     const rewriter = new HTMLRewriter()
         .on('title', {
-            element(el) { el.setInnerContent(title); },
+            // html:false treats content as literal text — prevents XSS when
+            // event title contains '<' or '>' characters.
+            element(el) { el.setInnerContent(title, { html: false }); },
         })
         .on('meta[name="description"]', {
             element(el) { el.setAttribute('content', description); },

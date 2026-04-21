@@ -120,9 +120,14 @@ adminAttendees.post('/:id/check-out', async (c) => {
 });
 
 // PUT /api/admin/attendees/:id — edit name/email/phone
-// Any field omitted from body is left unchanged. If the attendee has already
-// signed a waiver, editing the name is allowed but logged — the waiver's
-// stored signature is not mutated (it still reflects what the player typed).
+// Any field omitted from body is left unchanged.
+//
+// Waiver integrity: if this attendee already signed a waiver, renaming them
+// would break the "signature matches ticket name" legal chain. So:
+//   - Email/phone changes are always allowed (staff+).
+//   - Name changes require manager+ role AND invalidate the waiver
+//     (waiver_id cleared → they must re-sign under the new name).
+// The old waiver row is preserved for audit.
 adminAttendees.put('/:id', async (c) => {
     const user = c.get('user');
     const id = c.req.param('id');
@@ -145,19 +150,39 @@ adminAttendees.put('/:id', async (c) => {
     const keys = Object.keys(patch);
     if (!keys.length) return c.json({ error: 'No changes' }, 400);
 
-    const sets = keys.map((k) => `${k} = ?`).join(', ');
-    const binds = keys.map((k) => patch[k]);
+    // Waiver-guard: detect a name change on an already-signed attendee.
+    const nameChange =
+        (patch.first_name !== undefined && patch.first_name !== existing.first_name) ||
+        (patch.last_name !== undefined && (patch.last_name || null) !== (existing.last_name || null));
+    const waiverInvalidated = !!existing.waiver_id && nameChange;
+    if (waiverInvalidated && !['owner', 'manager'].includes(user.role)) {
+        return c.json({
+            error: 'Renaming a waiver-signed attendee requires manager role. The waiver will be invalidated and the player must re-sign.',
+        }, 403);
+    }
+    if (waiverInvalidated) {
+        patch.waiver_id = null;
+    }
+
+    const setKeys = Object.keys(patch);
+    const sets = setKeys.map((k) => `${k} = ?`).join(', ');
+    const binds = setKeys.map((k) => patch[k]);
     binds.push(id);
     await c.env.DB.prepare(`UPDATE attendees SET ${sets} WHERE id = ?`).bind(...binds).run();
 
     await c.env.DB.prepare(
         `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
-         VALUES (?, 'attendee.updated', 'attendee', ?, ?, ?)`
+         VALUES (?, ?, 'attendee', ?, ?, ?)`
     ).bind(
-        user.id, id,
+        user.id,
+        waiverInvalidated ? 'attendee.renamed_after_waiver' : 'attendee.updated',
+        id,
         JSON.stringify({
             fields: keys,
-            waiver_signed: !!existing.waiver_id,
+            waiver_was_signed: !!existing.waiver_id,
+            waiver_invalidated: waiverInvalidated,
+            previous_name: waiverInvalidated ? `${existing.first_name || ''} ${existing.last_name || ''}`.trim() : undefined,
+            new_name: waiverInvalidated ? `${patch.first_name ?? existing.first_name} ${patch.last_name ?? existing.last_name ?? ''}`.trim() : undefined,
             booking_id: existing.booking_id,
         }),
         Date.now(),

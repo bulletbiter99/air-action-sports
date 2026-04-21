@@ -3,13 +3,18 @@
 
 const STRIPE_API = 'https://api.stripe.com/v1';
 
-async function stripeFetch(path, { method = 'POST', apiKey, body } = {}) {
+async function stripeFetch(path, { method = 'POST', apiKey, body, idempotencyKey } = {}) {
+    const headers = {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+    };
+    // Idempotency-Key makes Stripe dedupe requests that share the key for 24h.
+    // Essential for money-moving operations (refunds) to survive retries/races.
+    if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+
     const res = await fetch(`${STRIPE_API}${path}`, {
         method,
-        headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers,
         body: body ? encodeForm(body) : undefined,
     });
     const json = await res.json();
@@ -62,29 +67,40 @@ export async function retrieveSession(sessionId, apiKey) {
 
 /**
  * Issue a refund against a payment intent. Amount optional (full refund if omitted).
- * @param {{ apiKey:string, paymentIntent:string, amountCents?:number, reason?:'requested_by_customer'|'duplicate'|'fraudulent' }} args
+ * idempotencyKey is strongly recommended by callers — any concurrent or retried
+ * call with the same key is deduped by Stripe server-side for 24h.
+ * @param {{ apiKey:string, paymentIntent:string, amountCents?:number, reason?:'requested_by_customer'|'duplicate'|'fraudulent', idempotencyKey?:string }} args
  */
-export async function issueRefund({ apiKey, paymentIntent, amountCents, reason }) {
+export async function issueRefund({ apiKey, paymentIntent, amountCents, reason, idempotencyKey }) {
     const body = { payment_intent: paymentIntent };
     if (amountCents != null) body.amount = String(amountCents);
     if (reason) body.reason = reason;
-    return stripeFetch('/refunds', { apiKey, body });
+    return stripeFetch('/refunds', { apiKey, body, idempotencyKey });
 }
 
 /**
  * Verify Stripe webhook signature. Replicates stripe.webhooks.constructEvent logic.
- * Stripe-Signature header looks like: "t=1614...,v1=abc123..."
+ * Stripe-Signature header looks like: "t=1614...,v1=abc123...,v1=def456..."
+ * Multiple v1 entries are possible during secret rotation — we accept any match.
  * We compute HMAC-SHA256 of `${timestamp}.${body}` using the webhook secret
- * and compare against v1 (constant-time).
+ * and compare against each v1 value (constant-time).
  */
 export async function verifyWebhookSignature({ body, signatureHeader, secret, tolerance = 300 }) {
     if (!signatureHeader) throw new Error('Missing Stripe-Signature header');
-    const parts = Object.fromEntries(
-        signatureHeader.split(',').map((p) => p.split('=').map((s) => s.trim()))
-    );
-    const timestamp = parts.t;
-    const v1 = parts.v1;
-    if (!timestamp || !v1) throw new Error('Malformed Stripe-Signature');
+
+    // Stripe-Signature is comma-separated k=v pairs; v1 may appear more than once.
+    // Collect timestamp and ALL v1 values.
+    let timestamp = null;
+    const v1Values = [];
+    for (const part of signatureHeader.split(',')) {
+        const eq = part.indexOf('=');
+        if (eq < 0) continue;
+        const k = part.slice(0, eq).trim();
+        const v = part.slice(eq + 1).trim();
+        if (k === 't') timestamp = v;
+        else if (k === 'v1') v1Values.push(v);
+    }
+    if (!timestamp || v1Values.length === 0) throw new Error('Malformed Stripe-Signature');
 
     const nowSec = Math.floor(Date.now() / 1000);
     if (Math.abs(nowSec - Number(timestamp)) > tolerance) {
@@ -104,9 +120,12 @@ export async function verifyWebhookSignature({ body, signatureHeader, secret, to
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
 
-    if (!timingSafeEqual(expected, v1)) {
-        throw new Error('Webhook signature mismatch');
+    // Accept if ANY v1 matches — handles Stripe's dual-sign rotation window.
+    let matched = false;
+    for (const v1 of v1Values) {
+        if (timingSafeEqual(expected, v1)) { matched = true; break; }
     }
+    if (!matched) throw new Error('Webhook signature mismatch');
     return JSON.parse(body);
 }
 

@@ -100,8 +100,10 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
 
     const eventRow = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(body.eventId).first();
     if (!eventRow) return c.json({ error: 'Event not found' }, 404);
+    // Select capacity + sold too so we can enforce capacity on manual bookings.
+    // Without this, a manager can oversell beyond ticket_types.capacity.
     const typesResult = await c.env.DB.prepare(
-        `SELECT id, name, price_cents FROM ticket_types WHERE event_id = ? AND active = 1`
+        `SELECT id, name, price_cents, capacity, sold FROM ticket_types WHERE event_id = ? AND active = 1`
     ).bind(body.eventId).all();
     const typesById = new Map((typesResult.results || []).map((t) => [t.id, t]));
     const addons = safeJson(eventRow.addons_json, []);
@@ -114,6 +116,21 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
             return c.json({ error: 'Each attendee needs firstName and valid ticketTypeId' }, 400);
         }
         perTypeQty.set(a.ticketTypeId, (perTypeQty.get(a.ticketTypeId) || 0) + 1);
+    }
+
+    // Capacity check. Ticket types with a finite capacity cannot be oversold.
+    // capacity === null is treated as unlimited.
+    for (const [ttId, qty] of perTypeQty.entries()) {
+        const tt = typesById.get(ttId);
+        if (tt.capacity != null && tt.sold + qty > tt.capacity) {
+            const remaining = Math.max(0, tt.capacity - tt.sold);
+            return c.json({
+                error: `Not enough capacity for ${tt.name}: ${remaining} left, ${qty} requested`,
+                ticketTypeId: ttId,
+                remaining,
+                requested: qty,
+            }, 409);
+        }
     }
 
     const lineItems = [];
@@ -226,6 +243,10 @@ adminBookings.post('/:id/refund', requireRole('owner', 'manager'), async (c) => 
     if (!booking) return c.json({ error: 'Booking not found' }, 404);
     if (booking.status !== 'paid') return c.json({ error: `Cannot refund booking with status: ${booking.status}` }, 409);
     if (!booking.stripe_payment_intent) return c.json({ error: 'No payment intent on booking' }, 400);
+    // Cash bookings carry synthetic payment intents — don't round-trip to Stripe.
+    if (booking.stripe_payment_intent.startsWith('cash_')) {
+        return c.json({ error: 'Cash booking — refund handled out of band, not via Stripe' }, 400);
+    }
 
     let refund;
     try {
@@ -233,10 +254,13 @@ adminBookings.post('/:id/refund', requireRole('owner', 'manager'), async (c) => 
             apiKey: c.env.STRIPE_SECRET_KEY,
             paymentIntent: booking.stripe_payment_intent,
             reason,
+            // Idempotency-Key dedupes concurrent clicks / browser retries.
+            // Stripe holds the key for 24h; any repeat returns the same refund.
+            idempotencyKey: `refund_${id}`,
         });
     } catch (err) {
-        console.error('Refund failed:', err.message);
-        return c.json({ error: `Stripe refund failed: ${err.message}` }, 502);
+        console.error('Refund failed:', err);
+        return c.json({ error: 'Stripe refund failed' }, 502);
     }
 
     const now = Date.now();
