@@ -1,176 +1,555 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
-import { events } from '../data/events';
-import { locations } from '../data/locations';
 
-// TODO: Replace with API calls when backend is ready
+const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
+const dateFmt = (ms) => ms ? new Date(ms).toLocaleString() : '—';
 
-const faqCategories = [
-  'General',
-  'Booking & Payment',
-  'Safety & Rules',
-  'Gear & Equipment',
-  'Private Hire',
-];
-
-const pricingItems = [
-  { label: 'Walk-on (Skirmish)', price: '$25' },
-  { label: 'Standard Event', price: '$80' },
-  { label: 'Milsim Event', price: '$45-55' },
-  { label: 'Gear Hire Bundle', price: '$15' },
+const STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'refunded', label: 'Refunded' },
+  { value: 'comp', label: 'Comp' },
 ];
 
 export default function AdminDashboard() {
-  const { isAuthenticated, logout } = useAdmin();
+  const { user, isAuthenticated, loading, logout, setupNeeded } = useAdmin();
   const navigate = useNavigate();
 
+  const [stats, setStats] = useState(null);
+  const [bookings, setBookings] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [filter, setFilter] = useState({ status: '', q: '', event_id: '' });
+  const [events, setEvents] = useState([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [selected, setSelected] = useState(null);
+
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/admin/login');
+    if (loading) return;
+    if (setupNeeded) navigate('/admin/setup', { replace: true });
+    else if (!isAuthenticated) navigate('/admin/login', { replace: true });
+  }, [loading, isAuthenticated, setupNeeded, navigate]);
+
+  const loadStats = useCallback(async () => {
+    const res = await fetch('/api/admin/bookings/stats/summary', { credentials: 'include', cache: 'no-store' });
+    if (res.ok) setStats(await res.json());
+  }, []);
+
+  const loadEvents = useCallback(async () => {
+    const res = await fetch('/api/events', { cache: 'no-store' });
+    if (res.ok) {
+      const { events } = await res.json();
+      setEvents(events || []);
     }
-  }, [isAuthenticated, navigate]);
+  }, []);
 
-  if (!isAuthenticated) return null;
+  const loadBookings = useCallback(async () => {
+    setListLoading(true);
+    const params = new URLSearchParams();
+    if (filter.status) params.set('status', filter.status);
+    if (filter.q) params.set('q', filter.q);
+    if (filter.event_id) params.set('event_id', filter.event_id);
+    const res = await fetch(`/api/admin/bookings?${params.toString()}`, {
+      credentials: 'include', cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setBookings(data.bookings || []);
+      setTotal(data.total || 0);
+    }
+    setListLoading(false);
+  }, [filter]);
 
-  const handleEdit = () => {
-    // TODO: Wire to backend API
-    alert('TODO: Wire to backend API');
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadStats();
+      loadEvents();
+    }
+  }, [isAuthenticated, loadStats, loadEvents]);
+
+  useEffect(() => {
+    if (isAuthenticated) loadBookings();
+  }, [isAuthenticated, loadBookings]);
+
+  const quickStats = useMemo(() => {
+    if (!stats) return null;
+    const paid = stats.byStatus?.find((s) => s.status === 'paid');
+    const pending = stats.byStatus?.find((s) => s.status === 'pending');
+    return {
+      paidCount: paid?.n || 0,
+      paidGross: paid?.gross_cents || 0,
+      pendingCount: pending?.n || 0,
+      todayCount: stats.today?.count || 0,
+      todayGross: stats.today?.grossCents || 0,
+    };
+  }, [stats]);
+
+  if (loading || !isAuthenticated) return null;
+
+  return (
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
+      {/* Header */}
+      <div style={headerRow}>
+        <div>
+          <h1 style={h1}>Dashboard</h1>
+          <div style={{ color: 'var(--olive-light)', fontSize: 13, marginTop: 4 }}>
+            Signed in as <strong style={{ color: 'var(--tan)' }}>{user.displayName}</strong>
+            {' · '}<span style={{ textTransform: 'uppercase', fontSize: 11, letterSpacing: 1 }}>{user.role}</span>
+          </div>
+        </div>
+        <button style={logoutBtn} onClick={logout}>Log out</button>
+      </div>
+
+      {/* Quick stats */}
+      {quickStats && (
+        <div style={statsGrid}>
+          <StatCard label="Today paid" value={quickStats.todayCount} sub={fmt(quickStats.todayGross)} />
+          <StatCard label="All paid" value={quickStats.paidCount} sub={fmt(quickStats.paidGross)} />
+          <StatCard label="Pending" value={quickStats.pendingCount} sub="awaiting payment" />
+          <StatCard label="Total events" value={events.length} sub="active" />
+        </div>
+      )}
+
+      {/* Filters */}
+      <div style={filterBar}>
+        <input
+          type="search"
+          placeholder="Search name or email…"
+          value={filter.q}
+          onChange={(e) => setFilter({ ...filter, q: e.target.value })}
+          style={{ ...filterInput, flex: 2 }}
+        />
+        <select
+          value={filter.event_id}
+          onChange={(e) => setFilter({ ...filter, event_id: e.target.value })}
+          style={{ ...filterInput, flex: 1 }}
+        >
+          <option value="">All events</option>
+          {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+        </select>
+        <select
+          value={filter.status}
+          onChange={(e) => setFilter({ ...filter, status: e.target.value })}
+          style={{ ...filterInput, flex: 1 }}
+        >
+          {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+
+      {/* Bookings */}
+      <section style={sectionBox}>
+        <h2 style={h2}>Bookings {total > 0 && <span style={{ color: 'var(--olive-light)', fontSize: 13, fontWeight: 400, letterSpacing: 0 }}>({total})</span>}</h2>
+        {listLoading && <p style={{ color: 'var(--olive-light)', fontSize: 13 }}>Loading…</p>}
+        {!listLoading && bookings.length === 0 && (
+          <p style={{ color: 'var(--olive-light)', fontSize: 13 }}>No bookings match the current filter.</p>
+        )}
+        {bookings.length > 0 && (
+          <table style={table}>
+            <thead>
+              <tr>
+                <th style={th}>Date</th>
+                <th style={th}>Name</th>
+                <th style={th}>Email</th>
+                <th style={th}>Players</th>
+                <th style={th}>Total</th>
+                <th style={th}>Status</th>
+                <th style={th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {bookings.map((b) => (
+                <tr key={b.id} style={tr}>
+                  <td style={td}>{dateFmt(b.createdAt)}</td>
+                  <td style={td}><strong>{b.fullName}</strong></td>
+                  <td style={td}>{b.email}</td>
+                  <td style={td}>{b.playerCount}</td>
+                  <td style={td}>{fmt(b.totalCents)}</td>
+                  <td style={td}><StatusBadge status={b.status} /></td>
+                  <td style={{ ...td, textAlign: 'right' }}>
+                    <button style={viewBtn} onClick={() => setSelected(b.id)}>View</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {selected && (
+        <BookingDetailModal
+          id={selected}
+          onClose={() => setSelected(null)}
+          onChanged={() => { loadBookings(); loadStats(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub }) {
+  return (
+    <div style={statCard}>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: 'var(--orange)', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--cream)', margin: '6px 0 2px' }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--olive-light)' }}>{sub}</div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const palette = {
+    paid: { bg: 'rgba(39,174,96,0.15)', fg: '#2ecc71' },
+    pending: { bg: 'rgba(212,84,26,0.15)', fg: 'var(--orange)' },
+    cancelled: { bg: 'rgba(149,165,166,0.15)', fg: '#95a5a6' },
+    refunded: { bg: 'rgba(230,126,34,0.15)', fg: '#e67e22' },
+    comp: { bg: 'rgba(155,89,182,0.15)', fg: '#9b59b6' },
+  };
+  const c = palette[status] || palette.pending;
+  return (
+    <span style={{
+      display: 'inline-block', padding: '2px 8px', fontSize: 10, fontWeight: 800,
+      letterSpacing: 1.5, textTransform: 'uppercase', background: c.bg, color: c.fg,
+      border: `1px solid ${c.fg}40`,
+    }}>{status}</span>
+  );
+}
+
+function BookingDetailModal({ id, onClose, onChanged }) {
+  const { hasRole } = useAdmin();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [refunding, setRefunding] = useState(false);
+  const [refundError, setRefundError] = useState(null);
+  const [showRefundConfirm, setShowRefundConfirm] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [actionMsg, setActionMsg] = useState(null); // { kind, text }
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/bookings/${id}`, { credentials: 'include', cache: 'no-store' });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Failed');
+      setData(d);
+    } catch (e) { setError(e.message); }
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const flashMsg = (kind, text) => {
+    setActionMsg({ kind, text });
+    setTimeout(() => setActionMsg(null), 3500);
   };
 
-  const sectionStyle = {
-    background: 'var(--mid, #2a2a2a)',
-    border: '1px solid rgba(200,184,154,0.1)',
-    padding: '1.5rem',
-    marginBottom: '2rem',
+  const resendConfirmation = async () => {
+    setResending(true);
+    const res = await fetch(`/api/admin/bookings/${id}/resend-confirmation`, {
+      method: 'POST', credentials: 'include',
+    });
+    setResending(false);
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) flashMsg('ok', `Confirmation re-sent to ${d.sentTo}`);
+    else flashMsg('err', d.error || 'Resend failed');
   };
 
-  const headingStyle = {
-    fontSize: '14px',
-    fontWeight: 800,
-    textTransform: 'uppercase',
-    letterSpacing: '2px',
-    color: 'var(--orange, #d4541a)',
-    marginBottom: '1rem',
-  };
-
-  const itemStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '10px 0',
-    borderBottom: '1px solid rgba(200,184,154,0.08)',
-    fontSize: '14px',
-    color: 'var(--tan-light, #d4cfc5)',
-  };
-
-  const editBtnStyle = {
-    padding: '6px 16px',
-    background: 'none',
-    border: '1px solid rgba(200,184,154,0.3)',
-    color: 'var(--tan, #c8b89a)',
-    fontSize: '11px',
-    fontWeight: 700,
-    letterSpacing: '1px',
-    textTransform: 'uppercase',
-    cursor: 'pointer',
+  const doRefund = async () => {
+    setRefunding(true);
+    setRefundError(null);
+    try {
+      const res = await fetch(`/api/admin/bookings/${id}/refund`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'requested_by_customer' }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Refund failed');
+      setShowRefundConfirm(false);
+      await load();
+      onChanged?.();
+    } catch (e) {
+      setRefundError(e.message);
+    } finally {
+      setRefunding(false);
+    }
   };
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '2rem',
-        }}
-      >
-        <h1
-          style={{
-            fontSize: '24px',
-            fontWeight: 900,
-            textTransform: 'uppercase',
-            letterSpacing: '-1px',
-            color: 'var(--cream, #f5f0e8)',
-          }}
-        >
-          Dashboard
-        </h1>
-        <button
-          onClick={logout}
-          style={{
-            ...editBtnStyle,
-            borderColor: '#e74c3c',
-            color: '#e74c3c',
-          }}
-        >
-          Logout
-        </button>
-      </div>
+    <div style={modalBackdrop} onClick={onClose}>
+      <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <h2 style={{ ...h2, margin: 0 }}>Booking Detail</h2>
+          <button style={closeBtn} onClick={onClose}>✕</button>
+        </div>
+        {error && <div style={{ color: '#ff8a7e' }}>{error}</div>}
+        {!data && !error && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
+        {data && (
+          <>
+            <Row label="Booking ID" value={<code style={{ color: 'var(--tan)' }}>{data.booking.id}</code>} />
+            <Row label="Event" value={data.event?.title} />
+            <Row label="Date" value={data.event?.displayDate} />
+            <Row label="Buyer" value={`${data.booking.fullName} · ${data.booking.email} · ${data.booking.phone}`} />
+            <Row label="Status" value={<StatusBadge status={data.booking.status} />} />
+            <Row label="Created" value={dateFmt(data.booking.createdAt)} />
+            {data.booking.paidAt && <Row label="Paid at" value={dateFmt(data.booking.paidAt)} />}
+            <Row label="Total" value={<strong>{fmt(data.booking.totalCents)}</strong>} />
 
-      {/* Events Section */}
-      {/* TODO: Replace with API calls when backend is ready */}
-      <div style={sectionStyle}>
-        <h2 style={headingStyle}>Events</h2>
-        {events.map((event) => (
-          <div style={itemStyle} key={event.id}>
-            <span>
-              {event.title} &mdash; {event.date.day} {event.date.month}
-              {event.past ? ' (past)' : ''}
-            </span>
-            <button style={editBtnStyle} onClick={handleEdit}>
-              Edit
-            </button>
-          </div>
-        ))}
-      </div>
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid rgba(200,184,154,0.15)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              {hasRole('manager') && ['paid', 'comp'].includes(data.booking.status) && (
+                <button
+                  onClick={resendConfirmation}
+                  disabled={resending}
+                  style={{
+                    padding: '10px 20px', background: 'transparent',
+                    border: '1px solid rgba(200,184,154,0.3)', color: 'var(--tan)',
+                    fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase',
+                    cursor: resending ? 'wait' : 'pointer',
+                  }}
+                >{resending ? 'Sending…' : '✉ Resend Confirmation'}</button>
+              )}
+              {data.booking.status === 'paid' && data.booking.stripePaymentIntent && !String(data.booking.stripePaymentIntent).startsWith('cash_') && (
+                <button
+                  onClick={() => setShowRefundConfirm(true)}
+                  style={{
+                    padding: '10px 20px', background: 'transparent',
+                    border: '1px solid rgba(231,76,60,0.5)', color: '#ff8a7e',
+                    fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase',
+                    cursor: 'pointer',
+                  }}
+                >Issue Full Refund</button>
+              )}
+              {actionMsg && (
+                <span style={{
+                  fontSize: 12, padding: '6px 12px',
+                  background: actionMsg.kind === 'ok' ? 'rgba(39,174,96,0.15)' : 'rgba(231,76,60,0.15)',
+                  color: actionMsg.kind === 'ok' ? '#2ecc71' : '#ff8a7e',
+                }}>{actionMsg.text}</span>
+              )}
+            </div>
 
-      {/* Locations Section */}
-      {/* TODO: Replace with API calls when backend is ready */}
-      <div style={sectionStyle}>
-        <h2 style={headingStyle}>Locations</h2>
-        {locations.map((loc) => (
-          <div style={itemStyle} key={loc.id}>
-            <span>
-              {loc.name} &mdash; {loc.address}
-            </span>
-            <button style={editBtnStyle} onClick={handleEdit}>
-              Edit
-            </button>
-          </div>
-        ))}
-      </div>
+            {showRefundConfirm && (
+              <RefundConfirmModal
+                booking={data.booking}
+                error={refundError}
+                submitting={refunding}
+                onCancel={() => { setShowRefundConfirm(false); setRefundError(null); }}
+                onConfirm={doRefund}
+              />
+            )}
 
-      {/* FAQ Section */}
-      {/* TODO: Replace with API calls when backend is ready */}
-      <div style={sectionStyle}>
-        <h2 style={headingStyle}>FAQ</h2>
-        {faqCategories.map((cat) => (
-          <div style={itemStyle} key={cat}>
-            <span>{cat}</span>
-            <button style={editBtnStyle} onClick={handleEdit}>
-              Edit
-            </button>
-          </div>
-        ))}
-      </div>
+            <div style={{ margin: '20px 0 10px', fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--orange)' }}>
+              Line items
+            </div>
+            <table style={table}>
+              <thead><tr><th style={th}>Item</th><th style={th}>Qty</th><th style={th}>Total</th></tr></thead>
+              <tbody>
+                {data.booking.lineItems.filter((li) => li.type === 'ticket' || li.type === 'addon').map((li, i) => (
+                  <tr key={i} style={tr}>
+                    <td style={td}>{li.name}{li.addon_type === 'rental' ? ' (rental)' : ''}</td>
+                    <td style={td}>{li.qty}</td>
+                    <td style={td}>{fmt(li.line_total_cents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-      {/* Pricing Section */}
-      {/* TODO: Replace with API calls when backend is ready */}
-      <div style={sectionStyle}>
-        <h2 style={headingStyle}>Pricing</h2>
-        {pricingItems.map((item) => (
-          <div style={itemStyle} key={item.label}>
-            <span>
-              {item.label}: {item.price}
-            </span>
-            <button style={editBtnStyle} onClick={handleEdit}>
-              Edit
-            </button>
-          </div>
-        ))}
+            {data.booking.lineItems.some((li) => li.type === 'tax' || li.type === 'fee') && (
+              <>
+                <div style={{ margin: '20px 0 10px', fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--orange)' }}>
+                  Taxes &amp; Fees (admin-only breakdown)
+                </div>
+                <table style={table}>
+                  <thead><tr><th style={th}>Line</th><th style={th}>Rate</th><th style={th}>Amount</th></tr></thead>
+                  <tbody>
+                    {data.booking.lineItems.filter((li) => li.type === 'tax' || li.type === 'fee').map((li, i) => {
+                      const parts = [];
+                      if (li.percent_bps) parts.push(`${(li.percent_bps / 100).toFixed(2)}%`);
+                      if (li.fixed_cents) parts.push(`+ $${(li.fixed_cents / 100).toFixed(2)}`);
+                      return (
+                        <tr key={`tf-${i}`} style={tr}>
+                          <td style={td}>
+                            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: li.type === 'tax' ? '#e67e22' : '#9b59b6', textTransform: 'uppercase', marginRight: 8 }}>{li.type}</span>
+                            {li.name}
+                          </td>
+                          <td style={{ ...td, color: 'var(--olive-light)', fontSize: 12 }}>{parts.join(' ') || '—'}</td>
+                          <td style={td}>{fmt(li.line_total_cents)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p style={{ fontSize: 11, color: 'var(--olive-light)', marginTop: 8 }}>
+                  Customer sees a single <strong>Taxes &amp; Fees</strong> line of <strong>{fmt((data.booking.taxCents || 0) + (data.booking.feeCents || 0))}</strong>.
+                </p>
+              </>
+            )}
+
+            {data.attendees.length > 0 && (
+              <>
+                <div style={{ margin: '20px 0 10px', fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--orange)' }}>
+                  Players ({data.attendees.length})
+                </div>
+                <table style={table}>
+                  <thead><tr><th style={th}>Name</th><th style={th}>Email</th><th style={th}>Phone</th><th style={th}>Waiver</th><th style={th}>Check-in</th><th style={th}></th></tr></thead>
+                  <tbody>
+                    {data.attendees.map((a) => (
+                      <AttendeeRow key={a.id} attendee={a} onChanged={load} />
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
 }
+
+function AttendeeRow({ attendee: a, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    firstName: a.firstName || '', lastName: a.lastName || '',
+    email: a.email || '', phone: a.phone || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+  const [waiverSending, setWaiverSending] = useState(false);
+
+  const save = async () => {
+    setSaving(true); setErr(null);
+    const res = await fetch(`/api/admin/attendees/${a.id}`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    });
+    setSaving(false);
+    if (res.ok) { setEditing(false); onChanged?.(); }
+    else { const d = await res.json().catch(() => ({})); setErr(d.error || 'Save failed'); }
+  };
+
+  const resendWaiver = async () => {
+    setWaiverSending(true);
+    const res = await fetch(`/api/admin/attendees/${a.id}/send-waiver`, {
+      method: 'POST', credentials: 'include',
+    });
+    setWaiverSending(false);
+    if (res.ok) alert('Waiver email sent');
+    else { const d = await res.json().catch(() => ({})); alert(d.error || 'Send failed'); }
+  };
+
+  if (editing) {
+    return (
+      <tr style={tr}>
+        <td style={td} colSpan={6}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr 1fr auto', gap: 6, alignItems: 'center' }}>
+            <input placeholder="First name" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} style={editInput} />
+            <input placeholder="Last name" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} style={editInput} />
+            <input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={editInput} />
+            <input placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} style={editInput} />
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={save} disabled={saving} style={smallPrimary}>{saving ? '…' : 'Save'}</button>
+              <button onClick={() => { setEditing(false); setErr(null); }} style={smallSubtle}>×</button>
+            </div>
+          </div>
+          {a.waiverSigned && (
+            <div style={{ fontSize: 10, color: '#f39c12', marginTop: 4 }}>
+              ⚠ Waiver already signed — stored signature won't be altered
+            </div>
+          )}
+          {err && <div style={{ fontSize: 11, color: '#ff8a7e', marginTop: 4 }}>{err}</div>}
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr style={tr}>
+      <td style={td}>{a.firstName} {a.lastName}</td>
+      <td style={td}>{a.email || '—'}</td>
+      <td style={td}>{a.phone || '—'}</td>
+      <td style={td}>{a.waiverSigned ? <span style={{ color: '#2ecc71' }}>✓ Signed</span> : <span style={{ color: 'var(--olive-light)' }}>Pending</span>}</td>
+      <td style={td}>{a.checkedIn ? <span style={{ color: '#2ecc71' }}>✓</span> : '—'}</td>
+      <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+        <button onClick={() => setEditing(true)} style={smallSubtle}>Edit</button>
+        {!a.waiverSigned && (
+          <button onClick={resendWaiver} disabled={waiverSending} style={{ ...smallSubtle, marginLeft: 6 }}>
+            {waiverSending ? '…' : '✉ Waiver'}
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+const editInput = { padding: '6px 10px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 12, fontFamily: 'inherit' };
+const smallPrimary = { padding: '6px 12px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
+const smallSubtle = { padding: '4px 10px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
+
+function RefundConfirmModal({ booking, onCancel, onConfirm, submitting, error }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{
+        background: 'var(--mid)', border: '1px solid rgba(231,76,60,0.4)',
+        padding: '2rem', maxWidth: 460, width: '100%',
+      }}>
+        <div style={{ color: '#ff8a7e', fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
+          ⚠ Confirm Refund
+        </div>
+        <h3 style={{ color: 'var(--cream)', fontSize: 20, fontWeight: 900, margin: '0 0 1rem', letterSpacing: '-0.5px' }}>
+          Refund {fmt(booking.totalCents)}?
+        </h3>
+        <div style={{ background: 'rgba(231,76,60,0.08)', border: '1px solid rgba(231,76,60,0.2)', padding: 14, marginBottom: 18 }}>
+          <p style={{ color: 'var(--cream)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+            This will refund <strong>{fmt(booking.totalCents)}</strong> to <strong>{booking.email}</strong>'s card via Stripe.
+          </p>
+          <ul style={{ color: 'var(--tan-light)', fontSize: 12, margin: '10px 0 0', paddingLeft: 18, lineHeight: 1.6 }}>
+            <li>Booking will be marked <strong>refunded</strong></li>
+            <li>{booking.playerCount} ticket{booking.playerCount > 1 ? 's' : ''} released back to inventory</li>
+            <li><strong style={{ color: '#ff8a7e' }}>This action cannot be undone</strong></li>
+          </ul>
+        </div>
+        {error && <div style={{ background: 'rgba(231,76,60,0.15)', color: '#ff8a7e', padding: 10, marginBottom: 14, fontSize: 13 }}>{error}</div>}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button
+            type="button" onClick={onCancel} disabled={submitting}
+            style={{ padding: '12px 22px', background: 'transparent', border: '1px solid rgba(200,184,154,0.3)', color: 'var(--tan)', fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' }}
+          >Cancel</button>
+          <button
+            type="button" onClick={onConfirm} disabled={submitting}
+            style={{ padding: '12px 22px', background: '#c0392b', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: submitting ? 'wait' : 'pointer', opacity: submitting ? 0.7 : 1 }}
+          >{submitting ? 'Refunding…' : '▶ Issue Refund'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value }) {
+  return (
+    <div style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid rgba(200,184,154,0.05)', fontSize: 13 }}>
+      <div style={{ flex: '0 0 140px', color: 'var(--olive-light)' }}>{label}</div>
+      <div style={{ flex: 1, color: 'var(--cream)' }}>{value || '—'}</div>
+    </div>
+  );
+}
+
+// Styles
+const headerRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' };
+const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
+const h2 = { fontSize: 14, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2, color: 'var(--orange)', margin: '0 0 16px' };
+const logoutBtn = { padding: '8px 20px', background: 'none', border: '1px solid rgba(231,76,60,0.4)', color: '#e74c3c', fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' };
+const statsGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 };
+const statCard = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.25rem' };
+const filterBar = { display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' };
+const filterInput = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', minWidth: 180 };
+const sectionBox = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem' };
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
+const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
+const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
+const td = { padding: '10px 12px', color: 'var(--cream)' };
+const viewBtn = { padding: '4px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.3)', color: 'var(--tan)', fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
+const modalBackdrop = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 500, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' };
+const modalCard = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.2)', padding: '2rem', maxWidth: 700, width: '100%' };
+const closeBtn = { background: 'none', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--tan)', width: 32, height: 32, cursor: 'pointer', fontSize: 16 };

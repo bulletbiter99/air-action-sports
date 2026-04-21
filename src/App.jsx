@@ -12,6 +12,10 @@ const Gallery = lazy(() => import('./pages/Gallery'));
 const Pricing = lazy(() => import('./pages/Pricing'));
 const FAQ = lazy(() => import('./pages/FAQ'));
 const Booking = lazy(() => import('./pages/Booking'));
+const BookingSuccess = lazy(() => import('./pages/BookingSuccess'));
+const BookingCancelled = lazy(() => import('./pages/BookingCancelled'));
+const Waiver = lazy(() => import('./pages/Waiver'));
+const Ticket = lazy(() => import('./pages/Ticket'));
 const Contact = lazy(() => import('./pages/Contact'));
 const About = lazy(() => import('./pages/About'));
 const NewPlayers = lazy(() => import('./pages/NewPlayers'));
@@ -22,6 +26,24 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 const AdminLayout = lazy(() => import('./admin/AdminLayout'));
 const AdminDashboard = lazy(() => import('./admin/AdminDashboard'));
 const AdminLogin = lazy(() => import('./admin/AdminLogin'));
+const AdminSetup = lazy(() => import('./admin/AdminSetup'));
+const AdminRoster = lazy(() => import('./admin/AdminRoster'));
+const AdminNewBooking = lazy(() => import('./admin/AdminNewBooking'));
+const AdminTaxesFees = lazy(() => import('./admin/AdminTaxesFees'));
+const AdminForgotPassword = lazy(() => import('./admin/AdminForgotPassword'));
+const AdminResetPassword = lazy(() => import('./admin/AdminResetPassword'));
+const AdminScan = lazy(() => import('./admin/AdminScan'));
+const AdminRentals = lazy(() => import('./admin/AdminRentals'));
+const AdminRentalQrSheet = lazy(() => import('./admin/AdminRentals').then((m) => ({ default: m.AdminRentalQrSheet })));
+const AdminRentalAssignments = lazy(() => import('./admin/AdminRentalAssignments'));
+const AdminEvents = lazy(() => import('./admin/AdminEvents'));
+const AdminPromoCodes = lazy(() => import('./admin/AdminPromoCodes'));
+const AdminAnalytics = lazy(() => import('./admin/AdminAnalytics'));
+const AdminUsers = lazy(() => import('./admin/AdminUsers'));
+const AdminAcceptInvite = lazy(() => import('./admin/AdminAcceptInvite'));
+const AdminAuditLog = lazy(() => import('./admin/AdminAuditLog'));
+const AdminSettings = lazy(() => import('./admin/AdminSettings'));
+const AdminEmailTemplates = lazy(() => import('./admin/AdminEmailTemplates'));
 
 export default function App() {
   return (
@@ -38,6 +60,10 @@ export default function App() {
             <Route path="pricing" element={<Pricing />} />
             <Route path="faq" element={<FAQ />} />
             <Route path="booking" element={<Booking />} />
+            <Route path="booking/success" element={<BookingSuccess />} />
+            <Route path="booking/cancelled" element={<BookingCancelled />} />
+            <Route path="waiver" element={<Waiver />} />
+            <Route path="booking/ticket" element={<Ticket />} />
             <Route path="contact" element={<Contact />} />
             <Route path="about" element={<About />} />
             <Route path="new-players" element={<NewPlayers />} />
@@ -47,6 +73,24 @@ export default function App() {
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="login" element={<AdminLogin />} />
+            <Route path="setup" element={<AdminSetup />} />
+            <Route path="roster" element={<AdminRoster />} />
+            <Route path="new-booking" element={<AdminNewBooking />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="settings/taxes-fees" element={<AdminTaxesFees />} />
+            <Route path="settings/email-templates" element={<AdminEmailTemplates />} />
+            <Route path="forgot-password" element={<AdminForgotPassword />} />
+            <Route path="reset-password" element={<AdminResetPassword />} />
+            <Route path="scan" element={<AdminScan />} />
+            <Route path="rentals" element={<AdminRentals />} />
+            <Route path="rentals/qr-sheet" element={<AdminRentalQrSheet />} />
+            <Route path="rentals/assignments" element={<AdminRentalAssignments />} />
+            <Route path="events" element={<AdminEvents />} />
+            <Route path="promo-codes" element={<AdminPromoCodes />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="accept-invite" element={<AdminAcceptInvite />} />
+            <Route path="audit-log" element={<AdminAuditLog />} />
           </Route>
         </Routes>
       </Suspense>

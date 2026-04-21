@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
-import { events } from '../data/events';
+import { useEvents } from '../hooks/useEvents';
 import '../styles/pages/pricing.css';
 
 export default function Pricing() {
-  // Get the next upcoming event
-  const nextEvent = events.find((e) => !e.past);
+  const { events, loading } = useEvents({ includePast: false });
+  const nextEvent = events[0] || null;
 
   return (
     <>
@@ -27,13 +27,21 @@ export default function Pricing() {
       </div>
 
       <div className="page-content">
+        {loading && !nextEvent && (
+          <p style={{ color: 'var(--olive-light)', textAlign: 'center', padding: '2rem' }}>Loading pricing…</p>
+        )}
+        {!loading && !nextEvent && (
+          <p style={{ color: 'var(--olive-light)', textAlign: 'center', padding: '2rem' }}>
+            No upcoming events right now. Check back soon.
+          </p>
+        )}
         {nextEvent && (
           <>
             {/* Event Title Banner */}
             <div className="pricing-event-banner">
               <div className="section-label">&#9632; Next Event</div>
               <h2 className="section-title">
-                <Link to={`/events/${nextEvent.id}`} style={{ color: 'var(--cream)', textDecoration: 'none' }}>
+                <Link to={`/events/${nextEvent.slug}`} style={{ color: 'var(--cream)', textDecoration: 'none' }}>
                   {nextEvent.title}
                 </Link>
               </h2>
@@ -63,7 +71,7 @@ export default function Pricing() {
                   <li>Free parking</li>
                 </ul>
                 <div className="price-cta">
-                  <Link to={`/events/${nextEvent.id}`}>View Event Details</Link>
+                  <Link to={`/events/${nextEvent.slug}`}>View Event Details</Link>
                 </div>
               </div>
 
@@ -83,7 +91,7 @@ export default function Pricing() {
                     ))}
                   </ul>
                   <div className="price-cta">
-                    <Link to={`/events/${nextEvent.id}`}>View Event Details</Link>
+                    <Link to={`/events/${nextEvent.slug}`}>View Event Details</Link>
                   </div>
                 </div>
               ))}

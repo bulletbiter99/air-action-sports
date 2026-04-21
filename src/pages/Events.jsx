@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import { siteConfig } from '../data/siteConfig';
-import { events } from '../data/events';
+import { useEvents } from '../hooks/useEvents';
 import '../styles/pages/events.css';
 
 export default function Events() {
@@ -10,8 +10,25 @@ export default function Events() {
   const [filterSite, setFilterSite] = useState('all');
   const [filterMonth, setFilterMonth] = useState('all');
 
-  const upcomingEvents = events.filter((e) => !e.past);
-  const pastEvents = events.filter((e) => e.past);
+  const { events, loading, error } = useEvents({ includePast: true });
+  const upcomingEvents = useMemo(() => events.filter((e) => !e.past), [events]);
+  const pastEvents = useMemo(() => events.filter((e) => e.past), [events]);
+
+  // Build filter option sets from the live event list so new sites/months
+  // from admin show up without code changes.
+  const siteOptions = useMemo(() => {
+    const set = new Set(upcomingEvents.map((e) => e.site).filter(Boolean));
+    return Array.from(set).sort();
+  }, [upcomingEvents]);
+  const monthOptions = useMemo(() => {
+    const map = new Map();
+    for (const e of upcomingEvents) if (e.month) map.set(e.month, e.date.month);
+    return Array.from(map.entries()); // [[key, label], ...]
+  }, [upcomingEvents]);
+  const typeOptions = useMemo(() => {
+    const set = new Set(upcomingEvents.map((e) => e.type).filter(Boolean));
+    return Array.from(set).sort();
+  }, [upcomingEvents]);
 
   const filteredEvents = upcomingEvents.filter((ev) => {
     const matchType = filterType === 'all' || ev.type === filterType;
@@ -41,24 +58,33 @@ export default function Events() {
           <div className="filter-controls">
             <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
               <option value="all">All Types</option>
-              <option value="milsim">Milsim</option>
-              <option value="skirmish">Skirmish</option>
-              <option value="airsoft">Airsoft</option>
+              {typeOptions.map((t) => (
+                <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+              ))}
             </select>
             <select value={filterSite} onChange={(e) => setFilterSite(e.target.value)}>
               <option value="all">All Sites</option>
-              <option value="delta">Ghost Town</option>
-              <option value="echo">Echo Urban</option>
-              <option value="foxtrot">Foxtrot Fields</option>
+              {siteOptions.map((s) => (
+                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+              ))}
             </select>
             <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
               <option value="all">All Months</option>
-              <option value="apr">April 2026</option>
-              <option value="may">May 2026</option>
-              <option value="jun">June 2026</option>
+              {monthOptions.map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
             </select>
           </div>
         </div>
+
+        {loading && (
+          <p style={{ color: 'var(--olive-light)', textAlign: 'center', padding: '2rem' }}>Loading events…</p>
+        )}
+        {error && !loading && (
+          <p style={{ color: '#ff8a7e', textAlign: 'center', padding: '2rem' }}>
+            Couldn't load events. Please refresh in a moment.
+          </p>
+        )}
 
         {/* Events Grid */}
         <div className="events-grid">
@@ -74,7 +100,7 @@ export default function Events() {
                 </span>
               </div>
               <div className="event-body">
-                <Link to={`/events/${ev.id}`} className="event-title" style={{ textDecoration: 'none', color: 'var(--cream)' }}>{ev.title}</Link>
+                <Link to={`/events/${ev.slug}`} className="event-title" style={{ textDecoration: 'none', color: 'var(--cream)' }}>{ev.title}</Link>
                 <div className="event-loc">&#9679; {ev.location}</div>
                 <div className="event-meta">
                   <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
@@ -90,20 +116,21 @@ export default function Events() {
                 <div className="slots-text">
                   {ev.slots.taken} of {ev.slots.total} spots taken
                 </div>
-                <Link to={`/events/${ev.id}`} className="btn-book">&#9658; View Details</Link>
+                <Link to={`/events/${ev.slug}`} className="btn-book">&#9658; View Details</Link>
               </div>
             </div>
           ))}
         </div>
 
         {/* Empty State */}
-        {filteredEvents.length === 0 && (
+        {!loading && filteredEvents.length === 0 && (
           <div className="empty-state" style={{ display: 'block' }}>
             No events match your filters. Try adjusting your search or check back soon.
           </div>
         )}
 
         {/* Past Events */}
+        {pastEvents.length > 0 && (
         <div className="past-section">
           <div className="section-label" style={{ marginTop: '2rem' }}>&#9632; Past Operations</div>
           <div className="divider"></div>
@@ -133,6 +160,7 @@ export default function Events() {
             ))}
           </div>
         </div>
+        )}
       </div>
 
       {/* CTA Band */}

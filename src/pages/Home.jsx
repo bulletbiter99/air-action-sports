@@ -3,13 +3,14 @@ import SEO from '../components/SEO';
 import TickerBar from '../components/TickerBar';
 import CountdownTimer from '../components/CountdownTimer';
 import { siteConfig } from '../data/siteConfig';
-import { events } from '../data/events';
+import { useEvents } from '../hooks/useEvents';
 import { locations } from '../data/locations';
 import { testimonials } from '../data/testimonials';
 import '../styles/pages/home.css';
 
 export default function Home() {
-  const upcomingEvents = events.filter((e) => !e.past).slice(0, 2);
+  const { events } = useEvents({ includePast: false });
+  const upcomingEvents = events.slice(0, 2);
 
   return (
     <>
@@ -317,14 +318,14 @@ export default function Home() {
                   <span className={`event-type ${ev.type}`}>{ev.type.charAt(0).toUpperCase() + ev.type.slice(1)}</span>
                 </div>
                 <div className="event-body">
-                  <Link to={`/events/${ev.id}`} className="event-title" style={{ textDecoration: 'none', color: 'var(--cream)' }}>{ev.title}</Link>
+                  <Link to={`/events/${ev.slug}`} className="event-title" style={{ textDecoration: 'none', color: 'var(--cream)' }}>{ev.title}</Link>
                   <div className="event-loc">&#9679; {ev.location}</div>
                   <div className="event-meta">
                     <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
                     <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
                     <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
                   </div>
-                  <Link to={`/events/${ev.id}`} className="btn-book">&#9658; View Details</Link>
+                  <Link to={`/events/${ev.slug}`} className="btn-book">&#9658; View Details</Link>
                 </div>
               </div>
             ))}

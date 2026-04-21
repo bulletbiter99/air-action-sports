@@ -1,20 +1,38 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import useCountdown from '../hooks/useCountdown';
 import { siteConfig } from '../data/siteConfig';
-import { events } from '../data/events';
+import { fetchEventBySlug, useEvents } from '../hooks/useEvents';
 import '../styles/pages/event-detail.css';
 
 export default function EventDetail() {
   const { slug } = useParams();
-  const event = events.find((e) => e.id === slug);
+  const [event, setEvent] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [copyText, setCopyText] = useState('Copy Link');
+  const { events: allEvents } = useEvents({ includePast: false });
 
-  // Get related events (other upcoming events, excluding this one)
-  const relatedEvents = events
-    .filter((e) => !e.past && e.id !== slug)
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetchEventBySlug(slug)
+      .then((e) => { if (alive) { setEvent(e); setLoading(false); } })
+      .catch(() => { if (alive) { setEvent(null); setLoading(false); } });
+    return () => { alive = false; };
+  }, [slug]);
+
+  const relatedEvents = (allEvents || [])
+    .filter((e) => !e.past && e.slug !== slug && e.id !== slug)
     .slice(0, 2);
+
+  if (loading) {
+    return (
+      <div className="page-content" style={{ textAlign: 'center', padding: '8rem 2rem' }}>
+        <p className="section-sub">Loading event…</p>
+      </div>
+    );
+  }
 
   if (!event) {
     return (
@@ -26,12 +44,15 @@ export default function EventDetail() {
     );
   }
 
-  // Derive full date and ISO from data
-  const eventDateISO = event.date.month
-    ? `2026-${event.month === 'apr' ? '04' : event.month === 'may' ? '05' : event.month === 'jun' ? '06' : event.month === 'mar' ? '03' : '01'}-${String(event.date.day).padStart(2, '0')}T09:00:00`
-    : '2026-04-19T09:00:00';
+  // Prefer the real ISO timestamp; fall back to an approximation from display fields.
+  const eventDateISO = event.dateIso
+    || (event.month
+      ? `2026-${event.month === 'apr' ? '04' : event.month === 'may' ? '05' : event.month === 'jun' ? '06' : event.month === 'mar' ? '03' : '01'}-${String(event.date.day).padStart(2, '0')}T09:00:00`
+      : '2026-04-19T09:00:00');
 
-  const dateFull = `${event.date.month.replace(/\d{4}/, '').trim()} ${event.date.day}, ${event.date.month.match(/\d{4}/)?.[0] || '2026'}`;
+  const dateFull = event.date?.month
+    ? `${event.date.month.replace(/\d{4}/, '').trim()} ${event.date.day}, ${event.date.month.match(/\d{4}/)?.[0] || '2026'}`
+    : event.dateIso?.slice(0, 10) || '';
 
   return (
     <>
@@ -43,7 +64,14 @@ export default function EventDetail() {
       />
 
       {/* Event Hero Banner */}
-      <div className="event-hero">
+      <div
+        className="event-hero"
+        style={event.coverImageUrl ? {
+          backgroundImage: `linear-gradient(rgba(20,20,20,0.55), rgba(20,20,20,0.75)), url("${event.coverImageUrl}")`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        } : undefined}
+      >
         <div className="event-hero-content">
           <div className="event-hero-meta">
             <span className="event-hero-date">{dateFull}</span>
@@ -334,7 +362,7 @@ export default function EventDetail() {
                     <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
                     <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
                   </div>
-                  <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-book">&#9658; Book Slot</a>
+                  <Link to={`/events/${ev.slug}`} className="btn-book">&#9658; View Details</Link>
                 </div>
               </div>
             ))}
