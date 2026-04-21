@@ -4,6 +4,14 @@ import { calculateQuote, centsToDollars, loadActiveTaxesFees } from '../lib/pric
 import { bookingId } from '../lib/ids.js';
 import { createCheckoutSession } from '../lib/stripe.js';
 import { rateLimit } from '../lib/rateLimit.js';
+import { readJson, BODY_LIMITS } from '../lib/bodyGuard.js';
+
+// Field-level caps for public booking flow.
+const MAX_ATTENDEES = 50;
+const MAX_NAME_LEN = 120;
+const MAX_EMAIL_LEN = 254;
+const MAX_PHONE_LEN = 40;
+const MAX_ANSWER_LEN = 1000;
 
 const bookings = new Hono();
 
@@ -84,7 +92,9 @@ async function resolvePromoCode(db, code, eventId, subtotalCents) {
 
 // POST /api/bookings/quote — preview total without committing
 bookings.post('/quote', async (c) => {
-    const body = await c.req.json().catch(() => null);
+    const p = await readJson(c, BODY_LIMITS.BOOKING);
+    if (p.error) return c.json({ error: p.error }, p.status);
+    const body = p.body;
     if (!body?.eventId) return c.json({ error: 'eventId required' }, 400);
 
     const ctx = await loadEventAndTypes(c.env.DB, body.eventId);
@@ -131,12 +141,20 @@ bookings.post('/quote', async (c) => {
 
 // POST /api/bookings/checkout — create pending booking + Stripe Checkout session
 bookings.post('/checkout', rateLimit('RL_CHECKOUT'), async (c) => {
-    const body = await c.req.json().catch(() => null);
+    const p = await readJson(c, BODY_LIMITS.BOOKING);
+    if (p.error) return c.json({ error: p.error }, p.status);
+    const body = p.body;
     if (!body?.eventId) return c.json({ error: 'eventId required' }, 400);
 
     const buyer = body.buyer || {};
     if (!buyer.fullName?.trim() || !buyer.email?.trim() || !buyer.phone?.trim()) {
         return c.json({ error: 'Buyer name, email, and phone are required' }, 400);
+    }
+    if (buyer.fullName.length > MAX_NAME_LEN) return c.json({ error: 'Buyer name too long' }, 400);
+    if (buyer.email.length > MAX_EMAIL_LEN) return c.json({ error: 'Buyer email too long' }, 400);
+    if (buyer.phone.length > MAX_PHONE_LEN) return c.json({ error: 'Buyer phone too long' }, 400);
+    if (Array.isArray(body.attendees) && body.attendees.length > MAX_ATTENDEES) {
+        return c.json({ error: `Too many attendees (max ${MAX_ATTENDEES} per booking)` }, 400);
     }
 
     const attendees = Array.isArray(body.attendees) ? body.attendees : [];

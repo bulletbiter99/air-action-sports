@@ -2,6 +2,10 @@ import { Hono } from 'hono';
 import { formatEvent } from '../lib/formatters.js';
 import { randomId } from '../lib/ids.js';
 import { rateLimit } from '../lib/rateLimit.js';
+import { readJson, BODY_LIMITS } from '../lib/bodyGuard.js';
+
+const MAX_SIGNATURE_LEN = 200;
+const MAX_FIELD_LEN = 200;
 
 const waivers = new Hono();
 
@@ -44,8 +48,19 @@ waivers.get('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
 // Accept and store a signed waiver. Ties to attendee via qr_token.
 waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
     const qrToken = c.req.param('qrToken');
-    const body = await c.req.json().catch(() => null);
+    const p = await readJson(c, BODY_LIMITS.SMALL);
+    if (p.error) return c.json({ error: p.error }, p.status);
+    const body = p.body;
     if (!body) return c.json({ error: 'Invalid body' }, 400);
+    if (typeof body.signature === 'string' && body.signature.length > MAX_SIGNATURE_LEN) {
+        return c.json({ error: 'signature too long' }, 400);
+    }
+    // Cap other string fields as well so a 10MB "emergencyName" can't land.
+    for (const k of ['name', 'email', 'phone', 'emergencyName', 'emergencyPhone', 'dob']) {
+        if (typeof body[k] === 'string' && body[k].length > MAX_FIELD_LEN) {
+            return c.json({ error: `${k} too long` }, 400);
+        }
+    }
 
     const attendee = await c.env.DB.prepare(
         `SELECT * FROM attendees WHERE qr_token = ?`

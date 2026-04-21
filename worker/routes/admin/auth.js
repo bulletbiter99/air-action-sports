@@ -5,6 +5,13 @@ import { requireAuth, publicUser } from '../../lib/auth.js';
 import { randomId } from '../../lib/ids.js';
 import { sendPasswordReset } from '../../lib/emailSender.js';
 import { rateLimit } from '../../lib/rateLimit.js';
+import { readJson, BODY_LIMITS } from '../../lib/bodyGuard.js';
+
+// Field-level caps applied across auth flows. The password cap in particular
+// protects PBKDF2 from a hash-DoS via a multi-megabyte password string.
+const MAX_EMAIL_LEN = 254;      // RFC 5321
+const MAX_PASSWORD_LEN = 256;
+const MAX_NAME_LEN = 120;
 
 const auth = new Hono();
 
@@ -19,13 +26,16 @@ auth.get('/setup-needed', async (c) => {
 // users)`, so two concurrent setup POSTs can't both claim owner. We check
 // the rowcount after — zero rows inserted means someone else raced us here.
 auth.post('/setup', async (c) => {
-    const body = await c.req.json().catch(() => null);
+    const p = await readJson(c, BODY_LIMITS.AUTH);
+    if (p.error) return c.json({ error: p.error }, p.status);
+    const body = p.body;
     if (!body?.email?.trim() || !body?.password || !body?.displayName?.trim()) {
         return c.json({ error: 'email, password, and displayName are required' }, 400);
     }
-    if (body.password.length < 8) {
-        return c.json({ error: 'Password must be at least 8 characters' }, 400);
-    }
+    if (body.email.length > MAX_EMAIL_LEN) return c.json({ error: 'email too long' }, 400);
+    if (body.password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    if (body.password.length > MAX_PASSWORD_LEN) return c.json({ error: 'password too long' }, 400);
+    if (body.displayName.length > MAX_NAME_LEN) return c.json({ error: 'displayName too long' }, 400);
 
     const id = `u_${randomId(12)}`;
     const hash = await hashPassword(body.password);
@@ -50,10 +60,14 @@ auth.post('/setup', async (c) => {
 });
 
 auth.post('/login', rateLimit('RL_LOGIN'), async (c) => {
-    const body = await c.req.json().catch(() => null);
+    const p = await readJson(c, BODY_LIMITS.AUTH);
+    if (p.error) return c.json({ error: p.error }, p.status);
+    const body = p.body;
     if (!body?.email || !body?.password) {
         return c.json({ error: 'email and password required' }, 400);
     }
+    if (body.email.length > MAX_EMAIL_LEN) return c.json({ error: 'email too long' }, 400);
+    if (body.password.length > MAX_PASSWORD_LEN) return c.json({ error: 'password too long' }, 400);
     const user = await c.env.DB.prepare(
         `SELECT * FROM users WHERE email = ? AND active = 1`
     ).bind(body.email.trim().toLowerCase()).first();
@@ -84,9 +98,12 @@ const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 // Always returns success even if email doesn't exist (prevents account enumeration).
 // Sends email via Resend (async via waitUntil).
 auth.post('/forgot-password', rateLimit('RL_FORGOT'), async (c) => {
-    const body = await c.req.json().catch(() => null);
+    const p = await readJson(c, BODY_LIMITS.AUTH);
+    if (p.error) return c.json({ error: p.error }, p.status);
+    const body = p.body;
     const email = body?.email?.trim().toLowerCase();
     if (!email) return c.json({ error: 'email required' }, 400);
+    if (email.length > MAX_EMAIL_LEN) return c.json({ error: 'email too long' }, 400);
 
     const user = await c.env.DB.prepare(
         `SELECT * FROM users WHERE email = ? AND active = 1`
@@ -126,13 +143,14 @@ auth.post('/forgot-password', rateLimit('RL_FORGOT'), async (c) => {
 // POST /api/admin/auth/reset-password
 // Consumes a reset token, sets new password, logs user in.
 auth.post('/reset-password', rateLimit('RL_RESET_PWD'), async (c) => {
-    const body = await c.req.json().catch(() => null);
+    const p = await readJson(c, BODY_LIMITS.AUTH);
+    if (p.error) return c.json({ error: p.error }, p.status);
+    const body = p.body;
     if (!body?.token || !body?.password) {
         return c.json({ error: 'token and password required' }, 400);
     }
-    if (body.password.length < 8) {
-        return c.json({ error: 'Password must be at least 8 characters' }, 400);
-    }
+    if (body.password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    if (body.password.length > MAX_PASSWORD_LEN) return c.json({ error: 'password too long' }, 400);
 
     const row = await c.env.DB.prepare(
         `SELECT * FROM password_resets WHERE token = ?`
@@ -185,11 +203,15 @@ auth.get('/verify-invite/:token', rateLimit('RL_VERIFY_TOKEN'), async (c) => {
 
 // POST /api/admin/auth/accept-invite — consume token, create user, auto-login
 auth.post('/accept-invite', rateLimit('RL_RESET_PWD'), async (c) => {
-    const body = await c.req.json().catch(() => null);
+    const p = await readJson(c, BODY_LIMITS.AUTH);
+    if (p.error) return c.json({ error: p.error }, p.status);
+    const body = p.body;
     if (!body?.token || !body?.password || !body?.displayName?.trim()) {
         return c.json({ error: 'token, password, and displayName required' }, 400);
     }
     if (body.password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    if (body.password.length > MAX_PASSWORD_LEN) return c.json({ error: 'password too long' }, 400);
+    if (body.displayName.length > MAX_NAME_LEN) return c.json({ error: 'displayName too long' }, 400);
 
     const invite = await c.env.DB.prepare(
         `SELECT * FROM invitations WHERE token = ?`
