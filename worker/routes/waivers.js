@@ -9,8 +9,39 @@ const MAX_FIELD_LEN = 200;
 
 const waivers = new Hono();
 
+// Hex SHA-256 of a UTF-8 string using Web Crypto.
+async function sha256Hex(str) {
+    const bytes = new TextEncoder().encode(str);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+// Fetch the currently-live waiver document (the one with retired_at IS NULL
+// and the highest version — belt-and-suspenders in case multiple rows are
+// unretired at once). Integrity-checks the stored hash against a recomputed
+// hash; mismatch means the row was tampered with directly in D1.
+async function getLiveWaiverDocument(env) {
+    const doc = await env.DB.prepare(
+        `SELECT id, version, body_html, body_sha256
+         FROM waiver_documents
+         WHERE retired_at IS NULL
+         ORDER BY version DESC
+         LIMIT 1`
+    ).first();
+    if (!doc) return null;
+    const recomputed = await sha256Hex(doc.body_html);
+    if (recomputed !== doc.body_sha256) {
+        return { ...doc, _integrity: 'mismatch', _recomputed: recomputed };
+    }
+    return { ...doc, _integrity: 'ok' };
+}
+
 // GET /api/waivers/:qrToken
-// Public lookup: returns attendee info pre-filled on the waiver page.
+// Public lookup: returns attendee info pre-filled on the waiver page, plus
+// the current live waiver document (body + version) so the page renders the
+// exact text the server will snapshot on submit.
 waivers.get('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
     const qrToken = c.req.param('qrToken');
     const row = await c.env.DB.prepare(
@@ -30,6 +61,17 @@ waivers.get('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
         ? await c.env.DB.prepare(`SELECT signed_at FROM waivers WHERE id = ?`).bind(row.waiver_id).first()
         : null;
 
+    const doc = await getLiveWaiverDocument(c.env);
+    if (!doc) return c.json({ error: 'No waiver document is currently active' }, 500);
+    if (doc._integrity === 'mismatch') {
+        // Refuse to serve a tampered document. Log and fail loud.
+        await c.env.DB.prepare(
+            `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+             VALUES (NULL, 'waiver_document.integrity_failure', 'waiver_document', ?, ?, ?)`
+        ).bind(doc.id, JSON.stringify({ expected: doc.body_sha256, recomputed: doc._recomputed }), Date.now()).run();
+        return c.json({ error: 'Waiver document integrity check failed' }, 500);
+    }
+
     return c.json({
         attendee: {
             id: row.id,
@@ -41,11 +83,19 @@ waivers.get('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
             signedAt: existingWaiver?.signed_at || null,
         },
         event: eventRow ? formatEvent(eventRow) : null,
+        waiverDocument: {
+            id: doc.id,
+            version: doc.version,
+            bodyHtml: doc.body_html,
+        },
     });
 });
 
 // POST /api/waivers/:qrToken
-// Accept and store a signed waiver. Ties to attendee via qr_token.
+// Accept and store a signed waiver. Ties to attendee via qr_token and captures
+// an immutable snapshot of the exact waiver text the signer agreed to, plus a
+// SHA-256 hash of that text, the document id+version, and the explicit ESIGN
+// e-records consent bit.
 waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
     const qrToken = c.req.param('qrToken');
     const p = await readJson(c, BODY_LIMITS.SMALL);
@@ -78,6 +128,11 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
     if (body.agree !== true) {
         return c.json({ error: 'You must agree to the terms to submit' }, 400);
     }
+    // ESIGN §7001(c) consumer-consent to electronic records — distinct from the
+    // terms-agreement checkbox. Must be explicitly true; absence is a hard fail.
+    if (body.erecordsConsent !== true) {
+        return c.json({ error: 'You must consent to receive records electronically to sign online' }, 400);
+    }
 
     // Signature must match the attendee's name on the ticket (case/space insensitive).
     const expectedName = [attendee.first_name, attendee.last_name].filter(Boolean).join(' ').trim();
@@ -101,6 +156,15 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
         }
     }
 
+    // Re-fetch the live document server-side at submit time so the snapshot
+    // reflects exactly what our server treated as authoritative, not what the
+    // client claims it rendered. Integrity-check before trusting it.
+    const doc = await getLiveWaiverDocument(c.env);
+    if (!doc) return c.json({ error: 'No waiver document is currently active' }, 500);
+    if (doc._integrity === 'mismatch') {
+        return c.json({ error: 'Waiver document integrity check failed' }, 500);
+    }
+
     const waiverId = `wv_${randomId(14)}`;
     const nowMs = Date.now();
     const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || null;
@@ -113,8 +177,9 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
             emergency_name, emergency_phone, relationship,
             signature, signed_at, ip_address, user_agent,
             is_minor, parent_name, parent_relationship, parent_signature, parent_consent,
-            privacy_consent, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            privacy_consent, created_at,
+            waiver_document_id, waiver_document_version, body_html_snapshot, body_sha256, erecords_consent
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
         waiverId,
         attendee.booking_id,
@@ -137,6 +202,11 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
         body.parentConsent ? 1 : 0,
         body.privacy ? 1 : 0,
         nowMs,
+        doc.id,
+        doc.version,
+        doc.body_html,
+        doc.body_sha256,
+        1,
     ).run();
 
     await c.env.DB.prepare(
@@ -144,15 +214,27 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
     ).bind(waiverId, attendee.id).run();
 
     await c.env.DB.prepare(
-        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
-         VALUES (NULL, 'waiver.signed', 'attendee', ?, ?, ?)`
+        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, ip_address, created_at)
+         VALUES (NULL, 'waiver.signed', 'attendee', ?, ?, ?, ?)`
     ).bind(
         attendee.id,
-        JSON.stringify({ waiver_id: waiverId, booking_id: attendee.booking_id }),
+        JSON.stringify({
+            waiver_id: waiverId,
+            booking_id: attendee.booking_id,
+            waiver_document_id: doc.id,
+            waiver_document_version: doc.version,
+            body_sha256: doc.body_sha256,
+        }),
+        ip,
         nowMs,
     ).run();
 
-    return c.json({ success: true, waiverId, signedAt: nowMs });
+    return c.json({
+        success: true,
+        waiverId,
+        signedAt: nowMs,
+        waiverDocumentVersion: doc.version,
+    });
 });
 
 export default waivers;

@@ -11,6 +11,7 @@ export default function Waiver() {
   const [loadError, setLoadError] = useState(null);
   const [attendee, setAttendee] = useState(null);
   const [event, setEvent] = useState(null);
+  const [waiverDoc, setWaiverDoc] = useState(null);
   const [alreadySigned, setAlreadySigned] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -22,6 +23,7 @@ export default function Waiver() {
     emergencyPhone: '',
     relationship: '',
     agree: false,
+    erecordsConsent: false,
     privacy: false,
     signature: '',
     parentName: '',
@@ -66,6 +68,7 @@ export default function Waiver() {
         if (cancelled) return;
         setAttendee(data.attendee);
         setEvent(data.event);
+        setWaiverDoc(data.waiverDocument || null);
         setAlreadySigned(!!data.attendee.alreadySigned);
         // Pre-fill form from attendee + buyer info
         setFormData((prev) => ({
@@ -99,6 +102,7 @@ export default function Waiver() {
     if (!formData.emergencyName.trim()) errs.emergencyName = true;
     if (!formData.emergencyPhone.trim()) errs.emergencyPhone = true;
     if (!formData.agree) errs.agree = true;
+    if (!formData.erecordsConsent) errs.erecordsConsent = true;
     if (!formData.signature.trim()) {
       errs.signature = 'Please type your full name as your signature';
     } else if (expectedName && normalizeName(formData.signature) !== normalizeName(expectedName)) {
@@ -294,19 +298,20 @@ export default function Waiver() {
             </div>
           </div>
 
-          {/* Section 2 -- Acknowledgement of Risk */}
+          {/* Section 2 -- Acknowledgement of Risk. Body rendered from the
+              versioned waiver_documents row so the text and its hash stay in
+              sync with what the server will snapshot on submit. */}
           <div className="waiver-section">
             <h3>2. Acknowledgement of Risk</h3>
-            <div className="waiver-text">
-              <ol>
-                <li>I understand airsoft involves physical activity and inherent risks including but not limited to bruising, sprains, and eye injury.</li>
-                <li>I confirm I will wear mandatory face and eye protection at all times during gameplay.</li>
-                <li>I agree to follow all safety rules, marshal instructions, and FPS limits.</li>
-                <li>I accept that Air Action Sports, its staff, and site owners are not liable for injuries sustained during gameplay, provided reasonable safety measures are in place.</li>
-                <li>I confirm I am physically fit to participate and have no medical conditions that would prevent safe participation.</li>
-                <li>I understand that failure to follow safety rules may result in immediate removal from the event without refund.</li>
-              </ol>
-            </div>
+            <div
+              className="waiver-text"
+              dangerouslySetInnerHTML={{ __html: waiverDoc?.bodyHtml || '' }}
+            />
+            {waiverDoc && (
+              <p style={{ fontSize: '11px', color: 'var(--olive-light)', marginTop: '0.5rem' }}>
+                Waiver version {waiverDoc.version}
+              </p>
+            )}
           </div>
 
           {/* Section 3 -- Consent & Signature */}
@@ -321,6 +326,20 @@ export default function Waiver() {
                 <span>I have read, understood, and agree to the terms above *</span>
               </label>
               <span className="form-error">You must agree to the terms to continue</span>
+            </div>
+
+            {/* ESIGN §7001(c) e-records consent \u2014 distinct from terms agreement. */}
+            <div className={`form-group${errors.erecordsConsent ? ' error' : ''}`} style={{ marginBottom: '1rem' }}>
+              <label className="form-label" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                <input type="checkbox" id="w-erecords" name="erecordsConsent"
+                  checked={formData.erecordsConsent} onChange={handleChange} required
+                  style={{ marginTop: '3px', accentColor: 'var(--orange)' }} />
+                <span>
+                  I consent to sign and receive this waiver electronically. I understand I
+                  may request a paper copy by contacting Air Action Sports. *
+                </span>
+              </label>
+              <span className="form-error">Electronic records consent is required to sign online</span>
             </div>
 
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
