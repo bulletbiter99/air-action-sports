@@ -222,13 +222,26 @@ async function runAbandonPendingSweep(env) {
 // attendee photos, etc.), those remain unreachable through this endpoint.
 const SERVEABLE_KEY = /^[a-z0-9_-]+\/[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp|gif)$/;
 
+// Canonical Content-Type derived from the (regex-validated) key extension.
+// Ignoring obj.httpMetadata.contentType means a malicious writer can't smuggle
+// text/html into this serve path even if they somehow bypassed the upload
+// endpoint's validation.
+const EXT_TO_MIME = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+};
+
 async function serveUpload(request, env, key) {
     if (!env.UPLOADS) return new Response('Uploads not configured', { status: 500 });
     if (!SERVEABLE_KEY.test(key)) return new Response('Not found', { status: 404 });
     const obj = await env.UPLOADS.get(key);
     if (!obj) return new Response('Not found', { status: 404 });
+    const ext = key.slice(key.lastIndexOf('.') + 1).toLowerCase();
     const headers = new Headers();
-    headers.set('Content-Type', obj.httpMetadata?.contentType || 'application/octet-stream');
+    headers.set('Content-Type', EXT_TO_MIME[ext] || 'application/octet-stream');
     headers.set('Cache-Control', 'public, max-age=31536000, immutable');
     headers.set('ETag', obj.httpEtag || '');
     return new Response(obj.body, { status: 200, headers });
