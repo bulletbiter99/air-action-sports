@@ -235,22 +235,49 @@ async function rewriteEventOg(request, env, slug) {
     return rewriter.transform(origin);
 }
 
+// Security response headers applied to every response the Worker returns.
+// CSP is intentionally omitted here — it will be added in a follow-up once
+// the Peek widget is removed from index.html (HANDOFF §11 item 2), because a
+// strict CSP conflicts with Peek's external script/stylesheet until cutover.
+// The remaining headers are non-breaking and high-value: they block
+// clickjacking, TLS stripping, MIME-sniffing, and referer leakage of booking
+// tokens.
+function withSecurityHeaders(response) {
+    const h = new Headers(response.headers);
+    h.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    h.set('X-Content-Type-Options', 'nosniff');
+    h.set('X-Frame-Options', 'DENY');
+    h.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    // Camera for /admin/scan (QR); deny everything else by default.
+    h.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=()');
+    return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: h,
+    });
+}
+
+async function handleRequest(request, env, ctx) {
+    const url = new URL(request.url);
+    if (url.pathname.startsWith('/api/')) {
+        return app.fetch(request, env, ctx);
+    }
+    if (url.pathname.startsWith('/uploads/')) {
+        const key = decodeURIComponent(url.pathname.slice('/uploads/'.length));
+        if (key) return serveUpload(request, env, key);
+    }
+    const slug = parseEventSlug(url.pathname);
+    if (slug) {
+        try { return await rewriteEventOg(request, env, slug); }
+        catch (err) { console.error('OG rewrite failed', err); /* fall through */ }
+    }
+    return env.ASSETS.fetch(request);
+}
+
 export default {
     async fetch(request, env, ctx) {
-        const url = new URL(request.url);
-        if (url.pathname.startsWith('/api/')) {
-            return app.fetch(request, env, ctx);
-        }
-        if (url.pathname.startsWith('/uploads/')) {
-            const key = decodeURIComponent(url.pathname.slice('/uploads/'.length));
-            if (key) return serveUpload(request, env, key);
-        }
-        const slug = parseEventSlug(url.pathname);
-        if (slug) {
-            try { return await rewriteEventOg(request, env, slug); }
-            catch (err) { console.error('OG rewrite failed', err); /* fall through */ }
-        }
-        return env.ASSETS.fetch(request);
+        const res = await handleRequest(request, env, ctx);
+        return withSecurityHeaders(res);
     },
 
     async scheduled(event, env, ctx) {
