@@ -95,6 +95,9 @@ app.onError((err, c) => {
 //   - 1hr reminder:  event starts in 45-75min, stamps reminder_1hr_sent_at
 // Each column is the idempotency key for its window; a booking gets both.
 async function runReminderSweepWindow(env, { windowStart, windowEnd, column, sender, auditAction }) {
+    // LIMIT 100 keeps the sweep inside Workers' CPU budget (~30s) even after a
+    // big event drop. Next 15-min tick will pick up any leftovers — each row's
+    // `column IS NULL` filter is its own idempotency key.
     const rows = await env.DB.prepare(
         `SELECT b.*, e.title AS event_title, e.display_date AS event_display_date,
                 e.location AS event_location, e.check_in AS event_check_in,
@@ -104,12 +107,26 @@ async function runReminderSweepWindow(env, { windowStart, windowEnd, column, sen
          WHERE b.status IN ('paid', 'comp')
            AND b.${column} IS NULL
            AND b.email IS NOT NULL AND b.email != ''
-           AND (unixepoch(e.date_iso) * 1000) BETWEEN ? AND ?`
+           AND (unixepoch(e.date_iso) * 1000) BETWEEN ? AND ?
+         LIMIT 100`
     ).bind(windowStart, windowEnd).all();
 
-    const results = { considered: (rows.results || []).length, sent: 0, failed: 0 };
-    for (const r of (rows.results || [])) {
+    const candidates = rows.results || [];
+    const results = { considered: candidates.length, sent: 0, failed: 0 };
+
+    // Sentinel-first idempotency: stamp the reminder column BEFORE sending.
+    // If the send fails we null it back so the next tick retries.
+    // If the Worker is evicted mid-flight, the stamp persists → no duplicate
+    // email, at most a single skipped delivery (acceptable tradeoff vs spam).
+    async function processOne(r) {
+        const now = Date.now();
         try {
+            const claimed = await env.DB.prepare(
+                `UPDATE bookings SET ${column} = ? WHERE id = ? AND ${column} IS NULL`
+            ).bind(now, r.id).run();
+            // Another sweep (or another Worker instance) already claimed it.
+            if (!claimed.meta?.changes) return 'skipped';
+
             await sender(env, {
                 booking: r,
                 event: {
@@ -120,17 +137,38 @@ async function runReminderSweepWindow(env, { windowStart, windowEnd, column, sen
                     first_game: r.event_first_game,
                 },
             });
-            const now = Date.now();
-            await env.DB.prepare(`UPDATE bookings SET ${column} = ? WHERE id = ?`)
-                .bind(now, r.id).run();
             await env.DB.prepare(
                 `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
                  VALUES (NULL, ?, 'booking', ?, ?, ?)`
             ).bind(auditAction, r.id, JSON.stringify({ to: r.email, event_id: r.event_id }), now).run();
-            results.sent++;
+            return 'sent';
         } catch (err) {
             console.error('Reminder failed for booking', r.id, err);
-            results.failed++;
+            // Roll back sentinel so next tick retries.
+            try {
+                await env.DB.prepare(
+                    `UPDATE bookings SET ${column} = NULL WHERE id = ? AND ${column} = ?`
+                ).bind(r.id, now).run();
+            } catch (rollbackErr) {
+                console.error('Sentinel rollback failed for', r.id, rollbackErr);
+            }
+            return 'failed';
+        }
+    }
+
+    // Small parallel batches: Resend rate limits start around 10 rps for most
+    // plans, and D1 is fine with the concurrency. Bigger batches risk both.
+    const BATCH = 10;
+    for (let i = 0; i < candidates.length; i += BATCH) {
+        const slice = candidates.slice(i, i + BATCH);
+        const outcomes = await Promise.allSettled(slice.map(processOne));
+        for (const o of outcomes) {
+            if (o.status === 'fulfilled') {
+                if (o.value === 'sent') results.sent++;
+                else if (o.value === 'failed') results.failed++;
+            } else {
+                results.failed++;
+            }
         }
     }
     return results;
@@ -160,8 +198,16 @@ async function runReminderSweep(env) {
 
 // GET /uploads/* — serve R2 objects publicly with aggressive caching.
 // Keys are random, so objects are treated as immutable once written.
+//
+// Allowlist of serveable key shapes. Matches what admin/uploads.js actually
+// writes: <prefix>/<random>.<image-ext>. Rejecting anything else means that
+// if a future workflow ever writes private objects to this bucket (backups,
+// attendee photos, etc.), those remain unreachable through this endpoint.
+const SERVEABLE_KEY = /^[a-z0-9_-]+\/[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp|gif)$/;
+
 async function serveUpload(request, env, key) {
     if (!env.UPLOADS) return new Response('Uploads not configured', { status: 500 });
+    if (!SERVEABLE_KEY.test(key)) return new Response('Not found', { status: 404 });
     const obj = await env.UPLOADS.get(key);
     if (!obj) return new Response('Not found', { status: 404 });
     const headers = new Headers();

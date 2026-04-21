@@ -15,10 +15,10 @@ auth.get('/setup-needed', async (c) => {
 });
 
 // First-owner bootstrap. Only works if the users table is empty.
+// Race-safe: the INSERT guards itself with `WHERE NOT EXISTS (SELECT 1 FROM
+// users)`, so two concurrent setup POSTs can't both claim owner. We check
+// the rowcount after — zero rows inserted means someone else raced us here.
 auth.post('/setup', async (c) => {
-    const row = await c.env.DB.prepare('SELECT COUNT(*) as n FROM users').first();
-    if ((row?.n ?? 0) > 0) return c.json({ error: 'Setup already complete' }, 409);
-
     const body = await c.req.json().catch(() => null);
     if (!body?.email?.trim() || !body?.password || !body?.displayName?.trim()) {
         return c.json({ error: 'email, password, and displayName are required' }, 400);
@@ -30,10 +30,12 @@ auth.post('/setup', async (c) => {
     const id = `u_${randomId(12)}`;
     const hash = await hashPassword(body.password);
     const now = Date.now();
-    await c.env.DB.prepare(
+    const inserted = await c.env.DB.prepare(
         `INSERT INTO users (id, email, password_hash, display_name, role, active, created_at)
-         VALUES (?, ?, ?, ?, 'owner', 1, ?)`
+         SELECT ?, ?, ?, ?, 'owner', 1, ?
+         WHERE NOT EXISTS (SELECT 1 FROM users)`
     ).bind(id, body.email.trim().toLowerCase(), hash, body.displayName.trim(), now).run();
+    if (!inserted.meta?.changes) return c.json({ error: 'Setup already complete' }, 409);
 
     await c.env.DB.prepare(
         `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
