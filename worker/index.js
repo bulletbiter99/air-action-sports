@@ -196,6 +196,23 @@ async function runReminderSweep(env) {
     return { r24, r1 };
 }
 
+// Mark long-abandoned pending bookings as 'abandoned'. The capacity check in
+// worker/routes/bookings.js:checkTicketInventory already excludes pending rows
+// older than PENDING_HOLD_MS (10 min), so these don't actually reserve seats
+// anymore — this sweep just prevents DB bloat and gives the UI a clearer
+// signal. 30-minute cutoff = 3× the hold, comfortably past any legit Stripe
+// Checkout completion window.
+const PENDING_ABANDON_MS = 30 * 60 * 1000;
+async function runAbandonPendingSweep(env) {
+    const cutoff = Date.now() - PENDING_ABANDON_MS;
+    const result = await env.DB.prepare(
+        `UPDATE bookings
+         SET status = 'abandoned'
+         WHERE status = 'pending' AND created_at < ?`
+    ).bind(cutoff).run();
+    return { abandoned: result.meta?.changes ?? 0 };
+}
+
 // GET /uploads/* — serve R2 objects publicly with aggressive caching.
 // Keys are random, so objects are treated as immutable once written.
 //
@@ -328,8 +345,14 @@ export default {
 
     async scheduled(event, env, ctx) {
         ctx.waitUntil((async () => {
-            const r = await runReminderSweep(env);
-            console.log('reminder sweep', event.cron, r);
+            const [r, a] = await Promise.all([
+                runReminderSweep(env),
+                runAbandonPendingSweep(env).catch((err) => {
+                    console.error('abandon sweep failed', err);
+                    return { abandoned: 0, error: err?.message };
+                }),
+            ]);
+            console.log('scheduled sweeps', event.cron, { reminders: r, pending: a });
         })());
     },
 };

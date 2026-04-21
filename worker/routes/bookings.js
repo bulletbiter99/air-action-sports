@@ -15,7 +15,11 @@ const MAX_ANSWER_LEN = 1000;
 
 const bookings = new Hono();
 
-const PENDING_HOLD_MS = 30 * 60 * 1000; // 30 minutes
+// How long a pending booking reserves seats against capacity before it's
+// considered abandoned. Shorter = less DoS surface (a bot refreshing pending
+// bookings can lock fewer seat-minutes per IP-per-rate-limit-window).
+// 10 minutes is 2× the typical Stripe Checkout completion time.
+const PENDING_HOLD_MS = 10 * 60 * 1000;
 
 async function loadEventAndTypes(db, eventId) {
     const [eventRow, typesResult] = await Promise.all([
