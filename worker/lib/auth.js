@@ -7,10 +7,17 @@ export async function requireAuth(c, next) {
     if (!session) return c.json({ error: 'Not authenticated' }, 401);
 
     const user = await c.env.DB.prepare(
-        `SELECT id, email, display_name, role, active, last_login_at, created_at
+        `SELECT id, email, display_name, role, active, last_login_at, created_at, session_version
          FROM users WHERE id = ? AND active = 1`
     ).bind(session.uid).first();
     if (!user) return c.json({ error: 'Account not found or disabled' }, 401);
+
+    // Session-version check: password reset, password change, and logout all
+    // increment users.session_version, which instantly invalidates any
+    // previously-issued cookies for that user (post-compromise safety).
+    if (session.sv !== user.session_version) {
+        return c.json({ error: 'Session expired. Please log in again.' }, 401);
+    }
 
     c.set('user', user);
     await next();

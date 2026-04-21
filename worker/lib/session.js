@@ -3,10 +3,13 @@
 export const COOKIE_NAME = 'aas_session';
 const TTL_SEC = 7 * 24 * 60 * 60; // 7 days
 
-export async function createSession(userId, role, secret) {
+// sv = session_version. Must match users.session_version at auth-time.
+// Bumping the DB column invalidates every existing cookie for that user.
+export async function createSession(userId, role, sessionVersion, secret) {
     const payload = {
         uid: userId,
         role,
+        sv: sessionVersion,
         exp: Math.floor(Date.now() / 1000) + TTL_SEC,
     };
     const header = b64urlString(JSON.stringify(payload));

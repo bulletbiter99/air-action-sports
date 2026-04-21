@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
-import { createSession, setCookie, clearCookie } from '../../lib/session.js';
+import { createSession, setCookie, clearCookie, verifySession, parseCookieHeader } from '../../lib/session.js';
 import { requireAuth, publicUser } from '../../lib/auth.js';
 import { randomId } from '../../lib/ids.js';
 import { sendPasswordReset } from '../../lib/emailSender.js';
@@ -52,7 +52,8 @@ auth.post('/setup', async (c) => {
          VALUES (?, 'user.setup_owner', 'user', ?, ?, ?)`
     ).bind(id, id, JSON.stringify({ email: body.email }), now).run();
 
-    const token = await createSession(id, 'owner', c.env.SESSION_SECRET);
+    // New user, session_version defaults to 1 (migration 0010).
+    const token = await createSession(id, 'owner', 1, c.env.SESSION_SECRET);
     c.header('Set-Cookie', setCookie(token));
     return c.json({
         user: { id, email: body.email.trim().toLowerCase(), displayName: body.displayName.trim(), role: 'owner' },
@@ -78,12 +79,29 @@ auth.post('/login', rateLimit('RL_LOGIN'), async (c) => {
     const now = Date.now();
     await c.env.DB.prepare(`UPDATE users SET last_login_at = ? WHERE id = ?`).bind(now, user.id).run();
 
-    const token = await createSession(user.id, user.role, c.env.SESSION_SECRET);
+    const token = await createSession(user.id, user.role, user.session_version, c.env.SESSION_SECRET);
     c.header('Set-Cookie', setCookie(token));
     return c.json({ user: publicUser(user) });
 });
 
+// POST /api/admin/auth/logout — server-side session revocation + cookie clear.
+// Bumping session_version makes every other live cookie for this user (other
+// tabs, other devices) instantly invalid. Best-effort: if the cookie is
+// already invalid we just clear the client cookie and return 200.
 auth.post('/logout', async (c) => {
+    const session = await verifySession(
+        parseCookieHeader(c.req.header('cookie')),
+        c.env.SESSION_SECRET,
+    );
+    if (session?.uid) {
+        try {
+            await c.env.DB.prepare(
+                `UPDATE users SET session_version = session_version + 1 WHERE id = ?`
+            ).bind(session.uid).run();
+        } catch (err) {
+            console.error('logout: session_version bump failed', err);
+        }
+    }
     c.header('Set-Cookie', clearCookie());
     return c.json({ ok: true });
 });
@@ -166,9 +184,13 @@ auth.post('/reset-password', rateLimit('RL_RESET_PWD'), async (c) => {
 
     const hash = await hashPassword(body.password);
     const now = Date.now();
+    // Bump session_version with the password change — any cookie issued under
+    // the old password is now invalid. Critical if the reset was triggered by
+    // suspected compromise.
+    const nextSv = (user.session_version || 1) + 1;
     await c.env.DB.prepare(
-        `UPDATE users SET password_hash = ?, last_login_at = ? WHERE id = ?`
-    ).bind(hash, now, user.id).run();
+        `UPDATE users SET password_hash = ?, last_login_at = ?, session_version = ? WHERE id = ?`
+    ).bind(hash, now, nextSv, user.id).run();
 
     await c.env.DB.prepare(
         `UPDATE password_resets SET used_at = ? WHERE token = ?`
@@ -184,7 +206,7 @@ auth.post('/reset-password', rateLimit('RL_RESET_PWD'), async (c) => {
          VALUES (?, 'password_reset.completed', 'user', ?, ?, ?)`
     ).bind(user.id, user.id, JSON.stringify({}), now).run();
 
-    const token = await createSession(user.id, user.role, c.env.SESSION_SECRET);
+    const token = await createSession(user.id, user.role, nextSv, c.env.SESSION_SECRET);
     c.header('Set-Cookie', setCookie(token));
     return c.json({ user: publicUser(user) });
 });
@@ -242,7 +264,8 @@ auth.post('/accept-invite', rateLimit('RL_RESET_PWD'), async (c) => {
          VALUES (?, 'user.invite_accepted', 'user', ?, ?, ?)`
     ).bind(id, id, JSON.stringify({ email: invite.email, role: invite.role, invited_by: invite.invited_by }), now).run();
 
-    const token = await createSession(id, invite.role, c.env.SESSION_SECRET);
+    // New user; session_version defaults to 1 per migration 0010.
+    const token = await createSession(id, invite.role, 1, c.env.SESSION_SECRET);
     c.header('Set-Cookie', setCookie(token));
     return c.json({
         user: { id, email: invite.email, displayName: body.displayName.trim(), role: invite.role },
