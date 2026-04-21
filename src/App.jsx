@@ -16,6 +16,9 @@ const BookingSuccess = lazy(() => import('./pages/BookingSuccess'));
 const BookingCancelled = lazy(() => import('./pages/BookingCancelled'));
 const Waiver = lazy(() => import('./pages/Waiver'));
 const Ticket = lazy(() => import('./pages/Ticket'));
+const VendorPackage = lazy(() => import('./pages/VendorPackage'));
+const VendorLogin = lazy(() => import('./pages/VendorLogin'));
+const VendorDashboard = lazy(() => import('./pages/VendorDashboard'));
 const Contact = lazy(() => import('./pages/Contact'));
 const About = lazy(() => import('./pages/About'));
 const NewPlayers = lazy(() => import('./pages/NewPlayers'));
@@ -44,6 +47,9 @@ const AdminAcceptInvite = lazy(() => import('./admin/AdminAcceptInvite'));
 const AdminAuditLog = lazy(() => import('./admin/AdminAuditLog'));
 const AdminSettings = lazy(() => import('./admin/AdminSettings'));
 const AdminEmailTemplates = lazy(() => import('./admin/AdminEmailTemplates'));
+const AdminVendors = lazy(() => import('./admin/AdminVendors'));
+const AdminVendorPackages = lazy(() => import('./admin/AdminVendorPackages'));
+const AdminVendorContracts = lazy(() => import('./admin/AdminVendorContracts'));
 
 export default function App() {
   return (
@@ -70,6 +76,9 @@ export default function App() {
             <Route path="privacy" element={<Privacy />} />
             <Route path="*" element={<NotFound />} />
           </Route>
+          <Route path="v/:token" element={<VendorPackage />} />
+          <Route path="vendor/login" element={<VendorLogin />} />
+          <Route path="vendor/dashboard" element={<VendorDashboard />} />
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="login" element={<AdminLogin />} />
@@ -91,6 +100,10 @@ export default function App() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="accept-invite" element={<AdminAcceptInvite />} />
             <Route path="audit-log" element={<AdminAuditLog />} />
+            <Route path="vendors" element={<AdminVendors />} />
+            <Route path="vendor-packages" element={<AdminVendorPackages />} />
+            <Route path="vendor-packages/:id" element={<AdminVendorPackages />} />
+            <Route path="vendor-contracts" element={<AdminVendorContracts />} />
           </Route>
         </Routes>
       </Suspense>

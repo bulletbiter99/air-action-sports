@@ -71,7 +71,11 @@ action-air-sports/
 │           ├── users.js         ← team list, invite, revoke, role/active update
 │           ├── auditLog.js      ← paginated + filtered log viewer
 │           ├── emailTemplates.js← template CRUD + preview + send-test
-│           └── uploads.js       ← multipart image upload → R2
+│           ├── uploads.js       ← multipart image + vendor-doc upload → R2
+│           ├── vendors.js       ← vendor + contact CRUD
+│           └── eventVendors.js  ← per-event package compose/send/revoke
+│   ├── routes/vendor.js         ← public tokenized /api/vendor/:token
+│   └── lib/vendorToken.js       ← HMAC vendor magic-link token
 ├── migrations/              ← D1 migrations (applied in order)
 │   ├── 0001_initial.sql
 │   ├── 0002_expanded_schema.sql
@@ -81,7 +85,10 @@ action-air-sports/
 │   ├── 0006_reminders.sql
 │   ├── 0007_reminder_1hr.sql
 │   ├── 0008_team_invites.sql
-│   └── 0009_custom_questions.sql
+│   ├── 0009_custom_questions.sql
+│   ├── 0010_vendors.sql         ← vendor MVP (6 tables + seed email template)
+│   ├── 0011_waiver_hardening.sql ← waiver_documents + at-sign snapshot/hash
+│   └── 0012_vendor_v1.sql       ← contracts, signatures, password portal, cron idempotency, v1 email templates
 ├── scripts/                 ← one-off SQL scripts, not tracked by migration runner
 └── dist/                    ← Vite build output, uploaded with Worker
 ```
@@ -152,6 +159,15 @@ To rotate: generate new value in the respective dashboard → `echo "new-value" 
 | `rental_assignments` | Which item went to which attendee |
 | `inventory_adjustments` | Manual stock overrides |
 | `audit_log` | Who did what, when (viewable at `/admin/audit-log`) |
+| `waiver_documents` | Versioned immutable waiver text; current live row = `retired_at IS NULL` highest `version`. Each signed waiver snapshots `body_html` + `body_sha256` at sign time for legal defensibility (ESIGN integrity). |
+| `vendors` | Company-level vendor record (COI expiry, tags, notes, soft-delete) |
+| `vendor_contacts` | People at a vendor. One `is_primary` per vendor. Email unique per vendor among active rows. |
+| `event_vendors` | Join of (event, vendor). Owns `status` (draft/sent/viewed/revoked/complete), `token_version` (bump = instant revoke), `token_expires_at`, view timestamps |
+| `vendor_package_sections` | Ordered content blocks (overview/schedule/map/contact/custom) composed into a package. `ON DELETE CASCADE` from `event_vendors`. |
+| `vendor_documents` | Files attached to a package or a vendor (admin_asset / coi / w9). R2 keys under `vendors/…`; served ONLY via `/api/vendor/:token/doc/:id`, never via public `/uploads/`. |
+| `vendor_access_log` | Every tokenized view/download — IP, UA, token_version at access time |
+| `vendor_contract_documents` | Versioned immutable operating-agreement text; same live-row pattern as waiver_documents (`retired_at IS NULL`). Each new version retires the previous. |
+| `vendor_signatures` | Per-package signed contract. Immutable at-sign snapshot of `body_html` + `body_sha256` + typed_name + IP + UA + token_version. `UNIQUE(event_vendor_id)`. Countersigned by owner role. |
 
 Full schema: concat the migration files in order.
 
@@ -174,8 +190,17 @@ Full schema: concat the migration files in order.
 | POST | `/api/bookings/checkout` | Create pending booking + Stripe Checkout Session |
 | GET | `/api/bookings/:token` | Public booking lookup (confirmation page) |
 | POST | `/api/webhooks/stripe` | Stripe webhook receiver |
-| GET | `/api/waivers/:qrToken` | Load attendee info for waiver form (also used by ticket page) |
-| POST | `/api/waivers/:qrToken` | Submit signed waiver (sig must match ticket name) |
+| GET | `/api/waivers/:qrToken` | Load attendee info + **current live waiver document (body + version)** for waiver form |
+| POST | `/api/waivers/:qrToken` | Submit signed waiver; server snapshots the live doc's `body_html` + hash + version onto the row, requires explicit `erecordsConsent: true` (ESIGN §7001(c)) |
+| GET | `/api/vendor/:token` | **Tokenized** vendor package payload (sections + docs + event info); stamps first/last viewed; rate-limited |
+| GET | `/api/vendor/:token/doc/:id` | **Tokenized** document download; validates doc belongs to resolved event_vendor; logs access; Content-Disposition: attachment |
+| POST | `/api/vendor/:token/sign` | Vendor signs the live contract document; snapshots body + sha256 + typed_name + IP + UA; `UNIQUE(event_vendor_id)` enforces single signing |
+| POST | `/api/vendor/:token/upload` | Vendor-side upload (multipart; kind ∈ coi\|w9\|vendor_return; magic-byte sniff inc. PDF; 10 MB cap); fires `admin_vendor_return` email |
+| POST | `/api/vendor/auth/set-password` | Sets password on primary_contact given a valid magic-link token (no separate email verification needed — holding a fresh magic link proves email ownership) |
+| POST | `/api/vendor/auth/login` | Email + password → HMAC-signed `aas_vendor` session cookie (30d TTL) |
+| POST | `/api/vendor/auth/logout` | Bumps `session_version`, clears cookie |
+| GET | `/api/vendor/auth/me` | Returns current logged-in contact, or `{contact: null}` |
+| GET | `/api/vendor/auth/my-packages` | Lists every non-revoked event_vendor across all contacts sharing this email; each row includes a freshly-minted 24h-TTL magic-link token |
 
 ## 8. Admin API routes (cookie auth required)
 
@@ -258,6 +283,43 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 | POST | `/api/admin/email-templates/:slug/send-test` | owner |
 | GET | `/api/admin/taxes-fees` / POST / PUT / DELETE | staff+ / manager+ / manager+ / owner |
 | POST | `/api/admin/uploads/image` | manager+ (multipart, JPEG/PNG/WebP/GIF, 5 MB cap → `/uploads/:key` URL) |
+| POST | `/api/admin/uploads/vendor-doc` | manager+ (multipart, + PDF, 10 MB cap; magic-byte sniff; requires `event_vendor_id` OR `vendor_id` + `kind`) |
+| DELETE | `/api/admin/uploads/vendor-doc/:id` | manager+ (removes R2 object + DB row) |
+
+**Vendors**
+| Method | Path | Role |
+|---|---|---|
+| GET | `/api/admin/vendors[?q=&includeDeleted=1]` | staff+ |
+| POST | `/api/admin/vendors` | manager+ |
+| GET | `/api/admin/vendors/:id` | staff+ (includes contacts + history of event_vendors) |
+| PUT | `/api/admin/vendors/:id` | manager+ |
+| DELETE | `/api/admin/vendors/:id[?force=1]` | owner (refuses if active packages; `force=1` revokes them all first) |
+| POST | `/api/admin/vendors/:id/contacts` | manager+ |
+| PUT/DELETE | `/api/admin/vendors/contacts/:id` | manager+ |
+
+**Event vendors (package composition)**
+| Method | Path | Role |
+|---|---|---|
+| GET | `/api/admin/event-vendors[?event_id=&vendor_id=]` | staff+ |
+| POST | `/api/admin/event-vendors` | manager+ (attach vendor to event) |
+| GET | `/api/admin/event-vendors/:id` | staff+ (sections + docs + last 100 access-log entries) |
+| PUT | `/api/admin/event-vendors/:id` | manager+ (primary_contact, notes, status draft/complete only — revoked via /revoke) |
+| DELETE | `/api/admin/event-vendors/:id` | owner (cascades sections + docs; keeps access_log rows) |
+| POST | `/api/admin/event-vendors/:id/sections` | manager+ (kinds: overview/schedule/map/contact/custom) |
+| PUT/DELETE | `/api/admin/event-vendors/:id/sections/:sid` | manager+ |
+| POST | `/api/admin/event-vendors/:id/send` | manager+ (mints HMAC token, renders `vendor_package_sent` template, emails primary contact; default TTL = event start + 60d) |
+| POST | `/api/admin/event-vendors/:id/revoke` | manager+ (bumps `token_version` — outstanding magic links dead instantly) |
+| PUT | `/api/admin/event-vendors/:id/contract` | manager+ (`{required: true/false}` — flip contract signature requirement; true refuses unless a live contract document exists) |
+| GET | `/api/admin/event-vendors/:id/signature` | staff+ (full signature record incl body_html_snapshot + sha256 + IP + UA + countersign state) |
+| POST | `/api/admin/event-vendors/:id/countersign` | **owner only** (stamps countersigned_by_user_id + countersigned_at; sends `vendor_countersigned` email) |
+
+**Vendor contract documents** (versioned, immutable)
+| Method | Path | Role |
+|---|---|---|
+| GET | `/api/admin/vendor-contracts` | staff+ (all versions incl retired) |
+| POST | `/api/admin/vendor-contracts` | owner (new version auto-retires previous at same instant) |
+| GET | `/api/admin/vendor-contracts/current` | staff+ (live doc, or null) |
+| POST | `/api/admin/vendor-contracts/:id/retire` | owner (emergency retire without replacement) |
 
 ## 9. Frontend routes
 
@@ -269,7 +331,10 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 - `/booking/success?token=...` — post-payment confirmation (per-attendee waiver + ticket PDF links)
 - `/booking/cancelled` — user aborted Stripe checkout
 - `/booking/ticket?token=<qrToken>` — printable PDF ticket (auto `window.print()`)
-- `/waiver?token=<qrToken>` — per-attendee waiver form
+- `/waiver?token=<qrToken>` — per-attendee waiver form (renders body from `waiver_documents`, requires explicit e-records consent)
+- `/v/:token` — **standalone** vendor package magic-link page (no public site chrome); renders sections + doc download list + inline contract signing + vendor-side upload + "save login" CTA
+- `/vendor/login` — standalone vendor password login
+- `/vendor/dashboard` — logged-in view of every non-revoked package across all vendor_contact rows sharing this email
 
 **Admin** (all require login cookie)
 - `/admin` — dashboard (stats + bookings table with edit-attendee + resend-confirmation)
@@ -286,6 +351,10 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 - `/admin/settings` — hub
 - `/admin/settings/taxes-fees`
 - `/admin/settings/email-templates` — edit subject/HTML/text, live iframe preview, send `[TEST]` email
+- `/admin/vendors` — vendor directory (list + inline contact management; owner: delete)
+- `/admin/vendor-packages` — per-event package list (filter by event/vendor) + attach-vendor modal
+- `/admin/vendor-packages/:id` — composer: sections, documents, access log, send, revoke, contract toggle + signature status + countersign (owner)
+- `/admin/vendor-contracts` — versioned contract document manager (owner: create new version, retire)
 
 ## 10. Completed phases
 
@@ -311,6 +380,9 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 | **Polish #3** | Custom questions per event — builder, booking capture, roster + CSV display |
 | **Polish #4** | R2 cover-image upload + `/uploads/:key` public serve + EventDetail hero background |
 | **Polish #5** | Printable per-attendee PDF tickets at `/booking/ticket?token=...` (auto-print) |
+| **Waiver hardening** | Migration 0011: `waiver_documents` (versioned), at-sign snapshot + SHA-256 + distinct e-records consent bit. Integrity check on serve; tampered rows refuse to mint new signatures. Legal posture under ESIGN §7001 significantly improved. |
+| **Vendor MVP** | Migration 0010: vendor + per-event package system. Tokenized magic-link delivery (HMAC, revocable via `token_version` bump, default TTL = event start + 60d). Admin: `/admin/vendors`, `/admin/vendor-packages`. Vendor: standalone `/v/:token` page. PDF uploads via magic-byte sniff. Full access log. |
+| **Vendor v1** | Migration 0012: in-house e-signature (versioned contract docs + at-sign snapshot + owner-only countersign), vendor-side uploads (COI/W-9/return) with magic-byte sniff + admin-notify email, optional password portal (`/vendor/login` + `/vendor/dashboard`), cron sweeps (COI 30d/7d, package open reminder 7d pre-event, signature reminder 14d pre-event). Six new email templates. Not shipped: package templates (schema exists, admin UI deferred — create rows via SQL if needed). |
 
 ## 11. What's left before go-live
 
@@ -332,7 +404,10 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **1 event**: `operation-nightfall` — Operation Nightfall, 2026-05-09, Ghost Town, $80 base (350 slots)
 - **1 ticket type**: `tt_nightfall_standard` — Standard Ticket, $80
 - **3 add-ons**: Sword Rifle Package ($35 rental), SRS Sniper Package ($25 rental), 20g BBs 10k ($30 consumable)
-- **7 email templates** seeded (booking_confirmation, admin_notify, waiver_request, password_reset, event_reminder_24h, event_reminder_1hr, user_invite)
+- **14 email templates** seeded (original 7 + `vendor_package_sent` from 0010 + 6 from 0012: `vendor_package_reminder`, `vendor_signature_requested`, `vendor_countersigned`, `vendor_coi_expiring`, `vendor_package_updated`, `admin_vendor_return`)
+- **1 waiver document** seeded: `wd_v1` with SHA-256 `0d8ee7e9864a…59d7`. Update procedure: insert `wd_v2`, stamp `retired_at` on v1, deploy — past signers remain pinned to their signed version.
+- **0 vendors** seeded — admin must create them at `/admin/vendors`
+- **0 vendor contract documents** seeded — owner must create v1 at `/admin/vendor-contracts` before flipping `require contract` on any package
 - **3 taxes/fees** seeded (City Tax, State Tax, Processing Fees — configure via `/admin/settings/taxes-fees`)
 - **Admin owner**: Paul Keddington (bulletbiter99@gmail.com)
 - **Stripe**: **still sandbox mode** — flip before first real sale
@@ -349,6 +424,8 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **HTML rewriter on `/events/:slug`** runs on every request. Cheap, but don't add heavy D1 queries to that path without caching.
 - **QR scanner** (`getUserMedia`) requires HTTPS — fine on production, may fail on plain-HTTP `localhost` depending on the browser. Test the scanner on the deployed URL from a phone, not via `npm run dev`.
 - **Legacy event ID format**: the original seeded `operation-nightfall` event uses its slug as its primary key (`id`). New events created via the admin UI get random `ev_*` IDs with a separate `slug` column. Both are resolved by `/api/events/:id` (matches on either).
+- **Vendor magic-link tokens** are HMAC-signed with `SESSION_SECRET`. Rotating that secret invalidates ALL outstanding vendor tokens — same rotation posture as admin sessions. Acceptable on compromise; know about it.
+- **Waiver document integrity check**: if someone edits `waiver_documents.body_html` directly via SQL without recomputing `body_sha256`, the next `/api/waivers/:qrToken` GET refuses to serve (500) and writes a `waiver_document.integrity_failure` audit entry. Update the text via migration (new row, new hash), never in-place.
 
 ## 14. Resume checklist when starting fresh
 

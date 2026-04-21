@@ -1,12 +1,17 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { sendEventReminder, sendEventReminder1hr } from './lib/emailSender.js';
+import { loadTemplate, renderTemplate } from './lib/templates.js';
+import { sendEmail } from './lib/email.js';
+import { createVendorToken } from './lib/vendorToken.js';
 
 import events from './routes/events.js';
 import bookings from './routes/bookings.js';
 import webhooks from './routes/webhooks.js';
 import waivers from './routes/waivers.js';
 import publicTaxesFees from './routes/taxesFees.js';
+import vendorPublic from './routes/vendor.js';
+import vendorAuth from './routes/vendorAuth.js';
 import adminAuth from './routes/admin/auth.js';
 import adminBookings from './routes/admin/bookings.js';
 import adminEvents, { ticketTypes as adminTicketTypes } from './routes/admin/events.js';
@@ -19,6 +24,9 @@ import adminUsers from './routes/admin/users.js';
 import adminAuditLog from './routes/admin/auditLog.js';
 import adminEmailTemplates from './routes/admin/emailTemplates.js';
 import adminUploads from './routes/admin/uploads.js';
+import adminVendors from './routes/admin/vendors.js';
+import adminEventVendors from './routes/admin/eventVendors.js';
+import adminVendorContracts from './routes/admin/vendorContracts.js';
 
 const app = new Hono();
 
@@ -39,6 +47,15 @@ app.use('/api/events/*', cors({ origin: corsOrigin, allowMethods: ['GET', 'OPTIO
 app.use('/api/events', cors({ origin: corsOrigin, allowMethods: ['GET', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
 app.use('/api/taxes-fees', cors({ origin: corsOrigin, allowMethods: ['GET', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
 app.use('/api/waivers/*', cors({ origin: corsOrigin, allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
+// Vendor magic-link + upload + sign routes. POST needed for sign + upload.
+app.use('/api/vendor/*', cors({ origin: corsOrigin, allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
+// Vendor auth (cookie-bearing) gets credentials:true, same as admin.
+app.use('/api/vendor/auth/*', cors({
+    origin: corsOrigin,
+    credentials: true,
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowHeaders: ['Content-Type'],
+}));
 
 // Public booking checkout + lookup. No cookies; POSTs from the site.
 app.use('/api/bookings/*', cors({ origin: corsOrigin, allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type'] }));
@@ -70,6 +87,8 @@ app.route('/api/bookings', bookings);
 app.route('/api/webhooks', webhooks);
 app.route('/api/waivers', waivers);
 app.route('/api/taxes-fees', publicTaxesFees);
+app.route('/api/vendor/auth', vendorAuth);
+app.route('/api/vendor', vendorPublic);
 app.route('/api/admin/auth', adminAuth);
 app.route('/api/admin/bookings', adminBookings);
 app.route('/api/admin/events', adminEvents);
@@ -83,6 +102,9 @@ app.route('/api/admin/users', adminUsers);
 app.route('/api/admin/audit-log', adminAuditLog);
 app.route('/api/admin/email-templates', adminEmailTemplates);
 app.route('/api/admin/uploads', adminUploads);
+app.route('/api/admin/vendors', adminVendors);
+app.route('/api/admin/event-vendors', adminEventVendors);
+app.route('/api/admin/vendor-contracts', adminVendorContracts);
 
 app.onError((err, c) => {
     console.error('API error', err);
@@ -194,6 +216,170 @@ async function runReminderSweep(env) {
         }),
     ]);
     return { r24, r1 };
+}
+
+// ───── Vendor v1 cron sweeps ─────
+// Each sweep stamps a sentinel column (`*_sent_at`) BEFORE attempting the
+// send, same pattern as the booking reminder sweep: prevents duplicate mail
+// if the Worker is evicted mid-flight, at the cost of at most one skipped
+// delivery on Resend failure.
+
+async function mintTokenFor(env, ev) {
+    const expiresAt = ev.token_expires_at ?? (Date.now() + 30 * 24 * 60 * 60 * 1000);
+    return createVendorToken(ev.id, ev.token_version, expiresAt, env.SESSION_SECRET);
+}
+
+async function trySendVendorEmail(env, slug, to, vars) {
+    const template = await loadTemplate(env.DB, slug);
+    if (!template || !to) return 'skipped';
+    const rendered = renderTemplate(template, vars);
+    try {
+        await sendEmail({
+            apiKey: env.RESEND_API_KEY,
+            from: env.FROM_EMAIL,
+            to,
+            replyTo: env.REPLY_TO_EMAIL,
+            subject: rendered.subject,
+            html: rendered.html,
+            text: rendered.text,
+            tags: [{ name: 'type', value: slug }],
+        });
+        return 'sent';
+    } catch (err) {
+        console.error(`${slug} send failed`, err);
+        return 'failed';
+    }
+}
+
+async function runVendorSweep(env) {
+    const now = Date.now();
+    const results = { coi30: 0, coi7: 0, pkgReminder: 0, sigReminder: 0 };
+
+    // COI expiry reminders. Scan vendors with a set coi_expires_on and at
+    // least one non-revoked package (don't badger dormant vendors). Fire 30d
+    // and 7d tiers; each stamped with its own sentinel column.
+    async function sweepCoi(windowDays, sentinelCol) {
+        const cutoffMs = now + windowDays * 24 * 60 * 60 * 1000;
+        const rows = await env.DB.prepare(
+            `SELECT v.id, v.company_name, v.coi_expires_on,
+                    vc.email AS contact_email, vc.name AS contact_name
+             FROM vendors v
+             LEFT JOIN vendor_contacts vc ON vc.vendor_id = v.id
+                 AND vc.is_primary = 1 AND vc.deleted_at IS NULL
+             WHERE v.deleted_at IS NULL
+               AND v.coi_expires_on IS NOT NULL
+               AND v.${sentinelCol} IS NULL
+               AND (julianday(v.coi_expires_on) - julianday('now')) * 86400000 < ?
+               AND v.coi_expires_on >= date('now')
+               AND EXISTS (SELECT 1 FROM event_vendors ev WHERE ev.vendor_id = v.id AND ev.status != 'revoked')
+             LIMIT 50`
+        ).bind(cutoffMs - now).all();
+
+        let count = 0;
+        for (const r of rows.results || []) {
+            if (!r.contact_email) continue;
+            const claimed = await env.DB.prepare(
+                `UPDATE vendors SET ${sentinelCol} = ? WHERE id = ? AND ${sentinelCol} IS NULL`
+            ).bind(now, r.id).run();
+            if (!claimed.meta?.changes) continue;
+
+            const daysLeft = Math.ceil((new Date(r.coi_expires_on + 'T23:59:59') - now) / (24 * 60 * 60 * 1000));
+            const result = await trySendVendorEmail(env, 'vendor_coi_expiring', r.contact_email, {
+                contact_name: r.contact_name || '',
+                company_name: r.company_name,
+                coi_expires_on: r.coi_expires_on,
+                days_left: String(daysLeft),
+            });
+            if (result === 'failed') {
+                await env.DB.prepare(
+                    `UPDATE vendors SET ${sentinelCol} = NULL WHERE id = ? AND ${sentinelCol} = ?`
+                ).bind(r.id, now).run();
+            } else if (result === 'sent') count++;
+        }
+        return count;
+    }
+    results.coi30 = await sweepCoi(30, 'coi_reminder_30d_sent_at');
+    results.coi7 = await sweepCoi(7, 'coi_reminder_7d_sent_at');
+
+    // Package open reminder: event in 6-8 days, status === 'sent' (not yet
+    // viewed), sentinel null.
+    const SIX_D = 6 * 24 * 60 * 60 * 1000;
+    const EIGHT_D = 8 * 24 * 60 * 60 * 1000;
+    {
+        const rows = await env.DB.prepare(
+            `SELECT ev.*, e.title AS event_title, e.display_date AS event_display_date,
+                    vc.email AS contact_email, vc.name AS contact_name
+             FROM event_vendors ev
+             JOIN events e ON e.id = ev.event_id
+             LEFT JOIN vendor_contacts vc ON vc.id = ev.primary_contact_id
+             WHERE ev.status = 'sent'
+               AND ev.package_reminder_sent_at IS NULL
+               AND (unixepoch(e.date_iso) * 1000) BETWEEN ? AND ?
+             LIMIT 50`
+        ).bind(now + SIX_D, now + EIGHT_D).all();
+
+        for (const r of rows.results || []) {
+            if (!r.contact_email) continue;
+            const claimed = await env.DB.prepare(
+                `UPDATE event_vendors SET package_reminder_sent_at = ? WHERE id = ? AND package_reminder_sent_at IS NULL`
+            ).bind(now, r.id).run();
+            if (!claimed.meta?.changes) continue;
+            const token = await mintTokenFor(env, r);
+            const result = await trySendVendorEmail(env, 'vendor_package_reminder', r.contact_email, {
+                contact_name: r.contact_name || '',
+                event_title: r.event_title,
+                event_date: r.event_display_date,
+                package_url: `${env.SITE_URL}/v/${token}`,
+            });
+            if (result === 'failed') {
+                await env.DB.prepare(
+                    `UPDATE event_vendors SET package_reminder_sent_at = NULL WHERE id = ? AND package_reminder_sent_at = ?`
+                ).bind(r.id, now).run();
+            } else if (result === 'sent') results.pkgReminder++;
+        }
+    }
+
+    // Signature reminder: contract_required AND not yet signed AND event in
+    // 13-15 days AND sentinel null.
+    const THIRTEEN_D = 13 * 24 * 60 * 60 * 1000;
+    const FIFTEEN_D = 15 * 24 * 60 * 60 * 1000;
+    {
+        const rows = await env.DB.prepare(
+            `SELECT ev.*, e.title AS event_title, e.display_date AS event_display_date,
+                    vc.email AS contact_email, vc.name AS contact_name
+             FROM event_vendors ev
+             JOIN events e ON e.id = ev.event_id
+             LEFT JOIN vendor_contacts vc ON vc.id = ev.primary_contact_id
+             WHERE ev.contract_required = 1
+               AND ev.contract_signed_at IS NULL
+               AND ev.status != 'revoked'
+               AND ev.signature_reminder_sent_at IS NULL
+               AND (unixepoch(e.date_iso) * 1000) BETWEEN ? AND ?
+             LIMIT 50`
+        ).bind(now + THIRTEEN_D, now + FIFTEEN_D).all();
+
+        for (const r of rows.results || []) {
+            if (!r.contact_email) continue;
+            const claimed = await env.DB.prepare(
+                `UPDATE event_vendors SET signature_reminder_sent_at = ? WHERE id = ? AND signature_reminder_sent_at IS NULL`
+            ).bind(now, r.id).run();
+            if (!claimed.meta?.changes) continue;
+            const token = await mintTokenFor(env, r);
+            const result = await trySendVendorEmail(env, 'vendor_signature_requested', r.contact_email, {
+                contact_name: r.contact_name || '',
+                event_title: r.event_title,
+                event_date: r.event_display_date,
+                package_url: `${env.SITE_URL}/v/${token}`,
+            });
+            if (result === 'failed') {
+                await env.DB.prepare(
+                    `UPDATE event_vendors SET signature_reminder_sent_at = NULL WHERE id = ? AND signature_reminder_sent_at = ?`
+                ).bind(r.id, now).run();
+            } else if (result === 'sent') results.sigReminder++;
+        }
+    }
+
+    return results;
 }
 
 // Mark long-abandoned pending bookings as 'abandoned'. The capacity check in
@@ -358,14 +544,18 @@ export default {
 
     async scheduled(event, env, ctx) {
         ctx.waitUntil((async () => {
-            const [r, a] = await Promise.all([
+            const [r, a, v] = await Promise.all([
                 runReminderSweep(env),
                 runAbandonPendingSweep(env).catch((err) => {
                     console.error('abandon sweep failed', err);
                     return { abandoned: 0, error: err?.message };
                 }),
+                runVendorSweep(env).catch((err) => {
+                    console.error('vendor sweep failed', err);
+                    return { error: err?.message };
+                }),
             ]);
-            console.log('scheduled sweeps', event.cron, { reminders: r, pending: a });
+            console.log('scheduled sweeps', event.cron, { reminders: r, pending: a, vendor: v });
         })());
     },
 };

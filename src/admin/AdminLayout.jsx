@@ -32,6 +32,7 @@ function AdminHeader() {
           <TabLink to="/admin/scan">Scan</TabLink>
           <TabLink to="/admin/rentals">Rentals</TabLink>
           <TabLink to="/admin/promo-codes">Promos</TabLink>
+          <TabLink to="/admin/vendors">Vendors</TabLink>
           <TabLink to="/admin/new-booking">New Booking</TabLink>
           <TabLink to="/admin/users">Team</TabLink>
           <TabLink to="/admin/audit-log">Audit</TabLink>
