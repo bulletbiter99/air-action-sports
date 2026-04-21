@@ -1,6 +1,30 @@
 name = "air-action-sports"
+main = "worker/index.js"
 compatibility_date = "2026-04-03"
 
 [assets]
 directory = "./dist"
+binding = "ASSETS"
 not_found_handling = "single-page-application"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "air-action-sports-db"
+database_id = "d72ea71b-f12f-4684-93a2-52fbe9037527"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "air-action-sports-uploads"
+
+[triggers]
+# Every 15min — sweeps both 24hr and 1hr reminder windows.
+# 1hr window (45-75min) needs sub-hourly cadence to avoid misses.
+crons = ["*/15 * * * *"]
+
+[vars]
+SITE_URL = "https://air-action-sports.bulletbiter99.workers.dev"
+FROM_EMAIL = "Air Action Sports <noreply@airactionsport.com>"
+REPLY_TO_EMAIL = "actionairsport@gmail.com"
+ADMIN_NOTIFY_EMAIL = "actionairsport@gmail.com"
