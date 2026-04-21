@@ -70,7 +70,7 @@ export default function AdminUsers() {
         <h2 style={h2}>Active admins ({users.filter((u) => u.active).length})</h2>
         {loadingList && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
         {users.length > 0 && (
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
                 <th style={th}>Name</th>
@@ -124,14 +124,14 @@ export default function AdminUsers() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 
       {pending.length > 0 && (
         <section style={tableBox}>
           <h2 style={h2}>Pending invites ({pending.length})</h2>
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
                 <th style={th}>Email</th>
@@ -167,14 +167,14 @@ export default function AdminUsers() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </section>
       )}
 
       {recent.length > 0 && (
         <section style={tableBox}>
           <h2 style={h2}>Recent invites</h2>
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr><th style={th}>Email</th><th style={th}>Role</th><th style={th}>Status</th><th style={th}>When</th></tr>
             </thead>
@@ -197,7 +197,7 @@ export default function AdminUsers() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </section>
       )}
 

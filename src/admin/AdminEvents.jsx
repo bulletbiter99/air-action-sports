@@ -77,7 +77,7 @@ export default function AdminEvents() {
           <p style={{ color: 'var(--olive-light)' }}>No events yet. Create one to get started.</p>
         )}
         {events.length > 0 && (
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
                 <th style={th}>Title</th>
@@ -121,7 +121,7 @@ export default function AdminEvents() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 
@@ -359,7 +359,7 @@ function AddonEditor({ addons, onChange }) {
     <div>
       {addons.length === 0 && <p style={{ color: 'var(--olive-light)', fontSize: 12, margin: '6px 0' }}>No add-ons.</p>}
       {addons.map((a, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
+        <div key={i} className="admin-row-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
           <input placeholder="sku" value={a.sku || ''} onChange={(e) => update(i, 'sku', e.target.value)} style={input} />
           <input placeholder="name" value={a.name || ''} onChange={(e) => update(i, 'name', e.target.value)} style={input} />
           <input type="number" placeholder="cents" value={a.price_cents ?? 0} onChange={(e) => update(i, 'price_cents', Number(e.target.value))} style={input} />
@@ -450,7 +450,7 @@ function CustomQuestionsEditor({ questions, onChange }) {
       )}
       {questions.map((q, i) => (
         <div key={i} style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(200,184,154,0.08)', padding: '10px 12px', marginBottom: 8 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr auto auto', gap: 6, alignItems: 'center' }}>
+          <div className="admin-row-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr auto auto', gap: 6, alignItems: 'center' }}>
             <input
               placeholder="key (snake_case)"
               value={q.key || ''}

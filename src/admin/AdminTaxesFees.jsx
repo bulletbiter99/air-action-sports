@@ -104,7 +104,7 @@ function Group({ title, rows, onEdit, onToggle, onDelete, hasRole }) {
       <h2 style={h2}>{title}</h2>
       {rows.length === 0 && <p style={{ color: 'var(--olive-light)', fontSize: 13 }}>None configured.</p>}
       {rows.length > 0 && (
-        <table style={table}>
+        <div className="admin-table-wrap"><table style={table}>
           <thead>
             <tr>
               <th style={th}>Active</th>
@@ -142,7 +142,7 @@ function Group({ title, rows, onEdit, onToggle, onDelete, hasRole }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </section>
   );

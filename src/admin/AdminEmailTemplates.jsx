@@ -50,7 +50,7 @@ export default function AdminEmailTemplates() {
       <section style={tableBox}>
         {loadingList && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
         {templates.length > 0 && (
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
                 <th style={th}>Template</th>
@@ -84,7 +84,7 @@ export default function AdminEmailTemplates() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 

@@ -100,7 +100,7 @@ export default function AdminAuditLog() {
           <p style={{ color: 'var(--olive-light)' }}>No entries match the current filter.</p>
         )}
         {entries.length > 0 && (
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
                 <th style={th}>When</th>
@@ -120,7 +120,7 @@ export default function AdminAuditLog() {
                 />
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
     </div>

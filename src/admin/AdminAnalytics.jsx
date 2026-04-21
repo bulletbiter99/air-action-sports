@@ -136,7 +136,7 @@ function EventTable({ events, label }) {
       <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: 'var(--olive-light)', textTransform: 'uppercase', marginBottom: 10 }}>
         {label} ({events.length})
       </div>
-      <table style={table}>
+      <div className="admin-table-wrap"><table style={table}>
         <thead>
           <tr>
             <th style={th}>Event</th>
@@ -190,7 +190,7 @@ function EventTable({ events, label }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }

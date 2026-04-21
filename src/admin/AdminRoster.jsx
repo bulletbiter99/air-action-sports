@@ -143,7 +143,7 @@ export default function AdminRoster() {
           <p style={{ color: 'var(--olive-light)' }}>No players match the current filter.</p>
         )}
         {filtered.length > 0 && (
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
                 <th style={th}>#</th>
@@ -208,7 +208,7 @@ export default function AdminRoster() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
     </div>

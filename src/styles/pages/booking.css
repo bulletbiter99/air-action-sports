@@ -241,4 +241,6 @@
 @media (max-width: 768px) {
   .private-hire-features { grid-template-columns: 1fr; }
   .select-row { flex-direction: column; align-items: stretch; gap: 1rem; }
+  /* sticky totals sidebar collapses into flow on mobile — overlap otherwise */
+  .order-summary.sticky { position: static; bottom: auto; }
 }

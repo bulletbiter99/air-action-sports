@@ -151,7 +151,7 @@ export default function AdminRentals() {
           <p style={{ color: 'var(--olive-light)' }}>No items match.</p>
         )}
         {filtered.length > 0 && (
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
                 <th style={th}></th>
@@ -188,7 +188,7 @@ export default function AdminRentals() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 

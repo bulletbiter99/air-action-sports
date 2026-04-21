@@ -146,7 +146,7 @@ export default function AdminDashboard() {
           <p style={{ color: 'var(--olive-light)', fontSize: 13 }}>No bookings match the current filter.</p>
         )}
         {bookings.length > 0 && (
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
                 <th style={th}>Date</th>
@@ -173,7 +173,7 @@ export default function AdminDashboard() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 
@@ -341,7 +341,7 @@ function BookingDetailModal({ id, onClose, onChanged }) {
             <div style={{ margin: '20px 0 10px', fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--orange)' }}>
               Line items
             </div>
-            <table style={table}>
+            <div className="admin-table-wrap"><table style={table}>
               <thead><tr><th style={th}>Item</th><th style={th}>Qty</th><th style={th}>Total</th></tr></thead>
               <tbody>
                 {data.booking.lineItems.filter((li) => li.type === 'ticket' || li.type === 'addon').map((li, i) => (
@@ -352,14 +352,14 @@ function BookingDetailModal({ id, onClose, onChanged }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
 
             {data.booking.lineItems.some((li) => li.type === 'tax' || li.type === 'fee') && (
               <>
                 <div style={{ margin: '20px 0 10px', fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--orange)' }}>
                   Taxes &amp; Fees (admin-only breakdown)
                 </div>
-                <table style={table}>
+                <div className="admin-table-wrap"><table style={table}>
                   <thead><tr><th style={th}>Line</th><th style={th}>Rate</th><th style={th}>Amount</th></tr></thead>
                   <tbody>
                     {data.booking.lineItems.filter((li) => li.type === 'tax' || li.type === 'fee').map((li, i) => {
@@ -378,7 +378,7 @@ function BookingDetailModal({ id, onClose, onChanged }) {
                       );
                     })}
                   </tbody>
-                </table>
+                </table></div>
                 <p style={{ fontSize: 11, color: 'var(--olive-light)', marginTop: 8 }}>
                   Customer sees a single <strong>Taxes &amp; Fees</strong> line of <strong>{fmt((data.booking.taxCents || 0) + (data.booking.feeCents || 0))}</strong>.
                 </p>
@@ -390,14 +390,14 @@ function BookingDetailModal({ id, onClose, onChanged }) {
                 <div style={{ margin: '20px 0 10px', fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--orange)' }}>
                   Players ({data.attendees.length})
                 </div>
-                <table style={table}>
+                <div className="admin-table-wrap"><table style={table}>
                   <thead><tr><th style={th}>Name</th><th style={th}>Email</th><th style={th}>Phone</th><th style={th}>Waiver</th><th style={th}>Check-in</th><th style={th}></th></tr></thead>
                   <tbody>
                     {data.attendees.map((a) => (
                       <AttendeeRow key={a.id} attendee={a} onChanged={load} />
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               </>
             )}
           </>
@@ -443,7 +443,7 @@ function AttendeeRow({ attendee: a, onChanged }) {
     return (
       <tr style={tr}>
         <td style={td} colSpan={6}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr 1fr auto', gap: 6, alignItems: 'center' }}>
+          <div className="admin-row-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr 1fr auto', gap: 6, alignItems: 'center' }}>
             <input placeholder="First name" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} style={editInput} />
             <input placeholder="Last name" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} style={editInput} />
             <input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={editInput} />

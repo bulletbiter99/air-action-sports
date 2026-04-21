@@ -88,7 +88,7 @@ export default function AdminPromoCodes() {
           <p style={{ color: 'var(--olive-light)' }}>No promo codes. Create one above.</p>
         )}
         {promoCodes.length > 0 && (
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
                 <th style={th}>Code</th>
@@ -140,7 +140,7 @@ export default function AdminPromoCodes() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 

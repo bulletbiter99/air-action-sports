@@ -1,12 +1,15 @@
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AdminProvider, useAdmin } from './AdminContext';
+import '../styles/admin.css';
 
 export default function AdminLayout() {
   return (
     <AdminProvider>
-      <div style={{ minHeight: '100vh', background: 'var(--dark)', color: 'var(--cream)' }}>
+      <div className="admin-shell" style={{ minHeight: '100vh', background: 'var(--dark)', color: 'var(--cream)' }}>
         <AdminHeader />
-        <Outlet />
+        <main className="admin-main">
+          <Outlet />
+        </main>
       </div>
     </AdminProvider>
   );
@@ -18,10 +21,10 @@ function AdminHeader() {
   const onAuthPage = loc.pathname.endsWith('/login') || loc.pathname.endsWith('/setup');
 
   return (
-    <header style={headerBar}>
+    <header className="admin-header" style={headerBar}>
       <span style={logoText}>Air Action Sports — Admin</span>
       {isAuthenticated && !onAuthPage && (
-        <nav style={navBar}>
+        <nav className="admin-nav" style={navBar}>
           <TabLink to="/admin" end>Dashboard</TabLink>
           <TabLink to="/admin/analytics">Analytics</TabLink>
           <TabLink to="/admin/events">Events</TabLink>

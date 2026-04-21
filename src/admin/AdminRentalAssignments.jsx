@@ -83,7 +83,7 @@ export default function AdminRentalAssignments() {
           <p style={{ color: 'var(--olive-light)' }}>No assignments match.</p>
         )}
         {assignments.length > 0 && (
-          <table style={table}>
+          <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
                 <th style={th}>Item</th>
@@ -119,7 +119,7 @@ export default function AdminRentalAssignments() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
     </div>

@@ -1,0 +1,115 @@
+/* ============================================================
+   ADMIN — mobile responsiveness
+   Targets existing inline-styled admin layout via classnames
+   added in AdminLayout.jsx and per-page wrappers.
+   ============================================================ */
+
+/* ----- Shell ----- */
+.admin-shell { min-height: 100vh; }
+
+/* ----- Header / nav ----- */
+.admin-header {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.admin-nav {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.admin-nav::-webkit-scrollbar { display: none; }
+.admin-nav a { flex-shrink: 0; }
+
+@media (max-width: 900px) {
+  .admin-header {
+    padding: 0 1rem !important;
+    gap: 1rem !important;
+    height: auto !important;
+    min-height: 60px;
+    flex-wrap: wrap !important;
+  }
+  .admin-nav {
+    order: 3;
+    width: 100%;
+    padding: 0 0 8px 0;
+    flex-wrap: nowrap;
+  }
+  .admin-nav a {
+    padding: 14px 12px !important;
+    height: auto !important;
+    font-size: 11px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-header { padding: 0.5rem 0.75rem !important; }
+  .admin-header > span { font-size: 12px !important; }
+  .admin-header > a[href="/"] { font-size: 11px !important; }
+}
+
+/* ----- Main content wrapper ----- */
+.admin-main {
+  padding: 2rem;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+@media (max-width: 640px) {
+  .admin-main { padding: 1rem; }
+}
+
+/* ----- Tables ----- */
+.admin-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.admin-table-wrap table {
+  min-width: 640px;
+}
+
+/* ----- Filter rows (search + selects) ----- */
+.admin-filter-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.admin-filter-row > * {
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+@media (max-width: 640px) {
+  .admin-filter-row > * {
+    flex: 1 1 100% !important;
+  }
+}
+
+/* ----- Multi-column row grids (ticket types, questions, filter rows) ----- */
+@media (max-width: 640px) {
+  .admin-row-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .admin-row-grid > * { min-width: 0; }
+}
+
+/* ----- Stats grid (already auto-fit minmax 180-200px; tighten on mobile) ----- */
+@media (max-width: 400px) {
+  .admin-main [style*="gridTemplateColumns"][style*="minmax(180px"],
+  .admin-main [style*="gridTemplateColumns"][style*="minmax(200px"] {
+    /* inline styles can't be overridden this way; handled in admin-stats-grid class */
+  }
+}
+
+/* ----- Modal content ----- */
+@media (max-width: 640px) {
+  .admin-modal-back { padding: 16px 8px !important; align-items: flex-start !important; }
+  .admin-modal-card { padding: 1.25rem !important; }
+  .admin-two-col { grid-template-columns: 1fr !important; }
+}
