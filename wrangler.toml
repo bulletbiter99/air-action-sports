@@ -2,6 +2,9 @@ name = "air-action-sports"
 main = "worker/index.js"
 compatibility_date = "2026-04-03"
 
+[build]
+command = "npm run build"
+
 [assets]
 directory = "./dist"
 binding = "ASSETS"
@@ -77,3 +80,17 @@ name = "RL_TOKEN_LOOKUP"
 type = "ratelimit"
 namespace_id = "1006"
 simple = { limit = 30, period = 60 }
+
+# Feedback submission: 3/min/IP — abuse guard on anonymous submissions.
+[[unsafe.bindings]]
+name = "RL_FEEDBACK"
+type = "ratelimit"
+namespace_id = "1007"
+simple = { limit = 3, period = 60 }
+
+# Feedback screenshot upload: 3/min/IP — caps bandwidth / R2 abuse.
+[[unsafe.bindings]]
+name = "RL_FEEDBACK_UPLOAD"
+type = "ratelimit"
+namespace_id = "1008"
+simple = { limit = 3, period = 60 }
