@@ -49,13 +49,15 @@ action-air-sports/
 │   ├── index.js             ← entry; mounts /api, serves /uploads/*,
 │   │                          HTML-rewrites /events/:slug, scheduled() cron
 │   ├── lib/                 ← pricing, stripe, email, session, auth,
-│   │                          password, ids, formatters, templates, emailSender
+│   │                          password, ids, formatters, templates, emailSender,
+│   │                          magicBytes (shared sniffer: image + pdf)
 │   └── routes/
 │       ├── events.js        ← public events (list + detail, id-or-slug)
 │       ├── bookings.js      ← public booking quote/checkout + lookup
 │       ├── waivers.js       ← per-attendee waiver GET/POST
 │       ├── webhooks.js      ← Stripe webhook receiver
 │       ├── taxesFees.js     ← public: active taxes/fees for checkout
+│       ├── feedback.js      ← public POST /api/feedback + /attachment upload
 │       └── admin/           ← admin endpoints (cookie-auth)
 │           ├── auth.js          ← login, setup, forgot/reset password,
 │           │                      verify-invite, accept-invite
@@ -73,7 +75,9 @@ action-air-sports/
 │           ├── emailTemplates.js← template CRUD + preview + send-test
 │           ├── uploads.js       ← multipart image + vendor-doc upload → R2
 │           ├── vendors.js       ← vendor + contact CRUD
-│           └── eventVendors.js  ← per-event package compose/send/revoke
+│           ├── eventVendors.js  ← per-event package compose/send/revoke
+│           └── feedback.js      ← list, detail, update (status/priority/note),
+│                                  delete (owner) + notify-submitter
 │   ├── routes/vendor.js         ← public tokenized /api/vendor/:token
 │   └── lib/vendorToken.js       ← HMAC vendor magic-link token
 ├── migrations/              ← D1 migrations (applied in order)
@@ -88,8 +92,14 @@ action-air-sports/
 │   ├── 0009_custom_questions.sql
 │   ├── 0010_vendors.sql         ← vendor MVP (6 tables + seed email template)
 │   ├── 0011_waiver_hardening.sql ← waiver_documents + at-sign snapshot/hash
-│   └── 0012_vendor_v1.sql       ← contracts, signatures, password portal, cron idempotency, v1 email templates
+│   ├── 0012_vendor_v1.sql       ← contracts, signatures, password portal, cron idempotency, v1 email templates
+│   ├── 0013_feedback.sql        ← feedback table + admin_feedback_received template
+│   ├── 0014_feedback_attachment.sql ← attachment cols + feedback_resolution_notice template
+│   ├── 0015_drop_event_tax_columns.sql ← drop dead per-event tax_rate_bps + pass_fees_to_customer
+│   └── 0016_booking_payment_method.sql ← bookings.payment_method col + index + backfill
 ├── scripts/                 ← one-off SQL scripts, not tracked by migration runner
+├── .claude/
+│   └── commands/feedback.md  ← /feedback slash-command playbook (pull → review → recommend → update → deploy)
 └── dist/                    ← Vite build output, uploaded with Worker
 ```
 
@@ -168,6 +178,7 @@ To rotate: generate new value in the respective dashboard → `echo "new-value" 
 | `vendor_access_log` | Every tokenized view/download — IP, UA, token_version at access time |
 | `vendor_contract_documents` | Versioned immutable operating-agreement text; same live-row pattern as waiver_documents (`retired_at IS NULL`). Each new version retires the previous. |
 | `vendor_signatures` | Per-package signed contract. Immutable at-sign snapshot of `body_html` + `body_sha256` + typed_name + IP + UA + token_version. `UNIQUE(event_vendor_id)`. Countersigned by owner role. |
+| `feedback` | User-submitted tickets (bug / feature / usability / other). `status` ∈ new/triaged/in-progress/resolved/wont-fix/duplicate; `priority` ∈ low/medium/high/critical. Optional screenshot via `attachment_url` → R2 `feedback/<key>.<ext>`. Terminal status transitions auto-delete the R2 object and stamp `attachment_deleted_at`. IP hashed with SESSION_SECRET, never stored raw. |
 
 Full schema: concat the migration files in order.
 
@@ -201,6 +212,8 @@ Full schema: concat the migration files in order.
 | POST | `/api/vendor/auth/logout` | Bumps `session_version`, clears cookie |
 | GET | `/api/vendor/auth/me` | Returns current logged-in contact, or `{contact: null}` |
 | GET | `/api/vendor/auth/my-packages` | Lists every non-revoked event_vendor across all contacts sharing this email; each row includes a freshly-minted 24h-TTL magic-link token |
+| POST | `/api/feedback` | Submit feedback ticket. Body: `{type, title, description, email?, attachmentUrl?, pageUrl, userAgent, viewport}`. Rate-limit `RL_FEEDBACK` (3/min/IP), honeypot, IP hashed with `SESSION_SECRET`. Best-effort admin-notify email via `waitUntil`. Returns `{ok, id}`. |
+| POST | `/api/feedback/attachment` | Multipart `{file}`. JPEG/PNG/WebP/GIF ≤ 5 MB. Magic-byte sniff rejects relabelled HTML/SVG/PDFs. Rate-limit `RL_FEEDBACK_UPLOAD` (3/min/IP). Stores in R2 `feedback/<random>.<ext>`, returns `{url, bytes, contentType}`. Referenced via `attachmentUrl` in subsequent POST `/api/feedback`. |
 
 ## 8. Admin API routes (cookie auth required)
 
@@ -226,7 +239,7 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 | GET | `/api/admin/bookings` | staff+ (filters: q, status, event_id, from, to) |
 | GET | `/api/admin/bookings/:id` | staff+ (attendees include `customAnswers`) |
 | GET | `/api/admin/bookings/stats/summary` | staff+ |
-| POST | `/api/admin/bookings/manual` | manager+ (comp or cash) |
+| POST | `/api/admin/bookings/manual` | manager+ (`card` → returns Stripe Checkout URL + sessionId, status pending; `cash`/`venmo`/`paypal` → status paid; `comp` → status comp) |
 | POST | `/api/admin/bookings/:id/refund` | manager+ (Stripe refund) |
 | POST | `/api/admin/bookings/:id/resend-confirmation` | manager+ |
 | PUT | `/api/admin/attendees/:id` | staff+ (edit name/email/phone; waiver signature untouched) |
@@ -321,6 +334,16 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 | GET | `/api/admin/vendor-contracts/current` | staff+ (live doc, or null) |
 | POST | `/api/admin/vendor-contracts/:id/retire` | owner (emergency retire without replacement) |
 
+**Feedback**
+| Method | Path | Role |
+|---|---|---|
+| GET | `/api/admin/feedback[?status=&type=&priority=&q=&from=&to=&limit=&offset=]` | staff+ (returns items + `summary: {new, triaged, inProgress, resolved, total}`) |
+| GET | `/api/admin/feedback/summary` | staff+ (lightweight `{newCount}` for sidebar badge polling) |
+| GET | `/api/admin/feedback/:id` | staff+ (full detail incl attachment + deleted state) |
+| PUT | `/api/admin/feedback/:id` | staff+ for `adminNote`, manager+ for `status`/`priority`. Terminal status (resolved/wont-fix/duplicate) auto-deletes R2 attachment + stamps `attachment_deleted_at`. Writes `feedback.updated` audit entry. |
+| POST | `/api/admin/feedback/:id/notify-submitter` | manager+ — sends `feedback_resolution_notice` template email to submitter's address. Requires ticket has `email`. Writes `feedback.notified_submitter` audit. |
+| DELETE | `/api/admin/feedback/:id` | owner — deletes row + R2 attachment. Writes `feedback.deleted` audit. |
+
 ## 9. Frontend routes
 
 **Public**
@@ -335,8 +358,20 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 - `/v/:token` — **standalone** vendor package magic-link page (no public site chrome); renders sections + doc download list + inline contract signing + vendor-side upload + "save login" CTA
 - `/vendor/login` — standalone vendor password login
 - `/vendor/dashboard` — logged-in view of every non-revoked package across all vendor_contact rows sharing this email
+- `/feedback` — standalone Share-Feedback page (modal auto-opens). Also reachable via the **Share feedback** button in the public footer (orange, same size as the other footer links).
 
 **Admin** (all require login cookie)
+
+The admin shell uses a **left sidebar** (not a top bar) at ≥900px and converts to a hamburger drawer on mobile. Profile chip at the sidebar bottom opens a dropdown with `← Back to site`, `Share feedback` (opens the same FeedbackModal with admin email prefilled), and `Sign out`. Sidebar displays an unread-count badge next to **Feedback** when there are tickets in `new` status (polls `/api/admin/feedback/summary` every 60 s).
+
+**Sidebar layout (sections):**
+1. **Dashboard** (alone)
+2. **Event Setup** — Events, Promos, Vendors
+3. **Event Day** — Roster, Scan, Rentals
+4. **Insights** — Analytics, Feedback (with unread badge)
+5. **Settings** (alone) — sub-pages: Taxes & Fees, Email Templates, Team, Audit Log
+
+**Primary action**: `+ New Booking` lives as an orange CTA in the Dashboard header (manager+ only), not in the sidebar. The `/admin/new-booking` route is unchanged.
 - `/admin` — dashboard (stats + bookings table with edit-attendee + resend-confirmation)
 - `/admin/login`, `/admin/setup`, `/admin/forgot-password`, `/admin/reset-password?token=...`, `/admin/accept-invite?token=...`
 - `/admin/analytics` — revenue + sales velocity + per-event metrics
@@ -355,6 +390,7 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 - `/admin/vendor-packages` — per-event package list (filter by event/vendor) + attach-vendor modal
 - `/admin/vendor-packages/:id` — composer: sections, documents, access log, send, revoke, contract toggle + signature status + countersign (owner)
 - `/admin/vendor-contracts` — versioned contract document manager (owner: create new version, retire)
+- `/admin/feedback` — triage queue. Clickable stat cards (New / Triaged / In progress / Resolved / All time), filter row (status / type / priority / q), detail modal with pills, screenshot preview (or "Screenshot retired on X" placeholder), status/priority dropdowns, admin note, Reply via email (mailto), Notify submitter (templated email), Delete (owner). Orange `+` button in top-right opens the FeedbackModal for admin-submitted tickets.
 
 ## 10. Completed phases
 
@@ -383,6 +419,14 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 | **Waiver hardening** | Migration 0011: `waiver_documents` (versioned), at-sign snapshot + SHA-256 + distinct e-records consent bit. Integrity check on serve; tampered rows refuse to mint new signatures. Legal posture under ESIGN §7001 significantly improved. |
 | **Vendor MVP** | Migration 0010: vendor + per-event package system. Tokenized magic-link delivery (HMAC, revocable via `token_version` bump, default TTL = event start + 60d). Admin: `/admin/vendors`, `/admin/vendor-packages`. Vendor: standalone `/v/:token` page. PDF uploads via magic-byte sniff. Full access log. |
 | **Vendor v1** | Migration 0012: in-house e-signature (versioned contract docs + at-sign snapshot + owner-only countersign), vendor-side uploads (COI/W-9/return) with magic-byte sniff + admin-notify email, optional password portal (`/vendor/login` + `/vendor/dashboard`), cron sweeps (COI 30d/7d, package open reminder 7d pre-event, signature reminder 14d pre-event). Six new email templates. Not shipped: package templates (schema exists, admin UI deferred — create rows via SQL if needed). |
+| **Admin UI refactor** | Top nav retired; replaced with a left sidebar (flex-stretch links, orange active border, mobile hamburger drawer) + profile chip with dropdown (Back to site / Share feedback / Sign out). Analytics last X-axis label fix (viewBox padding + end-anchor on final label). Modal button dedup (× icon top-right, no duplicate bottom Close/Cancel) in rentals + event editor. Native HTML5 pickers in event editor: `datetime-local` for dateIso, dual `time` pickers for Time Range + Check-in, single `time` picker for First Game + End Time. Helpers parse existing "6:30 AM" seed values round-trip. |
+| **Global money + tax unification** | All admin "cents" inputs converted to dollars+cents UI via reusable `MoneyInput` (UI dollars, DB stays cents): base price, ticket-type price, add-on price, rental cost, promo amount-off, promo min-order. Per-event `taxRateBps` + `passFeesToCustomer` fields removed — global `taxes_fees` (from `/admin/settings/taxes-fees`) is now the single source of truth. AdminNewBooking now calls `/api/bookings/quote` so its tax/fee totals match customer checkout exactly. |
+| **Feedback / ticket system** | Migrations 0013 + 0014. Public `POST /api/feedback` + `POST /api/feedback/attachment`; honeypot, IP-hashed, rate-limited (`RL_FEEDBACK` 3/min, `RL_FEEDBACK_UPLOAD` 3/min). Reusable `FeedbackModal` wired into the public footer, standalone `/feedback` page, and admin profile menu (email prefilled when admin submits). Admin triage page `/admin/feedback` with filters, detail modal, orange `+` submit button, status/priority/note + audit log. Screenshots in R2 `feedback/<key>` auto-deleted on terminal status (kept ticket rows forever for history). Sidebar badge polls unread count. Two new email templates: `admin_feedback_received` (on submit), `feedback_resolution_notice` (manual button — opt-in submitter notification). `.claude/commands/feedback.md` slash command for the triage → recommend → update → deploy loop. Shared `worker/lib/magicBytes.js` used by both vendor + feedback upload paths. |
+| **Locations UX** | From tickets fb_wMupyX7iH3Hb + fb_pu1PXJkfqHTD: FAQ entry about location discovery rewritten to match reality (exact addresses shared post-booking, not on the page). Home "See the Battlefield" gallery tiles for the three real sites (Ghost Town, Echo Urban, Foxtrot Fields) are now `<Link>`s to `/locations#<site-id>`; `scroll-margin-top: 80px` + `id={site.id}` on Locations site-sections. ScrollToTop patched to retry hash query for cross-page lazy-loaded pages. Both tickets resolved with admin notes. |
+| **Event-creation hardening + dynamic homepage** | (1) **Phase A — kill the static homepage:** TickerBar and the Home countdown now read the earliest upcoming event from D1 via `useEvents()`. Both are hidden gracefully when there are zero upcoming events. The dead `countdownTarget` / `countdownEventName` / `nextEvent` fields were removed from `siteConfig.js`. Any event create/edit propagates to the public homepage on next reload — no redeploy needed. (2) **Phase B — safer event creation:** new events default `published=0` (must be explicitly published); a publish guard on `PUT /api/admin/events/:id` returns `400 "Cannot publish: event has no active ticket types..."` when `published=1` is set on an event that has none; `sales_close_at` defaults to `dateIso − 2 hours` if not provided; cover image URLs get a HEAD preflight (rejects 404 / non-image types, skipped for `/uploads/*`); a default "General Admission" ticket type (price = base, capacity = total slots) is auto-INSERTed alongside the event row so freshly-created events are immediately bookable; the editor's saveEvent guards against double-click / double-Enter via early-return + try/finally. |
+| **Event tax-column cleanup + manual-booking tax fix** | Migration 0015: dropped `events.tax_rate_bps` and `events.pass_fees_to_customer` (dead since the global money/tax unification — DB-only cleanup, zero customer-facing effect; ticket math comes from global `taxes_fees` for everyone). While in there, also fixed a real latent bug in `POST /api/admin/bookings/manual` (the cash/comp manual-booking server handler) which was still reading `events.tax_rate_bps` for its tax math — it always computed tax = 0 since the editor stopped writing to that column. Now uses `loadActiveTaxesFees()` like customer checkout, so the booking row's `tax_cents` + `fee_cents` columns are accurate. |
+| **Manual-booking payment methods (walk-in card support)** | Migration 0016: added `bookings.payment_method` (TEXT) + index, backfilled existing rows from notes-prefix tags. `POST /api/admin/bookings/manual` now accepts `paymentMethod ∈ {card, cash, venmo, paypal, comp}`. **Card branch** mints a Stripe Checkout Session (with `metadata.source='admin_manual'`), creates a `pending` booking, returns `{paymentUrl, sessionId}`. The existing webhook flips status to paid + creates attendees + sends confirmation email — same pipeline as the public checkout. **Cash/Venmo/PayPal/Comp** branches insert paid/comp booking immediately with the method recorded. AdminNewBooking UI defaults to "Credit card" via a single dropdown (description shown beneath), renders a QR code (via the existing `qrcode` lib used for tickets) + URL + Copy/Open buttons + a "waiting for payment…" indicator that polls `/api/admin/bookings/:id` every 3s and flips to a green "✓ Payment received" state when the webhook lands. Booking list + detail modal show a `MethodBadge` pill (card/cash/venmo/paypal/comp). PCI scope unchanged — Stripe hosts the card form. |
+| **Admin sidebar reorganization** | Sidebar regrouped from a flat list of 13 into 5 operational sections: **Dashboard** alone at top → **Event Setup** (Events, Promos, Vendors) → **Event Day** (Roster, Scan, Rentals) → **Insights** (Analytics, Feedback) → **Settings** alone at bottom. Section labels rendered as small uppercase olive-light text; thin dividers between sections. **New Booking** removed from sidebar entirely — exposed instead as an orange "+ New Booking" CTA in the Dashboard header next to the user identity line (manager+ only). **Team** and **Audit log** moved as sub-pages of the Settings hub (their `/admin/users` and `/admin/audit-log` routes still work as deep-links). **Roster** page now auto-selects the next upcoming event (earliest by date_iso, not past) on mount instead of starting empty — falls back to the most recent event if there are no upcoming. Net: sidebar shrinks from 13 → 10 items, primary CTA gets prominent placement, related concerns cluster. |
 
 ## 11. What's left before go-live
 
@@ -394,25 +438,38 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 4. **Invite a second admin.** Don't be a single point of failure on event day. Use `/admin/users` → Invite User → manager role.
 5. **Dry run.** Create a test event a few days out, book a comp ticket through `/admin/new-booking`, and walk through: confirmation email → waiver → check-in via scanner → rental assignment → return. This exercises the full operational chain.
 
+**Deferred / explicitly punted in-session** (not blocking, but worth knowing about):
+
+- **City/region per Location site** — add a `region` field to each entry in `src/data/locations.js` (e.g. "Eagle Mountain, UT"), render under the site name on `/locations` and append to the Home gallery tile captions. Owner has not yet supplied the regions for the three sites. Ticket fb_wMupyX7iH3Hb closed with the FAQ-copy fix as the minimum; this is the follow-up enrichment.
+- **In-browser screenshot capture** (`navigator.mediaDevices.getDisplayMedia`) in FeedbackModal — iOS Safari doesn't support it, so file upload is the universal path. Add only if file-upload adoption is low.
+- **Lightbox gallery per Location site** — meaningful only once there are multiple photos per site. One image per site today; revisit when that changes.
+- **Vendor package templates admin UI** — `vendor_package_templates` table exists (migration 0012). Currently create rows via SQL if needed; admin composer deferred.
+- ~~**Drop dead DB columns `events.taxRateBps` + `events.passFeesToCustomer`**~~ — done in migration 0015 alongside the manual-booking tax fix.
+- **Notify-submitter UI affordance improvement** — currently a button in the admin detail modal with a `confirm()` dialog. Works; a preview-before-send would be nicer.
+- **Featured-event flag on events** — for when there are ≥3 concurrent upcoming events and the earliest isn't the "headliner" you want in the ticker/countdown. Cheap migration (`featured INTEGER DEFAULT 0`) + a checkbox in the event editor + a tweak to TickerBar / Home so featured wins ties. Deferred until needed.
+
 **Longer-term polish** (not blocking):
 - Branded event listing redesign — `/events` still uses the original static template; could get richer per-event visuals now that cover images exist.
 - Per-event SEO/OG image upload flow (right now `cover_image_url` doubles as both; fine for now).
 - Reminder-cron monitoring (if a sweep fails silently, you only find out when a customer complains).
+- Unused \u escapes audit — if future JSX edits get copied through Python-based replacement, watch for `\u2026`/`\u00d7` appearing as literal text in attributes (JSX string attributes don't process escapes; use real characters or `{'\u2026'}`).
 
 ## 12. Current live data
 
-- **1 event**: `operation-nightfall` — Operation Nightfall, 2026-05-09, Ghost Town, $80 base (350 slots)
+- **1 event**: `operation-nightfall` — Operation Nightfall, 2026-05-09, Ghost Town, $80 base (350 slots). Event is ~15 days out as of 2026-04-24.
 - **1 ticket type**: `tt_nightfall_standard` — Standard Ticket, $80
 - **3 add-ons**: Sword Rifle Package ($35 rental), SRS Sniper Package ($25 rental), 20g BBs 10k ($30 consumable)
-- **14 email templates** seeded (original 7 + `vendor_package_sent` from 0010 + 6 from 0012: `vendor_package_reminder`, `vendor_signature_requested`, `vendor_countersigned`, `vendor_coi_expiring`, `vendor_package_updated`, `admin_vendor_return`)
+- **16 email templates** seeded (original 7 + `vendor_package_sent` from 0010 + 6 from 0012: `vendor_package_reminder`, `vendor_signature_requested`, `vendor_countersigned`, `vendor_coi_expiring`, `vendor_package_updated`, `admin_vendor_return`; + `admin_feedback_received` from 0013; + `feedback_resolution_notice` from 0014)
 - **1 waiver document** seeded: `wd_v1` with SHA-256 `0d8ee7e9864a…59d7`. Update procedure: insert `wd_v2`, stamp `retired_at` on v1, deploy — past signers remain pinned to their signed version.
 - **0 vendors** seeded — admin must create them at `/admin/vendors`
 - **0 vendor contract documents** seeded — owner must create v1 at `/admin/vendor-contracts` before flipping `require contract` on any package
 - **3 taxes/fees** seeded (City Tax, State Tax, Processing Fees — configure via `/admin/settings/taxes-fees`)
+- **4 resolved feedback tickets** (all smoke/dogfood — feedback system shipped 2026-04-23/24)
+- **Rate-limit bindings** (all `[[unsafe.bindings]] type=ratelimit`, namespaces 1001–1008): `RL_LOGIN` 5/min, `RL_FORGOT` 3/min, `RL_VERIFY_TOKEN` 10/min, `RL_RESET_PWD` 5/min, `RL_CHECKOUT` 10/min, `RL_TOKEN_LOOKUP` 30/min, `RL_FEEDBACK` 3/min, `RL_FEEDBACK_UPLOAD` 3/min.
 - **Admin owner**: Paul Keddington (bulletbiter99@gmail.com)
 - **Stripe**: **still sandbox mode** — flip before first real sale
 - **Resend**: `airactionsport.com` verified, sending from `noreply@airactionsport.com`
-- **R2**: `air-action-sports-uploads` bucket empty until first cover image uploaded
+- **R2**: `air-action-sports-uploads` — events cover images under `events/<key>`, feedback screenshots under `feedback/<key>` (auto-deleted on terminal status), vendor docs under `vendors/<key>`.
 
 ## 13. Known issues / gotchas
 
@@ -435,7 +492,8 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
    - `curl https://air-action-sports.bulletbiter99.workers.dev/api/health` → `{"ok":true,...}`
    - `curl https://air-action-sports.bulletbiter99.workers.dev/api/events` → returns 1 event
 4. Confirm admin login works (use `/admin/forgot-password` if needed).
-5. Check `wrangler deployments list` to see what's currently live.
+5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-04-24: `2a78136c-6fec-44ef-9587-6b3f34bdfa0d` (admin sidebar reorganization — 5 grouped sections, Team/Audit moved into Settings, New Booking moved to Dashboard CTA, Roster auto-selects upcoming event).
+6. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
 
 ---
 
@@ -446,35 +504,61 @@ Copy and paste the following into a new Claude Code session:
 ```
 I'm resuming work on the Air Action Sports booking system. Read HANDOFF.md in the
 project root first — it has full context on the stack, deployed state, all shipped
-phases + polish, every API and frontend route, and the pre-launch operational
-checklist in §11.
+phases + polish, every API and frontend route, a list of what's deferred in §11,
+and the pre-launch operational checklist also in §11.
 
-Current state: all planned phases (1–9) and all 5 polish items are shipped. The
-site is deployed at https://air-action-sports.bulletbiter99.workers.dev but Stripe
-is still in sandbox mode. Operation Nightfall (first live event) is 2026-05-09.
+Current state: all roadmap phases (1–9), the 5 polish items, vendor MVP + v1,
+waiver hardening, the admin UI refactor (left sidebar + profile menu), global
+money/tax unification (all admin inputs now dollars; taxes come from global
+Settings), the full feedback/ticket system (public submit + screenshot upload,
+admin triage, auto-delete of attachments on terminal status, opt-in submitter
+notification, slash command), AND the event-creation hardening + dynamic
+homepage pass (TickerBar + countdown read from D1 — no more redeploy on event
+changes; new events default unpublished; publish guard refuses publish without
+ticket types; auto-created default "General Admission" ticket type; cover image
+preflight; sales_close_at defaults to dateIso − 2hrs) are all shipped and live
+at https://air-action-sports.bulletbiter99.workers.dev.
 
-After you've read it, give me:
+Stripe is still in sandbox mode. Operation Nightfall (first live event) is
+2026-05-09. Today's date when this prompt was written: 2026-04-24.
+
+After you've read the handoff, give me:
   1. A one-paragraph status summary of where things actually stand (verify against
      `curl /api/health` and `curl /api/events` rather than just trusting the doc).
   2. A ranked top-3 of what I should work on next, with rough effort estimates and
-     why-now. Use §11's pre-launch checklist as the primary candidate pool but
-     flag anything low-hanging and high-value you notice.
+     why-now. Use §11's pre-launch checklist + deferred list as the primary
+     candidate pool but flag anything low-hanging and high-value you notice.
   3. Any drift between HANDOFF.md and the actual live state (stale counts, removed
-     features, etc.) — better to catch that upfront than halfway through a task.
+     features, new feedback tickets, etc.) — catch that upfront.
+  4. The current open feedback queue (pull via the admin API or D1). Summarize
+     anything in `new` or `in-progress` status in 1–2 sentences each.
 
-Most likely next pickups, roughly in order:
-  - Stripe sandbox → live cutover + $1 real-money end-to-end test (operational,
-    ~30 min once keys are in hand; includes webhook re-targeting)
-  - Remove the Peek widget from index.html and verify every public "Book Now" goes
-    to internal /booking (quick — should be one grep + a redeploy)
+Most likely next pickups (roughly priority order):
+
+  Pre-launch operational:
+  - Stripe sandbox → live cutover + $1 real-money end-to-end test (~30 min once
+    keys are in hand; includes webhook re-targeting)
+  - Remove the Peek widget from index.html and verify every public "Book Now"
+    goes to internal /booking (quick grep + redeploy)
   - Seed Operation Nightfall content: cover image upload, custom questions,
     customize email copy via /admin/settings/email-templates
-  - Invite a second admin via /admin/users so you're not a single point of failure
-  - Anything else you spot — reminder-cron observability, event listing redesign,
-    etc.
+  - Invite a second admin via /admin/users so you're not a single point of
+    failure on event day
+  - Dry-run: create a test event, book a comp ticket, walk the full flow
+    (confirmation → waiver → scanner check-in → rental assign/return)
 
-Don't start coding until I pick one. If the task involves destructive ops (secret
-rotation, Stripe mode change, DB writes), confirm the plan with me first.
+  Deferred / content-blocked:
+  - City/region per Location site (Eagle Mountain, UT style) — waiting on owner
+    to supply regions for Ghost Town / Echo Urban / Foxtrot Fields
+  - Drop dead DB columns events.taxRateBps + events.passFeesToCustomer (cleanup
+    migration — no code still reads them)
+
+  Triage anything new in the feedback queue before starting the above. Use the
+  /feedback slash command or the .claude/commands/feedback.md playbook.
+
+Don't start coding until I pick one. If the task involves destructive ops
+(secret rotation, Stripe mode change, DB writes, R2 deletions), confirm the
+plan with me first.
 ```
 
 End of handoff.

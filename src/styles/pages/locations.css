@@ -2,7 +2,7 @@
    LOCATIONS PAGE — Page-specific styles
    ============================================================ */
 
-.site-section { padding: 3rem 0; border-bottom: 1px solid rgba(200,184,154,0.08); }
+.site-section { padding: 3rem 0; border-bottom: 1px solid rgba(200,184,154,0.08); scroll-margin-top: 80px; }
 .site-section:last-child { border-bottom: none; }
 .site-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
 .site-name { font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px; color: var(--cream); }

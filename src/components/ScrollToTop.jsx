@@ -6,13 +6,18 @@ export default function ScrollToTop() {
 
   useEffect(() => {
     if (hash) {
-      // Wait a tick so the DOM has rendered before scrolling to hash
-      const timer = setTimeout(() => {
+      // Retry a few times — lazy-loaded pages may not have mounted yet when
+      // we navigate cross-page (e.g. from / to /locations#ghost-town).
+      let attempts = 0;
+      const tryScroll = () => {
         const el = document.querySelector(hash);
         if (el) {
-          el.scrollIntoView({ behavior: 'smooth' });
+          el.scrollIntoView({ behavior: 'auto', block: 'start' });
+          return;
         }
-      }, 0);
+        if (attempts++ < 15) timer = setTimeout(tryScroll, 50);
+      };
+      let timer = setTimeout(tryScroll, 0);
       return () => clearTimeout(timer);
     }
 

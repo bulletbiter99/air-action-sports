@@ -15,6 +15,18 @@ const CARDS = [
     desc: 'Edit booking confirmation, waiver request, 24hr/1hr reminder, and password/invite copy. Owner only.',
     role: 'owner',
   },
+  {
+    to: '/admin/users',
+    title: 'Team',
+    desc: 'Invite admins, manage roles (staff / manager / owner), revoke access. Owner only.',
+    role: 'manager',
+  },
+  {
+    to: '/admin/audit-log',
+    title: 'Audit Log',
+    desc: 'Who did what, when. Filter by action, user, or target. Manager+ only.',
+    role: 'manager',
+  },
 ];
 
 export default function AdminSettings() {

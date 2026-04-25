@@ -6,6 +6,40 @@ import { useAdmin } from './AdminContext';
 const CATEGORIES = ['rifle', 'mask', 'vest', 'magazine', 'battery', 'other'];
 const CONDITIONS = ['new', 'good', 'fair', 'damaged', 'retired'];
 
+const centsToDollars = (c) => (c === '' || c == null ? '' : (Number(c) / 100).toFixed(2));
+const dollarsToCents = (s) => {
+  if (s === '' || s == null) return 0;
+  const n = Number(String(s).replace(/[^0-9.\-]/g, ''));
+  if (!isFinite(n)) return 0;
+  return Math.round(n * 100);
+};
+
+function MoneyInput({ value, onChange, required, placeholder }) {
+  const [text, setText] = useState(centsToDollars(value));
+  useEffect(() => {
+    const incoming = centsToDollars(value);
+    if (dollarsToCents(text) !== Number(value || 0)) setText(incoming);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <div style={{ position: 'relative' }}>
+      <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--olive-light)', fontSize: 13, pointerEvents: 'none' }}>$</span>
+      <input
+        required={required}
+        type="number"
+        step="0.01"
+        min="0"
+        inputMode="decimal"
+        placeholder={placeholder || '0.00'}
+        value={text}
+        onChange={(e) => { setText(e.target.value); onChange(dollarsToCents(e.target.value)); }}
+        onBlur={() => setText(centsToDollars(value))}
+        style={{ ...input, paddingLeft: 22 }}
+      />
+    </div>
+  );
+}
+
 export default function AdminRentals() {
   const { isAuthenticated, loading, hasRole } = useAdmin();
   const navigate = useNavigate();
@@ -275,7 +309,7 @@ function ItemForm({ item, onClose, onSaved }) {
           <h3 style={{ margin: 0, color: 'var(--cream)', fontSize: 14, letterSpacing: 1.5, textTransform: 'uppercase' }}>
             {isNew ? 'New rental item' : 'Edit item'}
           </h3>
-          <button type="button" onClick={onClose} style={subtleBtn}>Close</button>
+          <button type="button" onClick={onClose} aria-label="Close" style={closeX}>×</button>
         </div>
 
         <Field label="Name *">
@@ -303,8 +337,8 @@ function ItemForm({ item, onClose, onSaved }) {
           <Field label="Purchase date">
             <input type="date" value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })} style={input} />
           </Field>
-          <Field label="Cost (cents)">
-            <input type="number" value={form.purchaseCostCents} onChange={(e) => setForm({ ...form, purchaseCostCents: e.target.value })} style={input} />
+          <Field label="Cost (USD)">
+            <MoneyInput value={form.purchaseCostCents} onChange={(v) => setForm({ ...form, purchaseCostCents: v })} />
           </Field>
         </div>
         <Field label="Notes">
@@ -315,7 +349,6 @@ function ItemForm({ item, onClose, onSaved }) {
 
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           <button type="submit" disabled={saving} style={primaryBtn}>{saving ? 'Saving…' : (isNew ? 'Create' : 'Save')}</button>
-          <button type="button" onClick={onClose} style={subtleBtn}>Cancel</button>
         </div>
       </form>
     </div>
@@ -413,3 +446,4 @@ const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px
 const navLinkBtn = { padding: '10px 18px', background: 'transparent', border: '1px solid var(--olive-light)', color: 'var(--tan-light)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' };
 const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
 const modal = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.2)', padding: '1.5rem', width: '100%', maxWidth: 560, borderRadius: 4, maxHeight: '90vh', overflowY: 'auto' };
+const closeX = { width: 32, height: 32, border: '1px solid rgba(200,184,154,0.25)', background: 'transparent', color: 'var(--tan-light)', fontSize: 22, lineHeight: 1, cursor: 'pointer', borderRadius: 4, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' };

@@ -15,7 +15,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function AdminDashboard() {
-  const { user, isAuthenticated, loading, logout, setupNeeded } = useAdmin();
+  const { user, isAuthenticated, loading, setupNeeded, hasRole } = useAdmin();
   const navigate = useNavigate();
 
   const [stats, setStats] = useState(null);
@@ -99,7 +99,11 @@ export default function AdminDashboard() {
             {' · '}<span style={{ textTransform: 'uppercase', fontSize: 11, letterSpacing: 1 }}>{user.role}</span>
           </div>
         </div>
-        <button style={logoutBtn} onClick={logout}>Log out</button>
+        {hasRole('manager') && (
+          <Link to="/admin/new-booking" style={newBookingBtn}>
+            + New Booking
+          </Link>
+        )}
       </div>
 
       {/* Quick stats */}
@@ -154,6 +158,7 @@ export default function AdminDashboard() {
                 <th style={th}>Email</th>
                 <th style={th}>Players</th>
                 <th style={th}>Total</th>
+                <th style={th}>Method</th>
                 <th style={th}>Status</th>
                 <th style={th}></th>
               </tr>
@@ -166,6 +171,7 @@ export default function AdminDashboard() {
                   <td style={td}>{b.email}</td>
                   <td style={td}>{b.playerCount}</td>
                   <td style={td}>{fmt(b.totalCents)}</td>
+                  <td style={td}><MethodBadge method={b.paymentMethod} /></td>
                   <td style={td}><StatusBadge status={b.status} /></td>
                   <td style={{ ...td, textAlign: 'right' }}>
                     <button style={viewBtn} onClick={() => setSelected(b.id)}>View</button>
@@ -213,6 +219,26 @@ function StatusBadge({ status }) {
       letterSpacing: 1.5, textTransform: 'uppercase', background: c.bg, color: c.fg,
       border: `1px solid ${c.fg}40`,
     }}>{status}</span>
+  );
+}
+
+function MethodBadge({ method }) {
+  if (!method) return <span style={{ color: 'var(--olive-light)', fontSize: 10 }}>—</span>;
+  const palette = {
+    stripe: { bg: 'rgba(99,91,255,0.15)', fg: '#7e72ff', label: 'card' },
+    card:   { bg: 'rgba(99,91,255,0.15)', fg: '#7e72ff', label: 'card' },
+    cash:   { bg: 'rgba(46,204,113,0.15)', fg: '#2ecc71', label: 'cash' },
+    venmo:  { bg: 'rgba(0,142,194,0.15)',  fg: '#3da5d9', label: 'venmo' },
+    paypal: { bg: 'rgba(0,48,135,0.20)',   fg: '#5a8dee', label: 'paypal' },
+    comp:   { bg: 'rgba(155,89,182,0.15)', fg: '#9b59b6', label: 'comp' },
+  };
+  const c = palette[method] || { bg: 'rgba(149,165,166,0.15)', fg: '#95a5a6', label: method };
+  return (
+    <span style={{
+      display: 'inline-block', padding: '2px 8px', fontSize: 10, fontWeight: 800,
+      letterSpacing: 1.5, textTransform: 'uppercase', background: c.bg, color: c.fg,
+      border: `1px solid ${c.fg}40`,
+    }}>{c.label}</span>
   );
 }
 
@@ -291,6 +317,7 @@ function BookingDetailModal({ id, onClose, onChanged }) {
             <Row label="Date" value={data.event?.displayDate} />
             <Row label="Buyer" value={`${data.booking.fullName} · ${data.booking.email} · ${data.booking.phone}`} />
             <Row label="Status" value={<StatusBadge status={data.booking.status} />} />
+            <Row label="Payment" value={<MethodBadge method={data.booking.paymentMethod} />} />
             <Row label="Created" value={dateFmt(data.booking.createdAt)} />
             {data.booking.paidAt && <Row label="Paid at" value={dateFmt(data.booking.paidAt)} />}
             <Row label="Total" value={<strong>{fmt(data.booking.totalCents)}</strong>} />
@@ -536,10 +563,15 @@ function Row({ label, value }) {
 }
 
 // Styles
-const headerRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' };
+const headerRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', gap: 12, flexWrap: 'wrap' };
 const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
+const newBookingBtn = {
+  padding: '10px 18px', background: 'var(--orange)', color: '#fff',
+  border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 1.5,
+  textTransform: 'uppercase', cursor: 'pointer', textDecoration: 'none',
+  display: 'inline-flex', alignItems: 'center', flexShrink: 0,
+};
 const h2 = { fontSize: 14, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2, color: 'var(--orange)', margin: '0 0 16px' };
-const logoutBtn = { padding: '8px 20px', background: 'none', border: '1px solid rgba(231,76,60,0.4)', color: '#e74c3c', fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' };
 const statsGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 32 };
 const statCard = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.25rem' };
 const filterBar = { display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' };

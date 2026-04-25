@@ -19,15 +19,17 @@ export function BarChart({
   const max = Math.max(1, ...values);
   const padTop = 8;
   const padBottom = 22;
+  const padRight = 16; // reserve room for the last x-axis label so it isn't clipped
   const chartH = height - padTop - padBottom;
   const stride = labelEvery || Math.max(1, Math.ceil(data.length / 6));
+  const chartW = data.length * 10;
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       <div style={{ display: 'flex' }}>
         <YAxis max={max} height={chartH} padTop={padTop} formatValue={formatValue} width={yAxisWidth} />
         <svg
-          viewBox={`0 0 ${Math.max(data.length * 10, 300)} ${height}`}
+          viewBox={`0 0 ${Math.max(chartW + padRight, 300)} ${height}`}
           preserveAspectRatio="none"
           style={{ width: '100%', height, display: 'block' }}
         >
@@ -36,7 +38,7 @@ export function BarChart({
             <line
               key={frac}
               x1={0}
-              x2={data.length * 10}
+              x2={chartW}
               y1={padTop + chartH * (1 - frac)}
               y2={padTop + chartH * (1 - frac)}
               stroke="rgba(200,184,154,0.08)"
@@ -63,15 +65,16 @@ export function BarChart({
               </g>
             );
           })}
-          {/* X-axis labels — sparse, anchored via text */}
+          {/* X-axis labels — sparse, anchored via text. Last label uses end-anchor so it can't clip past viewBox. */}
           {data.map((d, i) => {
             if (i % stride !== 0 && i !== data.length - 1) return null;
+            const isLast = i === data.length - 1;
             return (
               <text
                 key={`lbl-${i}`}
-                x={i * 10 + 5}
+                x={isLast ? chartW + padRight : i * 10 + 5}
                 y={height - 6}
-                textAnchor="middle"
+                textAnchor={isLast ? 'end' : 'middle'}
                 fill="var(--olive-light)"
                 fontSize="7"
               >

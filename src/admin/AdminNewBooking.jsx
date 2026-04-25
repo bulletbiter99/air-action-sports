@@ -1,12 +1,16 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { useAdmin } from './AdminContext';
 
 const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
 
 const PAYMENT_METHODS = [
-  { value: 'cash', label: 'Cash (paid in person)', desc: 'Creates paid booking. Mark as settled at the venue.' },
-  { value: 'comp', label: 'Comp / Free', desc: 'No charge. For staff, press, contest winners, etc.' },
+  { value: 'card',   label: 'Credit card (Stripe)', desc: 'Customer scans a QR code or taps the URL to pay via Stripe Checkout.' },
+  { value: 'cash',   label: 'Cash',                  desc: 'Paid in person. Booking marked paid immediately.' },
+  { value: 'venmo',  label: 'Venmo',                 desc: 'External payment. Confirm received before submitting.' },
+  { value: 'paypal', label: 'PayPal',                desc: 'External payment. Confirm received before submitting.' },
+  { value: 'comp',   label: 'Comp / Free',           desc: 'No charge. For staff, press, contest winners, etc.' },
 ];
 
 export default function AdminNewBooking() {
@@ -15,7 +19,7 @@ export default function AdminNewBooking() {
 
   const [events, setEvents] = useState([]);
   const [eventId, setEventId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentMethod, setPaymentMethod] = useState('card');
   const [ticketTypeId, setTicketTypeId] = useState('');
   const [qty, setQty] = useState(1);
   const [addonQtys, setAddonQtys] = useState({}); // { sku: qty }
@@ -25,6 +29,9 @@ export default function AdminNewBooking() {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState(null);
+  const [qrDataUrl, setQrDataUrl] = useState(null);
+  const [polledStatus, setPolledStatus] = useState(null); // 'pending' | 'paid' | 'cancelled'
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -65,18 +72,40 @@ export default function AdminNewBooking() {
     setAttendees((p) => p.map((a, idx) => (idx === i ? { ...a, [field]: val } : a)));
   };
 
-  const totals = useMemo(() => {
-    if (!event || !ticketTypes.length) return { subtotal: 0, tax: 0, total: 0 };
-    if (paymentMethod === 'comp') return { subtotal: 0, tax: 0, total: 0 };
-    const tt = ticketTypes.find((t) => t.id === ticketTypeId);
-    let subtotal = (tt?.priceCents || 0) * qty;
-    for (const [sku, addonQty] of Object.entries(addonQtys)) {
-      const a = addons.find((x) => x.sku === sku);
-      if (a) subtotal += a.price_cents * addonQty;
+  // Totals come from the public /quote endpoint so global Taxes & Fees (from /admin/settings/taxes-fees)
+  // are applied identically to customer checkout. Comp bookings always zero out.
+  const [totals, setTotals] = useState({ subtotal: 0, tax: 0, fee: 0, total: 0 });
+  useEffect(() => {
+    let cancelled = false;
+    if (!eventId || !ticketTypeId || paymentMethod === 'comp') {
+      setTotals({ subtotal: 0, tax: 0, fee: 0, total: 0 });
+      return;
     }
-    const tax = Math.floor((subtotal * (event.taxRateBps || 0)) / 10000);
-    return { subtotal, tax, total: subtotal + tax };
-  }, [event, ticketTypes, ticketTypeId, qty, addonQtys, addons, paymentMethod]);
+    const payload = {
+      eventId,
+      ticketSelections: [{ ticketTypeId, qty }],
+      addonSelections: Object.entries(addonQtys).filter(([, q]) => q > 0).map(([sku, q]) => ({ sku, qty: q })),
+    };
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/bookings/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) return;
+        const q = await res.json();
+        if (cancelled) return;
+        setTotals({
+          subtotal: q.subtotalCents || 0,
+          tax: q.taxCents || 0,
+          fee: q.feeCents || 0,
+          total: q.totalCents || 0,
+        });
+      } catch {}
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [eventId, ticketTypeId, qty, addonQtys, paymentMethod]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -113,31 +142,139 @@ export default function AdminNewBooking() {
     }
   };
 
+  // Generate QR code from the Stripe Checkout URL once we have one.
+  useEffect(() => {
+    if (!created?.paymentUrl) { setQrDataUrl(null); return; }
+    let cancelled = false;
+    QRCode.toDataURL(created.paymentUrl, { width: 280, margin: 1, color: { dark: '#1a1c18', light: '#f4eedd' } })
+      .then((url) => { if (!cancelled) setQrDataUrl(url); })
+      .catch((err) => { console.error('QR gen failed', err); });
+    return () => { cancelled = true; };
+  }, [created?.paymentUrl]);
+
+  // Poll booking status while waiting for the customer to complete card payment.
+  // Stops when status flips to paid/cancelled or admin abandons.
+  useEffect(() => {
+    if (!created?.bookingId || created.paymentMethod !== 'card') return;
+    if (polledStatus === 'paid' || polledStatus === 'cancelled') return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const r = await fetch(`/api/admin/bookings/${created.bookingId}`, { credentials: 'include', cache: 'no-store' });
+        if (!r.ok || cancelled) return;
+        const data = await r.json();
+        if (data.booking?.status && !cancelled) setPolledStatus(data.booking.status);
+      } catch {}
+    };
+    tick(); // immediate
+    const t = setInterval(tick, 3000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [created?.bookingId, created?.paymentMethod, polledStatus]);
+
   if (loading || !isAuthenticated) return null;
 
   if (created) {
+    const isCardFlow = created.paymentMethod === 'card';
+    const effectiveStatus = isCardFlow ? (polledStatus || created.status) : created.status;
+    const isPaid = effectiveStatus === 'paid' || effectiveStatus === 'comp';
+    const resetForNew = () => {
+      setCreated(null); setQrDataUrl(null); setPolledStatus(null); setCopied(false);
+      setBuyer({ fullName: '', email: '', phone: '' });
+      setAttendees([{ firstName: '', lastName: '', email: '' }]);
+      setQty(1); setAddonQtys({}); setNotes('');
+    };
+
     return (
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '2rem' }}>
-        <h1 style={h1}>Booking Created</h1>
+        <h1 style={h1}>{isCardFlow && !isPaid ? 'Awaiting Card Payment' : 'Booking Created'}</h1>
         <div style={card}>
           <p style={{ color: 'var(--cream)' }}>
-            Booking <code style={{ color: 'var(--tan)' }}>{created.bookingId}</code> created
-            {' · '}
-            <strong>{fmt(created.totalCents)}</strong>
-            {' · status: '}<strong>{created.status}</strong>
+            Booking <code style={{ color: 'var(--tan)' }}>{created.bookingId}</code>
+            {' · '}<strong>{fmt(created.totalCents)}</strong>
+            {' · status: '}<strong style={{ color: isPaid ? '#27ae60' : 'var(--orange)' }}>{effectiveStatus}</strong>
           </p>
-          <p style={{ color: 'var(--olive-light)', fontSize: 13, marginTop: 8 }}>
-            {created.status === 'paid'
-              ? `Cash collected at venue. No Stripe charge.`
-              : `Comp ticket — no payment required.`}
-            {' '}Attendees have QR tokens assigned and still need to sign waivers before game day.
-          </p>
-          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-            <button style={primaryBtn} onClick={() => {
-              setCreated(null); setBuyer({ fullName: '', email: '', phone: '' });
-              setAttendees([{ firstName: '', lastName: '', email: '' }]);
-              setQty(1); setAddonQtys({}); setNotes('');
-            }}>▶ New Booking</button>
+
+          {isCardFlow && !isPaid && (
+            <div style={{ marginTop: 16, padding: 16, background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.15)', borderRadius: 4 }}>
+              <p style={{ color: 'var(--cream)', fontSize: 13, margin: '0 0 12px' }}>
+                Have the customer scan this QR code or open the URL on their phone:
+              </p>
+              {qrDataUrl ? (
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+                  <img src={qrDataUrl} alt="Stripe payment QR code" style={{ width: 240, height: 240, border: '4px solid var(--tan)', borderRadius: 4 }} />
+                </div>
+              ) : (
+                <p style={{ color: 'var(--olive-light)', fontSize: 12 }}>Generating QR…</p>
+              )}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'stretch', marginBottom: 10 }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={created.paymentUrl || ''}
+                  onFocus={(e) => e.target.select()}
+                  style={{ flex: 1, padding: '8px 10px', background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--tan)', fontSize: 11, fontFamily: 'monospace' }}
+                />
+                <button
+                  type="button"
+                  style={{ ...secondaryBtn, padding: '8px 14px' }}
+                  onClick={() => {
+                    navigator.clipboard?.writeText(created.paymentUrl).then(() => {
+                      setCopied(true); setTimeout(() => setCopied(false), 2000);
+                    });
+                  }}
+                >
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+                <a
+                  href={created.paymentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ ...secondaryBtn, padding: '8px 14px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+                >
+                  Open
+                </a>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--olive-light)', fontSize: 12 }}>
+                <span style={{
+                  display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                  background: 'var(--orange)', animation: 'pulse 1.4s ease-in-out infinite',
+                }} />
+                Waiting for payment… (auto-refreshes every 3 seconds)
+              </div>
+              <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
+            </div>
+          )}
+
+          {isPaid && (
+            <p style={{ color: 'var(--olive-light)', fontSize: 13, marginTop: 12 }}>
+              ✓ Payment received. Confirmation email sent. Attendees have QR tokens and still need to sign waivers before game day.
+            </p>
+          )}
+
+          {!isCardFlow && (
+            <p style={{ color: 'var(--olive-light)', fontSize: 13, marginTop: 8 }}>
+              {created.paymentMethod === 'comp'
+                ? 'Comp ticket — no payment required.'
+                : `${created.paymentMethod} payment recorded. Booking marked paid.`}
+              {' '}Attendees have QR tokens and still need to sign waivers before game day.
+            </p>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
+            <button style={primaryBtn} onClick={resetForNew}>▶ New Booking</button>
+            {isCardFlow && !isPaid && (
+              <button
+                style={{ ...secondaryBtn, color: '#e74c3c', borderColor: 'rgba(231,76,60,0.4)' }}
+                onClick={async () => {
+                  if (!confirm('Cancel this pending booking? The customer will not be able to pay this link afterwards.')) return;
+                  // Fire-and-forget; the row stays as pending. We don't expose a cancel endpoint
+                  // yet — admin can just walk away and try a different method.
+                  resetForNew();
+                }}
+              >
+                Cancel & Try Different Method
+              </button>
+            )}
             <button style={secondaryBtn} onClick={() => navigate('/admin')}>Back to Dashboard</button>
           </div>
         </div>
@@ -156,25 +293,18 @@ export default function AdminNewBooking() {
 
       <form onSubmit={submit} style={card}>
         <h3 style={sectionH}>Payment Method</h3>
-        <div style={radioGrid}>
+        <select
+          value={paymentMethod}
+          onChange={(e) => setPaymentMethod(e.target.value)}
+          style={input}
+          aria-label="Payment method"
+        >
           {PAYMENT_METHODS.map((pm) => (
-            <label key={pm.value} style={{
-              ...radioCard,
-              borderColor: paymentMethod === pm.value ? 'var(--orange)' : 'rgba(200,184,154,0.15)',
-              background: paymentMethod === pm.value ? 'rgba(212,84,26,0.06)' : 'rgba(0,0,0,0.2)',
-            }}>
-              <input
-                type="radio" name="pm" value={pm.value}
-                checked={paymentMethod === pm.value}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                style={{ accentColor: 'var(--orange)' }}
-              />
-              <div>
-                <div style={{ fontWeight: 800, color: 'var(--cream)', fontSize: 13 }}>{pm.label}</div>
-                <div style={{ color: 'var(--olive-light)', fontSize: 12, marginTop: 4 }}>{pm.desc}</div>
-              </div>
-            </label>
+            <option key={pm.value} value={pm.value}>{pm.label}</option>
           ))}
+        </select>
+        <div style={{ color: 'var(--olive-light)', fontSize: 12, marginTop: 6 }}>
+          {PAYMENT_METHODS.find((pm) => pm.value === paymentMethod)?.desc}
         </div>
 
         <h3 style={sectionH}>Event</h3>
@@ -229,6 +359,7 @@ export default function AdminNewBooking() {
           <div style={totalsBox}>
             <div style={totalRow}><span>Subtotal</span><span>{fmt(totals.subtotal)}</span></div>
             {totals.tax > 0 && <div style={totalRow}><span>Tax</span><span>{fmt(totals.tax)}</span></div>}
+            {totals.fee > 0 && <div style={totalRow}><span>Fees</span><span>{fmt(totals.fee)}</span></div>}
             <div style={{ ...totalRow, fontSize: 16, fontWeight: 800, color: 'var(--cream)', borderTop: '1px solid rgba(212,84,26,0.3)', paddingTop: 8, marginTop: 6 }}>
               <span>Total to collect</span>
               <span>{fmt(totals.total)}</span>

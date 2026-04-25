@@ -10,6 +10,7 @@ import bookings from './routes/bookings.js';
 import webhooks from './routes/webhooks.js';
 import waivers from './routes/waivers.js';
 import publicTaxesFees from './routes/taxesFees.js';
+import publicFeedback from './routes/feedback.js';
 import vendorPublic from './routes/vendor.js';
 import vendorAuth from './routes/vendorAuth.js';
 import adminAuth from './routes/admin/auth.js';
@@ -27,6 +28,7 @@ import adminUploads from './routes/admin/uploads.js';
 import adminVendors from './routes/admin/vendors.js';
 import adminEventVendors from './routes/admin/eventVendors.js';
 import adminVendorContracts from './routes/admin/vendorContracts.js';
+import adminFeedback from './routes/admin/feedback.js';
 
 const app = new Hono();
 
@@ -87,6 +89,7 @@ app.route('/api/bookings', bookings);
 app.route('/api/webhooks', webhooks);
 app.route('/api/waivers', waivers);
 app.route('/api/taxes-fees', publicTaxesFees);
+app.route('/api/feedback', publicFeedback);
 app.route('/api/vendor/auth', vendorAuth);
 app.route('/api/vendor', vendorPublic);
 app.route('/api/admin/auth', adminAuth);
@@ -105,6 +108,7 @@ app.route('/api/admin/uploads', adminUploads);
 app.route('/api/admin/vendors', adminVendors);
 app.route('/api/admin/event-vendors', adminEventVendors);
 app.route('/api/admin/vendor-contracts', adminVendorContracts);
+app.route('/api/admin/feedback', adminFeedback);
 
 app.onError((err, c) => {
     console.error('API error', err);

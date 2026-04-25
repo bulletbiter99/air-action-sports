@@ -1,9 +1,21 @@
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
 import { formatBooking, formatEvent, safeJson } from '../../lib/formatters.js';
-import { issueRefund } from '../../lib/stripe.js';
+import { issueRefund, createCheckoutSession } from '../../lib/stripe.js';
 import { bookingId, attendeeId, qrToken } from '../../lib/ids.js';
 import { sendBookingConfirmation } from '../../lib/emailSender.js';
+import { loadActiveTaxesFees } from '../../lib/pricing.js';
+
+// Allowed manual booking payment methods.
+//   card   → admin creates pending booking + Stripe Checkout URL;
+//            customer scans QR / taps URL to pay; webhook flips status to paid.
+//   cash   → in-person cash; status=paid immediately.
+//   venmo  → external app payment recorded; status=paid immediately.
+//   paypal → external PayPal received; status=paid immediately.
+//   comp   → free; status=comp; totals=0.
+const MANUAL_METHODS = new Set(['card', 'cash', 'venmo', 'paypal', 'comp']);
+const EXTERNAL_PAID_METHODS = new Set(['cash', 'venmo', 'paypal']); // immediate paid + admin-friendly tag
+const METHOD_TAG = { cash: '[CASH]', venmo: '[VENMO]', paypal: '[PAYPAL]', comp: '[COMP]', card: '[CARD]' };
 
 const adminBookings = new Hono();
 
@@ -77,18 +89,19 @@ adminBookings.get('/:id', async (c) => {
 });
 
 // POST /api/admin/bookings/manual
-// Creates a booking entered by staff (walk-in, comp, or cash-paid).
-// paymentMethod: 'comp' | 'cash'
-//   comp → status=comp, totals=0 (free for staff, contest winners, etc.)
-//   cash → status=paid, totals=actual prices, stripe_payment_intent=null (cash collected at venue)
+// Creates a booking entered by staff. Accepts:
+//   card   → status=pending; returns paymentUrl + sessionId for the admin to
+//            show the customer (QR or tablet). Webhook flips status to paid.
+//   cash | venmo | paypal → status=paid immediately, payment recorded as external.
+//   comp   → status=comp; totals=0.
 adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
     const user = c.get('user');
     const body = await c.req.json().catch(() => null);
     if (!body?.eventId) return c.json({ error: 'eventId required' }, 400);
 
     const paymentMethod = body.paymentMethod || 'comp';
-    if (!['comp', 'cash'].includes(paymentMethod)) {
-        return c.json({ error: 'paymentMethod must be "comp" or "cash"' }, 400);
+    if (!MANUAL_METHODS.has(paymentMethod)) {
+        return c.json({ error: `paymentMethod must be one of ${[...MANUAL_METHODS].join(', ')}` }, 400);
     }
 
     const buyer = body.buyer || {};
@@ -170,30 +183,124 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
         });
     }
 
-    const tax = paymentMethod === 'comp' ? 0 : Math.floor((subtotal * (eventRow.tax_rate_bps || 0)) / 10000);
-    const total = subtotal + tax;
+    // Apply global taxes & fees (matches customer checkout via /api/bookings/quote).
+    // Comp bookings skip taxes/fees entirely — the booking is recorded as $0.
+    let tax = 0;
+    let fee = 0;
+    if (paymentMethod !== 'comp') {
+        const taxesFees = await loadActiveTaxesFees(c.env.DB);
+        const totalAttendees = attendees.length;
+        const unitMultiplier = (per_unit) =>
+            per_unit === 'ticket' || per_unit === 'attendee' ? totalAttendees : 1;
+        for (const tf of taxesFees) {
+            if (!tf.active) continue;
+            const percentAmt = Math.floor((subtotal * (tf.percent_bps || 0)) / 10000);
+            const fixedAmt = (tf.fixed_cents || 0) * unitMultiplier(tf.per_unit);
+            const amt = percentAmt + fixedAmt;
+            if (tf.category === 'tax') tax += amt;
+            else if (tf.category === 'fee') fee += amt;
+        }
+    }
+    const total = subtotal + tax + fee;
 
     const id = bookingId();
     const now = Date.now();
-    const status = paymentMethod === 'comp' ? 'comp' : 'paid';
-    const paidAt = now;
-    const stripePi = paymentMethod === 'cash' ? `cash_${id}` : null;
-
-    const methodTag = paymentMethod === 'cash' ? '[CASH]' : '[COMP]';
+    const methodTag = METHOD_TAG[paymentMethod] || '';
     const combinedNotes = [methodTag, body.notes?.trim()].filter(Boolean).join(' ');
+
+    // ─── Card branch: pending row + Stripe Checkout link, webhook completes ───
+    if (paymentMethod === 'card') {
+        // Tag attendees with their selected ticketTypeId so the webhook can fan
+        // them out into the attendees table (mirrors the public checkout shape).
+        const pendingAttendees = attendees.map((a) => ({
+            ticketTypeId: a.ticketTypeId,
+            firstName: a.firstName.trim(),
+            lastName: a.lastName?.trim() || null,
+            email: a.email?.trim() || null,
+            phone: a.phone?.trim() || null,
+            customAnswers: a.customAnswers || {},
+        }));
+
+        await c.env.DB.prepare(
+            `INSERT INTO bookings (
+                id, event_id, full_name, email, phone, player_count,
+                line_items_json, subtotal_cents, discount_cents, tax_cents, fee_cents, total_cents,
+                status, notes, payment_method, pending_attendees_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 'pending', ?, 'card', ?, ?)`
+        ).bind(
+            id, body.eventId, buyer.fullName.trim(), buyer.email.trim(), buyer.phone?.trim() || '',
+            attendees.length,
+            JSON.stringify(lineItems), subtotal, tax, fee, total,
+            combinedNotes || null,
+            JSON.stringify(pendingAttendees),
+            now,
+        ).run();
+
+        // Build Stripe line items from our authoritative line items (mirrors public flow).
+        const stripeLineItems = lineItems.map((li) => ({
+            name: li.name,
+            qty: li.qty,
+            unit_price_cents: li.unit_price_cents,
+        }));
+        if (tax > 0) stripeLineItems.push({ name: 'Sales tax', qty: 1, unit_price_cents: tax });
+        if (fee > 0) stripeLineItems.push({ name: 'Processing fee', qty: 1, unit_price_cents: fee });
+
+        let session;
+        try {
+            session = await createCheckoutSession({
+                apiKey: c.env.STRIPE_SECRET_KEY,
+                lineItems: stripeLineItems,
+                successUrl: `${c.env.SITE_URL}/booking/success?token=${id}`,
+                cancelUrl: `${c.env.SITE_URL}/booking/cancelled?token=${id}`,
+                customerEmail: buyer.email.trim(),
+                metadata: { booking_id: id, event_id: body.eventId, source: 'admin_manual', admin_user_id: user.id },
+            });
+        } catch (err) {
+            await c.env.DB.prepare(`UPDATE bookings SET status = 'cancelled', cancelled_at = ? WHERE id = ?`)
+                .bind(Date.now(), id).run();
+            console.error('Admin manual card: Stripe session creation failed', err);
+            return c.json({ error: 'Payment setup failed. Try again or pick a different method.' }, 502);
+        }
+
+        await c.env.DB.prepare(`UPDATE bookings SET stripe_session_id = ? WHERE id = ?`)
+            .bind(session.id, id).run();
+
+        await c.env.DB.prepare(
+            `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+             VALUES (?, 'booking.manual_card_pending', 'booking', ?, ?, ?)`
+        ).bind(user.id, id, JSON.stringify({
+            event_id: body.eventId, attendees: attendees.length, total_cents: total,
+            payment_method: 'card', stripe_session_id: session.id,
+        }), now).run();
+
+        return c.json({
+            bookingId: id,
+            totalCents: total,
+            status: 'pending',
+            paymentMethod: 'card',
+            paymentUrl: session.url,
+            sessionId: session.id,
+        });
+    }
+
+    // ─── Immediate-paid branch: cash / venmo / paypal / comp ───
+    const status = paymentMethod === 'comp' ? 'comp' : 'paid';
+    // Non-Stripe payments use a synthetic intent ID so refunds-via-Stripe
+    // know to skip the API and treat the booking as out-of-band paid.
+    const stripePi = paymentMethod === 'comp' ? null : `${paymentMethod}_${id}`;
 
     await c.env.DB.prepare(
         `INSERT INTO bookings (
             id, event_id, full_name, email, phone, player_count,
             line_items_json, subtotal_cents, discount_cents, tax_cents, fee_cents, total_cents,
-            status, notes, stripe_payment_intent, created_at, paid_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?, ?, ?)`
+            status, notes, payment_method, stripe_payment_intent, created_at, paid_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
         id, body.eventId, buyer.fullName.trim(), buyer.email.trim(), buyer.phone?.trim() || '',
         attendees.length,
-        JSON.stringify(lineItems), subtotal, tax, total,
-        status, combinedNotes || null, stripePi,
-        now, paidAt,
+        JSON.stringify(lineItems), subtotal, tax, fee, total,
+        status, combinedNotes || null, paymentMethod, stripePi,
+        now, now,
     ).run();
 
     for (const a of attendees) {
@@ -222,13 +329,13 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
          VALUES (?, ?, 'booking', ?, ?, ?)`
     ).bind(
         user.id,
-        paymentMethod === 'cash' ? 'booking.manual_cash' : 'booking.manual_comp',
+        paymentMethod === 'comp' ? 'booking.manual_comp' : `booking.manual_${paymentMethod}`,
         id,
         JSON.stringify({ event_id: body.eventId, attendees: attendees.length, total_cents: total, payment_method: paymentMethod }),
         now,
     ).run();
 
-    return c.json({ bookingId: id, totalCents: total, status });
+    return c.json({ bookingId: id, totalCents: total, status, paymentMethod });
 });
 
 // POST /api/admin/bookings/:id/refund — refund a paid booking via Stripe

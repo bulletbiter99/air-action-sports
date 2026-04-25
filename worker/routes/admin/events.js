@@ -13,7 +13,7 @@ const EVENT_STRING_FIELDS = [
     'cover_image_url', 'short_description',
 ];
 const EVENT_INT_FIELDS = [
-    'base_price_cents', 'total_slots', 'tax_rate_bps', 'sales_close_at',
+    'base_price_cents', 'total_slots', 'sales_close_at',
 ];
 
 function parseEventBody(body, { partial = false } = {}) {
@@ -26,8 +26,7 @@ function parseEventBody(body, { partial = false } = {}) {
         checkIn: 'check_in', firstGame: 'first_game', endTime: 'end_time',
         coverImageUrl: 'cover_image_url', shortDescription: 'short_description',
         basePriceCents: 'base_price_cents', totalSlots: 'total_slots',
-        taxRateBps: 'tax_rate_bps', salesCloseAt: 'sales_close_at',
-        passFeesToCustomer: 'pass_fees_to_customer',
+        salesCloseAt: 'sales_close_at',
         published: 'published', past: 'past',
     };
     for (const [k, col] of Object.entries(map)) {
@@ -48,7 +47,7 @@ function parseEventBody(body, { partial = false } = {}) {
                 if (!Number.isFinite(n)) return { error: `${k} must be a number` };
                 patch[col] = Math.round(n);
             }
-        } else if (col === 'pass_fees_to_customer' || col === 'published' || col === 'past') {
+        } else if (col === 'published' || col === 'past') {
             patch[col] = body[k] ? 1 : 0;
         }
     }
@@ -257,7 +256,26 @@ adminEvents.get('/:id/detail', async (c) => {
     });
 });
 
-// POST /api/admin/events — create event (manager+)
+// Validate cover_image_url with a HEAD request — fail fast on 404 / wrong type.
+// Skipped for /uploads/* (we minted those keys ourselves) and empty values.
+async function preflightCoverImage(url) {
+    if (!url) return { ok: true };
+    if (url.startsWith('/uploads/')) return { ok: true }; // trusted, served by us
+    try {
+        const res = await fetch(url, { method: 'HEAD' });
+        if (!res.ok) return { ok: false, error: `Cover image URL returned ${res.status}` };
+        const ct = res.headers.get('content-type') || '';
+        if (!/^image\//i.test(ct)) return { ok: false, error: `Cover image URL is not an image (got ${ct || 'unknown'})` };
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, error: 'Cover image URL is unreachable' };
+    }
+}
+
+// POST /api/admin/events — create event (manager+).
+// Defaults: published=false, sales_close_at=dateIso-2hrs (configurable per event).
+// Side effect: auto-creates one "General Admission" ticket type so the event is
+// immediately bookable instead of silently empty.
 adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
     const user = c.get('user');
     const body = await c.req.json().catch(() => null);
@@ -266,18 +284,33 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
     const { patch, error } = parseEventBody(body, { partial: false });
     if (error) return c.json({ error }, 400);
 
+    // Cover-image preflight — reject before insert so the editor surfaces the failure.
+    if (patch.cover_image_url) {
+        const pf = await preflightCoverImage(patch.cover_image_url);
+        if (!pf.ok) return c.json({ error: pf.error }, 400);
+    }
+
     // ID strategy: if caller provides a slug, use it (lowercase-hyphen). Otherwise generate.
     let id = body.id ? slugify(body.id) : (patch.slug ? slugify(patch.slug) : slugify(patch.title));
     const existing = await c.env.DB.prepare(`SELECT id FROM events WHERE id = ?`).bind(id).first();
     if (existing) id = `${id}-${newEventId().slice(3, 9)}`;
     patch.slug = patch.slug || id;
 
+    // Default sales_close_at to event start − 2 hours when caller didn't set it.
+    // Caller can still pass null explicitly (parseEventBody preserves null) to
+    // mean "never auto-close".
+    let salesCloseAt = patch.sales_close_at;
+    if (salesCloseAt === undefined && patch.date_iso) {
+        const startMs = new Date(patch.date_iso).getTime();
+        if (Number.isFinite(startMs)) salesCloseAt = startMs - (2 * 60 * 60 * 1000);
+    }
+
     const now = Date.now();
     const cols = [
         'id', 'title', 'date_iso', 'display_date', 'display_day', 'display_month',
         'location', 'site', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
         'base_price_cents', 'total_slots', 'addons_json', 'game_modes_json', 'details_json',
-        'sales_close_at', 'published', 'past', 'tax_rate_bps', 'pass_fees_to_customer',
+        'sales_close_at', 'published', 'past',
         'cover_image_url', 'short_description', 'slug', 'created_at', 'updated_at',
     ];
     const vals = {
@@ -299,11 +332,9 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         addons_json: patch.addons_json,
         game_modes_json: patch.game_modes_json,
         details_json: patch.details_json ?? null,
-        sales_close_at: patch.sales_close_at ?? null,
-        published: patch.published ?? 1,
+        sales_close_at: salesCloseAt ?? null,
+        published: patch.published ?? 0, // default UNPUBLISHED — admin must explicitly publish
         past: patch.past ?? 0,
-        tax_rate_bps: patch.tax_rate_bps ?? 0,
-        pass_fees_to_customer: patch.pass_fees_to_customer ?? 0,
         cover_image_url: patch.cover_image_url || null,
         short_description: patch.short_description || null,
         slug: patch.slug,
@@ -315,16 +346,26 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         `INSERT INTO events (${cols.join(', ')}) VALUES (${placeholders})`
     ).bind(...cols.map((k) => vals[k])).run();
 
+    // Auto-create a default ticket type so the event is immediately bookable.
+    // Admin can rename / re-price / add tiers afterwards.
+    const defaultTtId = newTicketTypeId();
+    await c.env.DB.prepare(
+        `INSERT INTO ticket_types (id, event_id, name, description, price_cents, capacity, sold, min_per_order, max_per_order, sort_order, active, created_at, updated_at)
+         VALUES (?, ?, 'General Admission', NULL, ?, ?, 0, 1, ?, 0, 1, ?, ?)`
+    ).bind(defaultTtId, id, vals.base_price_cents, vals.total_slots, vals.total_slots, now, now).run();
+
     await c.env.DB.prepare(
         `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
          VALUES (?, 'event.created', 'event', ?, ?, ?)`
-    ).bind(user.id, id, JSON.stringify({ title: vals.title }), now).run();
+    ).bind(user.id, id, JSON.stringify({ title: vals.title, defaultTicketTypeId: defaultTtId }), now).run();
 
     const row = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(id).first();
     return c.json({ event: { ...formatEvent(row), published: !!row.published } }, 201);
 });
 
-// PUT /api/admin/events/:id — update (manager+)
+// PUT /api/admin/events/:id — update (manager+).
+// Publish guard: refuses to set published=1 unless the event has at least one
+// active ticket type. Prevents accidentally exposing an unbuyable event.
 adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
     const user = c.get('user');
     const id = c.req.param('id');
@@ -336,6 +377,22 @@ adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
 
     const { patch, error } = parseEventBody(body, { partial: true });
     if (error) return c.json({ error }, 400);
+
+    // Publish guard — block publish when there are zero active ticket types.
+    if (patch.published === 1) {
+        const tt = await c.env.DB.prepare(
+            `SELECT COUNT(*) AS n FROM ticket_types WHERE event_id = ? AND active = 1`
+        ).bind(id).first();
+        if (!tt || (tt.n ?? 0) === 0) {
+            return c.json({ error: 'Cannot publish: event has no active ticket types. Add at least one ticket type before publishing.' }, 400);
+        }
+    }
+
+    // Cover-image preflight, same as POST.
+    if (patch.cover_image_url) {
+        const pf = await preflightCoverImage(patch.cover_image_url);
+        if (!pf.ok) return c.json({ error: pf.error }, 400);
+    }
 
     const keys = Object.keys(patch);
     if (keys.length === 0) return c.json({ error: 'No changes' }, 400);
@@ -410,9 +467,9 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
             id, title, date_iso, display_date, display_day, display_month,
             location, site, type, time_range, check_in, first_game, end_time,
             base_price_cents, total_slots, addons_json, game_modes_json, details_json,
-            sales_close_at, published, past, tax_rate_bps, pass_fees_to_customer,
+            sales_close_at, published, past,
             cover_image_url, short_description, slug, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?)`
     ).bind(
         newId,
         newTitle,
@@ -423,7 +480,6 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
         src.location, src.site, src.type, src.time_range, src.check_in, src.first_game, src.end_time,
         src.base_price_cents, src.total_slots, src.addons_json, src.game_modes_json, src.details_json,
         src.sales_close_at, // published forced to 0 above
-        src.tax_rate_bps, src.pass_fees_to_customer,
         src.cover_image_url, src.short_description, newId,
         now, now,
     ).run();

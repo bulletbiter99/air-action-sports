@@ -23,6 +23,7 @@ const Contact = lazy(() => import('./pages/Contact'));
 const About = lazy(() => import('./pages/About'));
 const NewPlayers = lazy(() => import('./pages/NewPlayers'));
 const Privacy = lazy(() => import('./pages/Privacy'));
+const Feedback = lazy(() => import('./pages/Feedback'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Admin
@@ -50,6 +51,7 @@ const AdminEmailTemplates = lazy(() => import('./admin/AdminEmailTemplates'));
 const AdminVendors = lazy(() => import('./admin/AdminVendors'));
 const AdminVendorPackages = lazy(() => import('./admin/AdminVendorPackages'));
 const AdminVendorContracts = lazy(() => import('./admin/AdminVendorContracts'));
+const AdminFeedback = lazy(() => import('./admin/AdminFeedback'));
 
 export default function App() {
   return (
@@ -74,6 +76,7 @@ export default function App() {
             <Route path="about" element={<About />} />
             <Route path="new-players" element={<NewPlayers />} />
             <Route path="privacy" element={<Privacy />} />
+            <Route path="feedback" element={<Feedback />} />
             <Route path="*" element={<NotFound />} />
           </Route>
           <Route path="v/:token" element={<VendorPackage />} />
@@ -104,6 +107,7 @@ export default function App() {
             <Route path="vendor-packages" element={<AdminVendorPackages />} />
             <Route path="vendor-packages/:id" element={<AdminVendorPackages />} />
             <Route path="vendor-contracts" element={<AdminVendorContracts />} />
+            <Route path="feedback" element={<AdminFeedback />} />
           </Route>
         </Routes>
       </Suspense>

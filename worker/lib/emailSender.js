@@ -184,3 +184,81 @@ export async function sendWaiverRequest(env, { attendee, event }) {
         ],
     });
 }
+
+const FEEDBACK_TYPE_LABEL = {
+    bug: 'Bug report',
+    feature: 'Feature request',
+    usability: 'Usability issue',
+    other: 'Feedback',
+};
+
+const FEEDBACK_STATUS_LABEL = {
+    new: 'New',
+    triaged: 'Triaged',
+    'in-progress': 'In progress',
+    resolved: 'Resolved',
+    'wont-fix': "Won't fix",
+    duplicate: 'Duplicate',
+};
+
+export async function sendFeedbackNotification(env, { feedback }) {
+    const adminEmail = env.ADMIN_NOTIFY_EMAIL;
+    if (!adminEmail) return { skipped: 'no_admin_email' };
+
+    const template = await loadTemplate(env.DB, 'admin_feedback_received');
+    if (!template) return { skipped: 'template_missing' };
+
+    const vars = {
+        type_label: FEEDBACK_TYPE_LABEL[feedback.type] || 'Feedback',
+        title: feedback.title,
+        from_display: feedback.email ? feedback.email : 'Anonymous',
+        page_url: feedback.page_url || '—',
+        description: feedback.description,
+        user_agent: feedback.user_agent || '—',
+        viewport: feedback.viewport || '—',
+        admin_url: `${env.SITE_URL}/admin/feedback`,
+    };
+    const rendered = renderTemplate(template, vars);
+
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: adminEmail,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: 'admin_feedback_received' },
+            { name: 'feedback_id', value: feedback.id },
+        ],
+    });
+}
+
+export async function sendFeedbackResolutionNotice(env, { feedback }) {
+    if (!feedback.email) return { skipped: 'no_submitter_email' };
+
+    const template = await loadTemplate(env.DB, 'feedback_resolution_notice');
+    if (!template) return { skipped: 'template_missing' };
+
+    const vars = {
+        title: feedback.title,
+        status_label: FEEDBACK_STATUS_LABEL[feedback.status] || feedback.status,
+        note: feedback.adminNote || feedback.admin_note || '(no additional note)',
+        site_url: env.SITE_URL || '',
+    };
+    const rendered = renderTemplate(template, vars);
+
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: feedback.email,
+        replyTo: env.REPLY_TO_EMAIL,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: 'feedback_resolution_notice' },
+            { name: 'feedback_id', value: feedback.id },
+        ],
+    });
+}

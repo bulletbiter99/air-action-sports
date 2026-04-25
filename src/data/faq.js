@@ -20,7 +20,7 @@ export const faqCategories = [
       },
       {
         question: 'How do I find your locations?',
-        answer: 'Head to our Locations page for addresses, maps, and directions to each of our three sites. We recommend checking before your first visit as some sites are on rural roads.',
+        answer: 'Our Locations page describes each of our sites and what you\u2019ll find there. For security reasons, exact addresses are shared in your booking confirmation email \u2014 some of our sites are on private rural roads. If you need directions before booking, reach out via the Contact page and we\u2019ll help.',
       },
       {
         question: 'When do you run events?',

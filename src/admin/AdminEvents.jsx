@@ -2,6 +2,45 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 
+// "6:30 AM" | "18:30" → "HH:MM" (24h) for <input type="time">. Returns '' if unparseable.
+function to24h(s) {
+  if (!s) return '';
+  const m = String(s).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!m) return '';
+  let h = Number(m[1]);
+  const mm = m[2];
+  const ap = m[3]?.toUpperCase();
+  if (ap === 'PM' && h < 12) h += 12;
+  if (ap === 'AM' && h === 12) h = 0;
+  if (h < 0 || h > 23) return '';
+  return `${String(h).padStart(2, '0')}:${mm}`;
+}
+// "HH:MM" (24h) → "h:mm AM/PM"
+function to12h(s) {
+  if (!s) return '';
+  const m = String(s).match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return '';
+  let h = Number(m[1]);
+  const mm = m[2];
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if (h === 0) h = 12;
+  return `${h}:${mm} ${ap}`;
+}
+// Split "6:30 AM – 8:00 PM" (or "-") into [start, end] raw strings.
+function splitRange(s) {
+  if (!s) return ['', ''];
+  const parts = String(s).split(/\s*[–-]\s*/);
+  return [parts[0] || '', parts[1] || ''];
+}
+// Money: cents ↔ dollar-string for text inputs. Keep empty string when input is cleared.
+const centsToDollars = (c) => (c === '' || c == null ? '' : (Number(c) / 100).toFixed(2));
+const dollarsToCents = (s) => {
+  if (s === '' || s == null) return 0;
+  const n = Number(String(s).replace(/[^0-9.\-]/g, ''));
+  if (!isFinite(n)) return 0;
+  return Math.round(n * 100);
+};
+
 export default function AdminEvents() {
   const { isAuthenticated, loading, hasRole } = useAdmin();
   const navigate = useNavigate();
@@ -146,7 +185,6 @@ function EventEditor({ eventId, onClose, onSaved }) {
     location: '', site: '', type: 'airsoft',
     timeRange: '', checkIn: '', firstGame: '', endTime: '',
     basePriceCents: 8000, totalSlots: 100,
-    taxRateBps: 0, passFeesToCustomer: false,
     coverImageUrl: '', shortDescription: '',
     published: false, past: false,
     addons: [], gameModes: [], customQuestions: [],
@@ -169,7 +207,6 @@ function EventEditor({ eventId, onClose, onSaved }) {
           location: event.location || '', site: event.site || '', type: event.type || 'airsoft',
           timeRange: event.timeRange || '', checkIn: event.checkIn || '', firstGame: event.firstGame || '', endTime: event.endTime || '',
           basePriceCents: event.basePriceCents || 0, totalSlots: event.totalSlots || 0,
-          taxRateBps: event.taxRateBps || 0, passFeesToCustomer: !!event.passFeesToCustomer,
           coverImageUrl: event.coverImageUrl || '', shortDescription: event.shortDescription || '',
           published: !!event.published, past: !!event.past,
           addons: event.addons || [], gameModes: event.gameModes || [],
@@ -185,23 +222,27 @@ function EventEditor({ eventId, onClose, onSaved }) {
 
   const saveEvent = async (e) => {
     e?.preventDefault();
+    if (savingEvent) return; // double-click / double-Enter guard
     setSavingEvent(true); setErr('');
-    const url = isNew ? '/api/admin/events' : `/api/admin/events/${currentEventId}`;
-    const method = isNew ? 'POST' : 'PUT';
-    const res = await fetch(url, {
-      method, credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    setSavingEvent(false);
-    if (res.ok) {
-      const data = await res.json();
-      if (isNew) setCurrentEventId(data.event.id); // allow adding ticket types afterward
-      onSaved();
-      if (isNew) { /* stay in editor so they can add ticket types */ }
-    } else {
-      const d = await res.json().catch(() => ({}));
-      setErr(d.error || 'Save failed');
+    try {
+      const url = isNew ? '/api/admin/events' : `/api/admin/events/${currentEventId}`;
+      const method = isNew ? 'POST' : 'PUT';
+      const res = await fetch(url, {
+        method, credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (isNew) setCurrentEventId(data.event.id); // allow adding ticket types afterward
+        onSaved();
+        if (isNew) { /* stay in editor so they can add ticket types */ }
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setErr(d.error || 'Save failed');
+      }
+    } finally {
+      setSavingEvent(false);
     }
   };
 
@@ -222,7 +263,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
           <h3 style={{ margin: 0, color: 'var(--cream)', fontSize: 14, letterSpacing: 1.5, textTransform: 'uppercase' }}>
             {isNew ? 'New event' : `Edit: ${form.title}`}
           </h3>
-          <button type="button" onClick={onClose} style={subtleBtn}>Close</button>
+          <button type="button" onClick={onClose} aria-label="Close" style={closeX}>×</button>
         </div>
 
         <form onSubmit={saveEvent}>
@@ -245,8 +286,14 @@ function EventEditor({ eventId, onClose, onSaved }) {
 
           <div style={sectionLabel}>Date & time</div>
           <div style={twoCol}>
-            <Field label="Date/time ISO *">
-              <input required value={form.dateIso} onChange={(e) => updateField('dateIso', e.target.value)} style={input} placeholder="2026-05-09T08:30:00" />
+            <Field label="Date & time *">
+              <input
+                required
+                type="datetime-local"
+                value={(form.dateIso || '').slice(0, 16)}
+                onChange={(e) => updateField('dateIso', e.target.value ? `${e.target.value}:00` : '')}
+                style={input}
+              />
             </Field>
             <Field label="Display date (e.g. '9 May 2026')">
               <input value={form.displayDate} onChange={(e) => updateField('displayDate', e.target.value)} style={input} />
@@ -257,12 +304,30 @@ function EventEditor({ eventId, onClose, onSaved }) {
             <Field label="Display month"><input value={form.displayMonth} onChange={(e) => updateField('displayMonth', e.target.value)} style={input} /></Field>
           </div>
           <div style={twoCol}>
-            <Field label="Time range"><input value={form.timeRange} onChange={(e) => updateField('timeRange', e.target.value)} style={input} placeholder="6:30 AM – 8:00 PM" /></Field>
-            <Field label="Check-in"><input value={form.checkIn} onChange={(e) => updateField('checkIn', e.target.value)} style={input} /></Field>
+            <Field label="Time range (start — end)">
+              <TimeRangeInput value={form.timeRange} onChange={(v) => updateField('timeRange', v)} />
+            </Field>
+            <Field label="Check-in (start — end)">
+              <TimeRangeInput value={form.checkIn} onChange={(v) => updateField('checkIn', v)} />
+            </Field>
           </div>
           <div style={twoCol}>
-            <Field label="First game"><input value={form.firstGame} onChange={(e) => updateField('firstGame', e.target.value)} style={input} /></Field>
-            <Field label="End time"><input value={form.endTime} onChange={(e) => updateField('endTime', e.target.value)} style={input} /></Field>
+            <Field label="First game">
+              <input
+                type="time"
+                value={to24h(form.firstGame)}
+                onChange={(e) => updateField('firstGame', to12h(e.target.value))}
+                style={input}
+              />
+            </Field>
+            <Field label="End time">
+              <input
+                type="time"
+                value={to24h(form.endTime)}
+                onChange={(e) => updateField('endTime', to12h(e.target.value))}
+                style={input}
+              />
+            </Field>
           </div>
 
           <div style={sectionLabel}>Location & type</div>
@@ -276,23 +341,15 @@ function EventEditor({ eventId, onClose, onSaved }) {
 
           <div style={sectionLabel}>Pricing & capacity</div>
           <div style={twoCol}>
-            <Field label="Base price (cents) *">
-              <input required type="number" value={form.basePriceCents} onChange={(e) => updateField('basePriceCents', Number(e.target.value))} style={input} />
+            <Field label="Base price (USD) *">
+              <MoneyInput required value={form.basePriceCents} onChange={(v) => updateField('basePriceCents', v)} />
             </Field>
             <Field label="Total slots *">
               <input required type="number" value={form.totalSlots} onChange={(e) => updateField('totalSlots', Number(e.target.value))} style={input} />
             </Field>
           </div>
-          <div style={twoCol}>
-            <Field label="Tax rate (bps, e.g. 825 = 8.25%)">
-              <input type="number" value={form.taxRateBps} onChange={(e) => updateField('taxRateBps', Number(e.target.value))} style={input} />
-            </Field>
-            <Field label="">
-              <label style={{ color: 'var(--tan-light)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, paddingTop: 22 }}>
-                <input type="checkbox" checked={form.passFeesToCustomer} onChange={(e) => updateField('passFeesToCustomer', e.target.checked)} />
-                Pass fees to customer
-              </label>
-            </Field>
+          <div style={{ fontSize: 11, color: 'var(--olive-light)', marginBottom: 8 }}>
+            Taxes &amp; fees are managed globally in <strong>Settings → Taxes &amp; Fees</strong> and applied to every event automatically.
           </div>
 
           <div style={sectionLabel}>Game modes (one per line)</div>
@@ -331,7 +388,6 @@ function EventEditor({ eventId, onClose, onSaved }) {
             <button type="submit" disabled={savingEvent} style={primaryBtn}>
               {savingEvent ? 'Saving…' : (isNew ? 'Create event' : 'Save changes')}
             </button>
-            <button type="button" onClick={onClose} style={subtleBtn}>Close</button>
           </div>
         </form>
 
@@ -349,6 +405,56 @@ function EventEditor({ eventId, onClose, onSaved }) {
   );
 }
 
+function MoneyInput({ value, onChange, required, placeholder }) {
+  const [text, setText] = useState(centsToDollars(value));
+  // Keep local text in sync when caller resets the value (e.g. on load).
+  useEffect(() => {
+    const incoming = centsToDollars(value);
+    if (dollarsToCents(text) !== Number(value || 0)) setText(incoming);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <div style={{ position: 'relative' }}>
+      <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--olive-light)', fontSize: 13, pointerEvents: 'none' }}>$</span>
+      <input
+        required={required}
+        type="number"
+        step="0.01"
+        min="0"
+        inputMode="decimal"
+        placeholder={placeholder || '0.00'}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange(dollarsToCents(e.target.value));
+        }}
+        onBlur={() => setText(centsToDollars(value))}
+        style={{ ...input, paddingLeft: 22 }}
+      />
+    </div>
+  );
+}
+
+function TimeRangeInput({ value, onChange }) {
+  const [startRaw, endRaw] = splitRange(value);
+  const start = to24h(startRaw);
+  const end = to24h(endRaw);
+  const commit = (s24, e24) => {
+    const s = s24 ? to12h(s24) : '';
+    const e = e24 ? to12h(e24) : '';
+    if (!s && !e) onChange('');
+    else if (s && e) onChange(`${s} – ${e}`);
+    else onChange(s || e);
+  };
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 6, alignItems: 'center' }}>
+      <input type="time" value={start} onChange={(e) => commit(e.target.value, end)} style={input} aria-label="Start" />
+      <span style={{ color: 'var(--olive-light)', fontSize: 12 }}>—</span>
+      <input type="time" value={end} onChange={(e) => commit(start, e.target.value)} style={input} aria-label="End" />
+    </div>
+  );
+}
+
 function AddonEditor({ addons, onChange }) {
   const update = (i, k, v) => {
     const n = [...addons]; n[i] = { ...n[i], [k]: v }; onChange(n);
@@ -362,7 +468,7 @@ function AddonEditor({ addons, onChange }) {
         <div key={i} className="admin-row-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
           <input placeholder="sku" value={a.sku || ''} onChange={(e) => update(i, 'sku', e.target.value)} style={input} />
           <input placeholder="name" value={a.name || ''} onChange={(e) => update(i, 'name', e.target.value)} style={input} />
-          <input type="number" placeholder="cents" value={a.price_cents ?? 0} onChange={(e) => update(i, 'price_cents', Number(e.target.value))} style={input} />
+          <MoneyInput placeholder="$0.00" value={a.price_cents ?? 0} onChange={(v) => update(i, 'price_cents', v)} />
           <select value={a.type || 'rental'} onChange={(e) => update(i, 'type', e.target.value)} style={input}>
             <option value="rental">rental</option>
             <option value="consumable">consumable</option>
@@ -597,8 +703,8 @@ function TicketTypeForm({ eventId, ticketType, onClose, onSaved }) {
         <Field label="Name *"><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={input} /></Field>
         <Field label="Description"><textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ ...input, resize: 'vertical' }} /></Field>
         <div style={twoCol}>
-          <Field label="Price (cents) *">
-            <input required type="number" value={form.priceCents} onChange={(e) => setForm({ ...form, priceCents: Number(e.target.value) })} style={input} />
+          <Field label="Price (USD) *">
+            <MoneyInput required value={form.priceCents} onChange={(v) => setForm({ ...form, priceCents: v })} />
           </Field>
           <Field label="Capacity (blank = ∞)">
             <input type="number" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} style={input} />
@@ -648,5 +754,6 @@ const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px
 const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
 const modal = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.2)', padding: '1.5rem', width: '100%', maxWidth: 720, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
 const nestedModal = { ...modal, maxWidth: 520 };
+const closeX = { width: 32, height: 32, border: '1px solid rgba(200,184,154,0.25)', background: 'transparent', color: 'var(--tan-light)', fontSize: 22, lineHeight: 1, cursor: 'pointer', borderRadius: 4, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const sectionLabel = { fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 800, margin: '20px 0 10px', borderTop: '1px solid rgba(200,184,154,0.12)', paddingTop: 16 };
 const twoCol = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 };

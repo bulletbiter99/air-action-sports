@@ -8,9 +8,21 @@ import { locations } from '../data/locations';
 import { testimonials } from '../data/testimonials';
 import '../styles/pages/home.css';
 
+const MONTH_NAME = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function countdownLabel(ev) {
+  if (!ev?.dateIso) return ev?.title || '';
+  const d = new Date(ev.dateIso);
+  if (Number.isNaN(d.getTime())) return ev.title;
+  const loc = (ev.location || '').split(/\s*[—–-]\s/)[0].trim();
+  const dateStr = `${MONTH_NAME[d.getMonth()]} ${d.getDate()}`;
+  return loc ? `${ev.title} — ${loc}, ${dateStr}` : `${ev.title} — ${dateStr}`;
+}
+
 export default function Home() {
   const { events } = useEvents({ includePast: false });
   const upcomingEvents = events.slice(0, 2);
+  const featuredEvent = events[0] || null;
 
   return (
     <>
@@ -116,16 +128,19 @@ export default function Home() {
       </div>
 
       {/* ============================================================
-          COUNTDOWN TIMER
+          COUNTDOWN TIMER — sourced from the next upcoming event in D1.
+          Hidden entirely when no upcoming events exist.
           ============================================================ */}
-      <div className="countdown-band">
-        <div className="countdown-label">&#9632; Next Mission Launches In &#9632;</div>
-        <div className="countdown-event-name">
-          {siteConfig.countdownEventName}
+      {featuredEvent && (
+        <div className="countdown-band">
+          <div className="countdown-label">&#9632; Next Mission Launches In &#9632;</div>
+          <div className="countdown-event-name">
+            {countdownLabel(featuredEvent)}
+          </div>
+          <CountdownTimer targetDate={featuredEvent.dateIso} />
+          <div className="countdown-sub">&#9632; Limited slots available &mdash; secure your position now &#9632;</div>
         </div>
-        <CountdownTimer targetDate={siteConfig.countdownTarget} />
-        <div className="countdown-sub">&#9632; Limited slots available &mdash; secure your position now &#9632;</div>
-      </div>
+      )}
 
       {/* ============================================================
           ABOUT SECTION
@@ -264,24 +279,24 @@ export default function Home() {
             </div>
           </div>
           <div className="gallery-grid">
-            <div className="gallery-item">
+            <Link to="/locations#ghost-town" className="gallery-item gallery-item--link" aria-label="View Ghost Town details">
               <div className="gallery-photo g1"></div>
               <div className="gallery-overlay">
                 <div className="gallery-tag">&#9632; Ghost Town &mdash; Rural Neighborhood</div>
               </div>
-            </div>
-            <div className="gallery-item">
+            </Link>
+            <Link to="/locations#trench-warfare" className="gallery-item gallery-item--link" aria-label="View Echo Urban details">
               <div className="gallery-photo g2"></div>
               <div className="gallery-overlay">
                 <div className="gallery-tag">&#9632; Echo Urban &mdash; CQB</div>
               </div>
-            </div>
-            <div className="gallery-item">
+            </Link>
+            <Link to="/locations#foxtrot-fields" className="gallery-item gallery-item--link" aria-label="View Foxtrot Fields details">
               <div className="gallery-photo g3"></div>
               <div className="gallery-overlay">
                 <div className="gallery-tag">&#9632; Foxtrot Fields</div>
               </div>
-            </div>
+            </Link>
             <div className="gallery-item">
               <div className="gallery-photo g4"></div>
               <div className="gallery-overlay">

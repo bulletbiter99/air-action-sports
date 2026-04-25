@@ -22,8 +22,18 @@ export default function AdminRoster() {
     const res = await fetch('/api/admin/events', { credentials: 'include', cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
-    setEvents(data.events || []);
-    if (data.events?.length && !eventId) setEventId(data.events[0].id);
+    const list = data.events || [];
+    setEvents(list);
+    // Auto-select the next upcoming event (earliest by date, not past).
+    // Falls back to the most recent event if there are no upcoming ones —
+    // that's the current admin's most likely pick when reviewing post-event.
+    if (list.length && !eventId) {
+      const upcoming = list
+        .filter((e) => !e.past)
+        .sort((a, b) => (a.dateIso || '').localeCompare(b.dateIso || ''));
+      if (upcoming.length) setEventId(upcoming[0].id);
+      else setEventId(list[0].id); // server returns DESC by date — list[0] is most recent
+    }
   }, [eventId]);
 
   const loadRoster = useCallback(async () => {

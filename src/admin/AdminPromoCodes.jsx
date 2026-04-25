@@ -2,6 +2,40 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 
+const centsToDollars = (c) => (c === '' || c == null ? '' : (Number(c) / 100).toFixed(2));
+const dollarsToCents = (s) => {
+  if (s === '' || s == null) return 0;
+  const n = Number(String(s).replace(/[^0-9.\-]/g, ''));
+  if (!isFinite(n)) return 0;
+  return Math.round(n * 100);
+};
+
+function MoneyInput({ value, onChange, required, placeholder, style: extraStyle }) {
+  const [text, setText] = useState(centsToDollars(value));
+  useEffect(() => {
+    const incoming = centsToDollars(value);
+    if (dollarsToCents(text) !== Number(value || 0)) setText(incoming);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <div style={{ position: 'relative' }}>
+      <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--olive-light)', fontSize: 13, pointerEvents: 'none' }}>$</span>
+      <input
+        required={required}
+        type="number"
+        step="0.01"
+        min="0"
+        inputMode="decimal"
+        placeholder={placeholder || '0.00'}
+        value={text}
+        onChange={(e) => { setText(e.target.value); onChange(dollarsToCents(e.target.value)); }}
+        onBlur={() => setText(centsToDollars(value))}
+        style={{ ...(extraStyle || input), paddingLeft: 22 }}
+      />
+    </div>
+  );
+}
+
 export default function AdminPromoCodes() {
   const { isAuthenticated, loading, hasRole } = useAdmin();
   const navigate = useNavigate();
@@ -222,19 +256,22 @@ function PromoForm({ promo, events, onClose, onSaved }) {
           <Field label="Discount type *">
             <select value={form.discountType} onChange={(e) => setForm({ ...form, discountType: e.target.value })} style={input}>
               <option value="percent">Percent (%)</option>
-              <option value="fixed">Fixed amount (cents)</option>
+              <option value="fixed">Fixed amount (USD)</option>
             </select>
           </Field>
-          <Field label={form.discountType === 'percent' ? 'Percent (1–100) *' : 'Amount off (cents) *'}>
-            <input required type="number" min="1" value={form.discountValue} onChange={(e) => setForm({ ...form, discountValue: e.target.value })} style={input} />
+          <Field label={form.discountType === 'percent' ? 'Percent (1–100) *' : 'Amount off (USD) *'}>
+            {form.discountType === 'percent'
+              ? <input required type="number" min="1" max="100" value={form.discountValue} onChange={(e) => setForm({ ...form, discountValue: e.target.value })} style={input} />
+              : <MoneyInput required value={form.discountValue} onChange={(v) => setForm({ ...form, discountValue: v })} />
+            }
           </Field>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <Field label="Max uses (blank = unlimited)">
             <input type="number" value={form.maxUses} onChange={(e) => setForm({ ...form, maxUses: e.target.value })} style={input} />
           </Field>
-          <Field label="Min order (cents)">
-            <input type="number" value={form.minOrderCents} onChange={(e) => setForm({ ...form, minOrderCents: e.target.value })} style={input} />
+          <Field label="Min order (USD)">
+            <MoneyInput value={form.minOrderCents} onChange={(v) => setForm({ ...form, minOrderCents: v })} />
           </Field>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

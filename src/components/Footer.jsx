@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import FeedbackModal from './FeedbackModal';
 
 export default function Footer() {
   const year = new Date().getFullYear();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   return (
     <footer id="contact">
@@ -28,6 +31,15 @@ export default function Footer() {
             <li><Link to="/new-players">New Players</Link></li>
             <li><Link to="/faq">FAQ</Link></li>
             <li><Link to="/about">About Us</Link></li>
+            <li>
+              <button
+                type="button"
+                onClick={() => setFeedbackOpen(true)}
+                style={{ background: 'none', border: 0, padding: 0, fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', textAlign: 'left', color: 'var(--orange)' }}
+              >
+                Share feedback
+              </button>
+            </li>
           </ul>
         </div>
         <div>
@@ -68,6 +80,7 @@ export default function Footer() {
           </a>
         </div>
       </div>
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </footer>
   );
 }

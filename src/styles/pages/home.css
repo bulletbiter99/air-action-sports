@@ -118,7 +118,8 @@
 .gallery { background: var(--dark); }
 .gallery-intro { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; }
 .gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 220px 220px; gap: 8px; }
-.gallery-item { position: relative; overflow: hidden; cursor: pointer; background-color: var(--olive-dark); }
+.gallery-item { position: relative; overflow: hidden; cursor: pointer; background-color: var(--olive-dark); display: block; text-decoration: none; color: inherit; }
+.gallery-item--link:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 .gallery-item:first-child { grid-column: span 2; }
 .gallery-item:last-child { grid-column: span 2; }
 .gallery-photo { width: 100%; height: 100%; background-size: cover; background-position: center; transition: transform 0.4s ease; }

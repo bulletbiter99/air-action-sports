@@ -23,7 +23,7 @@ export default function Locations() {
         </p>
 
         {locations.map((site, index) => (
-          <div className="site-section" key={site.id}>
+          <div className="site-section" id={site.id} key={site.id}>
             <div className="site-header">
               <div>
                 <div className="site-name">{site.name}</div>
