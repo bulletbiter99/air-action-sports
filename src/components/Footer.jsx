@@ -29,6 +29,7 @@ export default function Footer() {
           <div className="footer-heading">Info</div>
           <ul className="footer-links">
             <li><Link to="/new-players">New Players</Link></li>
+            <li><Link to="/rules-of-engagement">Rules of Engagement</Link></li>
             <li><Link to="/faq">FAQ</Link></li>
             <li><Link to="/about">About Us</Link></li>
             <li>

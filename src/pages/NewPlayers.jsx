@@ -211,6 +211,14 @@ export default function NewPlayers() {
                 has fun. Simple.
               </p>
             </div>
+            <p style={{ marginTop: '1rem' }}>
+              For the full breakdown of weapon classes, FPS limits, hit
+              calling, and conduct, read the{' '}
+              <Link to="/rules-of-engagement" style={{ color: 'var(--orange)', textDecoration: 'underline', fontWeight: 700 }}>
+                Rules of Engagement
+              </Link>
+              .
+            </p>
           </div>
         </div>
 

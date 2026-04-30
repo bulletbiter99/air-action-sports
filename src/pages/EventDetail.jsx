@@ -5,6 +5,7 @@ import useCountdown from '../hooks/useCountdown';
 import { siteConfig } from '../data/siteConfig';
 import { fetchEventBySlug, useEvents } from '../hooks/useEvents';
 import '../styles/pages/event-detail.css';
+import '../styles/pages/rules-of-engagement.css';
 
 export default function EventDetail() {
   const { slug } = useParams();
@@ -218,13 +219,20 @@ export default function EventDetail() {
             <div className="detail-section">
               <h2>Rules &amp; Requirements</h2>
               <ul>
-                <li>Minimum age 12 (under 16 with adult)</li>
-                <li>Full face protection mandatory</li>
-                <li>FPS limits strictly enforced (350 AEG / 500 bolt-action)</li>
-                <li>No blind firing</li>
-                <li>No physical contact</li>
+                <li>Minimum age 12 (12&ndash;17 with parent/guardian on-site)</li>
+                <li>ANSI Z87.1+ full-seal eye protection mandatory; full-face mask required for under-18</li>
+                <li>FPS limits enforced by class (rifle 350, DMR/LMG 450, sniper 550 with .20g)</li>
+                <li>Hits called honestly &mdash; honor system, marshals enforce</li>
+                <li>No blind fire, no physical contact, no impaired play</li>
                 <li>Completed waiver required (emailed after booking)</li>
               </ul>
+              <div className="roe-callout">
+                <strong>Read first</strong>
+                <span>
+                  Full weapon class breakdown, MEDs, and field conduct rules:{' '}
+                  <Link to="/rules-of-engagement">Rules of Engagement</Link>
+                </span>
+              </div>
             </div>
 
             {/* Terrain */}

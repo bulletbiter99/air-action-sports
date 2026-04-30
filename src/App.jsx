@@ -22,6 +22,7 @@ const VendorDashboard = lazy(() => import('./pages/VendorDashboard'));
 const Contact = lazy(() => import('./pages/Contact'));
 const About = lazy(() => import('./pages/About'));
 const NewPlayers = lazy(() => import('./pages/NewPlayers'));
+const RulesOfEngagement = lazy(() => import('./pages/RulesOfEngagement'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Feedback = lazy(() => import('./pages/Feedback'));
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="contact" element={<Contact />} />
             <Route path="about" element={<About />} />
             <Route path="new-players" element={<NewPlayers />} />
+            <Route path="rules-of-engagement" element={<RulesOfEngagement />} />
             <Route path="privacy" element={<Privacy />} />
             <Route path="feedback" element={<Feedback />} />
             <Route path="*" element={<NotFound />} />
