@@ -40,7 +40,8 @@ action-air-sports/
 ├── src/                     ← React frontend
 │   ├── App.jsx              ← route registry
 │   ├── pages/               ← public pages (Home, Events, EventDetail,
-│   │                          Booking, BookingSuccess, Waiver, Ticket, etc.)
+│   │                          Booking, BookingSuccess, Waiver, Ticket,
+│   │                          RulesOfEngagement, Feedback, etc.)
 │   ├── admin/               ← admin pages (18 screens — see §9)
 │   ├── components/          ← shared UI (Navbar, Footer, SEO, etc.)
 │   ├── hooks/               ← useEvents (D1-backed), useCountdown, useFormValidation
@@ -349,7 +350,7 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 **Public**
 - `/` — home
 - `/events`, `/events/:slug` — D1-backed list + detail (hero uses `coverImageUrl` when set)
-- `/locations`, `/gallery`, `/pricing`, `/faq`, `/contact`, `/about`, `/new-players`, `/privacy`
+- `/locations`, `/gallery`, `/pricing`, `/faq`, `/rules-of-engagement`, `/contact`, `/about`, `/new-players`, `/privacy`
 - `/booking` — 3-step booking flow (includes per-attendee custom questions)
 - `/booking/success?token=...` — post-payment confirmation (per-attendee waiver + ticket PDF links)
 - `/booking/cancelled` — user aborted Stripe checkout
@@ -359,6 +360,7 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 - `/vendor/login` — standalone vendor password login
 - `/vendor/dashboard` — logged-in view of every non-revoked package across all vendor_contact rows sharing this email
 - `/feedback` — standalone Share-Feedback page (modal auto-opens). Also reachable via the **Share feedback** button in the public footer (orange, same size as the other footer links).
+- `/rules-of-engagement` — full ROE page (15 sections): weapon-class card grid (Rifle 350 / DMR 450 / LMG 450 / Sniper 550 with 0.20g), grenades, training knives, hit calling protocol, ANSI Z87.1+ eye protection, age policy, safe-zone procedures, chronograph policy, drugs & alcohol, sportsmanship/cheating, disputes, physical violence, transport, site conduct. Linked from desktop nav as "ROE", mobile menu as "Rules of Engagement", footer Info column, NewPlayers step 5, and EventDetail Rules & Requirements section.
 
 **Admin** (all require login cookie)
 
@@ -427,6 +429,8 @@ The admin shell uses a **left sidebar** (not a top bar) at ≥900px and converts
 | **Event tax-column cleanup + manual-booking tax fix** | Migration 0015: dropped `events.tax_rate_bps` and `events.pass_fees_to_customer` (dead since the global money/tax unification — DB-only cleanup, zero customer-facing effect; ticket math comes from global `taxes_fees` for everyone). While in there, also fixed a real latent bug in `POST /api/admin/bookings/manual` (the cash/comp manual-booking server handler) which was still reading `events.tax_rate_bps` for its tax math — it always computed tax = 0 since the editor stopped writing to that column. Now uses `loadActiveTaxesFees()` like customer checkout, so the booking row's `tax_cents` + `fee_cents` columns are accurate. |
 | **Manual-booking payment methods (walk-in card support)** | Migration 0016: added `bookings.payment_method` (TEXT) + index, backfilled existing rows from notes-prefix tags. `POST /api/admin/bookings/manual` now accepts `paymentMethod ∈ {card, cash, venmo, paypal, comp}`. **Card branch** mints a Stripe Checkout Session (with `metadata.source='admin_manual'`), creates a `pending` booking, returns `{paymentUrl, sessionId}`. The existing webhook flips status to paid + creates attendees + sends confirmation email — same pipeline as the public checkout. **Cash/Venmo/PayPal/Comp** branches insert paid/comp booking immediately with the method recorded. AdminNewBooking UI defaults to "Credit card" via a single dropdown (description shown beneath), renders a QR code (via the existing `qrcode` lib used for tickets) + URL + Copy/Open buttons + a "waiting for payment…" indicator that polls `/api/admin/bookings/:id` every 3s and flips to a green "✓ Payment received" state when the webhook lands. Booking list + detail modal show a `MethodBadge` pill (card/cash/venmo/paypal/comp). PCI scope unchanged — Stripe hosts the card form. |
 | **Admin sidebar reorganization** | Sidebar regrouped from a flat list of 13 into 5 operational sections: **Dashboard** alone at top → **Event Setup** (Events, Promos, Vendors) → **Event Day** (Roster, Scan, Rentals) → **Insights** (Analytics, Feedback) → **Settings** alone at bottom. Section labels rendered as small uppercase olive-light text; thin dividers between sections. **New Booking** removed from sidebar entirely — exposed instead as an orange "+ New Booking" CTA in the Dashboard header next to the user identity line (manager+ only). **Team** and **Audit log** moved as sub-pages of the Settings hub (their `/admin/users` and `/admin/audit-log` routes still work as deep-links). **Roster** page now auto-selects the next upcoming event (earliest by date_iso, not past) on mount instead of starting empty — falls back to the most recent event if there are no upcoming. Net: sidebar shrinks from 13 → 10 items, primary CTA gets prominent placement, related concerns cluster. |
+| **Workers Builds auto-deploy wiring** | Cloudflare Workers Builds (git integration) was previously failing every build because `npx wrangler deploy` runs without a prior Vite build, so `./dist` doesn't exist when wrangler validates `assets.directory`. Tried adding `[build] command = "npm run build"` to `wrangler.toml` — does not fire in wrangler 4.85 because the assets check short-circuits before the custom build hook. Real fix: in the Cloudflare dashboard (Workers & Pages → air-action-sports → Settings → Builds), changed the **Deploy command** from `npx wrangler deploy` to `npm run build && npx wrangler deploy`. Verified with an empty commit; auto-deploy on `git push origin main` is now reliable. |
+| **Rules of Engagement page (fb_Tp9RIpHdKgWw)** | New `/rules-of-engagement` page (15 sections) shipped from Jesse's feedback ticket. Verbatim from ticket: 4 weapon-class card grid (Rifle 350 FPS / DMR 450 / LMG 450 with 20 RPS cap & real-LMG-platform requirement / Sniper 550 bolt-action), grenades (Thunder B 10ft kill radius), training knives (admin-approved, light tap = elim). Added beyond-ticket to close gaps vs MilSim City's published ROE: hit calling protocol (HIT call + dead rag + BLIND MAN cease-fire), ANSI Z87.1+ eye protection + under-18 full-face mask, 12+ age policy with parent/guardian rules, safe-zone procedures (mag out + dry fire + safety on), chronograph policy (.20g BBs, post-chrono adjustment = ban), drugs & alcohol zero-tolerance, sportsmanship/cheating (ghosting/wiping/overshooting), dispute resolution, physical violence permanent ban, transport (bagged in/out), site conduct (no climbing, off-limits, pack out, vandalism). Cross-linked from desktop navbar ("ROE"), mobile menu ("Rules of Engagement"), footer Info column, NewPlayers step 5, and EventDetail Rules & Requirements section (which also got the stale "350 AEG / 500 bolt" line corrected to match the new class system). Owner-decision gaps explicitly deferred — see §11. |
 
 ## 11. What's left before go-live
 
@@ -447,6 +451,7 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - ~~**Drop dead DB columns `events.taxRateBps` + `events.passFeesToCustomer`**~~ — done in migration 0015 alongside the manual-booking tax fix.
 - **Notify-submitter UI affordance improvement** — currently a button in the admin detail modal with a `confirm()` dialog. Works; a preview-before-send would be nicer.
 - **Featured-event flag on events** — for when there are ≥3 concurrent upcoming events and the earliest isn't the "headliner" you want in the ticker/countdown. Cheap migration (`featured INTEGER DEFAULT 0`) + a checkbox in the event editor + a tweak to TickerBar / Home so featured wins ties. Deferred until needed.
+- **ROE page — owner-decision gaps** — six policy questions deferred from the Rules of Engagement page that need owner input before adding sections: (1) surrender / "bang-bang" rules (used or not?), (2) friendly fire (counts as a hit, or no-effect?), (3) respawn / medic mechanics (default rule, or "varies per event"?), (4) weapon-hit / pistol switch (primary hit = body hit, or switch to pistol?), (5) sidearm requirement for DMR / Sniper / LMG classes, (6) photography during games (allowed / restricted / require permission?). Once owner decides, add as new sections to `/rules-of-engagement`.
 
 **Longer-term polish** (not blocking):
 - Branded event listing redesign — `/events` still uses the original static template; could get richer per-event visuals now that cover images exist.
@@ -464,7 +469,8 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **0 vendors** seeded — admin must create them at `/admin/vendors`
 - **0 vendor contract documents** seeded — owner must create v1 at `/admin/vendor-contracts` before flipping `require contract` on any package
 - **3 taxes/fees** seeded (City Tax, State Tax, Processing Fees — configure via `/admin/settings/taxes-fees`)
-- **4 resolved feedback tickets** (all smoke/dogfood — feedback system shipped 2026-04-23/24)
+- **5 resolved feedback tickets** (4 smoke/dogfood from when the system shipped 2026-04-23/24, plus `fb_Tp9RIpHdKgWw` — Jesse's Rules of Engagement page request, shipped 2026-04-29). 0 open tickets.
+- **Cloudflare Workers Builds**: deploy command in dashboard is `npm run build && npx wrangler deploy` (must be both — see §13). Auto-deploys on `git push origin main`.
 - **Rate-limit bindings** (all `[[unsafe.bindings]] type=ratelimit`, namespaces 1001–1008): `RL_LOGIN` 5/min, `RL_FORGOT` 3/min, `RL_VERIFY_TOKEN` 10/min, `RL_RESET_PWD` 5/min, `RL_CHECKOUT` 10/min, `RL_TOKEN_LOOKUP` 30/min, `RL_FEEDBACK` 3/min, `RL_FEEDBACK_UPLOAD` 3/min.
 - **Admin owner**: Paul Keddington (bulletbiter99@gmail.com)
 - **Stripe**: **still sandbox mode** — flip before first real sale
@@ -483,6 +489,7 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **Legacy event ID format**: the original seeded `operation-nightfall` event uses its slug as its primary key (`id`). New events created via the admin UI get random `ev_*` IDs with a separate `slug` column. Both are resolved by `/api/events/:id` (matches on either).
 - **Vendor magic-link tokens** are HMAC-signed with `SESSION_SECRET`. Rotating that secret invalidates ALL outstanding vendor tokens — same rotation posture as admin sessions. Acceptable on compromise; know about it.
 - **Waiver document integrity check**: if someone edits `waiver_documents.body_html` directly via SQL without recomputing `body_sha256`, the next `/api/waivers/:qrToken` GET refuses to serve (500) and writes a `waiver_document.integrity_failure` audit entry. Update the text via migration (new row, new hash), never in-place.
+- **Workers Builds deploy command**: `wrangler.toml [build] command` does NOT run reliably on `wrangler deploy` in version 4.85 — the assets-directory existence check short-circuits before the custom build hook fires. Fix lives in the Cloudflare dashboard, not the repo: Workers & Pages → air-action-sports → Settings → Builds → **Deploy command** must be `npm run build && npx wrangler deploy` (not the default `npx wrangler deploy`). If a deploy ever fails with `The directory specified by the "assets.directory" field in your configuration file does not exist: /opt/buildhome/repo/dist`, this is the cause.
 
 ## 14. Resume checklist when starting fresh
 
@@ -492,7 +499,7 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
    - `curl https://air-action-sports.bulletbiter99.workers.dev/api/health` → `{"ok":true,...}`
    - `curl https://air-action-sports.bulletbiter99.workers.dev/api/events` → returns 1 event
 4. Confirm admin login works (use `/admin/forgot-password` if needed).
-5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-04-24: `2a78136c-6fec-44ef-9587-6b3f34bdfa0d` (admin sidebar reorganization — 5 grouped sections, Team/Audit moved into Settings, New Booking moved to Dashboard CTA, Roster auto-selects upcoming event).
+5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-04-30: `b141f7d1-d9ff-4c72-940d-d7f59eb17134` (nav link "ROE" added between FAQ and Contact, label tweak follow-up `136de48` may also be live by the time you read this). Auto-deploy via Workers Builds is now wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
 6. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
 
 ---
@@ -510,17 +517,20 @@ and the pre-launch operational checklist also in §11.
 Current state: all roadmap phases (1–9), the 5 polish items, vendor MVP + v1,
 waiver hardening, the admin UI refactor (left sidebar + profile menu), global
 money/tax unification (all admin inputs now dollars; taxes come from global
-Settings), the full feedback/ticket system (public submit + screenshot upload,
-admin triage, auto-delete of attachments on terminal status, opt-in submitter
-notification, slash command), AND the event-creation hardening + dynamic
-homepage pass (TickerBar + countdown read from D1 — no more redeploy on event
-changes; new events default unpublished; publish guard refuses publish without
-ticket types; auto-created default "General Admission" ticket type; cover image
-preflight; sales_close_at defaults to dateIso − 2hrs) are all shipped and live
-at https://air-action-sports.bulletbiter99.workers.dev.
+Settings), the full feedback/ticket system, the event-creation hardening +
+dynamic homepage pass, AND the new public Rules of Engagement page at
+/rules-of-engagement (15 sections — verbatim from Jesse's feedback ticket
+plus 11 sections closing safety/conduct gaps; linked from desktop nav as
+"ROE", mobile menu as full name, footer, NewPlayers, and EventDetail) are
+all shipped and live at https://air-action-sports.bulletbiter99.workers.dev.
+
+Cloudflare Workers Builds auto-deploy is now wired — `git push origin main`
+builds + deploys on its own. Deploy command in the dashboard is
+`npm run build && npx wrangler deploy` (do NOT change to plain
+`npx wrangler deploy` — see §13 gotcha).
 
 Stripe is still in sandbox mode. Operation Nightfall (first live event) is
-2026-05-09. Today's date when this prompt was written: 2026-04-24.
+2026-05-09. Today's date when this prompt was written: 2026-04-30.
 
 After you've read the handoff, give me:
   1. A one-paragraph status summary of where things actually stand (verify against
@@ -531,11 +541,12 @@ After you've read the handoff, give me:
   3. Any drift between HANDOFF.md and the actual live state (stale counts, removed
      features, new feedback tickets, etc.) — catch that upfront.
   4. The current open feedback queue (pull via the admin API or D1). Summarize
-     anything in `new` or `in-progress` status in 1–2 sentences each.
+     anything in `new` or `in-progress` status in 1–2 sentences each. As of
+     2026-04-30 the queue is empty.
 
 Most likely next pickups (roughly priority order):
 
-  Pre-launch operational:
+  Pre-launch operational (blocking go-live):
   - Stripe sandbox → live cutover + $1 real-money end-to-end test (~30 min once
     keys are in hand; includes webhook re-targeting)
   - Remove the Peek widget from index.html and verify every public "Book Now"
@@ -547,11 +558,17 @@ Most likely next pickups (roughly priority order):
   - Dry-run: create a test event, book a comp ticket, walk the full flow
     (confirmation → waiver → scanner check-in → rental assign/return)
 
+  ROE follow-up (owner-decision gaps — needs owner input before coding):
+  - Surrender / "bang-bang" rules — used at AAS or not?
+  - Friendly fire — counts as a hit, or no-effect?
+  - Respawn / medic mechanics — default rule or "varies per event"?
+  - Weapon-hit / pistol switch — primary hit = body hit, or switch to pistol?
+  - Sidearm requirement for DMR / Sniper / LMG classes
+  - Photography during games — allowed / restricted / require permission?
+
   Deferred / content-blocked:
   - City/region per Location site (Eagle Mountain, UT style) — waiting on owner
     to supply regions for Ghost Town / Echo Urban / Foxtrot Fields
-  - Drop dead DB columns events.taxRateBps + events.passFeesToCustomer (cleanup
-    migration — no code still reads them)
 
   Triage anything new in the feedback queue before starting the above. Use the
   /feedback slash command or the .claude/commands/feedback.md playbook.
