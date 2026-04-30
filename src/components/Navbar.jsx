@@ -25,6 +25,7 @@ export default function Navbar({ showTicker, onHamburgerClick, isMobileMenuOpen 
           <NavLink to="/events">Events</NavLink>
           <NavLink to="/pricing">Pricing</NavLink>
           <NavLink to="/faq">FAQ</NavLink>
+          <NavLink to="/rules-of-engagement">Rules</NavLink>
           <NavLink to="/contact">Contact</NavLink>
         </div>
         <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="nav-cta">Book Now</a>
