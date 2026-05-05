@@ -97,7 +97,8 @@ action-air-sports/
 │   ├── 0013_feedback.sql        ← feedback table + admin_feedback_received template
 │   ├── 0014_feedback_attachment.sql ← attachment cols + feedback_resolution_notice template
 │   ├── 0015_drop_event_tax_columns.sql ← drop dead per-event tax_rate_bps + pass_fees_to_customer
-│   └── 0016_booking_payment_method.sql ← bookings.payment_method col + index + backfill
+│   ├── 0016_booking_payment_method.sql ← bookings.payment_method col + index + backfill
+│   └── 0017_event_featured.sql         ← events.featured (admin-picked headliner sort)
 ├── scripts/                 ← one-off SQL scripts, not tracked by migration runner
 ├── .claude/
 │   └── commands/feedback.md  ← /feedback slash-command playbook (pull → review → recommend → update → deploy)
@@ -282,6 +283,7 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 | GET | `/api/admin/analytics/sales-series` | staff+ (`?days=7\|30\|90\|365`, fills gaps with zeros) |
 | GET | `/api/admin/analytics/per-event` | staff+ (fill rate, net revenue, waiver %, check-in %) |
 | GET | `/api/admin/analytics/attendance/:event_id` | staff+ (hourly check-in buckets) |
+| GET | `/api/admin/analytics/cron-status` | staff+ (last `cron.swept` audit row + 24h reminder counts — used by AdminDashboard CronHealth widget) |
 
 **Team, audit, settings**
 | Method | Path | Role |
@@ -342,6 +344,7 @@ Role hierarchy: `owner > manager > staff`. `requireRole('owner', 'manager')` mea
 | GET | `/api/admin/feedback/summary` | staff+ (lightweight `{newCount}` for sidebar badge polling) |
 | GET | `/api/admin/feedback/:id` | staff+ (full detail incl attachment + deleted state) |
 | PUT | `/api/admin/feedback/:id` | staff+ for `adminNote`, manager+ for `status`/`priority`. Terminal status (resolved/wont-fix/duplicate) auto-deletes R2 attachment + stamps `attachment_deleted_at`. Writes `feedback.updated` audit entry. |
+| GET | `/api/admin/feedback/:id/notify-preview` | manager+ — renders `feedback_resolution_notice` with this ticket's actual `status` + `admin_note` (not sample data). Returns `{rendered: {subject, html, text}, recipient}`. Backs the preview-before-send modal. |
 | POST | `/api/admin/feedback/:id/notify-submitter` | manager+ — sends `feedback_resolution_notice` template email to submitter's address. Requires ticket has `email`. Writes `feedback.notified_submitter` audit. |
 | DELETE | `/api/admin/feedback/:id` | owner — deletes row + R2 attachment. Writes `feedback.deleted` audit. |
 
@@ -431,6 +434,8 @@ The admin shell uses a **left sidebar** (not a top bar) at ≥900px and converts
 | **Admin sidebar reorganization** | Sidebar regrouped from a flat list of 13 into 5 operational sections: **Dashboard** alone at top → **Event Setup** (Events, Promos, Vendors) → **Event Day** (Roster, Scan, Rentals) → **Insights** (Analytics, Feedback) → **Settings** alone at bottom. Section labels rendered as small uppercase olive-light text; thin dividers between sections. **New Booking** removed from sidebar entirely — exposed instead as an orange "+ New Booking" CTA in the Dashboard header next to the user identity line (manager+ only). **Team** and **Audit log** moved as sub-pages of the Settings hub (their `/admin/users` and `/admin/audit-log` routes still work as deep-links). **Roster** page now auto-selects the next upcoming event (earliest by date_iso, not past) on mount instead of starting empty — falls back to the most recent event if there are no upcoming. Net: sidebar shrinks from 13 → 10 items, primary CTA gets prominent placement, related concerns cluster. |
 | **Workers Builds auto-deploy wiring** | Cloudflare Workers Builds (git integration) was previously failing every build because `npx wrangler deploy` runs without a prior Vite build, so `./dist` doesn't exist when wrangler validates `assets.directory`. Tried adding `[build] command = "npm run build"` to `wrangler.toml` — does not fire in wrangler 4.85 because the assets check short-circuits before the custom build hook. Real fix: in the Cloudflare dashboard (Workers & Pages → air-action-sports → Settings → Builds), changed the **Deploy command** from `npx wrangler deploy` to `npm run build && npx wrangler deploy`. Verified with an empty commit; auto-deploy on `git push origin main` is now reliable. |
 | **Rules of Engagement page (fb_Tp9RIpHdKgWw)** | New `/rules-of-engagement` page (15 sections) shipped from Jesse's feedback ticket. Verbatim from ticket: 4 weapon-class card grid (Rifle 350 FPS / DMR 450 / LMG 450 with 20 RPS cap & real-LMG-platform requirement / Sniper 550 bolt-action), grenades (Thunder B 10ft kill radius), training knives (admin-approved, light tap = elim). Added beyond-ticket to close gaps vs MilSim City's published ROE: hit calling protocol (HIT call + dead rag + BLIND MAN cease-fire), ANSI Z87.1+ eye protection + under-18 full-face mask, 12+ age policy with parent/guardian rules, safe-zone procedures (mag out + dry fire + safety on), chronograph policy (.20g BBs, post-chrono adjustment = ban), drugs & alcohol zero-tolerance, sportsmanship/cheating (ghosting/wiping/overshooting), dispute resolution, physical violence permanent ban, transport (bagged in/out), site conduct (no climbing, off-limits, pack out, vandalism). Cross-linked from desktop navbar ("ROE"), mobile menu ("Rules of Engagement"), footer Info column, NewPlayers step 5, and EventDetail Rules & Requirements section (which also got the stale "350 AEG / 500 bolt" line corrected to match the new class system). Owner-decision gaps explicitly deferred — see §11. |
+| **Booking flow cutover (Peek → internal)** | Removed the Peek widget `<script>` from `index.html`. `siteConfig.bookingLink` flipped from the Peek URL to `/booking`. 17 `<a target="_blank">` references converted to `<Link to>` across 14 files (Navbar, MobileMenu, EventCard, FloatingBookPill, PricingCard, Home ×2, About, Contact, EventDetail, Gallery, NewPlayers, Locations ×2). Events.jsx "Enquire Now" rerouted to `/contact` (sales conversation, not self-serve checkout). Stripe still in sandbox — real-money cutover is the next pre-launch op step. Plus `Booking` page got a new always-visible event banner at the top of step 1 (orange-bordered, large title, location + time + price; uses `coverImageUrl` as a darkened bg when set) so single-event mode no longer hides the event identity in a section subheading. |
+| **Smaller polish wave** | Five items shipped in one commit: (1) **Notify-submitter preview-before-send modal** — new `GET /api/admin/feedback/:id/notify-preview` renders the resolution-notice template with this ticket's actual status + admin_note (not sample data). AdminFeedback's "Notify submitter…" button now opens a sandboxed-iframe modal showing recipient + subject + rendered body before sending. `renderFeedbackResolutionNotice` helper extracted from `sendFeedbackResolutionNotice` so preview + send share the rendering path. (2) **Featured-event flag** — migration 0017 adds `events.featured INTEGER DEFAULT 0`; `/api/events` ORDER BY now `featured DESC, date_iso ASC|DESC` so admin-picked headliner wins ties; checkbox in AdminEvents Publishing section; orange "Featured" pill on `/events` cards (top-right of cover, or inline in header) + orange ring around featured cards. (3) **Reminder-cron monitoring** — `scheduled()` writes a `cron.swept` audit row on every run regardless of whether work was done, with full results metadata. New `GET /api/admin/analytics/cron-status` returns last sweep age + 24h `reminder.sent`/`reminder_1hr.sent` counts. AdminDashboard renders a CronHealth strip: green when last sweep <60min, red + STALE badge if older. (4) **`/events` cover-image hero** — 160px gradient-overlaid hero on cards with `coverImageUrl`; featured cards get accented styling. (5) **Booking total bug fix** (user-reported): per-order fixed fee (e.g., Stripe's $0.30 processing fee) was leaking into the total before any tickets were selected because the unit multiplier defaults to 1 for non-attendee `per_unit` values. Short-circuit in `totals` returns all zeros when subtotal === 0; once the user adds anything, taxes/fees apply correctly on top. |
 
 ## 11. What's left before go-live
 
@@ -449,9 +454,12 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **Lightbox gallery per Location site** — meaningful only once there are multiple photos per site. One image per site today; revisit when that changes.
 - **Vendor package templates admin UI** — `vendor_package_templates` table exists (migration 0012). Currently create rows via SQL if needed; admin composer deferred.
 - ~~**Drop dead DB columns `events.taxRateBps` + `events.passFeesToCustomer`**~~ — done in migration 0015 alongside the manual-booking tax fix.
-- **Notify-submitter UI affordance improvement** — currently a button in the admin detail modal with a `confirm()` dialog. Works; a preview-before-send would be nicer.
-- **Featured-event flag on events** — for when there are ≥3 concurrent upcoming events and the earliest isn't the "headliner" you want in the ticker/countdown. Cheap migration (`featured INTEGER DEFAULT 0`) + a checkbox in the event editor + a tweak to TickerBar / Home so featured wins ties. Deferred until needed.
+- ~~**Notify-submitter UI affordance improvement**~~ — done in the smaller-polish wave (preview-before-send modal with sandboxed iframe).
+- ~~**Featured-event flag on events**~~ — done via migration 0017 + AdminEvents checkbox + sort-order tweak. Pill renders on `/events` cards.
+- ~~**Branded `/events` redesign**~~ — partial: cover-image hero + featured pill + featured-card accent shipped. Could go further with per-event visuals but the cover-image hero already lifts it significantly when admins upload covers.
+- ~~**Reminder-cron monitoring**~~ — done via `cron.swept` audit row + `/api/admin/analytics/cron-status` + AdminDashboard CronHealth widget.
 - **ROE page — owner-decision gaps** — six policy questions deferred from the Rules of Engagement page that need owner input before adding sections: (1) surrender / "bang-bang" rules (used or not?), (2) friendly fire (counts as a hit, or no-effect?), (3) respawn / medic mechanics (default rule, or "varies per event"?), (4) weapon-hit / pistol switch (primary hit = body hit, or switch to pistol?), (5) sidearm requirement for DMR / Sniper / LMG classes, (6) photography during games (allowed / restricted / require permission?). Once owner decides, add as new sections to `/rules-of-engagement`.
+- **Per-event SEO/OG image upload flow** — intentionally not built; `cover_image_url` already drives both the page hero and OG meta via the HTML rewriter on `/events/:slug`. Revisit only if you want an OG-specific aspect ratio (e.g. 1200×630) different from the page-hero crop.
 
 **Longer-term polish** (not blocking):
 - Branded event listing redesign — `/events` still uses the original static template; could get richer per-event visuals now that cover images exist.
@@ -471,6 +479,8 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **3 taxes/fees** seeded (City Tax, State Tax, Processing Fees — configure via `/admin/settings/taxes-fees`)
 - **5 resolved feedback tickets** (4 smoke/dogfood from when the system shipped 2026-04-23/24, plus `fb_Tp9RIpHdKgWw` — Jesse's Rules of Engagement page request, shipped 2026-04-29). 0 open tickets.
 - **Cloudflare Workers Builds**: deploy command in dashboard is `npm run build && npx wrangler deploy` (must be both — see §13). Auto-deploys on `git push origin main`.
+- **Booking flow live**: `/booking` is the canonical Book Now path; Peek widget removed from `index.html`. Stripe still in **sandbox** mode — real-money cutover is the next pre-launch step.
+- **Migrations 0001-0017 applied to remote D1**.
 - **Rate-limit bindings** (all `[[unsafe.bindings]] type=ratelimit`, namespaces 1001–1008): `RL_LOGIN` 5/min, `RL_FORGOT` 3/min, `RL_VERIFY_TOKEN` 10/min, `RL_RESET_PWD` 5/min, `RL_CHECKOUT` 10/min, `RL_TOKEN_LOOKUP` 30/min, `RL_FEEDBACK` 3/min, `RL_FEEDBACK_UPLOAD` 3/min.
 - **Admin owner**: Paul Keddington (bulletbiter99@gmail.com)
 - **Stripe**: **still sandbox mode** — flip before first real sale
@@ -499,7 +509,7 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
    - `curl https://air-action-sports.bulletbiter99.workers.dev/api/health` → `{"ok":true,...}`
    - `curl https://air-action-sports.bulletbiter99.workers.dev/api/events` → returns 1 event
 4. Confirm admin login works (use `/admin/forgot-password` if needed).
-5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-04-30: `b141f7d1-d9ff-4c72-940d-d7f59eb17134` (nav link "ROE" added between FAQ and Contact, label tweak follow-up `136de48` may also be live by the time you read this). Auto-deploy via Workers Builds is now wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
+5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-05: `93df766b-334e-42f8-aae8-38a02f1bee9e` (smaller-polish wave: notify-submitter preview modal, featured-event flag via migration 0017, reminder-cron monitoring + AdminDashboard CronHealth widget, `/events` cover-image hero, booking $0.30 pre-cart bug fix). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
 6. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
 
 ---
@@ -515,22 +525,26 @@ phases + polish, every API and frontend route, a list of what's deferred in §11
 and the pre-launch operational checklist also in §11.
 
 Current state: all roadmap phases (1–9), the 5 polish items, vendor MVP + v1,
-waiver hardening, the admin UI refactor (left sidebar + profile menu), global
-money/tax unification (all admin inputs now dollars; taxes come from global
-Settings), the full feedback/ticket system, the event-creation hardening +
-dynamic homepage pass, AND the new public Rules of Engagement page at
-/rules-of-engagement (15 sections — verbatim from Jesse's feedback ticket
-plus 11 sections closing safety/conduct gaps; linked from desktop nav as
-"ROE", mobile menu as full name, footer, NewPlayers, and EventDetail) are
+waiver hardening, the admin UI refactor, global money/tax unification, the
+full feedback/ticket system, the event-creation hardening + dynamic homepage
+pass, the public Rules of Engagement page at /rules-of-engagement, the
+booking-flow cutover (Peek widget removed, all "Book Now" CTAs route to
+internal /booking with a prominent event banner on step 1), and a wave of
+smaller-polish items — notify-submitter preview-before-send modal,
+events.featured flag (migration 0017) + admin checkbox + sort-order tweak +
+/events featured pill, reminder-cron monitoring (`cron.swept` audit row +
+`/api/admin/analytics/cron-status` + AdminDashboard CronHealth widget),
+/events cover-image hero, and a fix for the booking $0.30 pre-cart leak —
 all shipped and live at https://air-action-sports.bulletbiter99.workers.dev.
 
-Cloudflare Workers Builds auto-deploy is now wired — `git push origin main`
+Cloudflare Workers Builds auto-deploy is wired — `git push origin main`
 builds + deploys on its own. Deploy command in the dashboard is
 `npm run build && npx wrangler deploy` (do NOT change to plain
 `npx wrangler deploy` — see §13 gotcha).
 
-Stripe is still in sandbox mode. Operation Nightfall (first live event) is
-2026-05-09. Today's date when this prompt was written: 2026-04-30.
+Stripe is still in sandbox mode (BLOCKING for first real sale). Operation
+Nightfall (first live event) is 2026-05-09. Today's date when this prompt
+was written: 2026-05-05.
 
 After you've read the handoff, give me:
   1. A one-paragraph status summary of where things actually stand (verify against
@@ -548,15 +562,17 @@ Most likely next pickups (roughly priority order):
 
   Pre-launch operational (blocking go-live):
   - Stripe sandbox → live cutover + $1 real-money end-to-end test (~30 min once
-    keys are in hand; includes webhook re-targeting)
-  - Remove the Peek widget from index.html and verify every public "Book Now"
-    goes to internal /booking (quick grep + redeploy)
-  - Seed Operation Nightfall content: cover image upload, custom questions,
-    customize email copy via /admin/settings/email-templates
+    keys are in hand; includes webhook re-targeting). This is the only thing
+    blocking real revenue; everything else listed below is comfort.
+  - Seed Operation Nightfall content: cover image upload (now drives both the
+    /events card hero AND the /booking step-1 banner background), custom
+    questions, customize email copy via /admin/settings/email-templates
   - Invite a second admin via /admin/users so you're not a single point of
     failure on event day
   - Dry-run: create a test event, book a comp ticket, walk the full flow
     (confirmation → waiver → scanner check-in → rental assign/return)
+  - (DONE 2026-04-30 / 05-05) Peek widget removal + Book Now → /booking
+    cutover; smaller-polish wave; ROE page; auto-deploy wiring.
 
   ROE follow-up (owner-decision gaps — needs owner input before coding):
   - Surrender / "bang-bang" rules — used at AAS or not?
