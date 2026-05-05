@@ -184,7 +184,12 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
         });
     }
 
-    // Apply global taxes & fees (matches customer checkout via /api/bookings/quote).
+    // Apply global taxes & fees — must match customer checkout exactly so
+    // the admin preview ($/api/bookings/quote) and the booking row stored
+    // here always agree. Specifically: for applies_to='all', taxes are
+    // computed against subtotal, then fees against subtotal+tax (Stripe-
+    // style fee on gross). Earlier version computed both against subtotal
+    // only, which diverged from the customer flow by ~15¢ per booking.
     // Comp bookings skip taxes/fees entirely — the booking is recorded as $0.
     let tax = 0;
     let fee = 0;
@@ -193,13 +198,39 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
         const totalAttendees = attendees.length;
         const unitMultiplier = (per_unit) =>
             per_unit === 'ticket' || per_unit === 'attendee' ? totalAttendees : 1;
-        for (const tf of taxesFees) {
-            if (!tf.active) continue;
-            const percentAmt = Math.floor((subtotal * (tf.percent_bps || 0)) / 10000);
-            const fixedAmt = (tf.fixed_cents || 0) * unitMultiplier(tf.per_unit);
-            const amt = percentAmt + fixedAmt;
-            if (tf.category === 'tax') tax += amt;
-            else if (tf.category === 'fee') fee += amt;
+
+        // Mirrors pricing.js calculateQuote(): split tickets vs addons subtotals
+        // for applies_to='tickets' / 'addons' (currently unused — all our
+        // configured rows are applies_to='all' — but keeps parity for future).
+        const ticketsSubtotal = lineItems
+            .filter((li) => li.type === 'ticket')
+            .reduce((s, li) => s + li.line_total_cents, 0);
+        const addonsSubtotal = lineItems
+            .filter((li) => li.type === 'addon')
+            .reduce((s, li) => s + li.line_total_cents, 0);
+
+        const activeTaxes = taxesFees
+            .filter((tf) => tf.active && tf.category === 'tax')
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+        const activeFees = taxesFees
+            .filter((tf) => tf.active && tf.category === 'fee')
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+        for (const t of activeTaxes) {
+            const base = t.applies_to === 'tickets' ? ticketsSubtotal
+                : t.applies_to === 'addons' ? addonsSubtotal
+                : subtotal;
+            const percentAmt = Math.floor((base * (t.percent_bps || 0)) / 10000);
+            const fixedAmt = (t.fixed_cents || 0) * unitMultiplier(t.per_unit);
+            tax += percentAmt + fixedAmt;
+        }
+        for (const f of activeFees) {
+            const base = f.applies_to === 'tickets' ? ticketsSubtotal
+                : f.applies_to === 'addons' ? addonsSubtotal
+                : subtotal + tax;  // fee on gross including taxes
+            const percentAmt = Math.floor((base * (f.percent_bps || 0)) / 10000);
+            const fixedAmt = (f.fixed_cents || 0) * unitMultiplier(f.per_unit);
+            fee += percentAmt + fixedAmt;
         }
     }
     const total = subtotal + tax + fee;
