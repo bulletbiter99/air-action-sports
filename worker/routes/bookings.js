@@ -136,11 +136,19 @@ bookings.post('/quote', async (c) => {
 
     const invErrors = await checkTicketInventory(c.env.DB, body.eventId, ticketSelections);
 
-    return c.json({
+    const allErrors = [...quote.errors, ...invErrors, ...(promoError ? [promoError] : [])];
+    const responseBody = {
         ...quote,
-        errors: [...quote.errors, ...invErrors, ...(promoError ? [promoError] : [])],
+        errors: allErrors,
         promoApplied: promo ? { discountType: promo.discountType, discountValue: promo.discountValue } : null,
-    });
+    };
+
+    // HTTP 400 when validation surfaced any error. Response shape unchanged
+    // (same fields, errors[] still carries the specifics) so existing callers
+    // that read errors[] keep working — they just now also get res.ok = false
+    // and short-circuit accordingly. Aligns with REST conventions and prevents
+    // misleading "200 with bogus totals" responses for invalid inputs.
+    return c.json(responseBody, allErrors.length > 0 ? 400 : 200);
 });
 
 // POST /api/bookings/checkout — create pending booking + Stripe Checkout session
