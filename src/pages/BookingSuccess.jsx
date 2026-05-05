@@ -114,31 +114,65 @@ export default function BookingSuccess() {
 
         {attendees.length > 0 && (
           <div className="booking-section">
-            <h3 className="booking-section-title">Players & Waivers</h3>
-            <p className="booking-section-desc">
-              Each player needs to sign a waiver before game day. Share the link below with each player.
-            </p>
-            {attendees.map((a) => (
-              <div key={a.id} className="review-line" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-                <span>{a.firstName} {a.lastName}</span>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {a.waiverSigned ? (
-                    <span style={{ color: 'var(--orange)', fontWeight: 700, alignSelf: 'center' }}>✓ Signed</span>
-                  ) : (
-                    <a href={`/waiver?token=${a.qrToken}`} className="btn-secondary" style={{ padding: '6px 14px', fontSize: '11px' }}>
-                      Sign Waiver
-                    </a>
-                  )}
-                  <a
-                    href={`/booking/ticket?token=${a.qrToken}&auto=0`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-secondary"
-                    style={{ padding: '6px 14px', fontSize: '11px' }}
-                  >↓ Ticket PDF</a>
+            <h3 className="booking-section-title">Players &amp; Waivers</h3>
+            {(() => {
+              const signedCount = attendees.filter((a) => a.waiverSigned).length;
+              const totalCount = attendees.length;
+              if (signedCount === totalCount) {
+                return (
+                  <p className="booking-section-desc" style={{ color: '#7ed99b' }}>
+                    &#10003; All {totalCount} player{totalCount === 1 ? '' : 's'} already have a valid waiver on file. You&rsquo;re cleared for game day &mdash; nothing to sign.
+                  </p>
+                );
+              }
+              if (signedCount > 0) {
+                return (
+                  <p className="booking-section-desc">
+                    {signedCount} of {totalCount} player{totalCount === 1 ? '' : 's'} already have a valid waiver on file. The remaining player{(totalCount - signedCount) === 1 ? '' : 's'} need{(totalCount - signedCount) === 1 ? 's' : ''} to sign before game day &mdash; share the link below.
+                  </p>
+                );
+              }
+              return (
+                <p className="booking-section-desc">
+                  Each player needs to sign a waiver before game day. Share the link below with each player.
+                </p>
+              );
+            })()}
+            {attendees.map((a) => {
+              const expiresDate = a.waiverExpiresAt
+                ? new Date(a.waiverExpiresAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+                : null;
+              return (
+                <div key={a.id} className="review-line" style={{ flexWrap: 'wrap', gap: '0.5rem', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div>{a.firstName} {a.lastName}</div>
+                    {a.waiverSigned && expiresDate && (
+                      <div style={{ fontSize: 11, color: 'var(--olive-light)', marginTop: 2 }}>
+                        Waiver on file &middot; valid through {expiresDate}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {a.waiverSigned ? (
+                      <span style={{ color: '#7ed99b', fontWeight: 700, alignSelf: 'center', fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' }}>
+                        &#10003; On file
+                      </span>
+                    ) : (
+                      <a href={`/waiver?token=${a.qrToken}`} className="btn-secondary" style={{ padding: '6px 14px', fontSize: '11px' }}>
+                        Sign Waiver
+                      </a>
+                    )}
+                    <a
+                      href={`/booking/ticket?token=${a.qrToken}&auto=0`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary"
+                      style={{ padding: '6px 14px', fontSize: '11px' }}
+                    >&darr; Ticket PDF</a>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

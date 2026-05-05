@@ -332,9 +332,18 @@ bookings.get('/:token', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
         `SELECT * FROM events WHERE id = ?`
     ).bind(row.event_id).first();
 
+    // Phase C: pull waiver expiration via JOIN so the booking success page
+    // can show "waiver on file, expires Mar 2027" per attendee, including
+    // attendees auto-linked at booking time.
     const attendeesResult = await c.env.DB.prepare(
-        `SELECT id, first_name, last_name, email, qr_token, waiver_id, checked_in_at
-         FROM attendees WHERE booking_id = ? ORDER BY created_at ASC`
+        `SELECT a.id, a.first_name, a.last_name, a.email, a.qr_token,
+                a.waiver_id, a.checked_in_at,
+                w.signed_at AS waiver_signed_at,
+                w.claim_period_expires_at AS waiver_expires_at
+         FROM attendees a
+         LEFT JOIN waivers w ON w.id = a.waiver_id
+         WHERE a.booking_id = ?
+         ORDER BY a.created_at ASC`
     ).bind(row.id).all();
 
     return c.json({
@@ -347,6 +356,8 @@ bookings.get('/:token', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
             email: a.email,
             qrToken: a.qr_token,
             waiverSigned: !!a.waiver_id,
+            waiverSignedAt: a.waiver_signed_at || null,
+            waiverExpiresAt: a.waiver_expires_at || null,
             checkedIn: !!a.checked_in_at,
         })),
     });

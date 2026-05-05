@@ -4,6 +4,7 @@ import { formatBooking, formatEvent, safeJson } from '../../lib/formatters.js';
 import { issueRefund, createCheckoutSession } from '../../lib/stripe.js';
 import { bookingId, attendeeId, qrToken } from '../../lib/ids.js';
 import { sendBookingConfirmation } from '../../lib/emailSender.js';
+import { findExistingValidWaiver } from '../webhooks.js';
 import { loadActiveTaxesFees } from '../../lib/pricing.js';
 
 // Allowed manual booking payment methods.
@@ -303,19 +304,34 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
         now, now,
     ).run();
 
+    // Phase C annual-renewal: auto-link to existing valid waivers when present.
     for (const a of attendees) {
+        const newAttendeeId = attendeeId();
+        const firstName = a.firstName.trim();
+        const lastName = a.lastName?.trim() || null;
+        const email = a.email?.trim() || null;
+        const linkedWaiverId = await findExistingValidWaiver(c.env.DB, email, firstName, lastName, now);
+
         await c.env.DB.prepare(
             `INSERT INTO attendees (
                 id, booking_id, ticket_type_id, first_name, last_name, email, phone,
-                qr_token, created_at, custom_answers_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                qr_token, created_at, custom_answers_json, waiver_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
-            attendeeId(), id, a.ticketTypeId,
-            a.firstName.trim(), a.lastName?.trim() || null,
-            a.email?.trim() || null, a.phone?.trim() || null,
+            newAttendeeId, id, a.ticketTypeId,
+            firstName, lastName,
+            email, a.phone?.trim() || null,
             qrToken(), now,
             a.customAnswers && Object.keys(a.customAnswers).length ? JSON.stringify(a.customAnswers) : null,
+            linkedWaiverId,
         ).run();
+
+        if (linkedWaiverId) {
+            await c.env.DB.prepare(
+                `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+                 VALUES (?, 'waiver.auto_linked', 'attendee', ?, ?, ?)`
+            ).bind(user.id, newAttendeeId, JSON.stringify({ waiver_id: linkedWaiverId, booking_id: id }), now).run();
+        }
     }
 
     for (const [ttId, qty] of perTypeQty.entries()) {
@@ -406,8 +422,15 @@ adminBookings.post('/:id/resend-confirmation', requireRole('owner', 'manager'), 
     const event = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(booking.event_id).first();
     if (!event) return c.json({ error: 'Event not found' }, 404);
 
+    // Pull attendees so the resent email gets the same waiver-status summary
+    // as the initial send.
+    const attendeesRes = await c.env.DB.prepare(
+        `SELECT id, waiver_id FROM attendees WHERE booking_id = ?`
+    ).bind(id).all();
+    const attendees = attendeesRes.results || [];
+
     try {
-        const result = await sendBookingConfirmation(c.env, { booking, event });
+        const result = await sendBookingConfirmation(c.env, { booking, event, attendees });
         if (result?.skipped) return c.json({ error: `Not sent: ${result.skipped}` }, 500);
     } catch (err) {
         console.error('resend-confirmation failed', err);

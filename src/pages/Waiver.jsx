@@ -241,19 +241,52 @@ export default function Waiver() {
   }
 
   if (alreadySigned) {
+    const signedDate = attendee?.signedAt
+      ? new Date(attendee.signedAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
+      : null;
+    const expiresDate = attendee?.claimPeriodExpiresAt
+      ? new Date(attendee.claimPeriodExpiresAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
+      : null;
+    const isExpired = attendee?.claimPeriodExpiresAt && Date.now() > attendee.claimPeriodExpiresAt;
     return (
       <>
-        <SEO title="Waiver Signed | Air Action Sports" canonical="https://airactionsport.com/waiver" />
+        <SEO title="Waiver On File | Air Action Sports" canonical="https://airactionsport.com/waiver" />
         <div className="page-content">
           <div className="section-label">&#9632; Waiver</div>
-          <h1 className="section-title">Already Signed.</h1>
+          <h1 className="section-title">{isExpired ? 'Waiver Expired.' : 'Waiver On File.'}</h1>
           <div className="divider"></div>
-          <p style={{ color: 'var(--olive-light)' }}>
-            {attendee?.firstName}'s waiver for {event?.title} has already been signed. You're cleared for action.
+
+          <div style={{
+            marginTop: '1.25rem',
+            padding: '1.25rem 1.5rem',
+            background: 'rgba(46, 204, 113, 0.08)',
+            border: '1px solid rgba(46, 204, 113, 0.25)',
+            borderLeft: '4px solid #2ecc71',
+          }}>
+            <p style={{ margin: 0, color: 'var(--cream)', fontSize: 15, fontWeight: 600 }}>
+              {isExpired
+                ? `${attendee?.firstName}'s previous waiver expired ${expiresDate}. Please sign a new waiver below.`
+                : `${attendee?.firstName}'s waiver for ${event?.title} is already on file. You're cleared for action — no need to sign again.`}
+            </p>
+            {!isExpired && (
+              <ul style={{ margin: '0.75rem 0 0', padding: 0, listStyle: 'none', fontSize: 13, color: 'var(--olive-light)' }}>
+                {signedDate && <li style={{ padding: '3px 0' }}>&bull; Signed on <strong style={{ color: 'var(--tan)' }}>{signedDate}</strong></li>}
+                {expiresDate && <li style={{ padding: '3px 0' }}>&bull; Valid through <strong style={{ color: 'var(--tan)' }}>{expiresDate}</strong> (annual renewal)</li>}
+                {attendee?.waiverDocumentVersion && (
+                  <li style={{ padding: '3px 0' }}>&bull; Document version <strong style={{ color: 'var(--tan)' }}>v{attendee.waiverDocumentVersion}</strong></li>
+                )}
+              </ul>
+            )}
+          </div>
+
+          <p style={{ color: 'var(--olive-light)', marginTop: '1.5rem', fontSize: 13 }}>
+            Air Action Sport waivers are valid for 365 days from the signed date. You only need to sign again when your existing waiver expires.
           </p>
-          <Link to="/" className="btn-primary" style={{ display: 'inline-block', marginTop: '1.5rem' }}>
-            &#9658; Back to Home
-          </Link>
+
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+            <Link to="/" className="btn-primary">&#9658; Back to Home</Link>
+            <Link to="/events" className="btn-ghost">View Events</Link>
+          </div>
         </div>
       </>
     );

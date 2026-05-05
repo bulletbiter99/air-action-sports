@@ -78,7 +78,10 @@ waivers.get('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
     ).bind(row.event_id).first();
 
     const existingWaiver = row.waiver_id
-        ? await c.env.DB.prepare(`SELECT signed_at FROM waivers WHERE id = ?`).bind(row.waiver_id).first()
+        ? await c.env.DB.prepare(
+            `SELECT signed_at, claim_period_expires_at, age_tier, waiver_document_version
+             FROM waivers WHERE id = ?`
+        ).bind(row.waiver_id).first()
         : null;
 
     const doc = await getLiveWaiverDocument(c.env);
@@ -101,6 +104,11 @@ waivers.get('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
             phone: row.phone || row.buyer_phone,
             alreadySigned: !!row.waiver_id,
             signedAt: existingWaiver?.signed_at || null,
+            // Phase C: expose expiry + version of the existing waiver so the
+            // /waiver page can show "already on file — expires X" friendly state.
+            claimPeriodExpiresAt: existingWaiver?.claim_period_expires_at || null,
+            waiverDocumentVersion: existingWaiver?.waiver_document_version || null,
+            ageTier: existingWaiver?.age_tier || null,
         },
         event: eventRow ? formatEvent(eventRow) : null,
         waiverDocument: {

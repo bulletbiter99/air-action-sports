@@ -6,6 +6,33 @@ import { sendBookingConfirmation, sendAdminNotify, sendWaiverRequest } from '../
 
 const webhooks = new Hono();
 
+// Phase C annual-renewal lookup. Find a non-expired signed waiver matching
+// this attendee's email + full name (lowercased + whitespace-collapsed). If
+// found, the attendee skips the waiver step entirely. Returns the waiver id
+// or null. Designed to be cheap — covered by idx_waivers_claim_lookup.
+//
+// Match identity: (email, full_name). Two siblings booking with the same
+// parent's email but different names get different waivers (correct). One
+// person rebooking with the same email + name gets their existing waiver
+// linked (correct).
+export async function findExistingValidWaiver(db, email, firstName, lastName, asOfMs) {
+    if (!email) return null;
+    const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+    if (!fullName) return null;
+    const normEmail = email.trim().toLowerCase();
+    const normName = fullName.toLowerCase().replace(/\s+/g, ' ');
+    const row = await db.prepare(
+        `SELECT id FROM waivers
+         WHERE LOWER(TRIM(email)) = ?
+           AND LOWER(TRIM(player_name)) = ?
+           AND claim_period_expires_at IS NOT NULL
+           AND claim_period_expires_at > ?
+         ORDER BY signed_at DESC
+         LIMIT 1`
+    ).bind(normEmail, normName, asOfMs).first();
+    return row?.id || null;
+}
+
 webhooks.post('/stripe', async (c) => {
     const secret = c.env.STRIPE_WEBHOOK_SECRET;
     if (!secret) {
@@ -41,7 +68,7 @@ webhooks.post('/stripe', async (c) => {
 async function sendBookingEmails(env, { booking, event, attendees }) {
     const out = { confirmation: null, admin: null, waivers: [] };
     try {
-        out.confirmation = await sendBookingConfirmation(env, { booking, event });
+        out.confirmation = await sendBookingConfirmation(env, { booking, event, attendees });
     } catch (err) {
         console.error('booking_confirmation failed:', err.message);
         out.confirmation = { error: err.message };
@@ -53,6 +80,15 @@ async function sendBookingEmails(env, { booking, event, attendees }) {
         out.admin = { error: err.message };
     }
     for (const attendee of attendees) {
+        // Phase C: don't send a waiver-request email to attendees who were
+        // auto-linked to an existing valid waiver at booking time. They have
+        // nothing to sign — emailing them a "sign your waiver" link would
+        // either confuse them or land them on the friendly "already on file"
+        // page anyway.
+        if (attendee.waiver_id || attendee.waiverId) {
+            out.waivers.push({ attendee_id: attendee.id, skipped: 'already_on_file' });
+            continue;
+        }
         try {
             const r = await sendWaiverRequest(env, { attendee, event });
             out.waivers.push({ attendee_id: attendee.id, ...r });
@@ -92,26 +128,52 @@ async function handleCheckoutCompleted(db, session) {
          WHERE id = ?`
     ).bind(now, session.payment_intent || null, bookingRow.id).run();
 
-    // Insert attendee rows
+    // Insert attendee rows. Phase C annual-renewal: for each new attendee,
+    // check for an existing non-expired waiver matching by (email, full name).
+    // If found, link it directly so the player skips the waiver step entirely.
+    let autoLinkedCount = 0;
     for (const a of pendingAttendees) {
+        const newAttendeeId = attendeeId();
+        const firstName = a.firstName?.trim() || '';
+        const lastName = a.lastName?.trim() || null;
+        const email = a.email?.trim() || null;
+
+        const linkedWaiverId = await findExistingValidWaiver(db, email, firstName, lastName, now);
+
         await db.prepare(
             `INSERT INTO attendees (
                 id, booking_id, ticket_type_id,
                 first_name, last_name, email, phone,
-                qr_token, created_at, custom_answers_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                qr_token, created_at, custom_answers_json, waiver_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
-            attendeeId(),
+            newAttendeeId,
             bookingRow.id,
             a.ticketTypeId,
-            a.firstName?.trim() || '',
-            a.lastName?.trim() || null,
-            a.email?.trim() || null,
+            firstName,
+            lastName,
+            email,
             a.phone?.trim() || null,
             qrToken(),
             now,
             a.customAnswers && Object.keys(a.customAnswers).length ? JSON.stringify(a.customAnswers) : null,
+            linkedWaiverId,
         ).run();
+
+        if (linkedWaiverId) {
+            autoLinkedCount++;
+            await db.prepare(
+                `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+                 VALUES (NULL, 'waiver.auto_linked', 'attendee', ?, ?, ?)`
+            ).bind(
+                newAttendeeId,
+                JSON.stringify({ waiver_id: linkedWaiverId, booking_id: bookingRow.id }),
+                now,
+            ).run();
+        }
+    }
+    if (autoLinkedCount > 0) {
+        console.log(`Booking ${bookingRow.id}: ${autoLinkedCount}/${pendingAttendees.length} attendees auto-linked to existing valid waivers (annual-renewal Claim Period).`);
     }
 
     // Increment sold counters per ticket type
@@ -158,6 +220,8 @@ async function handleCheckoutCompleted(db, session) {
         emailContext: {
             booking: bookingRow,
             event: eventRow,
+            // attendees here include the auto-linked waiver_id where present,
+            // so sendBookingConfirmation can compute the per-booking summary.
             attendees: attendeeRows.results || [],
         },
     };

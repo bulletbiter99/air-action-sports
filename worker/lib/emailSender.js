@@ -12,9 +12,27 @@ function senderFrom(env) {
     return env.FROM_EMAIL || 'Air Action Sports <noreply@airactionsport.com>';
 }
 
-export async function sendBookingConfirmation(env, { booking, event }) {
+export async function sendBookingConfirmation(env, { booking, event, attendees = [] }) {
     const template = await loadTemplate(env.DB, 'booking_confirmation');
     if (!template) return { skipped: 'template_missing' };
+
+    // Phase C: surface a waiver-status summary so the buyer knows whether
+    // they (or some attendees) need to sign or are already covered.
+    const totalAttendees = attendees.length;
+    const signedCount = attendees.filter((a) => a.waiver_id || a.waiverId).length;
+    let waiverSummary = '';
+    if (totalAttendees > 0) {
+        if (signedCount === totalAttendees) {
+            waiverSummary = `All ${totalAttendees} ${totalAttendees === 1 ? 'player' : 'players'} already have a valid waiver on file — you're cleared for game day, nothing to sign.`;
+        } else if (signedCount > 0) {
+            waiverSummary = `${signedCount} of ${totalAttendees} players already have a valid waiver on file. The remaining ${totalAttendees - signedCount} ${totalAttendees - signedCount === 1 ? 'player needs' : 'players need'} to sign before game day.`;
+        } else {
+            waiverSummary = `Every player needs to sign a waiver before gameplay.`;
+        }
+    } else {
+        // Fallback when attendees aren't passed (older callers).
+        waiverSummary = `Every player needs to sign a waiver before gameplay.`;
+    }
 
     const vars = {
         player_name: booking.full_name || booking.fullName,
@@ -25,6 +43,7 @@ export async function sendBookingConfirmation(env, { booking, event }) {
         total_paid: money(booking.total_cents ?? booking.totalCents),
         booking_id: booking.id,
         waiver_link: `${env.SITE_URL}/booking/success?token=${booking.id}`,
+        waiver_summary: waiverSummary,
     };
     const rendered = renderTemplate(template, vars);
 
