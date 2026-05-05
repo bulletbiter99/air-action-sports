@@ -114,6 +114,11 @@ export default function EventDetail() {
             {/* Mission Briefing */}
             <div className="detail-section">
               <h2>Mission Briefing</h2>
+              {event.shortDescription && (
+                <p style={{ fontSize: '15px', color: 'var(--cream)', fontWeight: 600 }}>
+                  {event.shortDescription}
+                </p>
+              )}
               <p>
                 As twilight falls over {event.location.split(' —')[0] || 'the site'}, two factions prepare to clash in a high-stakes operation. {event.title} is a full-day airsoft event built around squad-based tactics and objective-driven gameplay. Expect fast rotations, flanking manoeuvres through buildings, and coordinated assaults on fortified positions.
               </p>

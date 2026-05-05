@@ -404,6 +404,9 @@ function StepTicketsAndAddons({
             </div>
             <div className="booking-event-banner-title">{selectedEvent.title}</div>
             <div className="booking-event-banner-loc">&#9679; {selectedEvent.location}</div>
+            {selectedEvent.shortDescription && (
+              <div className="booking-event-banner-desc">{selectedEvent.shortDescription}</div>
+            )}
             <div className="booking-event-banner-time">
               {selectedEvent.checkIn || selectedEvent.timeRange} &mdash; {selectedEvent.basePriceDisplay}
             </div>

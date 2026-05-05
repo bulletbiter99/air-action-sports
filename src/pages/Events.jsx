@@ -114,6 +114,9 @@ export default function Events() {
               <div className="event-body">
                 <Link to={`/events/${ev.slug}`} className="event-title" style={{ textDecoration: 'none', color: 'var(--cream)' }}>{ev.title}</Link>
                 <div className="event-loc">&#9679; {ev.location}</div>
+                {ev.shortDescription && (
+                  <p className="event-short-desc">{ev.shortDescription}</p>
+                )}
                 <div className="event-meta">
                   <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
                   <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>

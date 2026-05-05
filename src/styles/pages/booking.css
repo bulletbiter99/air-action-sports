@@ -73,6 +73,13 @@
   font-weight: 600;
   margin-bottom: 0.6rem;
 }
+.booking-event-banner-desc {
+  font-size: 13px;
+  color: var(--olive-light);
+  line-height: 1.5;
+  max-width: 60ch;
+  margin-bottom: 0.6rem;
+}
 .booking-event-banner-time {
   font-size: 12px;
   color: var(--olive-light);
