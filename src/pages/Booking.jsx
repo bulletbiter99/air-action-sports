@@ -379,6 +379,30 @@ function StepTicketsAndAddons({
 }) {
   return (
     <>
+      {/* Selected-event banner — shown for both single + multi event modes
+          so the user always sees what they're booking. */}
+      {selectedEvent && (
+        <div
+          className="booking-event-banner"
+          style={
+            selectedEvent.coverImageUrl
+              ? { backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.85) 100%), url(${selectedEvent.coverImageUrl})` }
+              : undefined
+          }
+        >
+          <div className="booking-event-banner-meta">
+            <div className="booking-event-banner-date">
+              {selectedEvent.displayDay} {selectedEvent.displayMonth}
+            </div>
+            <div className="booking-event-banner-title">{selectedEvent.title}</div>
+            <div className="booking-event-banner-loc">&#9679; {selectedEvent.location}</div>
+            <div className="booking-event-banner-time">
+              {selectedEvent.checkIn || selectedEvent.timeRange} &mdash; {selectedEvent.basePriceDisplay}
+            </div>
+          </div>
+        </div>
+      )}
+
       {events.length > 1 && (
         <div className="booking-section">
           <h3 className="booking-section-title">Choose Event</h3>
@@ -405,8 +429,8 @@ function StepTicketsAndAddons({
         <>
           <div className="booking-section">
             <h3 className="booking-section-title">
-              {selectedEvent.title}
-              <span className="booking-section-sub"> — {selectedEvent.displayDate}, {selectedEvent.location}</span>
+              Tickets
+              <span className="booking-section-sub"> &mdash; pick how many players, then continue</span>
             </h3>
 
             <div className="selector-group">
