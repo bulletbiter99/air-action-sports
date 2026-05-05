@@ -252,12 +252,20 @@ bookings.post('/checkout', rateLimit('RL_CHECKOUT'), async (c) => {
         now,
     ).run();
 
-    // Build Stripe line items from our authoritative line items
-    const stripeLineItems = quote.lineItems.map((li) => ({
-        name: li.name + (li.type === 'ticket' ? '' : ''),
-        qty: li.qty,
-        unit_price_cents: li.unit_price_cents,
-    }));
+    // Build Stripe line items from our authoritative line items.
+    // IMPORTANT: only ticket + addon entries carry qty/unit_price_cents.
+    // Tax/fee entries from calculateQuote use line_total_cents and have no
+    // qty — feeding them straight into Stripe's price_data shape produced
+    // line_items[N][quantity]=undefined which Stripe rejects (or silently
+    // ignored as 0, meaning the broken lines hit the API as garbage).
+    // Aggregate tax + fee rows are appended below with proper values.
+    const stripeLineItems = quote.lineItems
+        .filter((li) => li.type === 'ticket' || li.type === 'addon')
+        .map((li) => ({
+            name: li.name,
+            qty: li.qty,
+            unit_price_cents: li.unit_price_cents,
+        }));
     if (quote.discountCents > 0) {
         stripeLineItems.push({
             name: `Promo: ${body.promoCode.toUpperCase()}`,
