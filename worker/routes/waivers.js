@@ -6,6 +6,26 @@ import { readJson, BODY_LIMITS } from '../lib/bodyGuard.js';
 
 const MAX_SIGNATURE_LEN = 200;
 const MAX_FIELD_LEN = 200;
+const MAX_MEDICAL_CONDITIONS_LEN = 2000;
+const MAX_INITIALS_LEN = 10;
+const CLAIM_PERIOD_MS = 365 * 24 * 60 * 60 * 1000; // 365 days
+
+// Compute age in years (float) from a yyyy-mm-dd dob string and an as-of date.
+function ageYears(dobStr, asOf = new Date()) {
+    const dob = new Date(dobStr);
+    if (Number.isNaN(dob.getTime())) return null;
+    return (asOf - dob) / (365.25 * 24 * 60 * 60 * 1000);
+}
+
+// Map computed age → tier. Returns null for under-12 (blocked) and a tier
+// string otherwise. Mirrored in Waiver.jsx.
+function ageTier(age) {
+    if (age == null) return null;
+    if (age < 12) return null;        // hard block
+    if (age < 16) return '12-15';     // 12, 13, 14, 15
+    if (age < 18) return '16-17';     // 16, 17
+    return '18+';
+}
 
 const waivers = new Hono();
 
@@ -106,8 +126,22 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
         return c.json({ error: 'signature too long' }, 400);
     }
     // Cap other string fields as well so a 10MB "emergencyName" can't land.
-    for (const k of ['name', 'email', 'phone', 'emergencyName', 'emergencyPhone', 'dob']) {
+    const cappedStringFields = [
+        'name', 'email', 'phone', 'emergencyName', 'emergencyPhone', 'dob',
+        'parentName', 'parentRelationship', 'parentSignature', 'parentPhoneDayOfEvent',
+        'supervisingAdultName', 'supervisingAdultSignature',
+        'supervisingAdultRelationship', 'supervisingAdultPhoneDayOfEvent',
+    ];
+    for (const k of cappedStringFields) {
         if (typeof body[k] === 'string' && body[k].length > MAX_FIELD_LEN) {
+            return c.json({ error: `${k} too long` }, 400);
+        }
+    }
+    if (typeof body.medicalConditions === 'string' && body.medicalConditions.length > MAX_MEDICAL_CONDITIONS_LEN) {
+        return c.json({ error: 'medicalConditions too long' }, 400);
+    }
+    for (const k of ['parentInitials', 'juryTrialInitials']) {
+        if (typeof body[k] === 'string' && body[k].length > MAX_INITIALS_LEN) {
             return c.json({ error: `${k} too long` }, 400);
         }
     }
@@ -145,16 +179,44 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
         }
     }
 
-    // Under-18 check — if minor, parent consent required
-    const dobDate = new Date(body.dob);
-    const now = new Date();
-    const age = (now - dobDate) / (365.25 * 24 * 60 * 60 * 1000);
-    const isMinor = age < 18;
-    if (isMinor) {
+    // 4-tier age policy (matches Waiver Document v4 page 9):
+    //   Under 12 → BLOCKED (hard refusal; cannot waive online)
+    //   12-15    → parent consent + ON-SITE supervising adult required
+    //   16-17    → parent consent only (no on-site supervising adult required)
+    //   18+      → independent adult signer
+    // Jury trial waiver initials (§22) required for all tiers.
+    const age = ageYears(body.dob);
+    const tier = ageTier(age);
+    if (!tier) {
+        return c.json({ error: 'Players must be at least 12 years old to participate at any AAS event.' }, 400);
+    }
+
+    if (typeof body.juryTrialInitials !== 'string' || !body.juryTrialInitials.trim()) {
+        return c.json({ error: 'Jury Trial Waiver initials are required (§22).' }, 400);
+    }
+
+    if (tier === '12-15' || tier === '16-17') {
         if (!body.parentName || !body.parentSignature || body.parentConsent !== true) {
-            return c.json({ error: 'Parent or guardian consent is required for players under 18' }, 400);
+            return c.json({ error: 'Parent or guardian consent is required for players under 18.' }, 400);
+        }
+        if (typeof body.parentInitials !== 'string' || !body.parentInitials.trim()) {
+            return c.json({ error: 'Parent/Guardian initials acknowledging the Age Participation Policy are required.' }, 400);
         }
     }
+
+    if (tier === '12-15') {
+        // Per Waiver Document v4 page 9: ages 12-15 require an on-site
+        // supervising adult who may or may not be the parent. They must
+        // be physically present for the full event duration.
+        if (!body.supervisingAdultName || !body.supervisingAdultName.trim()) {
+            return c.json({ error: 'On-site supervising adult name is required for ages 12-15.' }, 400);
+        }
+        if (!body.supervisingAdultSignature || !body.supervisingAdultSignature.trim()) {
+            return c.json({ error: 'On-site supervising adult signature is required for ages 12-15.' }, 400);
+        }
+    }
+
+    const isMinor = tier === '12-15' || tier === '16-17';
 
     // Re-fetch the live document server-side at submit time so the snapshot
     // reflects exactly what our server treated as authoritative, not what the
@@ -170,6 +232,8 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
     const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || null;
     const userAgent = c.req.header('user-agent') || null;
 
+    const claimPeriodExpiresAt = nowMs + CLAIM_PERIOD_MS;
+
     await c.env.DB.prepare(
         `INSERT INTO waivers (
             id, booking_id, attendee_id,
@@ -178,8 +242,13 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
             signature, signed_at, ip_address, user_agent,
             is_minor, parent_name, parent_relationship, parent_signature, parent_consent,
             privacy_consent, created_at,
-            waiver_document_id, waiver_document_version, body_html_snapshot, body_sha256, erecords_consent
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            waiver_document_id, waiver_document_version, body_html_snapshot, body_sha256, erecords_consent,
+            medical_conditions, age_tier,
+            parent_phone_day_of_event, parent_initials,
+            supervising_adult_name, supervising_adult_signature,
+            supervising_adult_relationship, supervising_adult_phone_day_of_event,
+            jury_trial_initials, claim_period_expires_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
         waiverId,
         attendee.booking_id,
@@ -207,6 +276,16 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
         doc.body_html,
         doc.body_sha256,
         1,
+        body.medicalConditions?.trim() || null,
+        tier,
+        body.parentPhoneDayOfEvent?.trim() || null,
+        body.parentInitials?.trim() || null,
+        body.supervisingAdultName?.trim() || null,
+        body.supervisingAdultSignature?.trim() || null,
+        body.supervisingAdultRelationship?.trim() || null,
+        body.supervisingAdultPhoneDayOfEvent?.trim() || null,
+        body.juryTrialInitials.trim(),
+        claimPeriodExpiresAt,
     ).run();
 
     await c.env.DB.prepare(
@@ -234,6 +313,8 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
         waiverId,
         signedAt: nowMs,
         waiverDocumentVersion: doc.version,
+        ageTier: tier,
+        claimPeriodExpiresAt,
     });
 });
 

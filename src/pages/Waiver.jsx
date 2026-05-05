@@ -22,14 +22,25 @@ export default function Waiver() {
     emergencyName: '',
     emergencyPhone: '',
     relationship: '',
+    medicalConditions: '',
     agree: false,
     erecordsConsent: false,
     privacy: false,
     signature: '',
+    juryTrialInitials: '',
+    // Parent / guardian (required if minor — both 12-15 and 16-17)
     parentName: '',
     parentRelationship: '',
     parentConsent: false,
     parentSignature: '',
+    parentPhoneDayOfEvent: '',
+    parentInitials: '',
+    // On-site supervising adult (required only for 12-15)
+    supervisingAdultSameAsParent: true,
+    supervisingAdultName: '',
+    supervisingAdultRelationship: '',
+    supervisingAdultSignature: '',
+    supervisingAdultPhoneDayOfEvent: '',
   });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -49,6 +60,45 @@ export default function Waiver() {
 
   const normalizeName = (s) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
   const signatureMatches = !expectedName || normalizeName(formData.signature) === normalizeName(expectedName);
+
+  // 4-tier age policy mirroring worker/routes/waivers.js ageTier().
+  const computedAge = useMemo(() => {
+    if (!formData.dob) return null;
+    const d = new Date(formData.dob);
+    if (Number.isNaN(d.getTime())) return null;
+    return (Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+  }, [formData.dob]);
+  const ageTier = useMemo(() => {
+    if (computedAge == null) return null;
+    if (computedAge < 12) return 'BLOCKED';
+    if (computedAge < 16) return '12-15';
+    if (computedAge < 18) return '16-17';
+    return '18+';
+  }, [computedAge]);
+  const isMinor = ageTier === '12-15' || ageTier === '16-17';
+  const needsSupervisingAdult = ageTier === '12-15';
+
+  // When the user toggles "supervising adult is same as parent" we mirror
+  // parent fields into the supervising adult fields so the server gets a
+  // populated record either way.
+  useEffect(() => {
+    if (!needsSupervisingAdult) return;
+    if (!formData.supervisingAdultSameAsParent) return;
+    setFormData((p) => ({
+      ...p,
+      supervisingAdultName: p.parentName,
+      supervisingAdultRelationship: p.parentRelationship,
+      supervisingAdultSignature: p.parentSignature,
+      supervisingAdultPhoneDayOfEvent: p.parentPhoneDayOfEvent,
+    }));
+  }, [
+    needsSupervisingAdult,
+    formData.supervisingAdultSameAsParent,
+    formData.parentName,
+    formData.parentRelationship,
+    formData.parentSignature,
+    formData.parentPhoneDayOfEvent,
+  ]);
 
   // Load attendee info when token is present
   useEffect(() => {
@@ -109,14 +159,27 @@ export default function Waiver() {
       errs.signature = `Signature must match the name on your ticket: ${expectedName}`;
     }
 
-    // Under 18 check
-    if (formData.dob) {
-      const age = (new Date() - new Date(formData.dob)) / (365.25 * 24 * 60 * 60 * 1000);
-      if (age < 18) {
-        if (!formData.parentName.trim()) errs.parentName = true;
-        if (!formData.parentSignature.trim()) errs.parentSignature = true;
-        if (!formData.parentConsent) errs.parentConsent = true;
-      }
+    // Jury trial waiver initials — required for everyone (Waiver §22)
+    if (!formData.juryTrialInitials.trim()) {
+      errs.juryTrialInitials = 'Initials acknowledging the Jury Trial Waiver are required';
+    }
+
+    // 4-tier age policy
+    if (ageTier === 'BLOCKED') {
+      errs.dob = 'Players must be at least 12 years old to participate at any AAS event.';
+    }
+    if (isMinor) {
+      if (!formData.parentName.trim()) errs.parentName = true;
+      if (!formData.parentSignature.trim()) errs.parentSignature = true;
+      if (!formData.parentConsent) errs.parentConsent = true;
+      if (!formData.parentInitials.trim()) errs.parentInitials = 'Parent/Guardian initials acknowledging the Age Policy are required';
+    }
+    if (needsSupervisingAdult) {
+      // Even when "same as parent" is toggled on, we require the user to
+      // confirm the parent fields (which are mirrored over). If they un-toggle,
+      // they fill the supervising adult block separately.
+      if (!formData.supervisingAdultName.trim()) errs.supervisingAdultName = true;
+      if (!formData.supervisingAdultSignature.trim()) errs.supervisingAdultSignature = true;
     }
     return errs;
   };
@@ -296,6 +359,32 @@ export default function Waiver() {
                 </select>
               </div>
             </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="w-medical">
+                Known Medical Conditions / Allergies <span style={{ color: 'var(--olive-light)', fontWeight: 400 }}>(optional but encouraged)</span>
+              </label>
+              <textarea id="w-medical" name="medicalConditions" rows={3} className="form-input"
+                placeholder="e.g. asthma, bee sting allergy, dietary restrictions — anything our medics should know"
+                value={formData.medicalConditions} onChange={handleChange}
+                style={{ resize: 'vertical', fontFamily: 'inherit' }} />
+            </div>
+
+            {/* Age tier hint when DOB is filled. Renders an outright error when
+                the participant is under 12 (we hard-block; they can't sign). */}
+            {ageTier === 'BLOCKED' && (
+              <div className="booking-error" style={{ marginTop: '0.75rem' }}>
+                <strong>Sorry — players must be at least 12 years old.</strong> Please contact us if you have questions.
+              </div>
+            )}
+            {ageTier && ageTier !== 'BLOCKED' && (
+              <div style={{ fontSize: 12, color: 'var(--olive-light)', marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(212,84,26,0.05)', borderLeft: '3px solid var(--orange)' }}>
+                <strong style={{ color: 'var(--orange)' }}>Age tier: {ageTier}</strong> &mdash;{' '}
+                {ageTier === '12-15' && 'Parent or legal guardian consent + on-site supervising adult required.'}
+                {ageTier === '16-17' && 'Parent or legal guardian written consent required (no on-site adult required).'}
+                {ageTier === '18+' && 'Adult — you can sign independently.'}
+              </div>
+            )}
           </div>
 
           {/* Section 2 -- Acknowledgement of Risk. Body rendered from the
@@ -376,47 +465,150 @@ export default function Waiver() {
               )}
             </div>
 
+            {/* Jury Trial Waiver §22 — separate initials per the document. */}
+            <div className={`form-group${errors.juryTrialInitials ? ' error' : ''}`} style={{ marginTop: '1.25rem' }}>
+              <label className="form-label" htmlFor="w-jury-initials">
+                Jury Trial Waiver Initials *
+              </label>
+              <p style={{ fontSize: '12px', color: 'var(--olive-light)', marginBottom: '0.5rem' }}>
+                Per Section 22, by initialing here I waive my right to a jury trial in any proceeding arising from this Agreement or the Activities.
+              </p>
+              <input type="text" id="w-jury-initials" name="juryTrialInitials" className="form-input"
+                placeholder="e.g. JD"
+                value={formData.juryTrialInitials} onChange={handleChange}
+                maxLength={10}
+                style={{ maxWidth: 200, textTransform: 'uppercase', letterSpacing: 2, fontWeight: 700 }}
+                required />
+              {errors.juryTrialInitials && typeof errors.juryTrialInitials === 'string' && (
+                <span className="form-error" style={{ display: 'block' }}>{errors.juryTrialInitials}</span>
+              )}
+            </div>
+
             <div className="form-group" style={{ marginTop: '1rem' }}>
               <label className="form-label" htmlFor="w-date">Date</label>
               <input type="text" id="w-date" name="date" className="form-input" readOnly value={todayFormatted} />
             </div>
           </div>
 
-          {/* Section 4 -- Under 18s */}
-          <div className="waiver-section">
-            <div className="under18-section">
-              <h3>Parent / Guardian Consent (Under 18s Only)</h3>
-              <div className="form-row">
-                <div className={`form-group${errors.parentName ? ' error' : ''}`}>
-                  <label className="form-label" htmlFor="w-parent-name">Parent / Guardian Name</label>
-                  <input type="text" id="w-parent-name" name="parentName" className="form-input"
-                    value={formData.parentName} onChange={handleChange} />
+          {/* Section 4 — Parent / Guardian (only for 12-15 and 16-17). Hidden
+              entirely when the participant is 18+ or DOB is empty. */}
+          {isMinor && (
+            <div className="waiver-section">
+              <div className="under18-section">
+                <h3>Parent / Guardian Consent</h3>
+                <p style={{ fontSize: '13px', color: 'var(--olive-light)', marginBottom: '1rem' }}>
+                  Required for ages 12&ndash;17. {needsSupervisingAdult && 'For ages 12-15, an on-site supervising adult is also required (next section).'}
+                </p>
+                <div className="form-row">
+                  <div className={`form-group${errors.parentName ? ' error' : ''}`}>
+                    <label className="form-label" htmlFor="w-parent-name">Parent / Guardian Full Legal Name *</label>
+                    <input type="text" id="w-parent-name" name="parentName" className="form-input"
+                      value={formData.parentName} onChange={handleChange} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="w-parent-relationship">Relationship to Player</label>
+                    <input type="text" id="w-parent-relationship" name="parentRelationship" className="form-input"
+                      placeholder="e.g. Mother, Father, Guardian"
+                      value={formData.parentRelationship} onChange={handleChange} />
+                  </div>
                 </div>
                 <div className="form-group">
-                  <label className="form-label" htmlFor="w-parent-relationship">Relationship to Player</label>
-                  <input type="text" id="w-parent-relationship" name="parentRelationship" className="form-input"
-                    placeholder="e.g. Mother, Father, Guardian"
-                    value={formData.parentRelationship} onChange={handleChange} />
+                  <label className="form-label" htmlFor="w-parent-phone">Parent / Guardian Phone (Day of Event)</label>
+                  <input type="tel" id="w-parent-phone" name="parentPhoneDayOfEvent" className="form-input"
+                    placeholder="Phone we can reach you on event day"
+                    value={formData.parentPhoneDayOfEvent} onChange={handleChange} />
                 </div>
-              </div>
-              <div className={`form-group${errors.parentConsent ? ' error' : ''}`} style={{ marginBottom: '1rem' }}>
-                <label className="form-label" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
-                  <input type="checkbox" id="w-parent-consent" name="parentConsent"
-                    checked={formData.parentConsent} onChange={handleChange}
-                    style={{ marginTop: '3px', accentColor: 'var(--orange)' }} />
-                  <span>I am the parent/guardian and give consent for the named player to participate</span>
-                </label>
-              </div>
-              <div className={`form-group${errors.parentSignature ? ' error' : ''}`}>
-                <label className="form-label">Parent / Guardian Signature</label>
-                <div className="signature-field">
-                  <input type="text" id="w-parent-signature" name="parentSignature"
-                    placeholder="Parent/guardian full name"
-                    value={formData.parentSignature} onChange={handleChange} />
+                <div className={`form-group${errors.parentConsent ? ' error' : ''}`} style={{ marginBottom: '1rem' }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input type="checkbox" id="w-parent-consent" name="parentConsent"
+                      checked={formData.parentConsent} onChange={handleChange}
+                      style={{ marginTop: '3px', accentColor: 'var(--orange)' }} />
+                    <span>I am the parent/legal guardian and consent to the named player&rsquo;s participation. *</span>
+                  </label>
+                </div>
+                <div className={`form-group${errors.parentSignature ? ' error' : ''}`}>
+                  <label className="form-label">Parent / Guardian Signature *</label>
+                  <div className="signature-field">
+                    <input type="text" id="w-parent-signature" name="parentSignature"
+                      placeholder="Parent/guardian full name"
+                      value={formData.parentSignature} onChange={handleChange} />
+                  </div>
+                </div>
+                <div className={`form-group${errors.parentInitials ? ' error' : ''}`} style={{ marginTop: '1rem' }}>
+                  <label className="form-label" htmlFor="w-parent-initials">Initials acknowledging Age Participation Policy *</label>
+                  <input type="text" id="w-parent-initials" name="parentInitials" className="form-input"
+                    placeholder="e.g. JS"
+                    value={formData.parentInitials} onChange={handleChange}
+                    maxLength={10}
+                    style={{ maxWidth: 200, textTransform: 'uppercase', letterSpacing: 2, fontWeight: 700 }} />
+                  {errors.parentInitials && typeof errors.parentInitials === 'string' && (
+                    <span className="form-error" style={{ display: 'block' }}>{errors.parentInitials}</span>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Section 5 — On-Site Supervising Adult (12-15 only).
+              Defaults to the parent fields; toggling off lets the user fill
+              a separate person (e.g., parent can't make it but uncle can). */}
+          {needsSupervisingAdult && (
+            <div className="waiver-section">
+              <div className="under18-section">
+                <h3>On-Site Supervising Adult</h3>
+                <p style={{ fontSize: '13px', color: 'var(--olive-light)', marginBottom: '0.75rem' }}>
+                  Required for ages 12&ndash;15. The supervising adult must be physically present on-site for the full event duration and is personally responsible for the minor&rsquo;s supervision and PPE compliance.
+                </p>
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                    <input type="checkbox" id="w-supervising-same"
+                      name="supervisingAdultSameAsParent"
+                      checked={formData.supervisingAdultSameAsParent}
+                      onChange={handleChange}
+                      style={{ accentColor: 'var(--orange)' }} />
+                    <span>The supervising adult is the same person as the parent/guardian above.</span>
+                  </label>
+                </div>
+
+                {!formData.supervisingAdultSameAsParent && (
+                  <>
+                    <div className="form-row">
+                      <div className={`form-group${errors.supervisingAdultName ? ' error' : ''}`}>
+                        <label className="form-label" htmlFor="w-supervising-name">Supervising Adult Full Legal Name *</label>
+                        <input type="text" id="w-supervising-name" name="supervisingAdultName" className="form-input"
+                          value={formData.supervisingAdultName} onChange={handleChange} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="w-supervising-rel">Relationship to Minor</label>
+                        <input type="text" id="w-supervising-rel" name="supervisingAdultRelationship" className="form-input"
+                          placeholder="e.g. Uncle, Family Friend"
+                          value={formData.supervisingAdultRelationship} onChange={handleChange} />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="w-supervising-phone">Supervising Adult Phone (Day of Event)</label>
+                      <input type="tel" id="w-supervising-phone" name="supervisingAdultPhoneDayOfEvent" className="form-input"
+                        value={formData.supervisingAdultPhoneDayOfEvent} onChange={handleChange} />
+                    </div>
+                    <div className={`form-group${errors.supervisingAdultSignature ? ' error' : ''}`}>
+                      <label className="form-label">Supervising Adult Signature *</label>
+                      <div className="signature-field">
+                        <input type="text" id="w-supervising-signature" name="supervisingAdultSignature"
+                          placeholder="Supervising adult full name"
+                          value={formData.supervisingAdultSignature} onChange={handleChange} />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {formData.supervisingAdultSameAsParent && formData.parentName && (
+                  <p style={{ fontSize: '12px', color: 'var(--olive-light)', fontStyle: 'italic' }}>
+                    Using parent/guardian details: <strong style={{ color: 'var(--tan)' }}>{formData.parentName}</strong>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="waiver-actions">
             <button type="submit" className="form-submit" disabled={submitting}>
