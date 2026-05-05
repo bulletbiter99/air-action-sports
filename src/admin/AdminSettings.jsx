@@ -16,6 +16,12 @@ const CARDS = [
     role: 'owner',
   },
   {
+    to: '/admin/waivers',
+    title: 'Waiver Document',
+    desc: 'Edit the player liability waiver. New version retires the previous; past signers stay pinned to whatever they signed. Owner only.',
+    role: 'owner',
+  },
+  {
     to: '/admin/users',
     title: 'Team',
     desc: 'Invite admins, manage roles (staff / manager / owner), revoke access. Owner only.',

@@ -28,6 +28,7 @@ import adminUploads from './routes/admin/uploads.js';
 import adminVendors from './routes/admin/vendors.js';
 import adminEventVendors from './routes/admin/eventVendors.js';
 import adminVendorContracts from './routes/admin/vendorContracts.js';
+import adminWaiverDocuments from './routes/admin/waiverDocuments.js';
 import adminFeedback from './routes/admin/feedback.js';
 
 const app = new Hono();
@@ -108,6 +109,7 @@ app.route('/api/admin/uploads', adminUploads);
 app.route('/api/admin/vendors', adminVendors);
 app.route('/api/admin/event-vendors', adminEventVendors);
 app.route('/api/admin/vendor-contracts', adminVendorContracts);
+app.route('/api/admin/waiver-documents', adminWaiverDocuments);
 app.route('/api/admin/feedback', adminFeedback);
 
 app.onError((err, c) => {
