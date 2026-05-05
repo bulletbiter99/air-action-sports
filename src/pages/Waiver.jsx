@@ -240,14 +240,19 @@ export default function Waiver() {
     );
   }
 
-  if (alreadySigned) {
+  // Expired waivers fall through to the form below — gate the early-return
+  // on !isExpired so the user can re-sign without manually going to a
+  // different URL. Won't trigger before 2027-05 (365 days after the
+  // earliest possible wd_v4 signature) but better to ship correct now.
+  const expiredCheck = !!(attendee?.claimPeriodExpiresAt && Date.now() > attendee.claimPeriodExpiresAt);
+  if (alreadySigned && !expiredCheck) {
     const signedDate = attendee?.signedAt
       ? new Date(attendee.signedAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
       : null;
     const expiresDate = attendee?.claimPeriodExpiresAt
       ? new Date(attendee.claimPeriodExpiresAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
       : null;
-    const isExpired = attendee?.claimPeriodExpiresAt && Date.now() > attendee.claimPeriodExpiresAt;
+    const isExpired = false; // gated above; kept for template branches that read it
     return (
       <>
         <SEO title="Waiver On File | Air Action Sports" canonical="https://airactionsport.com/waiver" />
@@ -325,6 +330,28 @@ export default function Waiver() {
             <p>
               Each player must complete this waiver before gameplay. Under 18? A parent or guardian must
               complete the bottom section.
+            </p>
+          </div>
+        )}
+
+        {/* Expired-waiver re-sign notice. Surfaces when the alreadySigned
+            early-return was bypassed because claimPeriodExpiresAt is in the
+            past — so the player knows why they're re-signing instead of
+            seeing "Already On File". */}
+        {expiredCheck && attendee?.claimPeriodExpiresAt && (
+          <div style={{
+            margin: '0 0 1.5rem',
+            padding: '1rem 1.25rem',
+            background: 'rgba(231, 76, 60, 0.08)',
+            border: '1px solid rgba(231, 76, 60, 0.25)',
+            borderLeft: '4px solid #e74c3c',
+          }}>
+            <p style={{ margin: 0, color: 'var(--cream)', fontSize: 14, fontWeight: 600 }}>
+              Your previous waiver expired on{' '}
+              {new Date(attendee.claimPeriodExpiresAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}.
+            </p>
+            <p style={{ margin: '0.5rem 0 0', color: 'var(--olive-light)', fontSize: 13 }}>
+              Air Action Sport waivers are valid for 365 days from the signed date. Please complete the form below to renew — it will cover any AAS event for the next year.
             </p>
           </div>
         )}
