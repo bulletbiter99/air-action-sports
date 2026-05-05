@@ -103,6 +103,14 @@ export default function Booking() {
       if (addon) addonsSubtotal += addon.price_cents * qty;
     }
     const subtotal = ticketsSubtotal + addonsSubtotal;
+
+    // Empty cart → show zeros. Per-order fixed fees (e.g., the Stripe-style
+    // $0.30 processing fee) would otherwise leak in pre-selection because
+    // their multiplier is 1 regardless of attendee count.
+    if (subtotal === 0) {
+      return { subtotalCents: 0, taxAndFeesCents: 0, totalCents: 0, totalAttendees };
+    }
+
     const afterDiscount = subtotal; // promo applied server-side during checkout
 
     const unitMultiplier = (per) => per === 'ticket' || per === 'attendee' ? totalAttendees : 1;

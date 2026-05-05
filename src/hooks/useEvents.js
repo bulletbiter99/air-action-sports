@@ -48,6 +48,7 @@ export function adaptEvent(apiEvent) {
         site: apiEvent.site || '',
         month: monthKey,
         past: !!apiEvent.past,
+        featured: !!apiEvent.featured,
         gameModes: apiEvent.gameModes || [],
         rentals,
         bbPurchases,

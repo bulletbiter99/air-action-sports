@@ -548,6 +548,7 @@ export default {
 
     async scheduled(event, env, ctx) {
         ctx.waitUntil((async () => {
+            const startedAt = Date.now();
             const [r, a, v] = await Promise.all([
                 runReminderSweep(env),
                 runAbandonPendingSweep(env).catch((err) => {
@@ -559,6 +560,31 @@ export default {
                     return { error: err?.message };
                 }),
             ]);
+            const finishedAt = Date.now();
+            const durationMs = finishedAt - startedAt;
+
+            // Always-on audit row, even when no work was done. Lets the admin
+            // dashboard prove the cron is alive ("last sweep: N min ago")
+            // independent of whether anything got sent.
+            try {
+                await env.DB.prepare(
+                    `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+                     VALUES (NULL, 'cron.swept', 'cron', ?, ?, ?)`
+                ).bind(
+                    event.cron || 'manual',
+                    JSON.stringify({
+                        cron: event.cron || null,
+                        durationMs,
+                        reminders: r,
+                        pending: a,
+                        vendor: v,
+                    }),
+                    finishedAt,
+                ).run();
+            } catch (err) {
+                console.error('cron.swept audit insert failed', err);
+            }
+
             console.log('scheduled sweeps', event.cron, { reminders: r, pending: a, vendor: v });
         })());
     },

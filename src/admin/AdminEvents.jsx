@@ -186,7 +186,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
     timeRange: '', checkIn: '', firstGame: '', endTime: '',
     basePriceCents: 8000, totalSlots: 100,
     coverImageUrl: '', shortDescription: '',
-    published: false, past: false,
+    published: false, past: false, featured: false,
     addons: [], gameModes: [], customQuestions: [],
   });
   const [ticketTypes, setTicketTypes] = useState([]);
@@ -208,7 +208,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
           timeRange: event.timeRange || '', checkIn: event.checkIn || '', firstGame: event.firstGame || '', endTime: event.endTime || '',
           basePriceCents: event.basePriceCents || 0, totalSlots: event.totalSlots || 0,
           coverImageUrl: event.coverImageUrl || '', shortDescription: event.shortDescription || '',
-          published: !!event.published, past: !!event.past,
+          published: !!event.published, past: !!event.past, featured: !!event.featured,
           addons: event.addons || [], gameModes: event.gameModes || [],
           customQuestions: event.customQuestions || [],
         });
@@ -371,10 +371,14 @@ function EventEditor({ eventId, onClose, onSaved }) {
           />
 
           <div style={sectionLabel}>Publishing</div>
-          <div style={{ display: 'flex', gap: 16, color: 'var(--tan-light)', fontSize: 13 }}>
+          <div style={{ display: 'flex', gap: 16, color: 'var(--tan-light)', fontSize: 13, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input type="checkbox" checked={form.published} onChange={(e) => updateField('published', e.target.checked)} />
               Published (visible to customers)
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={form.featured} onChange={(e) => updateField('featured', e.target.checked)} />
+              Featured (homepage countdown / TickerBar headliner)
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input type="checkbox" checked={form.past} onChange={(e) => updateField('past', e.target.checked)} />

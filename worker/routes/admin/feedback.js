@@ -4,7 +4,7 @@
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
 import { clientIp } from '../../lib/rateLimit.js';
-import { sendFeedbackResolutionNotice } from '../../lib/emailSender.js';
+import { sendFeedbackResolutionNotice, renderFeedbackResolutionNotice } from '../../lib/emailSender.js';
 
 const adminFeedback = new Hono();
 adminFeedback.use('*', requireAuth);
@@ -212,6 +212,23 @@ adminFeedback.put('/:id', requireRole('owner', 'manager', 'staff'), async (c) =>
 
     const updated = await c.env.DB.prepare(`SELECT * FROM feedback WHERE id = ?`).bind(id).first();
     return c.json({ item: rowToDto(updated) });
+});
+
+// GET /api/admin/feedback/:id/notify-preview — render the resolution-notice
+// email with this ticket's actual status + admin_note (not sample data),
+// so the preview-before-send modal shows exactly what would be sent.
+// Manager+ — same role gate as the send endpoint.
+adminFeedback.get('/:id/notify-preview', requireRole('owner', 'manager'), async (c) => {
+    const id = c.req.param('id');
+    const row = await c.env.DB.prepare(`SELECT * FROM feedback WHERE id = ?`).bind(id).first();
+    if (!row) return c.json({ error: 'Not found' }, 404);
+    if (!row.email) return c.json({ error: 'No submitter email on this ticket' }, 400);
+
+    const result = await renderFeedbackResolutionNotice(c.env, { feedback: rowToDto(row) });
+    if (result?.skipped) {
+        return c.json({ error: `Cannot render preview (${result.skipped})` }, 500);
+    }
+    return c.json({ rendered: result.rendered, recipient: row.email });
 });
 
 // POST /api/admin/feedback/:id/notify-submitter — opt-in email to the submitter.

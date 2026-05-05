@@ -234,7 +234,9 @@ export async function sendFeedbackNotification(env, { feedback }) {
     });
 }
 
-export async function sendFeedbackResolutionNotice(env, { feedback }) {
+// Render-only — used by the preview-before-send modal in /admin/feedback.
+// Returns { subject, html, text } or { skipped: '...' } on missing data.
+export async function renderFeedbackResolutionNotice(env, { feedback }) {
     if (!feedback.email) return { skipped: 'no_submitter_email' };
 
     const template = await loadTemplate(env.DB, 'feedback_resolution_notice');
@@ -246,7 +248,15 @@ export async function sendFeedbackResolutionNotice(env, { feedback }) {
         note: feedback.adminNote || feedback.admin_note || '(no additional note)',
         site_url: env.SITE_URL || '',
     };
-    const rendered = renderTemplate(template, vars);
+    return { rendered: renderTemplate(template, vars) };
+}
+
+export async function sendFeedbackResolutionNotice(env, { feedback }) {
+    if (!feedback.email) return { skipped: 'no_submitter_email' };
+
+    const previewResult = await renderFeedbackResolutionNotice(env, { feedback });
+    if (previewResult.skipped) return previewResult;
+    const rendered = previewResult.rendered;
 
     return sendEmail({
         apiKey: env.RESEND_API_KEY,

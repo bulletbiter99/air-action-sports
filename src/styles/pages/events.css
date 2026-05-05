@@ -42,7 +42,34 @@
 
 /* Event Card Base Styles */
 .event-card { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); overflow: hidden; }
-.event-header { background: var(--olive-dark); padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+.event-card-featured { border-color: var(--orange); box-shadow: 0 0 0 1px rgba(212,84,26,0.15); }
+.event-cover {
+  display: block;
+  height: 160px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+  text-decoration: none;
+}
+.event-featured-pill {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 2px;
+}
+.event-featured-pill-inline {
+  position: static;
+  margin-left: 8px;
+}
+.event-header { background: var(--olive-dark); padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .event-date { text-align: center; }
 .event-day { font-size: 28px; font-weight: 900; color: var(--orange); line-height: 1; }
 .event-month { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); }

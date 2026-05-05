@@ -8,10 +8,13 @@ events.get('/', async (c) => {
     const includePast = url.searchParams.get('include_past') === '1';
     const pastClause = includePast ? '' : 'AND past = 0';
 
+    // Sort: featured first (so admin-picked headliner wins ties), then by date.
+    // For upcoming-only: nearest date wins among same featured-rank.
+    // When include_past is on: featured first within each rank, latest first by date.
     const eventsResult = await c.env.DB.prepare(
         `SELECT * FROM events
          WHERE published = 1 ${pastClause}
-         ORDER BY date_iso ${includePast ? 'DESC' : 'ASC'}`
+         ORDER BY featured DESC, date_iso ${includePast ? 'DESC' : 'ASC'}`
     ).all();
 
     const eventRows = eventsResult.results || [];

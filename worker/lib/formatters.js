@@ -27,6 +27,7 @@ export function formatEvent(row) {
         customQuestions: safeJson(row.custom_questions_json, []),
         salesCloseAt: row.sales_close_at,
         past: !!row.past,
+        featured: !!row.featured,
     };
 }
 

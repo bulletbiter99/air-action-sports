@@ -25,6 +25,7 @@ export default function AdminDashboard() {
   const [events, setEvents] = useState([]);
   const [listLoading, setListLoading] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [cronStatus, setCronStatus] = useState(null);
 
   useEffect(() => {
     if (loading) return;
@@ -43,6 +44,13 @@ export default function AdminDashboard() {
       const { events } = await res.json();
       setEvents(events || []);
     }
+  }, []);
+
+  const loadCronStatus = useCallback(async () => {
+    const res = await fetch('/api/admin/analytics/cron-status', {
+      credentials: 'include', cache: 'no-store',
+    });
+    if (res.ok) setCronStatus(await res.json());
   }, []);
 
   const loadBookings = useCallback(async () => {
@@ -66,8 +74,9 @@ export default function AdminDashboard() {
     if (isAuthenticated) {
       loadStats();
       loadEvents();
+      loadCronStatus();
     }
-  }, [isAuthenticated, loadStats, loadEvents]);
+  }, [isAuthenticated, loadStats, loadEvents, loadCronStatus]);
 
   useEffect(() => {
     if (isAuthenticated) loadBookings();
@@ -115,6 +124,10 @@ export default function AdminDashboard() {
           <StatCard label="Total events" value={events.length} sub="active" />
         </div>
       )}
+
+      {/* Reminder cron health — narrow strip, dim styling so it doesn't shout
+          when everything's fine. Goes red if last sweep is >60 min old. */}
+      {cronStatus && <CronHealth status={cronStatus} />}
 
       {/* Filters */}
       <div style={filterBar}>
@@ -200,6 +213,54 @@ function StatCard({ label, value, sub }) {
       <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: 'var(--orange)', textTransform: 'uppercase' }}>{label}</div>
       <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--cream)', margin: '6px 0 2px' }}>{value}</div>
       <div style={{ fontSize: 12, color: 'var(--olive-light)' }}>{sub}</div>
+    </div>
+  );
+}
+
+function CronHealth({ status }) {
+  const ageMs = status.lastSweepAt ? Date.now() - status.lastSweepAt : null;
+  const stale = ageMs == null || ageMs > 60 * 60 * 1000; // >60 min = warn
+  const ageLabel = (() => {
+    if (ageMs == null) return 'never';
+    if (ageMs < 60_000) return 'just now';
+    if (ageMs < 3600_000) return `${Math.round(ageMs / 60_000)} min ago`;
+    if (ageMs < 86400_000) return `${Math.round(ageMs / 3600_000)} hr ago`;
+    return `${Math.round(ageMs / 86400_000)} d ago`;
+  })();
+
+  const accent = stale ? '#e74c3c' : '#2ecc71';
+  const accentBg = stale ? 'rgba(231,76,60,0.06)' : 'rgba(46,204,113,0.04)';
+
+  return (
+    <div style={{
+      margin: '12px 0 28px',
+      padding: '10px 14px',
+      background: accentBg,
+      border: `1px solid ${accent}33`,
+      borderLeft: `3px solid ${accent}`,
+      display: 'flex',
+      gap: 24,
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      fontSize: 12,
+      color: 'var(--olive-light)',
+    }}>
+      <div>
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: accent, textTransform: 'uppercase' }}>
+          Reminder cron
+        </span>
+        {' · '}
+        <span style={{ color: stale ? accent : 'var(--tan-light)' }}>
+          last sweep {ageLabel}
+        </span>
+        {stale && status.lastSweepAt && <span style={{ color: accent, marginLeft: 8 }}>STALE</span>}
+      </div>
+      <div>
+        24hr reminders sent today: <strong style={{ color: 'var(--cream)' }}>{status.reminders24h?.sent24hr ?? 0}</strong>
+      </div>
+      <div>
+        1hr: <strong style={{ color: 'var(--cream)' }}>{status.reminders24h?.sent1hr ?? 0}</strong>
+      </div>
     </div>
   );
 }

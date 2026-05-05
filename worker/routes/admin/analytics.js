@@ -224,4 +224,47 @@ adminAnalytics.get('/attendance/:eventId', async (c) => {
     return c.json({ checkIns: checkIns.length, buckets });
 });
 
+// GET /api/admin/analytics/cron-status — proves the reminder cron is alive.
+// Returns:
+//   - lastSweepAt: ms epoch of the most recent scheduled() run (audit row)
+//   - lastSweepMeta: JSON-parsed meta from that row (reminders/pending/vendor counts)
+//   - reminders24h: { sent24hr, sent1hr } — count of reminder.sent events in last 24h
+// Lightweight enough to call on the admin dashboard mount.
+adminAnalytics.get('/cron-status', async (c) => {
+    const last = await c.env.DB.prepare(
+        `SELECT created_at, meta_json
+         FROM audit_log
+         WHERE action = 'cron.swept'
+         ORDER BY created_at DESC
+         LIMIT 1`
+    ).first();
+
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const counts = await c.env.DB.prepare(
+        `SELECT action, COUNT(*) AS n
+         FROM audit_log
+         WHERE action IN ('reminder.sent', 'reminder_1hr.sent')
+           AND created_at >= ?
+         GROUP BY action`
+    ).bind(cutoff).all();
+
+    const counts24h = { 'reminder.sent': 0, 'reminder_1hr.sent': 0 };
+    for (const row of (counts.results || [])) counts24h[row.action] = row.n;
+
+    let lastSweepMeta = null;
+    if (last?.meta_json) {
+        try { lastSweepMeta = JSON.parse(last.meta_json); }
+        catch { /* shrug */ }
+    }
+
+    return c.json({
+        lastSweepAt: last?.created_at || null,
+        lastSweepMeta,
+        reminders24h: {
+            sent24hr: counts24h['reminder.sent'],
+            sent1hr: counts24h['reminder_1hr.sent'],
+        },
+    });
+});
+
 export default adminAnalytics;

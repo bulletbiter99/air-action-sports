@@ -182,6 +182,11 @@ function FeedbackDetail({ feedback, canDelete, canEditStatus, onClose, onUpdated
   const [notifying, setNotifying] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState('');
   const [err, setErr] = useState('');
+  // Preview-before-send modal state.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [preview, setPreview] = useState(null); // { rendered: { subject, html, text }, recipient }
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewErr, setPreviewErr] = useState('');
 
   const save = async () => {
     setSaving(true); setErr('');
@@ -205,15 +210,48 @@ function FeedbackDetail({ feedback, canDelete, canEditStatus, onClose, onUpdated
     if (res.ok) onDeleted(feedback.id);
   };
 
-  const notifySubmitter = async () => {
-    if (!confirm(`Send a status-update email to ${feedback.email}?`)) return;
-    setNotifying(true); setNotifyMsg(''); setErr('');
+  // Open preview modal — fetches the rendered email with this ticket's
+  // actual status + admin_note, so the user sees exactly what will be sent.
+  const openNotifyPreview = async () => {
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    setPreview(null);
+    setPreviewErr('');
+    setNotifyMsg('');
+    setErr('');
+    try {
+      const res = await fetch(`/api/admin/feedback/${feedback.id}/notify-preview`, {
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPreviewErr(data.error || 'Preview failed');
+      } else {
+        setPreview(data);
+      }
+    } catch {
+      setPreviewErr('Network error loading preview');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  // Actually send. Called from the modal's confirm button.
+  const confirmNotify = async () => {
+    setNotifying(true);
+    setNotifyMsg('');
+    setErr('');
     const res = await fetch(`/api/admin/feedback/${feedback.id}/notify-submitter`, {
       method: 'POST', credentials: 'include',
     });
     setNotifying(false);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { setErr(data.error || 'Notify failed'); return; }
+    if (!res.ok) {
+      setPreviewErr(data.error || 'Notify failed');
+      return;
+    }
+    setPreviewOpen(false);
+    setPreview(null);
     setNotifyMsg(`Email sent to ${feedback.email}.`);
   };
 
@@ -299,17 +337,124 @@ function FeedbackDetail({ feedback, canDelete, canEditStatus, onClose, onUpdated
         <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
           <button type="button" onClick={save} disabled={saving} style={primaryBtn}>{saving ? 'Saving…' : 'Save changes'}</button>
           {feedback.email && canEditStatus && (
-            <button type="button" onClick={notifySubmitter} disabled={notifying} style={secondaryBtn}>
-              {notifying ? 'Sending…' : 'Notify submitter'}
+            <button type="button" onClick={openNotifyPreview} disabled={notifying} style={secondaryBtn}>
+              {notifying ? 'Sending…' : 'Notify submitter…'}
             </button>
           )}
           {mailto && <a href={mailto} style={secondaryLink}>Reply via email</a>}
           {canDelete && <button type="button" onClick={remove} style={dangerBtn}>Delete</button>}
         </div>
       </div>
+
+      {previewOpen && (
+        <NotifyPreviewModal
+          recipient={feedback.email}
+          loading={previewLoading}
+          preview={preview}
+          err={previewErr}
+          sending={notifying}
+          onCancel={() => { setPreviewOpen(false); setPreview(null); setPreviewErr(''); }}
+          onConfirm={confirmNotify}
+        />
+      )}
     </div>
   );
 }
+
+function NotifyPreviewModal({ recipient, loading, preview, err, sending, onCancel, onConfirm }) {
+  return (
+    <div
+      style={{ ...modalBg, zIndex: 200 }}
+      onClick={onCancel}
+    >
+      <div
+        style={{ ...modal, maxWidth: 720 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, color: 'var(--cream)', fontSize: 14, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+            Preview email
+          </h3>
+          <button type="button" onClick={onCancel} aria-label="Close" style={closeX}>×</button>
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--olive-light)', marginBottom: 14 }}>
+          This is exactly what will be sent. Subject and body render with the
+          ticket&rsquo;s current <strong>status</strong> and <strong>admin note</strong>.
+          Edit those first if you want different copy.
+        </div>
+
+        {loading && (
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--olive-light)', fontSize: 13 }}>
+            Loading preview&hellip;
+          </div>
+        )}
+
+        {err && (
+          <div style={{ color: '#e74c3c', fontSize: 12, padding: 10, background: 'rgba(231,76,60,0.08)', border: '1px solid rgba(231,76,60,0.2)', borderRadius: 3, marginBottom: 12 }}>
+            {err}
+          </div>
+        )}
+
+        {preview && (
+          <>
+            <div style={previewMetaRow}>
+              <div style={previewMetaLabel}>To</div>
+              <div style={previewMetaValue}>{recipient}</div>
+            </div>
+            <div style={previewMetaRow}>
+              <div style={previewMetaLabel}>Subject</div>
+              <div style={previewMetaValue}>{preview.rendered.subject}</div>
+            </div>
+
+            <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 700, margin: '14px 0 6px' }}>
+              Body
+            </div>
+            <iframe
+              title="Email body preview"
+              srcDoc={preview.rendered.html}
+              sandbox=""
+              style={{
+                width: '100%',
+                height: 360,
+                background: '#fff',
+                border: '1px solid rgba(200,184,154,0.2)',
+                borderRadius: 3,
+              }}
+            />
+          </>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} style={secondaryBtn} disabled={sending}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!preview || sending || loading}
+            style={primaryBtn}
+          >
+            {sending ? 'Sending…' : 'Send email'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const previewMetaRow = {
+  display: 'flex', gap: 12, alignItems: 'baseline',
+  padding: '8px 0',
+  borderBottom: '1px solid rgba(200,184,154,0.08)',
+};
+const previewMetaLabel = {
+  fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase',
+  color: 'var(--orange)', fontWeight: 700, minWidth: 60,
+};
+const previewMetaValue = {
+  fontSize: 13, color: 'var(--cream)', wordBreak: 'break-word', flex: 1,
+};
 
 function StatCard({ label, value, sub, color, onClick }) {
   return (

@@ -88,7 +88,17 @@ export default function Events() {
         {/* Events Grid */}
         <div className="events-grid">
           {filteredEvents.map((ev) => (
-            <div className="event-card" key={ev.id}>
+            <div className={`event-card${ev.featured ? ' event-card-featured' : ''}`} key={ev.id}>
+              {ev.coverImageUrl && (
+                <Link
+                  to={`/events/${ev.slug}`}
+                  className="event-cover"
+                  style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.65) 100%), url(${ev.coverImageUrl})` }}
+                  aria-label={`${ev.title} — view details`}
+                >
+                  {ev.featured && <span className="event-featured-pill">Featured</span>}
+                </Link>
+              )}
               <div className="event-header">
                 <div className="event-date">
                   <div className="event-day">{ev.date.day}</div>
@@ -97,6 +107,9 @@ export default function Events() {
                 <span className={`event-type ${ev.type}`}>
                   {ev.type.charAt(0).toUpperCase() + ev.type.slice(1)}
                 </span>
+                {ev.featured && !ev.coverImageUrl && (
+                  <span className="event-featured-pill event-featured-pill-inline">Featured</span>
+                )}
               </div>
               <div className="event-body">
                 <Link to={`/events/${ev.slug}`} className="event-title" style={{ textDecoration: 'none', color: 'var(--cream)' }}>{ev.title}</Link>

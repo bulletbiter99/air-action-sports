@@ -27,7 +27,7 @@ function parseEventBody(body, { partial = false } = {}) {
         coverImageUrl: 'cover_image_url', shortDescription: 'short_description',
         basePriceCents: 'base_price_cents', totalSlots: 'total_slots',
         salesCloseAt: 'sales_close_at',
-        published: 'published', past: 'past',
+        published: 'published', past: 'past', featured: 'featured',
     };
     for (const [k, col] of Object.entries(map)) {
         if (body[k] === undefined) continue;
@@ -47,7 +47,7 @@ function parseEventBody(body, { partial = false } = {}) {
                 if (!Number.isFinite(n)) return { error: `${k} must be a number` };
                 patch[col] = Math.round(n);
             }
-        } else if (col === 'published' || col === 'past') {
+        } else if (col === 'published' || col === 'past' || col === 'featured') {
             patch[col] = body[k] ? 1 : 0;
         }
     }
@@ -310,7 +310,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         'id', 'title', 'date_iso', 'display_date', 'display_day', 'display_month',
         'location', 'site', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
         'base_price_cents', 'total_slots', 'addons_json', 'game_modes_json', 'details_json',
-        'sales_close_at', 'published', 'past',
+        'sales_close_at', 'published', 'past', 'featured',
         'cover_image_url', 'short_description', 'slug', 'created_at', 'updated_at',
     ];
     const vals = {
@@ -335,6 +335,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         sales_close_at: salesCloseAt ?? null,
         published: patch.published ?? 0, // default UNPUBLISHED — admin must explicitly publish
         past: patch.past ?? 0,
+        featured: patch.featured ?? 0,
         cover_image_url: patch.cover_image_url || null,
         short_description: patch.short_description || null,
         slug: patch.slug,
