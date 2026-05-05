@@ -19,7 +19,7 @@ export default function MobileMenu({ isOpen, onClose }) {
       <Link to="/faq" onClick={onClose}>FAQ</Link>
       <Link to="/rules-of-engagement" onClick={onClose}>Rules of Engagement</Link>
       <Link to="/contact" onClick={onClose}>Contact</Link>
-      <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="mobile-menu-cta" onClick={onClose}>Book Now</a>
+      <Link to={siteConfig.bookingLink} className="mobile-menu-cta" onClick={onClose}>Book Now</Link>
     </div>
   );
 }

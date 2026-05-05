@@ -65,7 +65,7 @@ export default function Locations() {
             </div>
 
             <div className="site-cta">
-              <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-primary">&#9658; {site.badge === 'open' ? 'Book This Site' : 'Register Interest'}</a>
+              <Link to={siteConfig.bookingLink} className="btn-primary">&#9658; {site.badge === 'open' ? 'Book This Site' : 'Register Interest'}</Link>
             </div>
           </div>
         ))}
@@ -75,7 +75,7 @@ export default function Locations() {
       <div className="cta-band">
         <h2>Ready to Book?</h2>
         <p>Pick your site, pick your date, and get on the field.</p>
-        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">&#9658; Book Now</a>
+        <Link to={siteConfig.bookingLink} className="btn-white">&#9658; Book Now</Link>
       </div>
     </>
   );

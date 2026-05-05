@@ -246,9 +246,9 @@ export default function Contact() {
       <div className="cta-band">
         <h2>Ready to Book?</h2>
         <p>Skip the form and reserve your slot now.</p>
-        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">
+        <Link to={siteConfig.bookingLink} className="btn-white">
           &#9658; Book Your Battle
-        </a>
+        </Link>
       </div>
     </>
   );

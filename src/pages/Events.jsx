@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
-import { siteConfig } from '../data/siteConfig';
 import { useEvents } from '../hooks/useEvents';
 import '../styles/pages/events.css';
 
@@ -167,7 +166,7 @@ export default function Events() {
       <div className="cta-band">
         <h2>Want a Custom Event?</h2>
         <p>We build bespoke operations for groups, corporate teams, and private parties.</p>
-        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">&#9658; Enquire Now</a>
+        <Link to="/contact" className="btn-white">&#9658; Enquire Now</Link>
       </div>
     </>
   );

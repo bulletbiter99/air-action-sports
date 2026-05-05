@@ -20,7 +20,7 @@ export default function PricingCard({ plan, featured }) {
         {plan.ctaLink ? (
           <Link to={plan.ctaLink}>{plan.ctaText || 'Book Now'}</Link>
         ) : (
-          <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer">{plan.ctaText || 'Book Now'}</a>
+          <Link to={siteConfig.bookingLink}>{plan.ctaText || 'Book Now'}</Link>
         )}
       </div>
     </div>

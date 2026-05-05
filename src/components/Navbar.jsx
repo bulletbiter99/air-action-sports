@@ -28,7 +28,7 @@ export default function Navbar({ showTicker, onHamburgerClick, isMobileMenuOpen 
           <NavLink to="/rules-of-engagement">ROE</NavLink>
           <NavLink to="/contact">Contact</NavLink>
         </div>
-        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="nav-cta">Book Now</a>
+        <Link to={siteConfig.bookingLink} className="nav-cta">Book Now</Link>
         <button
           className={`hamburger${isMobileMenuOpen ? ' active' : ''}`}
           aria-label="Menu"

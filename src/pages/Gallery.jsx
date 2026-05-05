@@ -159,7 +159,7 @@ export default function Gallery() {
       <div className="cta-band">
         <h2>Ready to Deploy?</h2>
         <p>Secure your spot at the next game day.</p>
-        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">Book Now</a>
+        <Link to={siteConfig.bookingLink} className="btn-white">Book Now</Link>
       </div>
     </>
   );

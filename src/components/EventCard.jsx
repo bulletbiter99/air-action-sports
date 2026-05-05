@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { siteConfig } from '../data/siteConfig';
 
 export default function EventCard({ event }) {
@@ -38,7 +39,7 @@ export default function EventCard({ event }) {
             </div>
           </>
         )}
-        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-book">&#9658; Book Slot</a>
+        <Link to={siteConfig.bookingLink} className="btn-book">&#9658; Book Slot</Link>
       </div>
     </div>
   );

@@ -103,7 +103,7 @@ export default function Home() {
             Airsoft events across multiple elite outdoor sites.
           </p>
           <div className="hero-btns">
-            <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-primary">&#9658; Book Your Battle</a>
+            <Link to={siteConfig.bookingLink} className="btn-primary">&#9658; Book Your Battle</Link>
             <Link to="/events" className="btn-secondary">View Upcoming Events</Link>
           </div>
           <div className="hero-stats">
@@ -423,7 +423,7 @@ export default function Home() {
       <div className="cta-band">
         <h2>Ready to Deploy?</h2>
         <p>Slots go fast. Don't miss the next operation.</p>
-        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">&#9658; Book Your Battle Now</a>
+        <Link to={siteConfig.bookingLink} className="btn-white">&#9658; Book Your Battle Now</Link>
       </div>
     </>
   );

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { siteConfig } from '../data/siteConfig';
 
 export default function FloatingBookPill() {
@@ -17,8 +18,8 @@ export default function FloatingBookPill() {
   }, []);
 
   return (
-    <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className={`floating-book${visible ? ' visible' : ''}`}>
+    <Link to={siteConfig.bookingLink} className={`floating-book${visible ? ' visible' : ''}`}>
       &#9658; Book Now
-    </a>
+    </Link>
   );
 }

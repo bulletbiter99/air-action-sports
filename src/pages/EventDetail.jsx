@@ -295,15 +295,13 @@ export default function EventDetail() {
             </div>
 
             {/* Book Now Button */}
-            <a
-              href={siteConfig.bookingLink}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to={siteConfig.bookingLink}
               className="form-submit"
               style={{ display: 'block', textAlign: 'center', textDecoration: 'none', marginBottom: '1.5rem' }}
             >
               &#9658; Book Now
-            </a>
+            </Link>
 
             {/* Waiver Notice */}
             <p style={{ fontSize: '12px', color: 'var(--olive-light)', textAlign: 'center', marginBottom: '1.5rem' }}>

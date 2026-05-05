@@ -178,9 +178,9 @@ export default function About() {
       <div className="about-cta-band">
         <h2>Ready to Join the Mission?</h2>
         <p>Book your first game and see what it's all about.</p>
-        <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">
+        <Link to={siteConfig.bookingLink} className="btn-white">
           &#9658; Book Now
-        </a>
+        </Link>
       </div>
     </>
   );

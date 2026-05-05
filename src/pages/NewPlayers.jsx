@@ -248,9 +248,9 @@ export default function NewPlayers() {
               <Link to="/events" className="btn-white">
                 &#9658; View Events
               </Link>
-              <a href={siteConfig.bookingLink} target="_blank" rel="noopener noreferrer" className="btn-white">
+              <Link to={siteConfig.bookingLink} className="btn-white">
                 &#9658; Book Now
-              </a>
+              </Link>
             </div>
           </div>
         </div>
