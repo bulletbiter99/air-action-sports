@@ -79,6 +79,26 @@ export function calculateQuote({ event, ticketTypes, ticketSelections, addonSele
 
     const subtotalCents = ticketsSubtotal + addonsSubtotal;
 
+    // Empty cart short-circuit. Without this, per-order fixed fees (e.g.
+    // Stripe-style $0.30 processing fee) leak into totals before the user
+    // selects anything because their unitMultiplier defaults to 1. Mirrors
+    // the same guard already present client-side in src/pages/Booking.jsx.
+    // The errors[] array still carries any validation failures (e.g.
+    // "At least one ticket is required") for the caller to surface.
+    if (subtotalCents === 0) {
+        return {
+            lineItems,
+            subtotalCents: 0,
+            discountCents: 0,
+            taxCents: 0,
+            feeCents: 0,
+            totalCents: 0,
+            totalAttendees,
+            errors,
+            promoApplied: null,
+        };
+    }
+
     // Promo code
     let discountCents = 0;
     if (promo && subtotalCents > 0) {
