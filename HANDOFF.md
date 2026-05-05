@@ -98,7 +98,8 @@ action-air-sports/
 │   ├── 0014_feedback_attachment.sql ← attachment cols + feedback_resolution_notice template
 │   ├── 0015_drop_event_tax_columns.sql ← drop dead per-event tax_rate_bps + pass_fees_to_customer
 │   ├── 0016_booking_payment_method.sql ← bookings.payment_method col + index + backfill
-│   └── 0017_event_featured.sql         ← events.featured (admin-picked headliner sort)
+│   ├── 0017_event_featured.sql         ← events.featured (admin-picked headliner sort)
+│   └── 0018_waiver_v4_fields.sql       ← 4-tier age, jury trial initials, supervising adult, claim_period_expires_at + idx_waivers_claim_lookup
 ├── scripts/                 ← one-off SQL scripts, not tracked by migration runner
 ├── .claude/
 │   └── commands/feedback.md  ← /feedback slash-command playbook (pull → review → recommend → update → deploy)
@@ -181,6 +182,7 @@ To rotate: generate new value in the respective dashboard → `echo "new-value" 
 | `vendor_contract_documents` | Versioned immutable operating-agreement text; same live-row pattern as waiver_documents (`retired_at IS NULL`). Each new version retires the previous. |
 | `vendor_signatures` | Per-package signed contract. Immutable at-sign snapshot of `body_html` + `body_sha256` + typed_name + IP + UA + token_version. `UNIQUE(event_vendor_id)`. Countersigned by owner role. |
 | `feedback` | User-submitted tickets (bug / feature / usability / other). `status` ∈ new/triaged/in-progress/resolved/wont-fix/duplicate; `priority` ∈ low/medium/high/critical. Optional screenshot via `attachment_url` → R2 `feedback/<key>.<ext>`. Terminal status transitions auto-delete the R2 object and stamp `attachment_deleted_at`. IP hashed with SESSION_SECRET, never stored raw. |
+| `waivers` (v4 fields) | Phase B columns added by 0018: `medical_conditions`, `age_tier` ('12-15'\|'16-17'\|'18+'), `parent_phone_day_of_event`, `parent_initials`, `supervising_adult_name`/`supervising_adult_signature`/`supervising_adult_relationship`/`supervising_adult_phone_day_of_event` (12-15 only), `jury_trial_initials` (§22, all tiers), `claim_period_expires_at` (signed_at + 365d — drives Phase C annual-renewal lookup). All nullable so pre-v4 signers (4 dogfood rows on wd_v1) survive. `idx_waivers_claim_lookup` on (email, player_name, claim_period_expires_at) for the auto-link query. |
 
 Full schema: concat the migration files in order.
 
@@ -435,6 +437,7 @@ The admin shell uses a **left sidebar** (not a top bar) at ≥900px and converts
 | **Workers Builds auto-deploy wiring** | Cloudflare Workers Builds (git integration) was previously failing every build because `npx wrangler deploy` runs without a prior Vite build, so `./dist` doesn't exist when wrangler validates `assets.directory`. Tried adding `[build] command = "npm run build"` to `wrangler.toml` — does not fire in wrangler 4.85 because the assets check short-circuits before the custom build hook. Real fix: in the Cloudflare dashboard (Workers & Pages → air-action-sports → Settings → Builds), changed the **Deploy command** from `npx wrangler deploy` to `npm run build && npx wrangler deploy`. Verified with an empty commit; auto-deploy on `git push origin main` is now reliable. |
 | **Rules of Engagement page (fb_Tp9RIpHdKgWw)** | New `/rules-of-engagement` page (15 sections) shipped from Jesse's feedback ticket. Verbatim from ticket: 4 weapon-class card grid (Rifle 350 FPS / DMR 450 / LMG 450 with 20 RPS cap & real-LMG-platform requirement / Sniper 550 bolt-action), grenades (Thunder B 10ft kill radius), training knives (admin-approved, light tap = elim). Added beyond-ticket to close gaps vs MilSim City's published ROE: hit calling protocol (HIT call + dead rag + BLIND MAN cease-fire), ANSI Z87.1+ eye protection + under-18 full-face mask, 12+ age policy with parent/guardian rules, safe-zone procedures (mag out + dry fire + safety on), chronograph policy (.20g BBs, post-chrono adjustment = ban), drugs & alcohol zero-tolerance, sportsmanship/cheating (ghosting/wiping/overshooting), dispute resolution, physical violence permanent ban, transport (bagged in/out), site conduct (no climbing, off-limits, pack out, vandalism). Cross-linked from desktop navbar ("ROE"), mobile menu ("Rules of Engagement"), footer Info column, NewPlayers step 5, and EventDetail Rules & Requirements section (which also got the stale "350 AEG / 500 bolt" line corrected to match the new class system). Owner-decision gaps explicitly deferred — see §11. |
 | **Booking flow cutover (Peek → internal)** | Removed the Peek widget `<script>` from `index.html`. `siteConfig.bookingLink` flipped from the Peek URL to `/booking`. 17 `<a target="_blank">` references converted to `<Link to>` across 14 files (Navbar, MobileMenu, EventCard, FloatingBookPill, PricingCard, Home ×2, About, Contact, EventDetail, Gallery, NewPlayers, Locations ×2). Events.jsx "Enquire Now" rerouted to `/contact` (sales conversation, not self-serve checkout). Stripe still in sandbox — real-money cutover is the next pre-launch op step. Plus `Booking` page got a new always-visible event banner at the top of step 1 (orange-bordered, large title, location + time + price; uses `coverImageUrl` as a darkened bg when set) so single-event mode no longer hides the event identity in a section subheading. |
+| **Waiver overhaul (Phase A/B/C)** | Three-phase upgrade from the original 6-bullet seed waiver to a corporate-wide release of liability with Utah-specific minor handling, 365-day Claim Period (annual renewal), and full auto-link UX. **Phase A** — published `wd_v4` (current live waiver doc, SHA prefix `525a075a7…`): 22 sections including Release & Indemnity, PPE Compliance, FPS chrono, Weather, Camping, Third-Party Injuries, Sponsor/Vendor zones, Insurance certification, Choice of Law (Davis County, Utah), Photo/Drone Policy, Social Media Release, Medical Emergency Authorization, Data Privacy (7y adult / age-23 minor retention), Jury Trial Waiver §22, Annual Renewal §21, Electronic Signature Acknowledgment per Utah Code §46-4-201, Age Participation Policy table, Exhibit A Site Schedule (Ghost Town active / Foxtrot Fields coming soon). v2 and v3 superseded immediately due to Exhibit A status reconciliation; v4 strips an internal-only Hawkins v. Peart explainer. wd_v1 thru wd_v3 retired; future signers see v4. **Phase B** — migration 0018 + 4-tier age policy enforced both client- and server-side. Under 12 hard-blocks at submit. 12-15: parent fields + parent_initials + ON-SITE supervising adult name/signature/phone (defaults to "same as parent" toggle). 16-17: parent fields + parent_initials only. 18+: independent. Jury Trial Waiver initials field required for all tiers. Medical Conditions optional textarea (page-1 section). All new fields landed on `waivers` (see §6 row). Server `ageTier(age)` helper mirrors client logic exactly to prevent client/server drift. **Phase C** — `findExistingValidWaiver(db, email, firstName, lastName, asOf)` (worker/routes/webhooks.js, exported) matches by (LOWER(TRIM(email)), LOWER(TRIM(player_name))) + claim_period_expires_at > now. Called from both the Stripe webhook and admin manual booking handler — new attendee rows get `waiver_id` pre-populated when a match exists. Auto-linked attendees skip the per-attendee waiver-request email entirely (`out.waivers.push({skipped: 'already_on_file'})`). User-facing notifications: (1) `/booking/success` summary banner branches on per-booking waiver status ("All N already on file" / "M of N on file, rest need to sign" / "each player needs to sign") + per-attendee row shows green "✓ ON FILE — valid through {date}" or "Sign Waiver" link; (2) `/waiver?token=...` shows green-bordered "Waiver On File" card with signed date, expiry, doc version when attendee.waiver_id is set; falls through to the form if expiry has passed; (3) booking confirmation email gets a `{{waiver_summary}}` template variable matching the success page. Annual-renewal lookup is covered by `idx_waivers_claim_lookup`. audit_log entries: `waiver.auto_linked` per linked attendee. |
 | **Smaller polish wave** | Five items shipped in one commit: (1) **Notify-submitter preview-before-send modal** — new `GET /api/admin/feedback/:id/notify-preview` renders the resolution-notice template with this ticket's actual status + admin_note (not sample data). AdminFeedback's "Notify submitter…" button now opens a sandboxed-iframe modal showing recipient + subject + rendered body before sending. `renderFeedbackResolutionNotice` helper extracted from `sendFeedbackResolutionNotice` so preview + send share the rendering path. (2) **Featured-event flag** — migration 0017 adds `events.featured INTEGER DEFAULT 0`; `/api/events` ORDER BY now `featured DESC, date_iso ASC|DESC` so admin-picked headliner wins ties; checkbox in AdminEvents Publishing section; orange "Featured" pill on `/events` cards (top-right of cover, or inline in header) + orange ring around featured cards. (3) **Reminder-cron monitoring** — `scheduled()` writes a `cron.swept` audit row on every run regardless of whether work was done, with full results metadata. New `GET /api/admin/analytics/cron-status` returns last sweep age + 24h `reminder.sent`/`reminder_1hr.sent` counts. AdminDashboard renders a CronHealth strip: green when last sweep <60min, red + STALE badge if older. (4) **`/events` cover-image hero** — 160px gradient-overlaid hero on cards with `coverImageUrl`; featured cards get accented styling. (5) **Booking total bug fix** (user-reported): per-order fixed fee (e.g., Stripe's $0.30 processing fee) was leaking into the total before any tickets were selected because the unit multiplier defaults to 1 for non-attendee `per_unit` values. Short-circuit in `totals` returns all zeros when subtotal === 0; once the user adds anything, taxes/fees apply correctly on top. |
 
 ## 11. What's left before go-live
@@ -480,7 +483,8 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **5 resolved feedback tickets** (4 smoke/dogfood from when the system shipped 2026-04-23/24, plus `fb_Tp9RIpHdKgWw` — Jesse's Rules of Engagement page request, shipped 2026-04-29). 0 open tickets.
 - **Cloudflare Workers Builds**: deploy command in dashboard is `npm run build && npx wrangler deploy` (must be both — see §13). Auto-deploys on `git push origin main`.
 - **Booking flow live**: `/booking` is the canonical Book Now path; Peek widget removed from `index.html`. Stripe still in **sandbox** mode — real-money cutover is the next pre-launch step.
-- **Migrations 0001-0017 applied to remote D1**.
+- **Migrations 0001-0018 applied to remote D1**.
+- **Waiver document live**: `wd_v4` (corporate-wide release of liability + 4-tier age policy + 365-day Claim Period). wd_v1 thru wd_v3 retired. Edit at `/admin/waivers` (owner only) — creates a new version, retires the previous; past signers stay pinned to whatever they signed.
 - **Rate-limit bindings** (all `[[unsafe.bindings]] type=ratelimit`, namespaces 1001–1008): `RL_LOGIN` 5/min, `RL_FORGOT` 3/min, `RL_VERIFY_TOKEN` 10/min, `RL_RESET_PWD` 5/min, `RL_CHECKOUT` 10/min, `RL_TOKEN_LOOKUP` 30/min, `RL_FEEDBACK` 3/min, `RL_FEEDBACK_UPLOAD` 3/min.
 - **Admin owner**: Paul Keddington (bulletbiter99@gmail.com)
 - **Stripe**: **still sandbox mode** — flip before first real sale
@@ -509,7 +513,7 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
    - `curl https://air-action-sports.bulletbiter99.workers.dev/api/health` → `{"ok":true,...}`
    - `curl https://air-action-sports.bulletbiter99.workers.dev/api/events` → returns 1 event
 4. Confirm admin login works (use `/admin/forgot-password` if needed).
-5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-05: `93df766b-334e-42f8-aae8-38a02f1bee9e` (smaller-polish wave: notify-submitter preview modal, featured-event flag via migration 0017, reminder-cron monitoring + AdminDashboard CronHealth widget, `/events` cover-image hero, booking $0.30 pre-cart bug fix). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
+5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-05: `1939f7d3-55df-4551-b074-78d5aa1a1aaa` (Phase C waiver auto-link + on-file notifications). The waiver overhaul shipped in three back-to-back commits — `2b26a4d` (Phase B: migration 0018 + 4-tier age form + jury trial initials) and `790c58d` (Phase C: webhook auto-link + BookingSuccess summary + /waiver "On File" card + email summary). wd_v4 went live before the code via four atomic SQL publish steps (v2 / v3 status fix / v4 internal-notice removal). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
 6. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
 
 ---
@@ -525,17 +529,33 @@ phases + polish, every API and frontend route, a list of what's deferred in §11
 and the pre-launch operational checklist also in §11.
 
 Current state: all roadmap phases (1–9), the 5 polish items, vendor MVP + v1,
-waiver hardening, the admin UI refactor, global money/tax unification, the
+waiver hardening, admin UI refactor, global money/tax unification, the
 full feedback/ticket system, the event-creation hardening + dynamic homepage
 pass, the public Rules of Engagement page at /rules-of-engagement, the
 booking-flow cutover (Peek widget removed, all "Book Now" CTAs route to
-internal /booking with a prominent event banner on step 1), and a wave of
-smaller-polish items — notify-submitter preview-before-send modal,
-events.featured flag (migration 0017) + admin checkbox + sort-order tweak +
-/events featured pill, reminder-cron monitoring (`cron.swept` audit row +
-`/api/admin/analytics/cron-status` + AdminDashboard CronHealth widget),
-/events cover-image hero, and a fix for the booking $0.30 pre-cart leak —
-all shipped and live at https://air-action-sports.bulletbiter99.workers.dev.
+internal /booking with a prominent event banner on step 1), the
+smaller-polish wave (notify-submitter preview modal, events.featured flag,
+reminder-cron monitoring, /events cover-image hero, booking $0.30 pre-cart
+leak fix), AND the **waiver overhaul (Phase A/B/C)**:
+  Phase A — wd_v4 corporate-wide release of liability is live (22 sections,
+    Utah-specific minor handling, jury trial waiver, 365-day Claim Period,
+    Exhibit A site schedule, photo/drone/social media releases, electronic
+    signature acknowledgment per Utah Code §46-4-201).
+  Phase B — migration 0018 + 4-tier age policy enforced both client- and
+    server-side (under-12 hard-blocks, 12-15 needs parent + on-site
+    supervising adult, 16-17 needs parent only, 18+ independent), Jury
+    Trial Waiver initials field for all tiers, parent_initials Age Policy
+    ack for minors, optional medical conditions/allergies textarea.
+  Phase C — annual-renewal auto-link: new attendees with email + name
+    matching a non-expired waiver get waiver_id pre-set at booking time
+    (Stripe webhook + admin manual booking handler, indexed lookup).
+    Auto-linked attendees skip the per-attendee waiver-request email
+    entirely. /booking/success and /waiver?token=... both show the
+    friendly "✓ ON FILE — valid through {date}" state. Booking
+    confirmation email gets a {{waiver_summary}} variable matching the
+    success page copy.
+
+All shipped and live at https://air-action-sports.bulletbiter99.workers.dev.
 
 Cloudflare Workers Builds auto-deploy is wired — `git push origin main`
 builds + deploys on its own. Deploy command in the dashboard is
