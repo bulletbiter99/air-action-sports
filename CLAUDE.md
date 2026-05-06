@@ -29,7 +29,17 @@ npm run lint
 # Preview the built dist/
 npm run preview
 
-# Tests — none exist yet. Phase 2 prep prescribes 83 characterization tests in docs/audit/09-test-coverage.md.
+# Tests — vitest unit suite (216 tests across tests/unit/ as of m1-batch-8;
+# growing per the milestone-1-test-infrastructure batches that implement
+# the audit-prescribed characterization tests in docs/audit/09-test-coverage.md).
+npm test                 # vitest run (CI runs this on every PR)
+npm run test:watch       # vitest in watch mode (active development)
+npm run test:coverage    # vitest run with v8 coverage; HTML in coverage/
+
+# Playwright smoke suite (7 tests) — operator-triggered against a deployed
+# Worker. Not part of `npm test`; not in CI by default. Operator one-time
+# setup: `npx playwright install chromium`. See CONTRIBUTING.md.
+npm run test:e2e
 ```
 
 Deploy is **not** an npm script. The pattern is:
@@ -119,6 +129,16 @@ These files, functions, endpoints, tables, and components are off-limits without
 - `migrations/*` — forward-only by convention; never rename or delete previously-applied migrations
 
 See [docs/audit/06-do-not-touch.md](docs/audit/06-do-not-touch.md) for the Medium tier and modification protocols per entry.
+
+### Test gate enforcement (added 2026-05-06 in m1-batch-8)
+
+[scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) is the machine-readable companion to the do-not-touch list above. Each entry under `gates` maps a source path → the test paths under [tests/](tests/) that lock its behavior.
+
+**Rule:** before editing any path listed under `gates`, run the listed test paths and confirm they pass. After your edit, re-run them — they must still pass. If a test reveals current behavior conflicting with audit-documented behavior, **stop and ask** — do not adapt the test to match the new code.
+
+The `uncovered` section of the gate map enumerates do-not-touch files without tests yet. Their `audit_tests_prescribed` arrays form the post-M1 punch list per [docs/audit/09-test-coverage.md](docs/audit/09-test-coverage.md) (Groups E, F, G, H — admin manual booking, auth, worker-level, and cron).
+
+When adding tests for a gated path in a future batch, also append the new test paths to the relevant `gates[<path>].tests` array in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) so the map stays current.
 
 ### Stop-and-ask conditions
 
