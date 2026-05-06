@@ -1,0 +1,31 @@
+# Normalize line endings on commit. Working-tree checkouts preserve native
+# endings on each platform, but the repository stores LF so cross-platform
+# diffs and the CI runner stay clean. Prevents "LF will be replaced by CRLF"
+# warnings on every Windows commit.
+#
+# Existing files are NOT renormalized retroactively — apply only to future
+# writes. Run `git add --renormalize .` later if a one-time normalization
+# pass is desired.
+
+* text=auto eol=lf
+
+# Force LF on shell scripts (executable on Linux/macOS; CRLF would break the
+# shebang line).
+*.sh text eol=lf
+
+# Force CRLF on Windows batch / cmd files (CRLF is required for correct
+# parsing by cmd.exe).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Treat binaries explicitly so Git doesn't attempt text conversions.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.zip binary

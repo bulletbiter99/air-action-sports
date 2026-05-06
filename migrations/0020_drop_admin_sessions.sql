@@ -1,0 +1,16 @@
+-- Drop the dead `admin_sessions` table.
+--
+-- This table was created in 0001_initial.sql to back a server-side admin
+-- session store. Since 0010_session_version.sql, admin sessions are HMAC-
+-- signed cookies (worker/lib/session.js) with a `users.session_version`
+-- counter providing logout/revocation. The table has been unread and
+-- unwritten by application code since that change shipped.
+--
+-- Cross-references:
+--   - HANDOFF.md §6 documents it as "Legacy — sessions live in HMAC-signed cookies now"
+--   - SECURITY_AUDIT.md INFO-3 recommends pruning
+--   - docs/audit/03-data-model.md confirms zero callers
+--
+-- IF EXISTS so a re-run is a no-op. The two associated indexes drop with
+-- the table.
+DROP TABLE IF EXISTS admin_sessions;

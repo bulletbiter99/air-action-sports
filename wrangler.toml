@@ -94,3 +94,12 @@ name = "RL_FEEDBACK_UPLOAD"
 type = "ratelimit"
 namespace_id = "1008"
 simple = { limit = 3, period = 60 }
+
+# Public booking quote: 30/min/IP — read-only DB lookups; cap on scraping
+# without disrupting a customer iterating ticket counts during browsing.
+# More permissive than RL_CHECKOUT (10/min) since /quote is read-only.
+[[unsafe.bindings]]
+name = "RL_QUOTE"
+type = "ratelimit"
+namespace_id = "1009"
+simple = { limit = 30, period = 60 }
