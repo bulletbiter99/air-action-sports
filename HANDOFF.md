@@ -33,8 +33,12 @@ Single Worker serves everything — `/api/*` routes through Hono, `/uploads/*` s
 
 ```
 action-air-sports/
+├── CLAUDE.md                ← entry-point rules: stack summary, do-not-touch list,
+│                              stop-and-ask conditions, branch etiquette
+├── HANDOFF.md               ← (this file) full session-start context
+├── .gitattributes           ← LF normalization (eol=lf default; *.bat eol=crlf)
 ├── wrangler.toml            ← Worker + D1 + R2 + cron config
-├── package.json
+├── package.json             ← name: "air-action-sports"
 ├── vite.config.js           ← dev proxy /api → deployed Worker
 ├── index.html               ← baseline OG/Twitter meta defaults
 ├── src/                     ← React frontend
@@ -91,6 +95,7 @@ action-air-sports/
 │   ├── 0007_reminder_1hr.sql
 │   ├── 0008_team_invites.sql
 │   ├── 0009_custom_questions.sql
+│   ├── 0010_session_version.sql ← users.session_version (closes SECURITY_AUDIT MED-9/10)
 │   ├── 0010_vendors.sql         ← vendor MVP (6 tables + seed email template)
 │   ├── 0011_waiver_hardening.sql ← waiver_documents + at-sign snapshot/hash
 │   ├── 0012_vendor_v1.sql       ← contracts, signatures, password portal, cron idempotency, v1 email templates
@@ -100,10 +105,20 @@ action-air-sports/
 │   ├── 0016_booking_payment_method.sql ← bookings.payment_method col + index + backfill
 │   ├── 0017_event_featured.sql         ← events.featured (admin-picked headliner sort)
 │   ├── 0018_waiver_v4_fields.sql       ← 4-tier age, jury trial initials, supervising adult, claim_period_expires_at + idx_waivers_claim_lookup
-│   └── 0019_event_per_surface_images.sql ← card/hero/banner/og image URL columns (per-surface cover images, cover_image_url stays as fallback)
+│   ├── 0019_event_per_surface_images.sql ← card/hero/banner/og image URL columns (per-surface cover images, cover_image_url stays as fallback)
+│   ├── 0020_drop_admin_sessions.sql ← drop dead admin_sessions table (NOT YET APPLIED to remote — see §11)
+│   └── README.md            ← migration convention + 0010_* collision explanation
+├── docs/
+│   ├── audit/                ← Phase 1 audit: 00-overview.md + 10 area docs
+│   │                            (stack, routes, data model, integrations,
+│   │                             public/admin coupling, do-not-touch, admin
+│   │                             surface map, pain points, test coverage,
+│   │                             open questions)
+│   └── staff-job-descriptions.md  ← 22 role descriptions across 4 tiers
 ├── scripts/                 ← one-off SQL scripts, not tracked by migration runner
 ├── .claude/
-│   └── commands/feedback.md  ← /feedback slash-command playbook (pull → review → recommend → update → deploy)
+│   ├── commands/feedback.md  ← /feedback slash-command playbook (pull → review → recommend → update → deploy)
+│   └── skills/deploy-air-action-sports/SKILL.md ← deploy wrapper (build + wrangler deploy + health check)
 └── dist/                    ← Vite build output, uploaded with Worker
 ```
 
@@ -163,7 +178,7 @@ To rotate: generate new value in the respective dashboard → `echo "new-value" 
 | `attendees` | Individual players under a booking, each with `qr_token` and `custom_answers_json` |
 | `waivers` | Signed waiver tied to an attendee |
 | `users` | Admin accounts (owner / manager / staff) |
-| `admin_sessions` | Legacy — sessions live in HMAC-signed cookies now |
+| `admin_sessions` | Legacy — sessions live in HMAC-signed cookies now. **Migration `0020_drop_admin_sessions.sql` drops this table; pending application to remote D1 (see §11).** |
 | `password_resets` | Reset tokens, 1hr TTL |
 | `invitations` | Team invite tokens, 7-day TTL, single-use |
 | `promo_codes` | Discount codes (percent or fixed) |
@@ -202,7 +217,7 @@ Full schema: concat the migration files in order.
 | GET | `/api/events/:id` | Single event — matches by `id` OR `slug` |
 | GET | `/api/events/:id/ticket-types` | Just ticket types |
 | GET | `/api/taxes-fees` | Active taxes/fees for checkout |
-| POST | `/api/bookings/quote` | Preview totals without committing |
+| POST | `/api/bookings/quote` | Preview totals without committing. Rate-limited at **30/min/IP** via `RL_QUOTE` (added in pre-Phase-2 hygiene batch). |
 | POST | `/api/bookings/checkout` | Create pending booking + Stripe Checkout Session |
 | GET | `/api/bookings/:token` | Public booking lookup (confirmation page) |
 | POST | `/api/webhooks/stripe` | Stripe webhook receiver |
@@ -444,16 +459,18 @@ The admin shell uses a **left sidebar** (not a top bar) at ≥900px and converts
 | **Waiver overhaul (Phase A/B/C)** | Three-phase upgrade from the original 6-bullet seed waiver to a corporate-wide release of liability with Utah-specific minor handling, 365-day Claim Period (annual renewal), and full auto-link UX. **Phase A** — published `wd_v4` (current live waiver doc, SHA prefix `525a075a7…`): 22 sections including Release & Indemnity, PPE Compliance, FPS chrono, Weather, Camping, Third-Party Injuries, Sponsor/Vendor zones, Insurance certification, Choice of Law (Davis County, Utah), Photo/Drone Policy, Social Media Release, Medical Emergency Authorization, Data Privacy (7y adult / age-23 minor retention), Jury Trial Waiver §22, Annual Renewal §21, Electronic Signature Acknowledgment per Utah Code §46-4-201, Age Participation Policy table, Exhibit A Site Schedule (Ghost Town active / Foxtrot Fields coming soon). v2 and v3 superseded immediately due to Exhibit A status reconciliation; v4 strips an internal-only Hawkins v. Peart explainer. wd_v1 thru wd_v3 retired; future signers see v4. **Phase B** — migration 0018 + 4-tier age policy enforced both client- and server-side. Under 12 hard-blocks at submit. 12-15: parent fields + parent_initials + ON-SITE supervising adult name/signature/phone (defaults to "same as parent" toggle). 16-17: parent fields + parent_initials only. 18+: independent. Jury Trial Waiver initials field required for all tiers. Medical Conditions optional textarea (page-1 section). All new fields landed on `waivers` (see §6 row). Server `ageTier(age)` helper mirrors client logic exactly to prevent client/server drift. **Phase C** — `findExistingValidWaiver(db, email, firstName, lastName, asOf)` (worker/routes/webhooks.js, exported) matches by (LOWER(TRIM(email)), LOWER(TRIM(player_name))) + claim_period_expires_at > now. Called from both the Stripe webhook and admin manual booking handler — new attendee rows get `waiver_id` pre-populated when a match exists. Auto-linked attendees skip the per-attendee waiver-request email entirely (`out.waivers.push({skipped: 'already_on_file'})`). User-facing notifications: (1) `/booking/success` summary banner branches on per-booking waiver status ("All N already on file" / "M of N on file, rest need to sign" / "each player needs to sign") + per-attendee row shows green "✓ ON FILE — valid through {date}" or "Sign Waiver" link; (2) `/waiver?token=...` shows green-bordered "Waiver On File" card with signed date, expiry, doc version when attendee.waiver_id is set; falls through to the form if expiry has passed; (3) booking confirmation email gets a `{{waiver_summary}}` template variable matching the success page. Annual-renewal lookup is covered by `idx_waivers_claim_lookup`. audit_log entries: `waiver.auto_linked` per linked attendee. |
 | **Smaller polish wave** | Five items shipped in one commit: (1) **Notify-submitter preview-before-send modal** — new `GET /api/admin/feedback/:id/notify-preview` renders the resolution-notice template with this ticket's actual status + admin_note (not sample data). AdminFeedback's "Notify submitter…" button now opens a sandboxed-iframe modal showing recipient + subject + rendered body before sending. `renderFeedbackResolutionNotice` helper extracted from `sendFeedbackResolutionNotice` so preview + send share the rendering path. (2) **Featured-event flag** — migration 0017 adds `events.featured INTEGER DEFAULT 0`; `/api/events` ORDER BY now `featured DESC, date_iso ASC|DESC` so admin-picked headliner wins ties; checkbox in AdminEvents Publishing section; orange "Featured" pill on `/events` cards (top-right of cover, or inline in header) + orange ring around featured cards. (3) **Reminder-cron monitoring** — `scheduled()` writes a `cron.swept` audit row on every run regardless of whether work was done, with full results metadata. New `GET /api/admin/analytics/cron-status` returns last sweep age + 24h `reminder.sent`/`reminder_1hr.sent` counts. AdminDashboard renders a CronHealth strip: green when last sweep <60min, red + STALE badge if older. (4) **`/events` cover-image hero** — 160px gradient-overlaid hero on cards with `coverImageUrl`; featured cards get accented styling. (5) **Booking total bug fix** (user-reported): per-order fixed fee (e.g., Stripe's $0.30 processing fee) was leaking into the total before any tickets were selected because the unit multiplier defaults to 1 for non-attendee `per_unit` values. Short-circuit in `totals` returns all zeros when subtotal === 0; once the user adds anything, taxes/fees apply correctly on top. |
 | **Per-surface event cover images (Option A — full 4 fields)** | Migration 0019 adds four nullable URL columns to `events`: `card_image_url` (2:1, recommended 1200×600), `hero_image_url` (3.2:1, 1920×600), `banner_image_url` (4:1, 1920×500), `og_image_url` (1.91:1, 1200×630). The original `cover_image_url` stays as the universal fallback so existing events keep working unchanged. Backend: `worker/lib/formatters.js formatEvent()` exposes the four new fields as camelCased; `worker/routes/admin/events.js parseEventBody()` accepts them, INSERT/UPDATE write all five image columns, the duplicate handler clones every column, and the per-URL HEAD preflight (`preflightCoverImage`) now runs against every image URL the admin set, not just the cover — error returns prefix the column name so the editor knows which picker failed. `worker/index.js rewriteEventOg()` prefers `og_image_url` over `cover_image_url` for the OG meta image so social unfurls get the dedicated 1.91:1 asset when uploaded. Frontend consumers each prefer their own column with a fallback chain: `Events.jsx` uses `cardImageUrl ?? coverImageUrl` for the grid card hero, `EventDetail.jsx` uses `heroImageUrl ?? coverImageUrl` for the page hero, `Booking.jsx` uses `bannerImageUrl ?? coverImageUrl` for the step-1 banner. Admin editor: single "Cover image" Field replaced with an **Event Images** section containing 5 ratio-aware pickers (Cover · Card · Event Hero · Booking Banner · Social/OG). Each picker renders a 320px-wide preview cropped to its actual aspect ratio so the admin sees what customers will see; when a picker is empty but the universal cover is set, the cropped fallback shows in muted form (55% opacity + slight grayscale) with a "Showing fallback…" hint so the admin can decide whether the cover crop is acceptable for that surface or warrants a dedicated upload. Reuses the existing `/api/admin/uploads/image` endpoint — no new upload route. All four new fields are optional; events shipped with only `cover_image_url` continue to render correctly everywhere. |
+| **Phase 1 audit + Pre-Phase-2 hygiene batch (2026-05-06)** | **Phase 1 audit** (read-only inventory ahead of admin overhaul) shipped to `docs/audit/`: 11 markdown files (~1800 lines) covering stack, route inventory (103 API endpoints + 50 SPA routes), data model (27 tables + ERD), integrations (Stripe + Resend + R2 + waiver service + secret-name inventory — zero committed credentials), public/admin coupling (28 cross-boundary assets), 60-entry do-not-touch list, admin surface map (24 screens with git history + JD persona mapping), pain points (42 code-observable issues), test coverage (zero today; 83 characterization tests prescribed), open questions (50 — 12 runtime / 21 operator / 11 external / 6 access). `CLAUDE.md` at repo root mirrors the do-not-touch list and stop-and-ask conditions. **Pre-Phase-2 hygiene batch** (6 zero-risk follow-ups, all merged 2026-05-06): (1) **Stripe API version pinned** to `2026-04-22.dahlia` via `Stripe-Version` header on every outbound call in `worker/lib/stripe.js stripeFetch()` — no more silent drift if the account default rotates. (2) **`RL_QUOTE` rate-limit binding** added (namespace 1009, 30/min/IP) on `POST /api/bookings/quote`. (3) Migration `0020_drop_admin_sessions.sql` drops the dead `admin_sessions` table — **in repo but NOT yet applied to remote D1; operator runs `wrangler d1 migrations apply --remote`**. (4) `migrations/README.md` documenting forward-only convention + the `0010_*` filename collision (`0010_session_version.sql` + `0010_vendors.sql` are independent and order-deterministic via alphabetic sort). (5) `package.json name` renamed `temp-react` → `air-action-sports`. (6) `.gitattributes` for LF normalization (eol=lf default; *.bat eol=crlf). Audit branch (`audit/phase-1`) retained on remote for reference; chore branch deleted. |
 
 ## 11. What's left before go-live
 
 All roadmap work is shipped. The remaining items are **operational**, not code:
 
-1. **Flip Stripe sandbox → live.** Generate live keys in Stripe dashboard, rotate `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` via `wrangler secret put`, update the webhook target URL in Stripe to point at `/api/webhooks/stripe` in **live** mode, do a $1 real-money end-to-end test (buy → paid → email received → waiver link works).
-2. **Cut over from Peek.** Remove the Peek widget `<script>` from `index.html`. Home / Events / Pricing "Book Now" buttons already point at the internal `/booking` page, but double-check any remaining external booking links.
+1. **Flip Stripe sandbox → live.** Generate live keys in Stripe dashboard, rotate `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` via `wrangler secret put`, update the webhook target URL in Stripe to point at `/api/webhooks/stripe` in **live** mode, do a $1 real-money end-to-end test (buy → paid → email received → waiver link works). Note: outbound API version is now pinned (`Stripe-Version: 2026-04-22.dahlia` in `worker/lib/stripe.js`) — going live doesn't change that pin; rotate it deliberately if Stripe upgrades the account.
+2. **Apply migration `0020_drop_admin_sessions.sql` to remote D1.** Drops the dead `admin_sessions` table (unused since the cookie-auth migration). Run: `CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote`. Skipping is harmless (table is unread by app code) but leaves the dead table around.
 3. **Seed content for Operation Nightfall.** Upload a cover image via `/admin/events` → Edit → Cover image picker. Decide any custom questions (team name? rental size? experience level?). Review + customize email copy in `/admin/settings/email-templates`.
 4. **Invite a second admin.** Don't be a single point of failure on event day. Use `/admin/users` → Invite User → manager role.
 5. **Dry run.** Create a test event a few days out, book a comp ticket through `/admin/new-booking`, and walk through: confirmation email → waiver → check-in via scanner → rental assignment → return. This exercises the full operational chain.
+6. ~~**Cut over from Peek.**~~ — done in HANDOFF §10 row "Booking flow cutover".
 
 **Deferred / explicitly punted in-session** (not blocking, but worth knowing about):
 
@@ -488,7 +505,8 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **5 resolved feedback tickets** (4 smoke/dogfood from when the system shipped 2026-04-23/24, plus `fb_Tp9RIpHdKgWw` — Jesse's Rules of Engagement page request, shipped 2026-04-29). 0 open tickets.
 - **Cloudflare Workers Builds**: deploy command in dashboard is `npm run build && npx wrangler deploy` (must be both — see §13). Auto-deploys on `git push origin main`.
 - **Booking flow live**: `/booking` is the canonical Book Now path; Peek widget removed from `index.html`. Stripe still in **sandbox** mode — real-money cutover is the next pre-launch step.
-- **Migrations 0001-0019 applied to remote D1**.
+- **Migrations 0001-0019 applied to remote D1**. Migration `0020_drop_admin_sessions.sql` is **in repo but NOT yet applied to remote** (see §11 #2).
+- **Stripe API version pin**: `2026-04-22.dahlia` via `Stripe-Version` header in `worker/lib/stripe.js stripeFetch()`. Applies to every outbound Stripe call. Updates require both a Stripe-dashboard rollover and a code change in lockstep.
 - **Waiver document live**: `wd_v4` (corporate-wide release of liability + 4-tier age policy + 365-day Claim Period). wd_v1 thru wd_v3 retired. Edit at `/admin/waivers` (owner only) — creates a new version, retires the previous; past signers stay pinned to whatever they signed.
 - **Custom domain live**: `https://airactionsport.com` is attached to the Worker (DNS via Cloudflare). `SITE_URL` env var, OG meta tags, and email links all use the custom domain. The `air-action-sports.bulletbiter99.workers.dev` fallback URL still resolves but is no longer canonical.
 - **`/.well-known/security.txt`** served as a static asset per RFC 9116 — disclosure contact `actionairsport@gmail.com`, expires 2027-05-06.
@@ -510,7 +528,7 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 **Single-image-only fallback ratio**: 1200×630 (1.91:1). Compose with focal subject in the center 800×500 box; assume top/bottom 65px and left/right 200px may be cropped on at least one surface. Per-surface uploads obviate this when you have time to design 4 ratio-correct images.
 
 **Optional follow-up**: extend `tools/cover-banner-builder.html` to export all 4 cropped sizes from a single source design — design once at the widest ratio, get 4 ratio-correct exports for upload.
-- **Rate-limit bindings** (all `[[unsafe.bindings]] type=ratelimit`, namespaces 1001–1008): `RL_LOGIN` 5/min, `RL_FORGOT` 3/min, `RL_VERIFY_TOKEN` 10/min, `RL_RESET_PWD` 5/min, `RL_CHECKOUT` 10/min, `RL_TOKEN_LOOKUP` 30/min, `RL_FEEDBACK` 3/min, `RL_FEEDBACK_UPLOAD` 3/min.
+- **Rate-limit bindings** (all `[[unsafe.bindings]] type=ratelimit`, namespaces 1001–1009): `RL_LOGIN` 5/min, `RL_FORGOT` 3/min, `RL_VERIFY_TOKEN` 10/min, `RL_RESET_PWD` 5/min, `RL_CHECKOUT` 10/min, `RL_TOKEN_LOOKUP` 30/min, `RL_FEEDBACK` 3/min, `RL_FEEDBACK_UPLOAD` 3/min, `RL_QUOTE` 30/min (added pre-Phase-2 on `/api/bookings/quote`).
 - **Admin owner**: Paul Keddington (bulletbiter99@gmail.com)
 - **Stripe**: **still sandbox mode** — flip before first real sale
 - **Resend**: `airactionsport.com` verified, sending from `noreply@airactionsport.com`
@@ -532,13 +550,13 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 
 ## 14. Resume checklist when starting fresh
 
-1. Read this file top-to-bottom.
+1. Read this file top-to-bottom. **Then read [CLAUDE.md](CLAUDE.md)** — it carries the do-not-touch list, stop-and-ask conditions, and branch etiquette derived from the Phase 1 audit. Skim [docs/audit/00-overview.md](docs/audit/00-overview.md) if more context on the present surface area is needed before touching admin code.
 2. Confirm the Cloudflare deploy credentials memory points to `.claude/.env` (token present).
 3. Sanity checks:
-   - `curl https://air-action-sports.bulletbiter99.workers.dev/api/health` → `{"ok":true,...}`
-   - `curl https://air-action-sports.bulletbiter99.workers.dev/api/events` → returns 1 event
+   - `curl https://airactionsport.com/api/health` → `{"ok":true,...}`
+   - `curl https://airactionsport.com/api/events` → returns 1 event
 4. Confirm admin login works (use `/admin/forgot-password` if needed).
-5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-05: `d19b9f25-d7cf-4d7c-8d11-a470b7525775` (per-surface event cover images — Option A, migration 0019 + admin multi-picker). Earlier: cover-image preflight 522 fix `03401d3d`, security.txt + custom-domain SITE_URL switch (ff22a01 / 1a19a6b), waiver overhaul A/B/C (790c58d, 2b26a4d), tax/fee bug fixes (5e7d833 / 2dd831f / 5555426), audit polish (1f68c67 / 5e7f0d9 / adc315a). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
+5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-06: `ead41292-a8e5-4d9b-85df-9b05382f2803` (post-merge of Phase 1 audit + pre-Phase-2 hygiene — Stripe API version pin, RL_QUOTE binding, package rename, .gitattributes, migration 0020 in repo). Earlier: per-surface event cover images `d19b9f25` (migration 0019 + admin multi-picker), cover-image preflight 522 fix `03401d3d`, security.txt + custom-domain SITE_URL switch (ff22a01 / 1a19a6b), waiver overhaul A/B/C (790c58d, 2b26a4d), tax/fee bug fixes (5e7d833 / 2dd831f / 5555426), audit polish (1f68c67 / 5e7f0d9 / adc315a). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
 6. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
 
 ---
@@ -548,11 +566,20 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 Copy and paste the following into a new Claude Code session:
 
 ```
-I'm resuming work on the Air Action Sports booking system. Read HANDOFF.md
-in the project root first — it has full context on the stack, deployed
-state, every shipped phase, every API and frontend route, deferred items
-in §11, the pre-launch operational checklist also in §11, the cover-image
-surface reference table in §12, and the §10 phase log.
+I'm resuming work on the Air Action Sports booking system. Read these
+two files in the project root first, in order:
+
+  1. HANDOFF.md — full context on the stack, deployed state, every
+     shipped phase (§10), every API and frontend route, the §11
+     pre-launch checklist + deferred list, the cover-image surface
+     reference table in §12, and §13 known-issues.
+  2. CLAUDE.md — entry-point rules: the do-not-touch list (mirrored
+     from docs/audit/06-do-not-touch.md), stop-and-ask conditions,
+     branch etiquette, run/build/lint/deploy commands.
+
+If you're touching admin code or anything on the do-not-touch list,
+also skim docs/audit/00-overview.md and docs/audit/05-coupling-analysis.md
+before editing.
 
 Production: https://airactionsport.com (custom domain, Cloudflare Worker,
 auto-deploy on `git push origin main`). The .workers.dev fallback URL
@@ -562,120 +589,138 @@ Current state — all shipped and live:
   - Phases 1–9, the 5 polish items, vendor MVP + v1, waiver hardening,
     admin UI refactor, global money/tax unification, the feedback/ticket
     system, event-creation hardening + dynamic homepage, Rules of
-    Engagement page, the booking-flow cutover (Peek widget removed —
+    Engagement page, the booking-flow cutover (Peek removed —
     /booking is canonical), the smaller-polish wave, the waiver overhaul
     (Phase A/B/C — wd_v4 corporate-wide release of liability, 4-tier age
     policy enforced client + server, 365-day Claim Period auto-link),
-    tax/fee bug fixes (Stripe line items, admin/public parity, empty-cart
-    short-circuit), audit polish, Cloudflare security insights cleanup
+    tax/fee bug fixes, audit polish, Cloudflare security insights cleanup
     (security.txt, custom-domain SITE_URL switch), per-surface event
-    cover images (migration 0019 — card 2:1 / hero 3.2:1 / banner 4:1 /
-    og 1.91:1 — admin editor has 5 image pickers, consumer surfaces
-    prefer their own column with cover fallback).
-  - Tools: tools/cover-banner-builder.html (1200×630 design tool with
-    live preview + html2canvas download).
-  - Docs: docs/staff-job-descriptions.md (12 full HR-ready job posts
-    organized by tier, with admin-system role mappings).
+    cover images (migration 0019 — card / hero / banner / og pickers).
+  - **Phase 1 audit (2026-05-06):** read-only inventory ahead of admin
+    overhaul, shipped to docs/audit/. 11 markdown files (~1800 lines)
+    covering stack, route inventory (103 API endpoints + 50 SPA routes),
+    data model (27 tables + ERD), integrations, public/admin coupling
+    (28 cross-boundary assets), 60-entry do-not-touch list, admin surface
+    map (24 screens), pain points (42 code-observable issues), test
+    coverage (zero today; 83 characterization tests prescribed for
+    Phase 2 prep), 50 open questions. CLAUDE.md mirrors the do-not-touch
+    list at repo root.
+  - **Pre-Phase-2 hygiene batch (2026-05-06):** six zero-risk follow-ups
+    merged to main:
+      (1) Stripe API version pinned to `2026-04-22.dahlia` via
+          Stripe-Version header in worker/lib/stripe.js stripeFetch().
+      (2) RL_QUOTE rate-limit binding (namespace 1009, 30/min/IP) on
+          POST /api/bookings/quote.
+      (3) migrations/0020_drop_admin_sessions.sql — IN REPO BUT NOT YET
+          APPLIED to remote D1; operator runs `wrangler d1 migrations
+          apply --remote` (see §11 #2).
+      (4) migrations/README.md documenting forward-only convention +
+          0010_* filename collision (intentional, alphabetic order).
+      (5) package.json `name` renamed temp-react → air-action-sports.
+      (6) .gitattributes for LF normalization.
+  - Tools: tools/cover-banner-builder.html (1200×630 design tool).
+  - Docs: docs/staff-job-descriptions.md (22 role descriptions across
+    4 tiers), docs/audit/* (Phase 1 audit, see above).
 
 Cloudflare Workers Builds deploy command (in dashboard): `npm run build &&
 npx wrangler deploy`. Do NOT change to plain `npx wrangler deploy` (see
-§13 gotcha — wrangler 4.x assets-directory check short-circuits before
-the [build] hook).
+§13 gotcha).
+
+Most recent deploy as of 2026-05-06:
+  ead41292-a8e5-4d9b-85df-9b05382f2803 (post-audit + hygiene merge)
 
 Pre-launch operational items still to be done by owner (NOT code):
-  - DMARC TXT record + Resend DKIM CNAMEs in Cloudflare DNS — booking
-    confirmation emails will land in spam without it. HIGH priority.
-    Do BEFORE Stripe live cutover. Exact records in §11.
-  - Enable "Always Use HTTPS" toggle in Cloudflare SSL/TLS Edge
-    Certificates (currently OFF — HTTP returns 200 not 301).
-  - Stripe sandbox → live cutover + $1 real-money end-to-end test.
-  - Per-surface cover image uploads for Operation Nightfall via
+  - **DMARC TXT record + Resend DKIM CNAMEs** in Cloudflare DNS —
+    booking confirmation emails will land in spam without these. HIGH
+    priority. Do BEFORE Stripe live cutover. Exact records in §11.
+  - **Always Use HTTPS toggle** in Cloudflare SSL/TLS → Edge Certs
+    (currently OFF — HTTP returns 200 not 301).
+  - **Apply migration 0020_drop_admin_sessions.sql** to remote D1:
+    `CLOUDFLARE_API_TOKEN=$TOKEN npx wrangler d1 migrations apply
+    air-action-sports-db --remote`. Drops the dead admin_sessions
+    table. Skipping is harmless but leaves the table around.
+  - **Stripe sandbox → live cutover** + $1 real-money end-to-end test.
+    The Stripe-Version header pin stays the same on cutover.
+  - **Per-surface cover image uploads for Operation Nightfall** via
     /admin/events → Edit → Event Images section. Recommended sizes:
       Card hero      1200×600  (2:1)
       Event hero     1920×600  (3.2:1)
       Booking banner 1920×500  (4:1)
       Social / OG    1200×630  (1.91:1)
-  - Invite a second admin via /admin/users (manager role).
-  - Comp-ticket dry run end-to-end (book → confirm → waiver → check-in).
+  - **Invite a second admin** via /admin/users (manager role).
+  - **Comp-ticket dry run** end-to-end (book → confirm → waiver →
+    check-in).
 
-Next-up code work (optional, owner-decision):
-  1. Cover-banner builder per-surface export — extend
-     tools/cover-banner-builder.html to output all 4 cropped sizes from
-     one source design.
-  2. ROE owner-decision gaps — six policy questions deferred from
-     /rules-of-engagement; needs owner input before adding sections.
-     See §11.
-  3. City/region per Location site — content-blocked on owner supplying
-     regions for Ghost Town / Echo Urban / Foxtrot Fields.
+Phase 2 — admin overhaul — is the next coding phase. Phase 1 audit's
+top open question (docs/audit/10-open-questions.md #13) is what the
+goal of that overhaul actually is (dashboard-first redesign? IA
+reorganization? persona-tailored landing screens? incremental
+polish?). Do not start Phase 2 until that's answered. The audit's
+docs/audit/08-pain-points.md Section 1 is also an empty operator
+placeholder that needs filling.
 
-Stripe is still in sandbox mode (BLOCKING for first real sale). Operation
-Nightfall (first live event) is 2026-05-09. Today: 2026-05-06.
+Stripe is still in sandbox mode (BLOCKING for first real sale).
+Operation Nightfall (first live event) was 2026-05-09. Today: <update>.
 
-After you've read the handoff, give me:
-  1. A one-paragraph status summary of where things actually stand (verify against
-     `curl /api/health` and `curl /api/events` rather than just trusting the doc).
-  2. A ranked top-3 of what I should work on next, with rough effort estimates and
-     why-now. Use §11's pre-launch checklist + deferred list as the primary
-     candidate pool but flag anything low-hanging and high-value you notice.
-  3. Any drift between HANDOFF.md and the actual live state (stale counts, removed
-     features, new feedback tickets, etc.) — catch that upfront.
-  4. The current open feedback queue (pull via the admin API or D1). Summarize
-     anything in `new` or `in-progress` status in 1–2 sentences each. As of
-     2026-04-30 the queue is empty.
+After you've read the docs, give me:
+  1. A one-paragraph status summary of where things actually stand
+     (verify against `curl https://airactionsport.com/api/health` and
+     `/api/events` rather than just trusting the doc).
+  2. A ranked top-3 of what I should work on next, with rough effort
+     estimates and why-now. Use §11's pre-launch checklist + deferred
+     list as the primary candidate pool, plus the audit's open
+     questions and pain-point lists. Flag anything low-hanging and
+     high-value you notice.
+  3. Any drift between HANDOFF.md / CLAUDE.md and the actual live
+     state (stale counts, new feedback tickets, undeployed code,
+     unapplied migrations, etc.).
+  4. Open feedback queue (pull via /api/admin/feedback or D1).
+     Summarize anything in `new` or `in-progress` status in 1–2
+     sentences each.
 
 Most likely next pickups (roughly priority order):
 
   Pre-launch operational (blocking go-live):
-  - **DMARC + Resend DKIM/SPF DNS records** — booking confirmation emails
-    will land in spam without DMARC. Cloudflare DNS: add TXT at
-    `_dmarc.airactionsport.com` with
-    `v=DMARC1; p=none; rua=mailto:actionairsport@gmail.com; pct=100; aspf=r; adkim=r;`.
-    Then Resend dashboard → Domains → airactionsport.com to get the DKIM
-    CNAMEs and add them to Cloudflare DNS. Update existing SPF TXT to
-    include both Cloudflare Email Routing AND Resend's sending include.
-    Verify deliverability via Mail-Tester before live cutover.
-  - **Cloudflare Always Use HTTPS toggle** — currently OFF for
-    airactionsport.com (HTTP returns 200, not 301). Dashboard → SSL/TLS →
-    Edge Certificates → toggle "Always Use HTTPS" ON. While there,
-    confirm Min TLS = 1.2.
-  - **Stripe sandbox → live cutover** + $1 real-money end-to-end test
-    (~30 min once keys are in hand; includes webhook re-targeting).
-  - **Seed Operation Nightfall content**: per-surface cover-image
-    uploads in /admin/events → Edit → Event Images. Each picker shows
-    the recommended dimension + a cropped preview. Anything left blank
-    falls back to the existing universal Cover image.
-      Card hero      1200×600 (2:1)   — /events grid card
-      Event hero     1920×600 (3.2:1) — event detail page hero
-      Booking banner 1920×500 (4:1)   — /booking step-1 banner
-      Social / OG    1200×630 (1.91:1) — FB/Slack/iMessage unfurls
-  - **Invite a second admin** via /admin/users so you're not a single
-    point of failure on event day
-  - **Dry-run**: create a test event, book a comp ticket, walk the full
-    flow (confirmation → waiver → scanner check-in)
-  - (DONE 2026-04-30 / 05-05 / 05-06) Peek widget removal + Book Now →
-    /booking cutover; smaller-polish wave; ROE page; auto-deploy wiring;
-    waiver overhaul A/B/C; tax/fee bug fixes; audit polish; security.txt
-    + custom-domain SITE_URL switch; **per-surface cover images
-    (Option A — full 4 fields, migration 0019 + admin multi-picker)**.
+  - DMARC + Resend DKIM/SPF DNS records — exact records in §11.
+  - Cloudflare Always Use HTTPS toggle.
+  - Apply migration 0020 to remote D1 (one wrangler command).
+  - Stripe sandbox → live cutover + $1 e2e test (~30 min).
+  - Seed Operation Nightfall content (cover images, custom questions,
+    email-template review).
+  - Invite a second admin.
+  - Comp-ticket dry run.
 
-  ROE follow-up (owner-decision gaps — needs owner input before coding):
+  Phase 2 — admin overhaul:
+  - Answer docs/audit/10-open-questions.md #13: what is the actual
+    goal of the overhaul?
+  - Fill in docs/audit/08-pain-points.md Section 1 (operator-stated
+    pain points — empty placeholder today).
+  - Once the goal is clear, prep characterization tests
+    (docs/audit/09-test-coverage.md prescribes 83 — Groups A-D before
+    any do-not-touch code is touched).
+
+  ROE follow-up (owner-decision gaps — needs owner input before
+  coding):
   - Surrender / "bang-bang" rules — used at AAS or not?
   - Friendly fire — counts as a hit, or no-effect?
-  - Respawn / medic mechanics — default rule or "varies per event"?
-  - Weapon-hit / pistol switch — primary hit = body hit, or switch to pistol?
-  - Sidearm requirement for DMR / Sniper / LMG classes
-  - Photography during games — allowed / restricted / require permission?
+  - Respawn / medic mechanics — default or per-event?
+  - Weapon-hit / pistol switch — body hit, or switch to pistol?
+  - Sidearm requirement for DMR / Sniper / LMG classes.
+  - Photography during games — allowed / restricted / permission?
 
   Deferred / content-blocked:
-  - City/region per Location site (Eagle Mountain, UT style) — waiting on owner
-    to supply regions for Ghost Town / Echo Urban / Foxtrot Fields
+  - City/region per Location site (Eagle Mountain, UT style) — waiting
+    on owner to supply regions for the three sites.
 
-  Triage anything new in the feedback queue before starting the above. Use the
-  /feedback slash command or the .claude/commands/feedback.md playbook.
+  Triage anything new in the feedback queue before starting the above.
+  Use the /feedback slash command or .claude/commands/feedback.md.
 
-Don't start coding until I pick one. If the task involves destructive ops
-(secret rotation, Stripe mode change, DB writes, R2 deletions), confirm the
-plan with me first.
+Don't start coding until I pick one. CLAUDE.md's stop-and-ask
+conditions apply: confirm before any change to the do-not-touch list
+(payments, waivers, auth, customer-email, cron, audit-log emitter,
+shared public/admin assets). If a task involves destructive ops
+(secret rotation, Stripe mode change, DB writes, R2 deletions),
+confirm the plan with me first.
 ```
 
 End of handoff.
