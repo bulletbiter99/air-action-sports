@@ -1,0 +1,13 @@
+Contact: mailto:actionairsport@gmail.com
+Expires: 2027-05-06T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://airactionsport.com/.well-known/security.txt
+
+# Reporting guidelines
+# - Email actionairsport@gmail.com with a clear description of the issue,
+#   reproduction steps, and your contact info.
+# - We will acknowledge receipt within 5 business days.
+# - Please do not publicly disclose vulnerabilities until we've had a
+#   reasonable opportunity to fix them.
+# - We don't currently run a paid bug-bounty program but we appreciate
+#   responsible disclosure and will credit reporters who request it.
