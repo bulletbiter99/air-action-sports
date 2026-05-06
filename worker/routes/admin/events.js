@@ -257,10 +257,21 @@ adminEvents.get('/:id/detail', async (c) => {
 });
 
 // Validate cover_image_url with a HEAD request — fail fast on 404 / wrong type.
-// Skipped for /uploads/* (we minted those keys ourselves) and empty values.
+// Skipped for any URL pointing to our own /uploads/* path (R2-backed assets
+// we minted ourselves). The upload endpoint returns a full absolute URL
+// (`${SITE_URL}/uploads/${key}`), so we check both relative paths and
+// absolute URLs whose pathname starts with /uploads/. Without this check
+// the preflight would HEAD a URL that resolves back to this same Worker —
+// causing a self-referential subrequest loop and a 522 timeout.
 async function preflightCoverImage(url) {
     if (!url) return { ok: true };
-    if (url.startsWith('/uploads/')) return { ok: true }; // trusted, served by us
+    if (url.startsWith('/uploads/')) return { ok: true };
+    try {
+        const parsed = new URL(url);
+        if (parsed.pathname.startsWith('/uploads/')) return { ok: true };
+    } catch {
+        // Not a parseable URL — fall through to the unreachable branch below.
+    }
     try {
         const res = await fetch(url, { method: 'HEAD' });
         if (!res.ok) return { ok: false, error: `Cover image URL returned ${res.status}` };
