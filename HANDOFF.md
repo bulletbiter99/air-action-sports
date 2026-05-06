@@ -465,7 +465,15 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - ~~**Branded `/events` redesign**~~ — partial: cover-image hero + featured pill + featured-card accent shipped. Could go further with per-event visuals but the cover-image hero already lifts it significantly when admins upload covers.
 - ~~**Reminder-cron monitoring**~~ — done via `cron.swept` audit row + `/api/admin/analytics/cron-status` + AdminDashboard CronHealth widget.
 - **ROE page — owner-decision gaps** — six policy questions deferred from the Rules of Engagement page that need owner input before adding sections: (1) surrender / "bang-bang" rules (used or not?), (2) friendly fire (counts as a hit, or no-effect?), (3) respawn / medic mechanics (default rule, or "varies per event"?), (4) weapon-hit / pistol switch (primary hit = body hit, or switch to pistol?), (5) sidearm requirement for DMR / Sniper / LMG classes, (6) photography during games (allowed / restricted / require permission?). Once owner decides, add as new sections to `/rules-of-engagement`.
-- **Per-event SEO/OG image upload flow** — intentionally not built; `cover_image_url` already drives both the page hero and OG meta via the HTML rewriter on `/events/:slug`. Revisit only if you want an OG-specific aspect ratio (e.g. 1200×630) different from the page-hero crop.
+- **Per-surface event cover images (planned, awaiting owner decision A vs B)** — single `cover_image_url` field currently powers four surfaces with very different aspect ratios, causing crops on at least one surface no matter how the source is shaped. Owner asked to upgrade so each surface gets its own ratio-correct upload. Plan brainstormed 2026-05-06 — needs A/B choice before execution. Reference table for all four surfaces is in §12 *(Cover-image surface reference)*.
+  - **Option A — full 4 fields**: maximum granularity. New columns `card_image_url` (2:1), `hero_image_url` (3.2:1), `banner_image_url` (4:1), `og_image_url` (1.91:1). Existing `cover_image_url` becomes universal fallback when a specific one isn't set so existing events keep working and admins aren't forced to upload all 4.
+  - **Option B — simpler 2 fields**: `cover_image_url` carries OG + Events card (both ~2:1), new `wide_hero_url` carries EventDetail + Booking banner (both 3-4:1). Half the admin upload work, ~80% of the visual benefit.
+  - **Implementation breakdown** (~2-3 hours total, ship as 3-4 incremental commits):
+    1. **Migration 0019** — add the new column(s) to events table; nullable so existing rows survive.
+    2. **Backend** — `worker/lib/formatters.js formatEvent()` exposes new fields; `worker/routes/admin/events.js parseEventBody()` accepts them; INSERT/UPDATE includes them; per-URL preflight check (the existing `/uploads/*` skip already covers our minted URLs); `worker/routes/events.js` surfaces them via public API; `worker/index.js` HTMLRewriter on `/events/:slug` prefers `og_image_url` over `cover_image_url` for OG meta tags.
+    3. **Frontend consumer pages** — `src/hooks/useEvents.js adaptEvent()` surfaces all new fields; `src/pages/Events.jsx` uses `cardImageUrl ?? coverImageUrl`; `src/pages/EventDetail.jsx` uses `heroImageUrl ?? coverImageUrl`; `src/pages/Booking.jsx` uses `bannerImageUrl ?? coverImageUrl`.
+    4. **Admin editor** (`src/admin/AdminEvents.jsx`) — replace single Cover Image picker with an "Event Images" section. Each picker shows label + ideal aspect ratio + use case + live preview cropped to actual ratio + upload + clear buttons. All optional, all fall back to `cover_image_url`. Reuses existing `/api/admin/uploads/image` endpoint.
+    5. **Optional**: extend `tools/cover-banner-builder.html` to output all 4 cropped sizes from a single source design — useful for future events; design once at the widest ratio, get 4 cropped exports.
 
 **Longer-term polish** (not blocking):
 - Branded event listing redesign — `/events` still uses the original static template; could get richer per-event visuals now that cover images exist.
@@ -491,6 +499,21 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **Custom domain live**: `https://airactionsport.com` is attached to the Worker (DNS via Cloudflare). `SITE_URL` env var, OG meta tags, and email links all use the custom domain. The `air-action-sports.bulletbiter99.workers.dev` fallback URL still resolves but is no longer canonical.
 - **`/.well-known/security.txt`** served as a static asset per RFC 9116 — disclosure contact `actionairsport@gmail.com`, expires 2027-05-06.
 - **Cloudflare DNS / Email config (partial)**: SPF set for Cloudflare Email Routing only (incoming mail forwards from `@airactionsport.com` to Gmail). **DMARC missing — booking confirmation emails may land in spam until added** (see §11 pre-launch checklist). Resend DKIM not yet configured for outbound transactional mail from `noreply@airactionsport.com`.
+
+### Cover-image surface reference
+
+The single `cover_image_url` powers four surfaces with very different effective aspect ratios. Crops are inevitable when one image serves all four. Reference for image sizing:
+
+| Surface | Code path | Effective aspect | Recommended dim | Crop behavior |
+|---|---|---:|---|---|
+| `/events` card hero | `src/styles/pages/events.css` `.event-cover` (160px tall, ~280-400 wide), `background-size: cover` | ~2:1 | 1200×600 | Crops top + bottom on tall sources |
+| `/events/:slug` event hero | `src/pages/EventDetail.jsx` line 70-71, `linear-gradient + url()` background, ~400-500 tall | ~3-4:1 | 1920×600 | Crops top + bottom heavily on tall sources |
+| `/booking` step-1 banner | `src/pages/Booking.jsx` line 396-397, dark gradient overlay, ~800x200 effective | ~4:1 | 1920×500 | Most aggressive crop — only middle ~33% of a 4:3 source visible |
+| OG meta image (FB / Slack / iMessage unfurls) | `worker/index.js` HTMLRewriter writes `og:image` from `event.cover_image_url` | 1.91:1 | 1200×630 | Center-cropped if source ratio differs |
+
+**Single-image winning ratio**: 1200×630 (1.91:1). Compose with focal subject in the center 800×500 box; assume top/bottom 65px and left/right 200px may be cropped on at least one surface.
+
+**Per-surface ideal**: see §11 deferred item *"Per-surface event cover images"* for the planned multi-field upload upgrade.
 - **Rate-limit bindings** (all `[[unsafe.bindings]] type=ratelimit`, namespaces 1001–1008): `RL_LOGIN` 5/min, `RL_FORGOT` 3/min, `RL_VERIFY_TOKEN` 10/min, `RL_RESET_PWD` 5/min, `RL_CHECKOUT` 10/min, `RL_TOKEN_LOOKUP` 30/min, `RL_FEEDBACK` 3/min, `RL_FEEDBACK_UPLOAD` 3/min.
 - **Admin owner**: Paul Keddington (bulletbiter99@gmail.com)
 - **Stripe**: **still sandbox mode** — flip before first real sale
@@ -567,6 +590,35 @@ see §11 for the full list:
   - Cover image upload for Operation Nightfall via /admin/events
   - Invite a second admin via /admin/users
   - Comp-ticket dry run
+
+Next-up code feature (planned, awaiting owner A/B decision before
+execution — see §11 deferred *"Per-surface event cover images"*):
+The single `cover_image_url` causes inevitable crops on at least one
+of the four surfaces it powers (events card 2:1, EventDetail hero
+~3-4:1, /booking banner 4:1, OG meta 1.91:1). Owner asked to upgrade
+the editor so each surface gets its own ratio-correct upload.
+
+  Option A — full 4 fields (max granularity):
+    `card_image_url` (2:1, 1200×600)
+    `hero_image_url` (3.2:1, 1920×600)
+    `banner_image_url` (4:1, 1920×500)
+    `og_image_url` (1.91:1, 1200×630)
+    Existing `cover_image_url` becomes universal fallback.
+
+  Option B — simpler 2 fields:
+    `cover_image_url` (1.91:1, used for OG + Events card)
+    `wide_hero_url` (3-4:1, used for EventDetail + Booking banner)
+    Half the admin upload work, ~80% of the visual benefit.
+
+  Implementation breakdown is in §11 ("Per-surface event cover
+  images"). Roughly: migration 0019 → backend (formatters, admin
+  events parseEventBody, public API, HTMLRewriter for OG) →
+  frontend consumer pages (Events, EventDetail, Booking) → admin
+  editor (replace single Cover picker with multi-picker section
+  with per-ratio crop preview). Estimated 2-3 hours total, ship as
+  3-4 incremental commits. Optional: extend
+  `tools/cover-banner-builder.html` to output all 4 cropped sizes
+  from a single source design.
 
 Today's date when this prompt was written: 2026-05-06.
 
