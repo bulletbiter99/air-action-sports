@@ -1,0 +1,142 @@
+# M1 baseline coverage snapshot
+# Captured 2026-05-06T23:36:44Z (UTC)
+# Branch:  milestone-1-test-infrastructure
+# Commit:  b726104 (post-B8 merge; B9 == this batch, not yet merged)
+# Command: npx vitest run --coverage --reporter=basic --silent
+# Notes:
+#   - Strip ANSI color codes via `sed 's/\x1b\[[0-9;]*[mGKH]//g'`
+#   - 216 tests across 54 files. v8 coverage scoped to worker/**/*.js per
+#     vitest.config.js. Tests under tests/** are excluded from coverage.
+#   - Pricing/webhooks/waivers ranges are the gated paths in
+#     scripts/test-gate-mapping.json. Their high stmt% is the safety net
+#     that makes the milestone branch ready to merge to main.
+#   - Files at <30% are deferred to post-M1 (audit Groups E/F/G/H —
+#     see scripts/test-gate-mapping.json `uncovered`).
+
+ RUN  v2.1.9 C:/Users/bulle/OneDrive/Desktop/Claude Code Projects/action-air-sports/.claude/worktrees/youthful-neumann-5f3d95
+      Coverage enabled with v8
+
+ ✓ tests/unit/pricing/applies-to-tickets.test.js (4 tests) 3ms
+ ✓ tests/unit/pricing/cents-precision.test.js (5 tests) 3ms
+ ✓ tests/unit/pricing/per-unit-multipliers.test.js (6 tests) 3ms
+ ✓ tests/unit/pricing/applies-to-all.test.js (4 tests) 3ms
+ ✓ tests/unit/pricing/multi-ticket-with-addon.test.js (7 tests) 4ms
+ ✓ tests/unit/pricing/percent-tax-fixed-fee.test.js (5 tests) 4ms
+ ✓ tests/unit/pricing/min-max-per-order.test.js (8 tests) 5ms
+ ✓ tests/unit/pricing/line-items-shape.test.js (6 tests) 5ms
+ ✓ tests/unit/pricing/inactive-fee-excluded.test.js (4 tests) 3ms
+ ✓ tests/unit/pricing/percent-fee-on-percent-tax.test.js (3 tests) 2ms
+ ✓ tests/unit/pricing/capacity-errors.test.js (6 tests) 5ms
+ ✓ tests/unit/pricing/empty-cart.test.js (5 tests) 3ms
+ ✓ tests/unit/webhook/signature-constant-time.test.js (4 tests) 8ms
+ ✓ tests/unit/pricing/single-ticket-no-addon.test.js (5 tests) 5ms
+ ✓ tests/unit/webhook/signature-verify-multi-v1.test.js (5 tests) 11ms
+ ✓ tests/unit/webhook/signature-verify-stale.test.js (5 tests) 10ms
+ ✓ tests/unit/webhook/signature-verify-invalid.test.js (8 tests) 10ms
+ ✓ tests/unit/pricing/promo-fixed.test.js (6 tests) 3ms
+ ✓ tests/unit/pricing/promo-percent.test.js (5 tests) 3ms
+ ✓ tests/unit/auto-link/cross-flow-consistency.test.js (2 tests) 4ms
+ ✓ tests/unit/auto-link/sibling-different-name-no-match.test.js (2 tests) 3ms
+ ✓ tests/unit/auto-link/match-by-email-and-name.test.js (3 tests) 4ms
+ ✓ tests/unit/auto-link/null-inputs-return-null.test.js (5 tests) 3ms
+ ✓ tests/unit/auto-link/whitespace-tolerant-name.test.js (3 tests) 4ms
+ ✓ tests/unit/auto-link/expired-claim-period-no-match.test.js (3 tests) 3ms
+ ✓ tests/unit/webhook/signature-verify-valid.test.js (3 tests) 6ms
+ ✓ tests/unit/auto-link/latest-by-signed-at.test.js (2 tests) 3ms
+ ✓ tests/unit/auto-link/case-insensitive-email.test.js (3 tests) 4ms
+ ✓ tests/unit/auto-link/claim-period-required.test.js (2 tests) 3ms
+ ✓ tests/unit/waiver/integrity-fail-on-post.test.js (2 tests) 49ms
+ ✓ tests/unit/health.test.js (3 tests) 48ms
+ ✓ tests/unit/waiver/attendee-waiver-id-set.test.js (2 tests) 50ms
+ ✓ tests/unit/waiver/signature-must-match-name.test.js (4 tests) 57ms
+ ✓ tests/unit/waiver/row-doc-link-and-snapshot.test.js (4 tests) 62ms
+ ✓ tests/unit/waiver/age-tier-16-17-requires-parent-only.test.js (3 tests) 61ms
+ ✓ tests/unit/waiver/row-claim-period.test.js (3 tests) 62ms
+ ✓ tests/unit/waiver/age-tier-under-12-blocked.test.js (2 tests) 60ms
+ ✓ tests/unit/webhook/email-send-confirmation.test.js (3 tests) 69ms
+ ✓ tests/unit/waiver/row-tier-flags.test.js (4 tests) 63ms
+ ✓ tests/unit/waiver/already-signed-409.test.js (3 tests) 62ms
+ ✓ tests/unit/waiver/audit-log-waiver-signed.test.js (4 tests) 65ms
+ ✓ tests/unit/webhook/attendee-creation.test.js (4 tests) 70ms
+ ✓ tests/unit/waiver/erecords-consent-required.test.js (3 tests) 64ms
+ ✓ tests/unit/waiver/age-tier-12-15-requires-parent-and-supervisor.test.js (7 tests) 66ms
+ ✓ tests/unit/waiver/jury-trial-initials-required.test.js (4 tests) 66ms
+ ✓ tests/unit/webhook/promo-uses-increment.test.js (4 tests) 69ms
+ ✓ tests/unit/waiver/integrity-fail-on-get.test.js (3 tests) 63ms
+ ✓ tests/unit/webhook/idempotency-already-paid.test.js (2 tests) 61ms
+ ✓ tests/unit/webhook/ticket-types-sold-increment.test.js (4 tests) 66ms
+ ✓ tests/unit/webhook/email-send-admin-notify.test.js (3 tests) 62ms
+ ✓ tests/unit/webhook/audit-log-emission.test.js (4 tests) 68ms
+ ✓ tests/unit/webhook/unknown-event-type.test.js (6 tests) 72ms
+ ✓ tests/unit/webhook/waiver-auto-link-on-paid.test.js (4 tests) 71ms
+ ✓ tests/unit/waiver/age-tier-18-plus-independent.test.js (2 tests) 35ms
+
+ Test Files  54 passed (54)
+      Tests  216 passed (216)
+   Start at  17:36:19
+   Duration  1.74s (transform 1.43s, setup 1.00s, collect 17.17s, tests 1.67s, environment 14ms, prepare 7.33s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   27.89 |    74.31 |   22.01 |   27.89 |
+ worker            |   34.56 |       60 |   28.57 |   34.56 |
+  index.js         |   34.56 |       60 |   28.57 |   34.56 | ...36-546,555-594
+ worker/lib        |   51.75 |    74.31 |   26.43 |   51.75 |
+  auth.js          |    17.5 |      100 |   33.33 |    17.5 | 4-24,28-32,37-46
+  bodyGuard.js     |   85.18 |    14.28 |     100 |   85.18 | ...35,39-40,45-46
+  email.js         |   88.46 |    42.85 |     100 |   88.46 | 24-26
+  emailSender.js   |   51.95 |    53.65 |   38.46 |   51.95 | ...59-271,274-293
+  formatters.js    |     9.3 |    33.33 |      25 |     9.3 | 4-36,39-57,60-85
+  ids.js           |   51.78 |      100 |   23.07 |   51.78 | ...53,58-66,69-70
+  magicBytes.js    |   34.69 |      100 |       0 |   34.69 | 7-29,33-41
+  password.js      |   16.98 |      100 |       0 |   16.98 | 11-14,17-58
+  pricing.js       |   95.95 |    91.78 |      50 |   95.95 | 181-185,188-189
+  rateLimit.js     |   88.63 |       40 |     100 |   88.63 | 31-32,34-36
+  session.js       |   13.69 |      100 |       0 |   13.69 | ...37,39-40,43-80
+  stripe.js        |   56.06 |    96.29 |   28.57 |   56.06 | ...,80-84,144-148
+  templates.js     |     100 |       70 |     100 |     100 | 18,23,26
+  vendorSession.js |   15.78 |      100 |       0 |   15.78 | ...31,34-35,37-62
+  vendorToken.js   |   24.24 |      100 |       0 |   24.24 | 14-22,28-70
+ worker/routes     |   38.65 |    75.14 |      40 |   38.65 |
+  bookings.js      |    10.2 |      100 |       0 |    10.2 | ...56-337,342-379
+  events.js        |    16.3 |      100 |     100 |    16.3 | 7-51,55-80,84-89
+  feedback.js      |   23.35 |      100 |       0 |   23.35 | ...6,81-89,92-164
+  taxesFees.js     |   58.82 |      100 |     100 |   58.82 | 8-14
+  vendor.js        |   15.21 |      100 |       0 |   15.21 | ...91-367,375-411
+  vendorAuth.js    |   21.26 |      100 |       0 |   21.26 | ...49-159,167-221
+  waivers.js       |   93.61 |     71.9 |     100 |   93.61 | ...68-169,171-172
+  webhooks.js      |   91.08 |    82.69 |     100 |   91.08 | ...,96-98,111-113
+ ...r/routes/admin |   16.87 |      100 |       0 |   16.87 |
+  analytics.js     |    13.7 |      100 |     100 |    13.7 | ...98-224,234-267
+  attendees.js     |   16.73 |      100 |     100 |   16.73 | ...32-201,206-236
+  auditLog.js      |   20.93 |      100 |       0 |   20.93 | 11-71,76-79,82-84
+  auth.js          |   23.52 |      100 |     100 |   23.52 | ...28-272,278-286
+  bookings.js      |    10.7 |      100 |     100 |    10.7 | ...46-476,480-492
+  ...lTemplates.js |   21.11 |      100 |       0 |   21.11 | ...76-116,123-158
+  eventVendors.js  |   15.34 |      100 |       0 |   15.34 | ...21-583,588-616
+  events.js        |   10.18 |      100 |       0 |   10.18 | ...23-653,657-679
+  feedback.js      |   19.06 |      100 |       0 |   19.06 | ...37-253,258-275
+  promoCodes.js    |   14.92 |      100 |       0 |   14.92 | ...44-174,179-198
+  rentals.js       |   14.75 |      100 |       0 |   14.75 | ...27-362,369-390
+  taxesFees.js     |   19.62 |      100 |       0 |   19.62 | ...,66-98,102-104
+  uploads.js       |   22.22 |      100 |       0 |   22.22 | ...50-251,256-267
+  users.js         |   18.78 |      100 |       0 |   18.78 | ...14-127,133-178
+  ...rContracts.js |   33.03 |      100 |       0 |   33.03 | ...,90-93,100-109
+  vendors.js       |   18.64 |      100 |       0 |   18.64 | ...56-286,292-308
+  ...rDocuments.js |   35.96 |      100 |       0 |   35.96 | ...,91-94,102-111
+-------------------|---------|----------|---------|---------|-------------------
+
+# Gated path coverage at-a-glance:
+#   worker/lib/pricing.js        95.95% lines  (Group A)
+#   worker/lib/stripe.js         56.06% lines  (Group B signature subset
+#                                                — only verifyWebhookSignature
+#                                                tested; createCheckoutSession
+#                                                + issueRefund deferred)
+#   worker/routes/webhooks.js    91.08% lines  (Group B handler + D auto-link)
+#   worker/routes/waivers.js     93.61% lines  (Group C validation + effects)
+#
+# Reference for any future regression: a drop in any of these four lines%
+# below the captured value here is a signal that a test went missing or a
+# code path got broken. Inspect via `npm run test:coverage` and compare.
