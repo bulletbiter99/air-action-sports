@@ -1,0 +1,152 @@
+{
+  "$comment": "Test-gate map for Air Action Sports. Maps do-not-touch source paths (per docs/audit/06-do-not-touch.md) to the test paths that lock their behavior. Rule: before editing any path under `gates`, run the listed test paths and confirm they pass. After your edit, re-run them — they must still pass. If a test reveals current behavior conflicting with audit-documented behavior, STOP and ask the operator. The `uncovered` section enumerates do-not-touch files without tests yet — their `audit_tests_prescribed` arrays form the post-M1 punch list per docs/audit/09-test-coverage.md. When adding tests for a gated path in a future batch, also append the new test paths to the relevant `gates[<path>].tests` array.",
+  "version": 1,
+  "audit_reference": "docs/audit/06-do-not-touch.md",
+  "test_coverage_reference": "docs/audit/09-test-coverage.md",
+  "test_directory": "tests/unit/",
+  "gates": {
+    "worker/lib/pricing.js": {
+      "tier": "critical",
+      "covers": ["calculateQuote", "loadActiveTaxesFees", "centsToDollars"],
+      "audit_group": "A",
+      "tests": [
+        "tests/unit/pricing/empty-cart.test.js",
+        "tests/unit/pricing/single-ticket-no-addon.test.js",
+        "tests/unit/pricing/multi-ticket-with-addon.test.js",
+        "tests/unit/pricing/percent-tax-fixed-fee.test.js",
+        "tests/unit/pricing/percent-fee-on-percent-tax.test.js",
+        "tests/unit/pricing/applies-to-tickets.test.js",
+        "tests/unit/pricing/applies-to-all.test.js",
+        "tests/unit/pricing/line-items-shape.test.js",
+        "tests/unit/pricing/promo-percent.test.js",
+        "tests/unit/pricing/promo-fixed.test.js",
+        "tests/unit/pricing/per-unit-multipliers.test.js",
+        "tests/unit/pricing/capacity-errors.test.js",
+        "tests/unit/pricing/min-max-per-order.test.js",
+        "tests/unit/pricing/inactive-fee-excluded.test.js",
+        "tests/unit/pricing/cents-precision.test.js"
+      ]
+    },
+    "worker/lib/stripe.js": {
+      "tier": "critical",
+      "covers": ["verifyWebhookSignature"],
+      "audit_group": "B (signature subset)",
+      "tests": [
+        "tests/unit/webhook/signature-verify-valid.test.js",
+        "tests/unit/webhook/signature-verify-invalid.test.js",
+        "tests/unit/webhook/signature-verify-stale.test.js",
+        "tests/unit/webhook/signature-verify-multi-v1.test.js",
+        "tests/unit/webhook/signature-constant-time.test.js"
+      ]
+    },
+    "worker/routes/webhooks.js": {
+      "tier": "critical",
+      "covers": [
+        "POST /api/webhooks/stripe",
+        "handleCheckoutCompleted",
+        "findExistingValidWaiver"
+      ],
+      "audit_groups": ["B", "D"],
+      "tests": [
+        "tests/unit/webhook/idempotency-already-paid.test.js",
+        "tests/unit/webhook/unknown-event-type.test.js",
+        "tests/unit/webhook/attendee-creation.test.js",
+        "tests/unit/webhook/ticket-types-sold-increment.test.js",
+        "tests/unit/webhook/promo-uses-increment.test.js",
+        "tests/unit/webhook/audit-log-emission.test.js",
+        "tests/unit/webhook/email-send-confirmation.test.js",
+        "tests/unit/webhook/email-send-admin-notify.test.js",
+        "tests/unit/webhook/waiver-auto-link-on-paid.test.js",
+        "tests/unit/auto-link/null-inputs-return-null.test.js",
+        "tests/unit/auto-link/match-by-email-and-name.test.js",
+        "tests/unit/auto-link/case-insensitive-email.test.js",
+        "tests/unit/auto-link/whitespace-tolerant-name.test.js",
+        "tests/unit/auto-link/claim-period-required.test.js",
+        "tests/unit/auto-link/expired-claim-period-no-match.test.js",
+        "tests/unit/auto-link/latest-by-signed-at.test.js",
+        "tests/unit/auto-link/sibling-different-name-no-match.test.js",
+        "tests/unit/auto-link/cross-flow-consistency.test.js"
+      ]
+    },
+    "worker/routes/waivers.js": {
+      "tier": "critical",
+      "covers": [
+        "POST /api/waivers/:qrToken",
+        "GET /api/waivers/:qrToken",
+        "getLiveWaiverDocument"
+      ],
+      "audit_group": "C",
+      "tests": [
+        "tests/unit/waiver/erecords-consent-required.test.js",
+        "tests/unit/waiver/signature-must-match-name.test.js",
+        "tests/unit/waiver/age-tier-under-12-blocked.test.js",
+        "tests/unit/waiver/age-tier-12-15-requires-parent-and-supervisor.test.js",
+        "tests/unit/waiver/age-tier-16-17-requires-parent-only.test.js",
+        "tests/unit/waiver/age-tier-18-plus-independent.test.js",
+        "tests/unit/waiver/jury-trial-initials-required.test.js",
+        "tests/unit/waiver/row-doc-link-and-snapshot.test.js",
+        "tests/unit/waiver/row-claim-period.test.js",
+        "tests/unit/waiver/row-tier-flags.test.js",
+        "tests/unit/waiver/attendee-waiver-id-set.test.js",
+        "tests/unit/waiver/audit-log-waiver-signed.test.js",
+        "tests/unit/waiver/already-signed-409.test.js",
+        "tests/unit/waiver/integrity-fail-on-post.test.js",
+        "tests/unit/waiver/integrity-fail-on-get.test.js"
+      ]
+    }
+  },
+  "uncovered": {
+    "worker/routes/admin/bookings.js": {
+      "tier": "critical",
+      "covers": [
+        "POST /api/admin/bookings/manual",
+        "POST /api/admin/bookings/:id/refund"
+      ],
+      "audit_group": "E",
+      "audit_tests_prescribed": ["E47", "E48", "E49", "E50", "E51", "E52", "E53"],
+      "status": "deferred to post-M1"
+    },
+    "worker/routes/bookings.js": {
+      "tier": "critical",
+      "covers": ["POST /api/bookings/checkout", "POST /api/bookings/quote"],
+      "audit_group": "(public-side checkout)",
+      "audit_tests_prescribed": [],
+      "status": "no dedicated tests; quote pricing covered indirectly via Group A"
+    },
+    "worker/lib/auth.js": {
+      "tier": "high",
+      "covers": ["verifyPassword", "hashPassword", "requireAuth", "requireRole"],
+      "audit_group": "F",
+      "audit_tests_prescribed": ["F54", "F55", "F56", "F57", "F58", "F59", "F60", "F61"],
+      "status": "deferred to post-M1"
+    },
+    "worker/lib/vendorToken.js": {
+      "tier": "high",
+      "covers": ["verifyVendorToken"],
+      "audit_group": "F",
+      "audit_tests_prescribed": ["F62", "F63", "F64"],
+      "status": "deferred to post-M1"
+    },
+    "worker/index.js": {
+      "tier": "critical",
+      "covers": ["serveUpload", "rewriteEventOg", "scheduled cron handler"],
+      "audit_groups": ["G", "H"],
+      "audit_tests_prescribed": ["G65", "G66", "G67", "G68", "G69", "G70", "H71", "H72", "H73", "H74", "H75", "H76"],
+      "status": "deferred to post-M1; rewriteEventOg has indirect Group I smoke coverage via tests/e2e/smoke.test.js #79"
+    },
+    "worker/lib/emailSender.js": {
+      "tier": "critical",
+      "covers": ["the 9 named senders (booking_confirmation, admin_notify, waiver_request, etc.)"],
+      "audit_group": "(B partial)",
+      "audit_tests_prescribed": [],
+      "status": "no dedicated tests; covered indirectly via tests/unit/webhook/email-send-confirmation.test.js + email-send-admin-notify.test.js"
+    },
+    "worker/lib/formatters.js": {
+      "tier": "critical",
+      "covers": ["formatEvent", "formatTicketType", "formatBooking", "safeJson"],
+      "audit_group": "(shared with public site)",
+      "audit_tests_prescribed": [],
+      "status": "no dedicated tests; covered indirectly via webhook fixture's event lookup"
+    }
+  }
+}
