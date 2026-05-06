@@ -7,6 +7,11 @@ async function stripeFetch(path, { method = 'POST', apiKey, body, idempotencyKey
     const headers = {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/x-www-form-urlencoded',
+        // Pin API version explicitly so response shapes don't drift if the
+        // account default is bumped on the Stripe dashboard. Update this
+        // string in lockstep with a deliberate dashboard rollover; never
+        // omit, never auto-pickup. Account default at audit time: dahlia.
+        'Stripe-Version': '2026-04-22.dahlia',
     };
     // Idempotency-Key makes Stripe dedupe requests that share the key for 24h.
     // Essential for money-moving operations (refunds) to survive retries/races.
