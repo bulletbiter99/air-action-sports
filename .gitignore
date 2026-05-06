@@ -10,3 +10,4 @@ dist/
 .wrangler/
 *.sqlite
 *.sqlite3
+coverage/
