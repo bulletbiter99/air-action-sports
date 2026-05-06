@@ -10,7 +10,8 @@ adminEvents.use('*', requireAuth);
 const EVENT_STRING_FIELDS = [
     'title', 'slug', 'date_iso', 'display_date', 'display_day', 'display_month',
     'location', 'site', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
-    'cover_image_url', 'short_description',
+    'cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url',
+    'short_description',
 ];
 const EVENT_INT_FIELDS = [
     'base_price_cents', 'total_slots', 'sales_close_at',
@@ -24,7 +25,10 @@ function parseEventBody(body, { partial = false } = {}) {
         displayDate: 'display_date', displayDay: 'display_day', displayMonth: 'display_month',
         location: 'location', site: 'site', type: 'type', timeRange: 'time_range',
         checkIn: 'check_in', firstGame: 'first_game', endTime: 'end_time',
-        coverImageUrl: 'cover_image_url', shortDescription: 'short_description',
+        coverImageUrl: 'cover_image_url',
+        cardImageUrl: 'card_image_url', heroImageUrl: 'hero_image_url',
+        bannerImageUrl: 'banner_image_url', ogImageUrl: 'og_image_url',
+        shortDescription: 'short_description',
         basePriceCents: 'base_price_cents', totalSlots: 'total_slots',
         salesCloseAt: 'sales_close_at',
         published: 'published', past: 'past', featured: 'featured',
@@ -256,7 +260,7 @@ adminEvents.get('/:id/detail', async (c) => {
     });
 });
 
-// Validate cover_image_url with a HEAD request — fail fast on 404 / wrong type.
+// Validate any image URL with a HEAD request — fail fast on 404 / wrong type.
 // Skipped for any URL pointing to our own /uploads/* path (R2-backed assets
 // we minted ourselves). The upload endpoint returns a full absolute URL
 // (`${SITE_URL}/uploads/${key}`), so we check both relative paths and
@@ -295,10 +299,13 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
     const { patch, error } = parseEventBody(body, { partial: false });
     if (error) return c.json({ error }, 400);
 
-    // Cover-image preflight — reject before insert so the editor surfaces the failure.
-    if (patch.cover_image_url) {
-        const pf = await preflightCoverImage(patch.cover_image_url);
-        if (!pf.ok) return c.json({ error: pf.error }, 400);
+    // Image preflight on every URL the admin set — reject before insert so the
+    // editor surfaces the failure inline. Each surface column is independent.
+    for (const col of ['cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url']) {
+        if (patch[col]) {
+            const pf = await preflightCoverImage(patch[col]);
+            if (!pf.ok) return c.json({ error: `${col}: ${pf.error}` }, 400);
+        }
     }
 
     // ID strategy: if caller provides a slug, use it (lowercase-hyphen). Otherwise generate.
@@ -322,7 +329,8 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         'location', 'site', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
         'base_price_cents', 'total_slots', 'addons_json', 'game_modes_json', 'details_json',
         'sales_close_at', 'published', 'past', 'featured',
-        'cover_image_url', 'short_description', 'slug', 'created_at', 'updated_at',
+        'cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url',
+        'short_description', 'slug', 'created_at', 'updated_at',
     ];
     const vals = {
         id,
@@ -348,6 +356,10 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         past: patch.past ?? 0,
         featured: patch.featured ?? 0,
         cover_image_url: patch.cover_image_url || null,
+        card_image_url: patch.card_image_url || null,
+        hero_image_url: patch.hero_image_url || null,
+        banner_image_url: patch.banner_image_url || null,
+        og_image_url: patch.og_image_url || null,
         short_description: patch.short_description || null,
         slug: patch.slug,
         created_at: now,
@@ -400,10 +412,12 @@ adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
         }
     }
 
-    // Cover-image preflight, same as POST.
-    if (patch.cover_image_url) {
-        const pf = await preflightCoverImage(patch.cover_image_url);
-        if (!pf.ok) return c.json({ error: pf.error }, 400);
+    // Image preflight, same as POST. Skip null values (clearing is fine).
+    for (const col of ['cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url']) {
+        if (patch[col]) {
+            const pf = await preflightCoverImage(patch[col]);
+            if (!pf.ok) return c.json({ error: `${col}: ${pf.error}` }, 400);
+        }
     }
 
     const keys = Object.keys(patch);
@@ -480,8 +494,9 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
             location, site, type, time_range, check_in, first_game, end_time,
             base_price_cents, total_slots, addons_json, game_modes_json, details_json,
             sales_close_at, published, past,
-            cover_image_url, short_description, slug, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?)`
+            cover_image_url, card_image_url, hero_image_url, banner_image_url, og_image_url,
+            short_description, slug, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
         newId,
         newTitle,
@@ -492,7 +507,8 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
         src.location, src.site, src.type, src.time_range, src.check_in, src.first_game, src.end_time,
         src.base_price_cents, src.total_slots, src.addons_json, src.game_modes_json, src.details_json,
         src.sales_close_at, // published forced to 0 above
-        src.cover_image_url, src.short_description, newId,
+        src.cover_image_url, src.card_image_url, src.hero_image_url, src.banner_image_url, src.og_image_url,
+        src.short_description, newId,
         now, now,
     ).run();
 

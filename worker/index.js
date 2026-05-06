@@ -451,7 +451,8 @@ function parseEventSlug(pathname) {
 async function rewriteEventOg(request, env, slug) {
     // Events currently use slug as id (legacy seeding). Try id first, then slug column.
     const row = await env.DB.prepare(
-        `SELECT title, display_date, location, short_description, cover_image_url
+        `SELECT title, display_date, location, short_description,
+                cover_image_url, og_image_url
          FROM events WHERE (id = ? OR slug = ?) AND published = 1 LIMIT 1`
     ).bind(slug, slug).first();
 
@@ -464,7 +465,9 @@ async function rewriteEventOg(request, env, slug) {
         || `${row.title} airsoft event${row.location ? ' at ' + row.location.split(' —')[0] : ''}${row.display_date ? ' on ' + row.display_date : ''}. Book your slot now.`;
     const siteUrl = env.SITE_URL || 'https://air-action-sports.bulletbiter99.workers.dev';
     const ogUrl = `${siteUrl}/events/${slug}`;
-    const image = row.cover_image_url || `${siteUrl}/images/og-image.jpg`;
+    // Prefer the dedicated 1.91:1 OG asset when admin uploaded one. Falls
+    // back to the universal cover, then the site-wide default.
+    const image = row.og_image_url || row.cover_image_url || `${siteUrl}/images/og-image.jpg`;
 
     const rewriter = new HTMLRewriter()
         .on('title', {

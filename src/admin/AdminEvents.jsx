@@ -185,7 +185,8 @@ function EventEditor({ eventId, onClose, onSaved }) {
     location: '', site: '', type: 'airsoft',
     timeRange: '', checkIn: '', firstGame: '', endTime: '',
     basePriceCents: 8000, totalSlots: 100,
-    coverImageUrl: '', shortDescription: '',
+    coverImageUrl: '', cardImageUrl: '', heroImageUrl: '', bannerImageUrl: '', ogImageUrl: '',
+    shortDescription: '',
     published: false, past: false, featured: false,
     addons: [], gameModes: [], customQuestions: [],
   });
@@ -207,7 +208,12 @@ function EventEditor({ eventId, onClose, onSaved }) {
           location: event.location || '', site: event.site || '', type: event.type || 'airsoft',
           timeRange: event.timeRange || '', checkIn: event.checkIn || '', firstGame: event.firstGame || '', endTime: event.endTime || '',
           basePriceCents: event.basePriceCents || 0, totalSlots: event.totalSlots || 0,
-          coverImageUrl: event.coverImageUrl || '', shortDescription: event.shortDescription || '',
+          coverImageUrl: event.coverImageUrl || '',
+          cardImageUrl: event.cardImageUrl || '',
+          heroImageUrl: event.heroImageUrl || '',
+          bannerImageUrl: event.bannerImageUrl || '',
+          ogImageUrl: event.ogImageUrl || '',
+          shortDescription: event.shortDescription || '',
           published: !!event.published, past: !!event.past, featured: !!event.featured,
           addons: event.addons || [], gameModes: event.gameModes || [],
           customQuestions: event.customQuestions || [],
@@ -277,12 +283,55 @@ function EventEditor({ eventId, onClose, onSaved }) {
           <Field label="Short description">
             <textarea rows={2} value={form.shortDescription} onChange={(e) => updateField('shortDescription', e.target.value)} style={{ ...input, resize: 'vertical' }} />
           </Field>
-          <Field label="Cover image">
-            <CoverImagePicker
-              value={form.coverImageUrl}
-              onChange={(v) => updateField('coverImageUrl', v)}
-            />
-          </Field>
+          <div style={sectionLabel}>Event images</div>
+          <p style={{ fontSize: 11, color: 'var(--olive-light)', margin: '0 0 12px', lineHeight: 1.5 }}>
+            Each surface uses a different aspect ratio. Upload a ratio-correct image per surface for the best look.
+            Anything left blank falls back to <strong>Cover (universal fallback)</strong>, so you can ship with one image and refine later.
+          </p>
+          <EventImagePicker
+            label="Cover (universal fallback)"
+            ratioHint="Any ratio · used wherever a specific size isn't set"
+            recommended="1200×630 works on every surface"
+            ratio={1200 / 630}
+            value={form.coverImageUrl}
+            onChange={(v) => updateField('coverImageUrl', v)}
+          />
+          <EventImagePicker
+            label="Card hero"
+            ratioHint="2:1 · shown on the /events grid card"
+            recommended="1200×600"
+            ratio={2 / 1}
+            value={form.cardImageUrl}
+            onChange={(v) => updateField('cardImageUrl', v)}
+            fallback={form.coverImageUrl}
+          />
+          <EventImagePicker
+            label="Event hero"
+            ratioHint="3.2:1 · shown at the top of the event detail page"
+            recommended="1920×600"
+            ratio={3.2 / 1}
+            value={form.heroImageUrl}
+            onChange={(v) => updateField('heroImageUrl', v)}
+            fallback={form.coverImageUrl}
+          />
+          <EventImagePicker
+            label="Booking banner"
+            ratioHint="4:1 · shown when a customer books this event"
+            recommended="1920×500"
+            ratio={4 / 1}
+            value={form.bannerImageUrl}
+            onChange={(v) => updateField('bannerImageUrl', v)}
+            fallback={form.coverImageUrl}
+          />
+          <EventImagePicker
+            label="Social / OG"
+            ratioHint="1.91:1 · shown when the event URL is shared (FB / iMessage / Slack)"
+            recommended="1200×630"
+            ratio={1200 / 630}
+            value={form.ogImageUrl}
+            onChange={(v) => updateField('ogImageUrl', v)}
+            fallback={form.coverImageUrl}
+          />
 
           <div style={sectionLabel}>Date & time</div>
           <div style={twoCol}>
@@ -485,7 +534,13 @@ function AddonEditor({ addons, onChange }) {
   );
 }
 
-function CoverImagePicker({ value, onChange }) {
+// One image picker per surface. Shows the picker label + ideal aspect ratio
+// + recommended pixel dimensions, plus a preview cropped to that exact ratio
+// so the admin sees what customers will see on that surface. When `fallback`
+// is provided and `value` is empty, the fallback is previewed in muted form
+// so admins can confirm the universal-cover image is sensible for this
+// surface before deciding whether to upload an override.
+function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChange, fallback }) {
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -507,8 +562,19 @@ function CoverImagePicker({ value, onChange }) {
     }
   };
 
+  const previewSrc = value || fallback || '';
+  const usingFallback = !value && !!fallback;
+  const PREVIEW_WIDTH = 320;
+  const previewHeight = Math.round(PREVIEW_WIDTH / ratio);
+
   return (
-    <div>
+    <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(200,184,154,0.08)', padding: '12px 14px', marginBottom: 12 }}>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: 'var(--cream)', fontWeight: 700, letterSpacing: 0.5 }}>{label}</div>
+        <div style={{ fontSize: 11, color: 'var(--olive-light)', marginTop: 2 }}>
+          {ratioHint} · <span style={{ color: 'var(--tan-light)' }}>{recommended}</span>
+        </div>
+      </div>
       <input
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
@@ -532,9 +598,27 @@ function CoverImagePicker({ value, onChange }) {
         <span style={{ fontSize: 11, color: 'var(--olive-light)' }}>Max 5 MB · JPEG / PNG / WebP / GIF</span>
       </div>
       {err && <div style={{ color: '#e74c3c', fontSize: 12, marginTop: 6 }}>{err}</div>}
-      {value && (
+      {previewSrc && (
         <div style={{ marginTop: 10 }}>
-          <img src={value} alt="" style={{ maxWidth: 300, maxHeight: 180, border: '1px solid rgba(200,184,154,0.2)' }} />
+          <div
+            style={{
+              width: PREVIEW_WIDTH,
+              maxWidth: '100%',
+              height: previewHeight,
+              backgroundImage: `url("${previewSrc}")`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              border: '1px solid rgba(200,184,154,0.25)',
+              opacity: usingFallback ? 0.55 : 1,
+              filter: usingFallback ? 'grayscale(20%)' : 'none',
+            }}
+            aria-label={`${label} preview cropped to ${ratioHint.split('·')[0].trim()}`}
+          />
+          <div style={{ fontSize: 10, color: 'var(--olive-light)', marginTop: 4 }}>
+            {usingFallback
+              ? 'Showing fallback (Cover) cropped to this surface — upload a dedicated image to fix any awkward crops.'
+              : `Cropped preview at ${ratioHint.split('·')[0].trim()}`}
+          </div>
         </div>
       )}
     </div>

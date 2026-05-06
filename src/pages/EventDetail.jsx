@@ -67,8 +67,8 @@ export default function EventDetail() {
       {/* Event Hero Banner */}
       <div
         className="event-hero"
-        style={event.coverImageUrl ? {
-          backgroundImage: `linear-gradient(rgba(20,20,20,0.55), rgba(20,20,20,0.75)), url("${event.coverImageUrl}")`,
+        style={(event.heroImageUrl || event.coverImageUrl) ? {
+          backgroundImage: `linear-gradient(rgba(20,20,20,0.55), rgba(20,20,20,0.75)), url("${event.heroImageUrl || event.coverImageUrl}")`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         } : undefined}

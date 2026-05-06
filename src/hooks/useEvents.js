@@ -54,6 +54,10 @@ export function adaptEvent(apiEvent) {
         bbPurchases,
         shortDescription: apiEvent.shortDescription || '',
         coverImageUrl: apiEvent.coverImageUrl || null,
+        cardImageUrl: apiEvent.cardImageUrl || null,
+        heroImageUrl: apiEvent.heroImageUrl || null,
+        bannerImageUrl: apiEvent.bannerImageUrl || null,
+        ogImageUrl: apiEvent.ogImageUrl || null,
         dateIso: apiEvent.dateIso || '',
         ticketTypes: apiEvent.ticketTypes || [],
     };

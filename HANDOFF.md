@@ -99,7 +99,8 @@ action-air-sports/
 │   ├── 0015_drop_event_tax_columns.sql ← drop dead per-event tax_rate_bps + pass_fees_to_customer
 │   ├── 0016_booking_payment_method.sql ← bookings.payment_method col + index + backfill
 │   ├── 0017_event_featured.sql         ← events.featured (admin-picked headliner sort)
-│   └── 0018_waiver_v4_fields.sql       ← 4-tier age, jury trial initials, supervising adult, claim_period_expires_at + idx_waivers_claim_lookup
+│   ├── 0018_waiver_v4_fields.sql       ← 4-tier age, jury trial initials, supervising adult, claim_period_expires_at + idx_waivers_claim_lookup
+│   └── 0019_event_per_surface_images.sql ← card/hero/banner/og image URL columns (per-surface cover images, cover_image_url stays as fallback)
 ├── scripts/                 ← one-off SQL scripts, not tracked by migration runner
 ├── .claude/
 │   └── commands/feedback.md  ← /feedback slash-command playbook (pull → review → recommend → update → deploy)
@@ -156,7 +157,7 @@ To rotate: generate new value in the respective dashboard → `echo "new-value" 
 
 | Table | Purpose |
 |---|---|
-| `events` | Airsoft events (custom questions stored in `custom_questions_json`) |
+| `events` | Airsoft events (custom questions stored in `custom_questions_json`). Image columns: `cover_image_url` (universal fallback) + per-surface `card_image_url` / `hero_image_url` / `banner_image_url` / `og_image_url` (added in 0019; all nullable). Each consumer surface prefers its dedicated column and falls back to `cover_image_url`. |
 | `ticket_types` | Per-event ticket tiers (Standard, VIP, etc.) |
 | `bookings` | A customer's purchase. Reminder columns: `reminder_sent_at`, `reminder_1hr_sent_at` |
 | `attendees` | Individual players under a booking, each with `qr_token` and `custom_answers_json` |
@@ -442,6 +443,7 @@ The admin shell uses a **left sidebar** (not a top bar) at ≥900px and converts
 | **Cloudflare security insights cleanup** | Cloudflare Security Insights flagged 6 items on `airactionsport.com`. Triaged: 2 stale (HSTS + TLS encryption — Worker is already setting `Strict-Transport-Security: max-age=31536000; includeSubDomains` and HTTPS works; the scan ran before the custom domain was attached). 4 actionable — 2 fixed in code, 2 require Cloudflare-dashboard changes by the owner. Code fixes: (1) `public/.well-known/security.txt` static file added (RFC 9116 format with `actionairsport@gmail.com` as contact, 12-month expiry — Vite copies it into `dist/` so the static-asset handler serves it instead of the SPA fallback; commit ff22a01). (2) `wrangler.toml SITE_URL` and `index.html` baseline OG/Twitter tags switched from `https://air-action-sports.bulletbiter99.workers.dev` to `https://airactionsport.com` since the custom domain is now live (per-route SEO components were already on the custom domain; commit 1a19a6b). Side-swipe regression caught immediately: cover-image preflight in `worker/routes/admin/events.js` short-circuited only on relative `/uploads/...` paths, but the upload endpoint embeds `${SITE_URL}/uploads/${key}` so absolute URLs (now `https://airactionsport.com/uploads/...`) fell through to the HEAD-fetch branch — which routed back to the same Worker, ran out of subrequest budget, and returned 522. Fix: parse the URL and skip preflight when `pathname.startsWith('/uploads/')` regardless of host (commit fc21412). Cloudflare dashboard items remaining for the owner — see §11. |
 | **Waiver overhaul (Phase A/B/C)** | Three-phase upgrade from the original 6-bullet seed waiver to a corporate-wide release of liability with Utah-specific minor handling, 365-day Claim Period (annual renewal), and full auto-link UX. **Phase A** — published `wd_v4` (current live waiver doc, SHA prefix `525a075a7…`): 22 sections including Release & Indemnity, PPE Compliance, FPS chrono, Weather, Camping, Third-Party Injuries, Sponsor/Vendor zones, Insurance certification, Choice of Law (Davis County, Utah), Photo/Drone Policy, Social Media Release, Medical Emergency Authorization, Data Privacy (7y adult / age-23 minor retention), Jury Trial Waiver §22, Annual Renewal §21, Electronic Signature Acknowledgment per Utah Code §46-4-201, Age Participation Policy table, Exhibit A Site Schedule (Ghost Town active / Foxtrot Fields coming soon). v2 and v3 superseded immediately due to Exhibit A status reconciliation; v4 strips an internal-only Hawkins v. Peart explainer. wd_v1 thru wd_v3 retired; future signers see v4. **Phase B** — migration 0018 + 4-tier age policy enforced both client- and server-side. Under 12 hard-blocks at submit. 12-15: parent fields + parent_initials + ON-SITE supervising adult name/signature/phone (defaults to "same as parent" toggle). 16-17: parent fields + parent_initials only. 18+: independent. Jury Trial Waiver initials field required for all tiers. Medical Conditions optional textarea (page-1 section). All new fields landed on `waivers` (see §6 row). Server `ageTier(age)` helper mirrors client logic exactly to prevent client/server drift. **Phase C** — `findExistingValidWaiver(db, email, firstName, lastName, asOf)` (worker/routes/webhooks.js, exported) matches by (LOWER(TRIM(email)), LOWER(TRIM(player_name))) + claim_period_expires_at > now. Called from both the Stripe webhook and admin manual booking handler — new attendee rows get `waiver_id` pre-populated when a match exists. Auto-linked attendees skip the per-attendee waiver-request email entirely (`out.waivers.push({skipped: 'already_on_file'})`). User-facing notifications: (1) `/booking/success` summary banner branches on per-booking waiver status ("All N already on file" / "M of N on file, rest need to sign" / "each player needs to sign") + per-attendee row shows green "✓ ON FILE — valid through {date}" or "Sign Waiver" link; (2) `/waiver?token=...` shows green-bordered "Waiver On File" card with signed date, expiry, doc version when attendee.waiver_id is set; falls through to the form if expiry has passed; (3) booking confirmation email gets a `{{waiver_summary}}` template variable matching the success page. Annual-renewal lookup is covered by `idx_waivers_claim_lookup`. audit_log entries: `waiver.auto_linked` per linked attendee. |
 | **Smaller polish wave** | Five items shipped in one commit: (1) **Notify-submitter preview-before-send modal** — new `GET /api/admin/feedback/:id/notify-preview` renders the resolution-notice template with this ticket's actual status + admin_note (not sample data). AdminFeedback's "Notify submitter…" button now opens a sandboxed-iframe modal showing recipient + subject + rendered body before sending. `renderFeedbackResolutionNotice` helper extracted from `sendFeedbackResolutionNotice` so preview + send share the rendering path. (2) **Featured-event flag** — migration 0017 adds `events.featured INTEGER DEFAULT 0`; `/api/events` ORDER BY now `featured DESC, date_iso ASC|DESC` so admin-picked headliner wins ties; checkbox in AdminEvents Publishing section; orange "Featured" pill on `/events` cards (top-right of cover, or inline in header) + orange ring around featured cards. (3) **Reminder-cron monitoring** — `scheduled()` writes a `cron.swept` audit row on every run regardless of whether work was done, with full results metadata. New `GET /api/admin/analytics/cron-status` returns last sweep age + 24h `reminder.sent`/`reminder_1hr.sent` counts. AdminDashboard renders a CronHealth strip: green when last sweep <60min, red + STALE badge if older. (4) **`/events` cover-image hero** — 160px gradient-overlaid hero on cards with `coverImageUrl`; featured cards get accented styling. (5) **Booking total bug fix** (user-reported): per-order fixed fee (e.g., Stripe's $0.30 processing fee) was leaking into the total before any tickets were selected because the unit multiplier defaults to 1 for non-attendee `per_unit` values. Short-circuit in `totals` returns all zeros when subtotal === 0; once the user adds anything, taxes/fees apply correctly on top. |
+| **Per-surface event cover images (Option A — full 4 fields)** | Migration 0019 adds four nullable URL columns to `events`: `card_image_url` (2:1, recommended 1200×600), `hero_image_url` (3.2:1, 1920×600), `banner_image_url` (4:1, 1920×500), `og_image_url` (1.91:1, 1200×630). The original `cover_image_url` stays as the universal fallback so existing events keep working unchanged. Backend: `worker/lib/formatters.js formatEvent()` exposes the four new fields as camelCased; `worker/routes/admin/events.js parseEventBody()` accepts them, INSERT/UPDATE write all five image columns, the duplicate handler clones every column, and the per-URL HEAD preflight (`preflightCoverImage`) now runs against every image URL the admin set, not just the cover — error returns prefix the column name so the editor knows which picker failed. `worker/index.js rewriteEventOg()` prefers `og_image_url` over `cover_image_url` for the OG meta image so social unfurls get the dedicated 1.91:1 asset when uploaded. Frontend consumers each prefer their own column with a fallback chain: `Events.jsx` uses `cardImageUrl ?? coverImageUrl` for the grid card hero, `EventDetail.jsx` uses `heroImageUrl ?? coverImageUrl` for the page hero, `Booking.jsx` uses `bannerImageUrl ?? coverImageUrl` for the step-1 banner. Admin editor: single "Cover image" Field replaced with an **Event Images** section containing 5 ratio-aware pickers (Cover · Card · Event Hero · Booking Banner · Social/OG). Each picker renders a 320px-wide preview cropped to its actual aspect ratio so the admin sees what customers will see; when a picker is empty but the universal cover is set, the cropped fallback shows in muted form (55% opacity + slight grayscale) with a "Showing fallback…" hint so the admin can decide whether the cover crop is acceptable for that surface or warrants a dedicated upload. Reuses the existing `/api/admin/uploads/image` endpoint — no new upload route. All four new fields are optional; events shipped with only `cover_image_url` continue to render correctly everywhere. |
 
 ## 11. What's left before go-live
 
@@ -465,15 +467,7 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - ~~**Branded `/events` redesign**~~ — partial: cover-image hero + featured pill + featured-card accent shipped. Could go further with per-event visuals but the cover-image hero already lifts it significantly when admins upload covers.
 - ~~**Reminder-cron monitoring**~~ — done via `cron.swept` audit row + `/api/admin/analytics/cron-status` + AdminDashboard CronHealth widget.
 - **ROE page — owner-decision gaps** — six policy questions deferred from the Rules of Engagement page that need owner input before adding sections: (1) surrender / "bang-bang" rules (used or not?), (2) friendly fire (counts as a hit, or no-effect?), (3) respawn / medic mechanics (default rule, or "varies per event"?), (4) weapon-hit / pistol switch (primary hit = body hit, or switch to pistol?), (5) sidearm requirement for DMR / Sniper / LMG classes, (6) photography during games (allowed / restricted / require permission?). Once owner decides, add as new sections to `/rules-of-engagement`.
-- **Per-surface event cover images (planned, awaiting owner decision A vs B)** — single `cover_image_url` field currently powers four surfaces with very different aspect ratios, causing crops on at least one surface no matter how the source is shaped. Owner asked to upgrade so each surface gets its own ratio-correct upload. Plan brainstormed 2026-05-06 — needs A/B choice before execution. Reference table for all four surfaces is in §12 *(Cover-image surface reference)*.
-  - **Option A — full 4 fields**: maximum granularity. New columns `card_image_url` (2:1), `hero_image_url` (3.2:1), `banner_image_url` (4:1), `og_image_url` (1.91:1). Existing `cover_image_url` becomes universal fallback when a specific one isn't set so existing events keep working and admins aren't forced to upload all 4.
-  - **Option B — simpler 2 fields**: `cover_image_url` carries OG + Events card (both ~2:1), new `wide_hero_url` carries EventDetail + Booking banner (both 3-4:1). Half the admin upload work, ~80% of the visual benefit.
-  - **Implementation breakdown** (~2-3 hours total, ship as 3-4 incremental commits):
-    1. **Migration 0019** — add the new column(s) to events table; nullable so existing rows survive.
-    2. **Backend** — `worker/lib/formatters.js formatEvent()` exposes new fields; `worker/routes/admin/events.js parseEventBody()` accepts them; INSERT/UPDATE includes them; per-URL preflight check (the existing `/uploads/*` skip already covers our minted URLs); `worker/routes/events.js` surfaces them via public API; `worker/index.js` HTMLRewriter on `/events/:slug` prefers `og_image_url` over `cover_image_url` for OG meta tags.
-    3. **Frontend consumer pages** — `src/hooks/useEvents.js adaptEvent()` surfaces all new fields; `src/pages/Events.jsx` uses `cardImageUrl ?? coverImageUrl`; `src/pages/EventDetail.jsx` uses `heroImageUrl ?? coverImageUrl`; `src/pages/Booking.jsx` uses `bannerImageUrl ?? coverImageUrl`.
-    4. **Admin editor** (`src/admin/AdminEvents.jsx`) — replace single Cover Image picker with an "Event Images" section. Each picker shows label + ideal aspect ratio + use case + live preview cropped to actual ratio + upload + clear buttons. All optional, all fall back to `cover_image_url`. Reuses existing `/api/admin/uploads/image` endpoint.
-    5. **Optional**: extend `tools/cover-banner-builder.html` to output all 4 cropped sizes from a single source design — useful for future events; design once at the widest ratio, get 4 cropped exports.
+- ~~**Per-surface event cover images**~~ — done (Option A — full 4 fields). Migration 0019 + backend + frontend consumers + admin multi-picker shipped together. Existing `cover_image_url` retained as the universal fallback so events with only the cover keep rendering correctly. Reference table for the four surfaces is in §12 *(Cover-image surface reference)*. **Optional follow-up still on the table**: extend `tools/cover-banner-builder.html` to export all 4 cropped sizes from a single source design — design once at the widest ratio, get 4 ratio-correct exports for upload. Useful for future events but not blocking.
 
 **Longer-term polish** (not blocking):
 - Branded event listing redesign — `/events` still uses the original static template; could get richer per-event visuals now that cover images exist.
@@ -494,7 +488,7 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **5 resolved feedback tickets** (4 smoke/dogfood from when the system shipped 2026-04-23/24, plus `fb_Tp9RIpHdKgWw` — Jesse's Rules of Engagement page request, shipped 2026-04-29). 0 open tickets.
 - **Cloudflare Workers Builds**: deploy command in dashboard is `npm run build && npx wrangler deploy` (must be both — see §13). Auto-deploys on `git push origin main`.
 - **Booking flow live**: `/booking` is the canonical Book Now path; Peek widget removed from `index.html`. Stripe still in **sandbox** mode — real-money cutover is the next pre-launch step.
-- **Migrations 0001-0018 applied to remote D1**.
+- **Migrations 0001-0019 applied to remote D1**.
 - **Waiver document live**: `wd_v4` (corporate-wide release of liability + 4-tier age policy + 365-day Claim Period). wd_v1 thru wd_v3 retired. Edit at `/admin/waivers` (owner only) — creates a new version, retires the previous; past signers stay pinned to whatever they signed.
 - **Custom domain live**: `https://airactionsport.com` is attached to the Worker (DNS via Cloudflare). `SITE_URL` env var, OG meta tags, and email links all use the custom domain. The `air-action-sports.bulletbiter99.workers.dev` fallback URL still resolves but is no longer canonical.
 - **`/.well-known/security.txt`** served as a static asset per RFC 9116 — disclosure contact `actionairsport@gmail.com`, expires 2027-05-06.
@@ -502,18 +496,20 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 
 ### Cover-image surface reference
 
-The single `cover_image_url` powers four surfaces with very different effective aspect ratios. Crops are inevitable when one image serves all four. Reference for image sizing:
+Each surface has its own dedicated image column (added in migration 0019). When a surface column is empty, the rendering code falls back to `cover_image_url`, so events shipped with only the universal cover keep working. Reference for sizing — match these ratios when uploading per-surface assets in `/admin/events`:
 
-| Surface | Code path | Effective aspect | Recommended dim | Crop behavior |
-|---|---|---:|---|---|
-| `/events` card hero | `src/styles/pages/events.css` `.event-cover` (160px tall, ~280-400 wide), `background-size: cover` | ~2:1 | 1200×600 | Crops top + bottom on tall sources |
-| `/events/:slug` event hero | `src/pages/EventDetail.jsx` line 70-71, `linear-gradient + url()` background, ~400-500 tall | ~3-4:1 | 1920×600 | Crops top + bottom heavily on tall sources |
-| `/booking` step-1 banner | `src/pages/Booking.jsx` line 396-397, dark gradient overlay, ~800x200 effective | ~4:1 | 1920×500 | Most aggressive crop — only middle ~33% of a 4:3 source visible |
-| OG meta image (FB / Slack / iMessage unfurls) | `worker/index.js` HTMLRewriter writes `og:image` from `event.cover_image_url` | 1.91:1 | 1200×630 | Center-cropped if source ratio differs |
+| Surface | DB column | Code path | Aspect | Recommended dim | Crop behavior when fallback used |
+|---|---|---:|---|---|---|
+| `/events` card hero | `card_image_url` | `src/pages/Events.jsx` (`cardImageUrl ?? coverImageUrl`), `.event-cover` 160px tall × ~280-400 wide, `background-size: cover` | ~2:1 | 1200×600 | Cover crops top + bottom on tall sources |
+| `/events/:slug` event hero | `hero_image_url` | `src/pages/EventDetail.jsx:70` (`heroImageUrl ?? coverImageUrl`), `linear-gradient + url()` background, ~400-500 tall | ~3.2:1 | 1920×600 | Cover crops top + bottom heavily on tall sources |
+| `/booking` step-1 banner | `banner_image_url` | `src/pages/Booking.jsx:396` (`bannerImageUrl ?? coverImageUrl`), dark gradient overlay, ~800×200 effective | ~4:1 | 1920×500 | Cover gets most aggressive crop — only middle ~33% of a 4:3 source visible |
+| OG meta (FB / Slack / iMessage unfurls) | `og_image_url` | `worker/index.js rewriteEventOg()` (`ogImageUrl ?? coverImageUrl ?? site default`) | 1.91:1 | 1200×630 | Cover center-cropped if source ratio differs |
 
-**Single-image winning ratio**: 1200×630 (1.91:1). Compose with focal subject in the center 800×500 box; assume top/bottom 65px and left/right 200px may be cropped on at least one surface.
+**Admin editor**: `/admin/events` → Edit → "Event Images" section shows 5 ratio-aware pickers (Cover · Card · Event Hero · Booking Banner · Social/OG). Each picker renders a 320px-wide preview cropped to its actual ratio so the admin sees exactly what customers will see; when a picker is empty but Cover is set, the cropped fallback shows in muted form (55% opacity + slight grayscale) with a hint, so the admin can decide whether the cover crop is acceptable or warrants a dedicated upload.
 
-**Per-surface ideal**: see §11 deferred item *"Per-surface event cover images"* for the planned multi-field upload upgrade.
+**Single-image-only fallback ratio**: 1200×630 (1.91:1). Compose with focal subject in the center 800×500 box; assume top/bottom 65px and left/right 200px may be cropped on at least one surface. Per-surface uploads obviate this when you have time to design 4 ratio-correct images.
+
+**Optional follow-up**: extend `tools/cover-banner-builder.html` to export all 4 cropped sizes from a single source design — design once at the widest ratio, get 4 ratio-correct exports for upload.
 - **Rate-limit bindings** (all `[[unsafe.bindings]] type=ratelimit`, namespaces 1001–1008): `RL_LOGIN` 5/min, `RL_FORGOT` 3/min, `RL_VERIFY_TOKEN` 10/min, `RL_RESET_PWD` 5/min, `RL_CHECKOUT` 10/min, `RL_TOKEN_LOOKUP` 30/min, `RL_FEEDBACK` 3/min, `RL_FEEDBACK_UPLOAD` 3/min.
 - **Admin owner**: Paul Keddington (bulletbiter99@gmail.com)
 - **Stripe**: **still sandbox mode** — flip before first real sale
@@ -542,7 +538,7 @@ The single `cover_image_url` powers four surfaces with very different effective 
    - `curl https://air-action-sports.bulletbiter99.workers.dev/api/health` → `{"ok":true,...}`
    - `curl https://air-action-sports.bulletbiter99.workers.dev/api/events` → returns 1 event
 4. Confirm admin login works (use `/admin/forgot-password` if needed).
-5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-06: `03401d3d-0109-4dbe-acb6-1005ada4bb4c` (cover-image preflight 522 fix). Recent shipped wave includes: waiver overhaul A/B/C (commits 790c58d, 2b26a4d), tax/fee bug fixes (5e7d833 / 2dd831f / 5555426), audit polish (1f68c67 / 5e7f0d9 / adc315a), security.txt + custom-domain SITE_URL switch (ff22a01 / 1a19a6b), and the cover-image 522 fix (fc21412). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
+5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-05: `d19b9f25-d7cf-4d7c-8d11-a470b7525775` (per-surface event cover images — Option A, migration 0019 + admin multi-picker). Earlier: cover-image preflight 522 fix `03401d3d`, security.txt + custom-domain SITE_URL switch (ff22a01 / 1a19a6b), waiver overhaul A/B/C (790c58d, 2b26a4d), tax/fee bug fixes (5e7d833 / 2dd831f / 5555426), audit polish (1f68c67 / 5e7f0d9 / adc315a). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
 6. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
 
 ---
@@ -568,9 +564,16 @@ client + server, 365-day Claim Period auto-link wired into both Stripe
 webhook and admin manual booking, "✓ ON FILE — valid through {date}"
 notifications on /booking/success and /waiver pages — plus tax/fee bug
 fixes (Stripe line item filter, admin/public math parity, empty-cart
-short-circuit), audit-polish items, and **Cloudflare custom domain
+short-circuit), audit-polish items, **Cloudflare custom domain
 attachment** (SITE_URL, OG meta, email links all use airactionsport.com
-now; /.well-known/security.txt added per RFC 9116).
+now; /.well-known/security.txt added per RFC 9116), and the
+**per-surface event cover images** upgrade — migration 0019 added
+`card_image_url` (2:1) / `hero_image_url` (3.2:1) / `banner_image_url`
+(4:1) / `og_image_url` (1.91:1); each consumer surface prefers its own
+column and falls back to the original `cover_image_url`; admin editor's
+single Cover picker replaced with a 5-picker "Event Images" section
+that shows per-ratio cropped previews (with muted fallback previews
+when an override isn't set).
 
 All shipped and live at https://airactionsport.com.
 
@@ -587,40 +590,30 @@ see §11 for the full list:
   - Enable "Always Use HTTPS" toggle in Cloudflare SSL/TLS Edge
     Certificates (currently OFF — HTTP returns 200 instead of 301)
   - Stripe sandbox → live cutover ($1 real-money end-to-end test)
-  - Cover image upload for Operation Nightfall via /admin/events
+  - Per-surface cover image uploads for Operation Nightfall via
+    /admin/events → Edit → Event Images section. The existing cover
+    keeps powering every surface until per-surface assets are uploaded.
+    Recommended sizes (also rendered in the editor's picker labels):
+      Card hero      1200×600  (2:1)
+      Event hero     1920×600  (3.2:1)
+      Booking banner 1920×500  (4:1)
+      Social / OG    1200×630  (1.91:1)
   - Invite a second admin via /admin/users
   - Comp-ticket dry run
 
-Next-up code feature (planned, awaiting owner A/B decision before
-execution — see §11 deferred *"Per-surface event cover images"*):
-The single `cover_image_url` causes inevitable crops on at least one
-of the four surfaces it powers (events card 2:1, EventDetail hero
-~3-4:1, /booking banner 4:1, OG meta 1.91:1). Owner asked to upgrade
-the editor so each surface gets its own ratio-correct upload.
+Next-up code work (optional, owner-decision):
+  1. **Cover-banner builder per-surface export** — `tools/cover-banner-builder.html`
+     currently emits a single 1200×630. Useful follow-up: extend it to
+     output all 4 cropped sizes from one source design (design once at
+     the widest ratio, get 4 ratio-correct exports for upload). Not
+     blocking — admins can also upload separately-designed images.
+  2. **ROE owner-decision gaps** — six policy questions deferred from
+     the Rules of Engagement page; needs owner input before adding
+     sections. See §11 deferred list.
+  3. **City/region per Location site** — content-blocked on owner
+     supplying regions for Ghost Town / Echo Urban / Foxtrot Fields.
 
-  Option A — full 4 fields (max granularity):
-    `card_image_url` (2:1, 1200×600)
-    `hero_image_url` (3.2:1, 1920×600)
-    `banner_image_url` (4:1, 1920×500)
-    `og_image_url` (1.91:1, 1200×630)
-    Existing `cover_image_url` becomes universal fallback.
-
-  Option B — simpler 2 fields:
-    `cover_image_url` (1.91:1, used for OG + Events card)
-    `wide_hero_url` (3-4:1, used for EventDetail + Booking banner)
-    Half the admin upload work, ~80% of the visual benefit.
-
-  Implementation breakdown is in §11 ("Per-surface event cover
-  images"). Roughly: migration 0019 → backend (formatters, admin
-  events parseEventBody, public API, HTMLRewriter for OG) →
-  frontend consumer pages (Events, EventDetail, Booking) → admin
-  editor (replace single Cover picker with multi-picker section
-  with per-ratio crop preview). Estimated 2-3 hours total, ship as
-  3-4 incremental commits. Optional: extend
-  `tools/cover-banner-builder.html` to output all 4 cropped sizes
-  from a single source design.
-
-Today's date when this prompt was written: 2026-05-06.
+Today's date when this prompt was written: 2026-05-05.
 
 After you've read the handoff, give me:
   1. A one-paragraph status summary of where things actually stand (verify against
@@ -651,8 +644,14 @@ Most likely next pickups (roughly priority order):
     confirm Min TLS = 1.2.
   - **Stripe sandbox → live cutover** + $1 real-money end-to-end test
     (~30 min once keys are in hand; includes webhook re-targeting).
-  - **Seed Operation Nightfall content**: cover image upload (now drives
-    both the /events card hero AND the /booking step-1 banner background)
+  - **Seed Operation Nightfall content**: per-surface cover-image
+    uploads in /admin/events → Edit → Event Images. Each picker shows
+    the recommended dimension + a cropped preview. Anything left blank
+    falls back to the existing universal Cover image.
+      Card hero      1200×600 (2:1)   — /events grid card
+      Event hero     1920×600 (3.2:1) — event detail page hero
+      Booking banner 1920×500 (4:1)   — /booking step-1 banner
+      Social / OG    1200×630 (1.91:1) — FB/Slack/iMessage unfurls
   - **Invite a second admin** via /admin/users so you're not a single
     point of failure on event day
   - **Dry-run**: create a test event, book a comp ticket, walk the full
@@ -660,7 +659,8 @@ Most likely next pickups (roughly priority order):
   - (DONE 2026-04-30 / 05-05 / 05-06) Peek widget removal + Book Now →
     /booking cutover; smaller-polish wave; ROE page; auto-deploy wiring;
     waiver overhaul A/B/C; tax/fee bug fixes; audit polish; security.txt
-    + custom-domain SITE_URL switch.
+    + custom-domain SITE_URL switch; **per-surface cover images
+    (Option A — full 4 fields, migration 0019 + admin multi-picker)**.
 
   ROE follow-up (owner-decision gaps — needs owner input before coding):
   - Surrender / "bang-bang" rules — used at AAS or not?

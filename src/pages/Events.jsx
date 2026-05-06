@@ -89,11 +89,11 @@ export default function Events() {
         <div className="events-grid">
           {filteredEvents.map((ev) => (
             <div className={`event-card${ev.featured ? ' event-card-featured' : ''}`} key={ev.id}>
-              {ev.coverImageUrl && (
+              {(ev.cardImageUrl || ev.coverImageUrl) && (
                 <Link
                   to={`/events/${ev.slug}`}
                   className="event-cover"
-                  style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.65) 100%), url(${ev.coverImageUrl})` }}
+                  style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.65) 100%), url(${ev.cardImageUrl || ev.coverImageUrl})` }}
                   aria-label={`${ev.title} — view details`}
                 >
                   {ev.featured && <span className="event-featured-pill">Featured</span>}
@@ -107,7 +107,7 @@ export default function Events() {
                 <span className={`event-type ${ev.type}`}>
                   {ev.type.charAt(0).toUpperCase() + ev.type.slice(1)}
                 </span>
-                {ev.featured && !ev.coverImageUrl && (
+                {ev.featured && !(ev.cardImageUrl || ev.coverImageUrl) && (
                   <span className="event-featured-pill event-featured-pill-inline">Featured</span>
                 )}
               </div>

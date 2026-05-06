@@ -393,8 +393,8 @@ function StepTicketsAndAddons({
         <div
           className="booking-event-banner"
           style={
-            selectedEvent.coverImageUrl
-              ? { backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.85) 100%), url(${selectedEvent.coverImageUrl})` }
+            (selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl)
+              ? { backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.85) 100%), url(${selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl})` }
               : undefined
           }
         >
