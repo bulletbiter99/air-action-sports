@@ -168,36 +168,39 @@ When in doubt, ask. The cost of a confirmation is low; the cost of an unwanted c
 - [HANDOFF.md](HANDOFF.md) — full session-start context (stack, deploy, schema, API surface, completed phases, gotchas)
 - [docs/staff-job-descriptions.md](docs/staff-job-descriptions.md) — 22 role descriptions across 4 tiers; treat as a hypothesis source, not ground truth (per audit cross-references)
 
-### Milestone 1 — Test Infrastructure (in progress)
+### Milestone 1 — Test Infrastructure (✓ closed 2026-05-06)
 
-Long-lived branch: `milestone-1-test-infrastructure` (NOT merged to `main` yet — B9 closing batch pending). 9 batches total; B1–B7 merged into the milestone branch (10 PRs since B2/B3/B4 each split into two sub-PRs); B8 in flight; B9 pending. Sub-branches use `m1-batch-N-slug` naming (flat — sub-branch hierarchy under `milestone/...` was avoided due to git ref path collision).
+**Status: complete.** Long-lived branch `milestone-1-test-infrastructure` was merged into `main` via merge commit `c4d67a6` (PR #14 on 2026-05-06). All 9 batches (PRs #2–#13) are on `main` as second-parent commits — `git log --first-parent main` skips them; `git log main` follows them. Sub-branches used `m1-batch-N-slug` naming (flat — sub-branch hierarchy under `milestone/...` was avoided due to git ref path collision).
 
-**Per-batch operating rules** (per the M1 prompt):
+The milestone shipped 216 vitest unit tests + 7 Playwright smoke tests scaffolded across 60 files. CI on every PR. Test-gate map at [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json). Closing runbooks at [docs/runbooks/](docs/runbooks/).
+
+**Per-batch operating rules used during M1** (preserved here as a template for the next milestone):
 - Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing.
-- One commit per sub-PR. Conventional Commits with `test`/`chore`/`docs` types and `m1-<area>` scope.
+- One commit per sub-PR. Conventional Commits with `test`/`chore`/`docs` types and `m<N>-<area>` scope.
 - 10-file cap per PR. Hard rule.
-- No `--force` ever. No rebases on shared branches. No direct commits to `main` or `milestone-1-test-infrastructure`.
+- No `--force` ever. No rebases on shared branches. No direct commits to `main` or any `milestone-*` branch.
 - All tests use mocks (Vitest + Web Crypto). No live Stripe / Resend / D1 / `wrangler deploy` from Claude.
 - Stop-and-ask if a do-not-touch file appears to need editing or a test reveals current behavior conflicting with audit-documented behavior.
 
-**Status (as of B8 PR open):**
+**Final batch table (all merged on milestone branch; milestone merged to main as `c4d67a6`):**
 
-| Batch | What it ships | Status | Squash commit |
+| Batch | What it ships | Squash on milestone | PR |
 |---|---|---|---|
-| **B1** Vitest setup + sanity test (5 files) | vitest.config.js, tests/setup.js, 4 mock helpers, tests/unit/health.test.js | ✓ merged | `aa0cfb9` |
-| **B2a** Group A pricing core (8 files) | empty-cart / single-ticket-no-addon / multi-ticket-with-addon / percent-tax-fixed-fee / percent-fee-on-percent-tax / applies-to-tickets / applies-to-all / line-items-shape | ✓ merged | `456d12e` |
-| **B2b** Group A pricing edges (7 files) | promo-percent / promo-fixed / per-unit-multipliers / capacity-errors / min-max-per-order / inactive-fee-excluded / cents-precision | ✓ merged | `20dd620` |
-| **B3a** Group B webhook signature (6 files) | tests/helpers/stripeSignature.js + signature-verify-{valid,invalid,stale,multi-v1} + signature-constant-time | ✓ merged | `95ac8ce` |
-| **B3b** Group B webhook handler (10 files) | tests/helpers/webhookFixture.js + 9 handler tests (idempotency, unknown-event-type, attendee-creation, ticket-types-sold-increment, promo-uses-increment, audit-log-emission, email-send-confirmation, email-send-admin-notify, waiver-auto-link-on-paid) | ✓ merged | `8cf37a8` |
-| **B4a** Group C waiver validation (8 files) | tests/helpers/waiverFixture.js + erecords-consent / signature-must-match-name / 4× age-tier / jury-trial-initials-required (audit C25-31) | ✓ merged | `b141d35` |
-| **B4b** Group C waiver effects (8 files) | row-doc-link-and-snapshot / row-claim-period / row-tier-flags / attendee-waiver-id-set / audit-log-waiver-signed / already-signed-409 / integrity-fail-on-{post,get} (audit C32-38) | ✓ merged | `4a5a18a` |
-| **B5** Group D auto-link (9 files) | null-inputs / match-by-email-and-name / case-insensitive-email / whitespace-tolerant-name / claim-period-required / expired-claim-period-no-match / latest-by-signed-at / sibling-different-name-no-match / cross-flow-consistency (audit D39-46) | ✓ merged | `0274bcc` |
-| **B6** Playwright smoke scaffold (4 files) | playwright.config.js, tests/e2e/setup.js, tests/e2e/smoke.test.js (7 audit-prescribed smoke tests), package.json devDep + test:e2e script | ✓ merged | `4d19864` |
-| **B7** CI workflow + CONTRIBUTING (3 files) | .github/workflows/ci.yml (vitest+coverage on PR; lint with continue-on-error per audit pain-point #8), CONTRIBUTING.md, .github/PULL_REQUEST_TEMPLATE.md | ✓ merged | `37329ba` |
-| **B8** Test gate map + CLAUDE.md (2 files) | scripts/test-gate-mapping.json (4 gates + 7 uncovered), CLAUDE.md gate-enforcement subsection + this M1 status section | in flight | — (PR #12) |
-| **B9** Closing checks / runbooks (~3 files) | docs/runbooks/m1-baseline-coverage.txt, docs/runbooks/m1-rollback.md, docs/runbooks/m1-deploy.md | pending | — |
+| **B1** Vitest setup + sanity test (5 files) | vitest.config.js, tests/setup.js, 4 mock helpers, tests/unit/health.test.js | `aa0cfb9` | #2 |
+| **B2a** Group A pricing core (8 files) | empty-cart / single-ticket-no-addon / multi-ticket-with-addon / percent-tax-fixed-fee / percent-fee-on-percent-tax / applies-to-tickets / applies-to-all / line-items-shape | `456d12e` | #3 |
+| **B2b** Group A pricing edges (7 files) | promo-percent / promo-fixed / per-unit-multipliers / capacity-errors / min-max-per-order / inactive-fee-excluded / cents-precision | `20dd620` | #4 |
+| **B3a** Group B webhook signature (6 files) | tests/helpers/stripeSignature.js + signature-verify-{valid,invalid,stale,multi-v1} + signature-constant-time | `95ac8ce` | #5 |
+| **B3b** Group B webhook handler (10 files) | tests/helpers/webhookFixture.js + 9 handler tests (idempotency, unknown-event-type, attendee-creation, ticket-types-sold-increment, promo-uses-increment, audit-log-emission, email-send-confirmation, email-send-admin-notify, waiver-auto-link-on-paid) | `8cf37a8` | #6 |
+| **B4a** Group C waiver validation (8 files) | tests/helpers/waiverFixture.js + erecords-consent / signature-must-match-name / 4× age-tier / jury-trial-initials-required (audit C25-31) | `b141d35` | #7 |
+| **B4b** Group C waiver effects (8 files) | row-doc-link-and-snapshot / row-claim-period / row-tier-flags / attendee-waiver-id-set / audit-log-waiver-signed / already-signed-409 / integrity-fail-on-{post,get} (audit C32-38) | `4a5a18a` | #8 |
+| **B5** Group D auto-link (9 files) | null-inputs / match-by-email-and-name / case-insensitive-email / whitespace-tolerant-name / claim-period-required / expired-claim-period-no-match / latest-by-signed-at / sibling-different-name-no-match / cross-flow-consistency (audit D39-46) | `0274bcc` | #9 |
+| **B6** Playwright smoke scaffold (4 files) | playwright.config.js, tests/e2e/setup.js, tests/e2e/smoke.test.js (7 audit-prescribed smoke tests), package.json devDep + test:e2e script | `4d19864` | #10 |
+| **B7** CI workflow + CONTRIBUTING (3 files) | .github/workflows/ci.yml (vitest+coverage on PR; lint with continue-on-error per audit pain-point #8), CONTRIBUTING.md, .github/PULL_REQUEST_TEMPLATE.md | `37329ba` | #11 |
+| **B8** Test gate map + CLAUDE.md (2 files) | scripts/test-gate-mapping.json (4 gates + 7 uncovered), CLAUDE.md gate-enforcement subsection | `b726104` | #12 |
+| **B9** Closing runbooks (3 files) | docs/runbooks/m1-baseline-coverage.txt, docs/runbooks/m1-rollback.md, docs/runbooks/m1-deploy.md | `358fe83` | #13 |
+| **milestone → main** | merge commit (preserves per-batch SHAs) | `c4d67a6` | #14 |
 
-**Cumulative test count after B7 merge:** 216 unit tests across 54 files + 7 smoke tests scaffolded across 3 files = **223 tests across 57 files**.
+**Final test count:** 216 unit tests across 54 files + 7 smoke tests scaffolded across 3 files = **223 tests across 60 files**.
 
 - Sanity: 3 tests, 1 file
 - Group A (pricing): 79 tests, 15 files — ✓ complete (B2a + B2b)
@@ -218,9 +221,18 @@ Audit Groups E (admin manual booking), F (auth), G (worker-level), H (cron) are 
 - Coverage folder `coverage/` is gitignored.
 - Web Crypto (`crypto.subtle`, `crypto.getRandomValues`) used directly — no polyfill needed in Node 20.
 
-**Resume the milestone in a fresh session:**
-1. `git checkout milestone-1-test-infrastructure && git pull origin milestone-1-test-infrastructure`
-2. `npm install` (gets vitest + @vitest/coverage-v8 + @playwright/test if not already installed)
-3. `npm test` — confirm 216/216 passing
-4. Read this section + the next pending batch's row in the table above
-5. Post that batch's plan; wait for "proceed"; create the sub-branch; execute; PR; merge — repeat until B9 closes the milestone.
+**Post-M1 — what's next:**
+
+The audit prescribes 83 characterization tests across Groups A–I. M1 landed Groups A, B, C, D, and I (smoke scaffolded). **Groups E, F, G, H are deferred to a future milestone** — see the `uncovered` section of [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) for the punch list:
+
+- **Group E** — admin manual booking (audit E47–E53): `worker/routes/admin/bookings.js` POST /manual + POST /:id/refund.
+- **Group F** — auth (audit F54–F64): `worker/lib/auth.js` (verifyPassword, hashPassword, requireAuth, requireRole), `worker/lib/vendorToken.js`.
+- **Group G** — worker-level (audit G65–G70): `worker/index.js` serveUpload, rewriteEventOg.
+- **Group H** — cron (audit H71–H76): `worker/index.js` scheduled handler.
+
+Plus the **lint config gap** (audit pain-point #8 — eslint.config.js missing) so the CI lint step can become blocking.
+
+**Operator one-time setup (after M1 merged to main):**
+1. `npx playwright install chromium` (downloads the Chrome binary used by `npm run test:e2e`).
+2. Run the smoke suite once against production: `npm run test:e2e` — should be 6/7 passing (#79 skipped without `E2E_TEST_EVENT_SLUG`).
+3. Optional: tighten #79 by exporting `E2E_TEST_EVENT_SLUG=operation-nightfall` and re-running.

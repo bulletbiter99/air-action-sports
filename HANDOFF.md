@@ -6,14 +6,14 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ## 1. What this is
 
-A full booking + waiver + admin system for Air Action Sports (airsoft events), built as a replacement for Peek Pro to avoid the 6% platform fee. Deployed live at **https://air-action-sports.bulletbiter99.workers.dev**.
+A full booking + waiver + admin system for Air Action Sports (airsoft events), built as a replacement for Peek Pro to avoid the 6% platform fee. Deployed live at **https://airactionsport.com** (custom domain; the `air-action-sports.bulletbiter99.workers.dev` fallback URL still resolves).
 
 Business economics:
 - Peek charged ~$12.78 in fees on an $80 booking (16%)
 - This system charges ~$2.62 in Stripe fees on an $80 booking (~3.3%)
 - **Savings: ~$10 per ticket**, ~$60 on a 6-player booking
 
-**Status:** feature-complete. All numbered phases (1–9) and all 5 polish items are shipped. The remaining work before first live event is operational, not code — see §11.
+**Status:** feature-complete. All numbered phases (1–9), all 5 polish items, the Phase 1 audit, and Milestone 1 (test infrastructure: 216 vitest unit tests + 7 Playwright smoke tests + CI workflow) are shipped to `main`. The remaining work before first live event is operational, not code — see §11.
 
 ## 2. Stack
 
@@ -460,7 +460,7 @@ The admin shell uses a **left sidebar** (not a top bar) at ≥900px and converts
 | **Smaller polish wave** | Five items shipped in one commit: (1) **Notify-submitter preview-before-send modal** — new `GET /api/admin/feedback/:id/notify-preview` renders the resolution-notice template with this ticket's actual status + admin_note (not sample data). AdminFeedback's "Notify submitter…" button now opens a sandboxed-iframe modal showing recipient + subject + rendered body before sending. `renderFeedbackResolutionNotice` helper extracted from `sendFeedbackResolutionNotice` so preview + send share the rendering path. (2) **Featured-event flag** — migration 0017 adds `events.featured INTEGER DEFAULT 0`; `/api/events` ORDER BY now `featured DESC, date_iso ASC|DESC` so admin-picked headliner wins ties; checkbox in AdminEvents Publishing section; orange "Featured" pill on `/events` cards (top-right of cover, or inline in header) + orange ring around featured cards. (3) **Reminder-cron monitoring** — `scheduled()` writes a `cron.swept` audit row on every run regardless of whether work was done, with full results metadata. New `GET /api/admin/analytics/cron-status` returns last sweep age + 24h `reminder.sent`/`reminder_1hr.sent` counts. AdminDashboard renders a CronHealth strip: green when last sweep <60min, red + STALE badge if older. (4) **`/events` cover-image hero** — 160px gradient-overlaid hero on cards with `coverImageUrl`; featured cards get accented styling. (5) **Booking total bug fix** (user-reported): per-order fixed fee (e.g., Stripe's $0.30 processing fee) was leaking into the total before any tickets were selected because the unit multiplier defaults to 1 for non-attendee `per_unit` values. Short-circuit in `totals` returns all zeros when subtotal === 0; once the user adds anything, taxes/fees apply correctly on top. |
 | **Per-surface event cover images (Option A — full 4 fields)** | Migration 0019 adds four nullable URL columns to `events`: `card_image_url` (2:1, recommended 1200×600), `hero_image_url` (3.2:1, 1920×600), `banner_image_url` (4:1, 1920×500), `og_image_url` (1.91:1, 1200×630). The original `cover_image_url` stays as the universal fallback so existing events keep working unchanged. Backend: `worker/lib/formatters.js formatEvent()` exposes the four new fields as camelCased; `worker/routes/admin/events.js parseEventBody()` accepts them, INSERT/UPDATE write all five image columns, the duplicate handler clones every column, and the per-URL HEAD preflight (`preflightCoverImage`) now runs against every image URL the admin set, not just the cover — error returns prefix the column name so the editor knows which picker failed. `worker/index.js rewriteEventOg()` prefers `og_image_url` over `cover_image_url` for the OG meta image so social unfurls get the dedicated 1.91:1 asset when uploaded. Frontend consumers each prefer their own column with a fallback chain: `Events.jsx` uses `cardImageUrl ?? coverImageUrl` for the grid card hero, `EventDetail.jsx` uses `heroImageUrl ?? coverImageUrl` for the page hero, `Booking.jsx` uses `bannerImageUrl ?? coverImageUrl` for the step-1 banner. Admin editor: single "Cover image" Field replaced with an **Event Images** section containing 5 ratio-aware pickers (Cover · Card · Event Hero · Booking Banner · Social/OG). Each picker renders a 320px-wide preview cropped to its actual aspect ratio so the admin sees what customers will see; when a picker is empty but the universal cover is set, the cropped fallback shows in muted form (55% opacity + slight grayscale) with a "Showing fallback…" hint so the admin can decide whether the cover crop is acceptable for that surface or warrants a dedicated upload. Reuses the existing `/api/admin/uploads/image` endpoint — no new upload route. All four new fields are optional; events shipped with only `cover_image_url` continue to render correctly everywhere. |
 | **Phase 1 audit + Pre-Phase-2 hygiene batch (2026-05-06)** | **Phase 1 audit** (read-only inventory ahead of admin overhaul) shipped to `docs/audit/`: 11 markdown files (~1800 lines) covering stack, route inventory (103 API endpoints + 50 SPA routes), data model (27 tables + ERD), integrations (Stripe + Resend + R2 + waiver service + secret-name inventory — zero committed credentials), public/admin coupling (28 cross-boundary assets), 60-entry do-not-touch list, admin surface map (24 screens with git history + JD persona mapping), pain points (42 code-observable issues), test coverage (zero today; 83 characterization tests prescribed), open questions (50 — 12 runtime / 21 operator / 11 external / 6 access). `CLAUDE.md` at repo root mirrors the do-not-touch list and stop-and-ask conditions. **Pre-Phase-2 hygiene batch** (6 zero-risk follow-ups, all merged 2026-05-06): (1) **Stripe API version pinned** to `2026-04-22.dahlia` via `Stripe-Version` header on every outbound call in `worker/lib/stripe.js stripeFetch()` — no more silent drift if the account default rotates. (2) **`RL_QUOTE` rate-limit binding** added (namespace 1009, 30/min/IP) on `POST /api/bookings/quote`. (3) Migration `0020_drop_admin_sessions.sql` drops the dead `admin_sessions` table — **in repo but NOT yet applied to remote D1; operator runs `wrangler d1 migrations apply --remote`**. (4) `migrations/README.md` documenting forward-only convention + the `0010_*` filename collision (`0010_session_version.sql` + `0010_vendors.sql` are independent and order-deterministic via alphabetic sort). (5) `package.json name` renamed `temp-react` → `air-action-sports`. (6) `.gitattributes` for LF normalization (eol=lf default; *.bat eol=crlf). Audit branch (`audit/phase-1`) retained on remote for reference; chore branch deleted. |
-| **Milestone 1 — Test infrastructure (IN PROGRESS, branch `milestone-1-test-infrastructure`, started 2026-05-06)** | First milestone of the admin overhaul. **Purely additive** — adds Vitest + Playwright + characterization tests across Groups A-D. **Zero modifications to production code.** Branch is **NOT** merged to main; will only land after all 9 batches complete. Sub-branch naming `m1-batch-N-slug` (flat, NOT nested under `milestone/...` — git ref path collision avoided). Per-batch operating rules: plan-mode-first per batch (post plan, await "proceed" before editing), 10-file cap per PR, Conventional Commits with `test`/`chore`/`docs` types and `m1-<area>` scope, no `--force`/no rebases on shared branches/no direct commits to main or milestone branch. **Test runner**: Vitest 2.1.9 + @vitest/coverage-v8 (Node 20 env, Web Crypto used directly). Coverage at `coverage/` (gitignored). **Status (5 of 9 batches complete)**: B1 Vitest setup + sanity (8 files, PR #2) ✓ ; B2a pricing core (8 files, PR #3) ✓ ; B2b pricing edges (7 files, PR #4) ✓ ; B3a webhook signature (6 files, PR #5) ✓ ; B3b webhook handler (10 files, PR #6) ✓ . **Pending**: B4 Group C waiver sign (16 files, 2 sub-PRs 4a/4b: ESIGN/sig/age-tier/jury then snapshot/claim/audit/integrity/already-signed) ; B5 Group D auto-link `findExistingValidWaiver` (9 files) ; B6 Playwright smoke (4 files, `@playwright/test@^1.48.0`) ; B7 CI workflow (`.github/workflows/ci.yml`) ; B8 test gate mapping (`scripts/test-gate-mapping.json`) + CLAUDE.md update ; B9 closing checks (coverage baseline + rollback + deploy runbooks). **Cumulative on milestone branch**: 141 tests passing across 30 files. Group A (pricing) ✓ complete (79 tests, 15 files). Group B (webhook) ✓ complete (59 tests, 14 files). Helpers under `tests/helpers/`: mockEnv.js, mockD1.js, mockStripe.js, mockResend.js, stripeSignature.js, webhookFixture.js. **Detailed batch-by-batch state lives in [CLAUDE.md](CLAUDE.md)'s "Milestone 1" section** — read that before resuming. |
+| **Milestone 1 — Test infrastructure (✓ closed 2026-05-06; merged to main as `c4d67a6`)** | First repo-wide test suite + CI. Long-lived branch `milestone-1-test-infrastructure` shipped 9 batches (PRs #2–#13) and was merged into `main` via merge commit `c4d67a6` (PR #14) — merge strategy preserved per-batch SHAs for `git bisect` access. **Purely additive** — zero modifications to production code. Lands the audit-prescribed characterization tests for Groups A–D (the 4 critical-tier paths in `scripts/test-gate-mapping.json gates`) plus a Playwright smoke scaffold for Group I. **216 vitest unit tests across 54 files**, locking `worker/lib/pricing.js` 95.95% lines, `worker/routes/webhooks.js` 91.08%, `worker/routes/waivers.js` 93.61%, `worker/lib/stripe.js` signature-verify subset 56.06% (per `docs/runbooks/m1-baseline-coverage.txt`). **7 Playwright smoke tests** in `tests/e2e/` covering audit Group I (#77–#83) — operator-triggered via `npm run test:e2e` against a deployed Worker; **NOT in CI by default**. **CI workflow** at `.github/workflows/ci.yml` runs vitest+coverage on every PR to `main` or `milestone-*`; lint included with `continue-on-error: true` until `eslint.config.js` is added (audit pain-point #8). **CONTRIBUTING.md** + `.github/PULL_REQUEST_TEMPLATE.md` codify the M1 operating rules. **Test-gate map** at `scripts/test-gate-mapping.json` (4 `gates` + 7 `uncovered` entries — the latter is the post-M1 punch list: Groups E/F/G/H + the lint config gap). **Closing runbooks** at `docs/runbooks/`: `m1-baseline-coverage.txt` (captured `npm run test:coverage` table for regression detection), `m1-rollback.md` (full + partial rollback recipes with `git revert -m 1` syntax for the merge commit), `m1-deploy.md` (the milestone → main playbook this row records the result of). **Test runner**: Vitest 2.1.9 + @vitest/coverage-v8 (Node 20 env, Web Crypto used directly), Playwright 1.59.x. Coverage at `coverage/` (gitignored). Per-batch operating rules used during M1: plan-mode-first per batch, 10-file cap per PR, Conventional Commits with `m1-<area>` scope, no `--force`/no rebases on shared branches/no direct commits to main or milestone branch — preserved as a template in CLAUDE.md for future milestones. **Operator one-time post-merge action**: `npx playwright install chromium` (downloads ~150 MB Chrome binary; not part of `npm install`). **Deferred to a future milestone**: audit Groups E (admin manual booking — E47-E53), F (auth — F54-F64), G (worker-level — G65-G70), H (cron — H71-H76); plus the lint config gap. |
 
 ## 11. What's left before go-live
 
@@ -551,14 +551,17 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 
 ## 14. Resume checklist when starting fresh
 
-1. Read this file top-to-bottom. **Then read [CLAUDE.md](CLAUDE.md)** — it carries the do-not-touch list, stop-and-ask conditions, and branch etiquette derived from the Phase 1 audit. Skim [docs/audit/00-overview.md](docs/audit/00-overview.md) if more context on the present surface area is needed before touching admin code.
+1. Read this file top-to-bottom. **Then read [CLAUDE.md](CLAUDE.md)** — it carries the do-not-touch list, stop-and-ask conditions, and branch etiquette derived from the Phase 1 audit, plus the M1 closing summary and post-M1 punch list. Skim [docs/audit/00-overview.md](docs/audit/00-overview.md) if more context on the present surface area is needed before touching admin code.
 2. Confirm the Cloudflare deploy credentials memory points to `.claude/.env` (token present).
 3. Sanity checks:
    - `curl https://airactionsport.com/api/health` → `{"ok":true,...}`
    - `curl https://airactionsport.com/api/events` → returns 1 event
+   - `npm test` → 216 passing across 54 files (vitest unit suite from M1).
+   - `npm run test:coverage` → compare gated paths against `docs/runbooks/m1-baseline-coverage.txt` (any drop > 1% on `pricing.js` / `webhooks.js` / `waivers.js` / `stripe.js` is a signal — investigate before continuing).
 4. Confirm admin login works (use `/admin/forgot-password` if needed).
-5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-06: `ead41292-a8e5-4d9b-85df-9b05382f2803` (post-merge of Phase 1 audit + pre-Phase-2 hygiene — Stripe API version pin, RL_QUOTE binding, package rename, .gitattributes, migration 0020 in repo). Earlier: per-surface event cover images `d19b9f25` (migration 0019 + admin multi-picker), cover-image preflight 522 fix `03401d3d`, security.txt + custom-domain SITE_URL switch (ff22a01 / 1a19a6b), waiver overhaul A/B/C (790c58d, 2b26a4d), tax/fee bug fixes (5e7d833 / 2dd831f / 5555426), audit polish (1f68c67 / 5e7f0d9 / adc315a). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
-6. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
+5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-06 post-M1-merge: the deploy triggered by `c4d67a6` (M1 milestone merge to main; CI green via PR #14). Earlier: `ead41292-a8e5-4d9b-85df-9b05382f2803` (Phase 1 audit + pre-Phase-2 hygiene). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
+6. If touching anything in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) `gates`: run the listed test paths first to confirm baseline; after editing, re-run them. If a test reveals current behavior conflicting with audit-documented behavior, **stop and ask** — do not adapt the test to match the new code.
+7. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
 
 ---
 
@@ -571,16 +574,22 @@ I'm resuming work on the Air Action Sports booking system. Read these
 two files in the project root first, in order:
 
   1. HANDOFF.md — full context on the stack, deployed state, every
-     shipped phase (§10), every API and frontend route, the §11
+     shipped phase (§10 — including Milestone 1 test infrastructure,
+     closed 2026-05-06), every API and frontend route, the §11
      pre-launch checklist + deferred list, the cover-image surface
      reference table in §12, and §13 known-issues.
   2. CLAUDE.md — entry-point rules: the do-not-touch list (mirrored
      from docs/audit/06-do-not-touch.md), stop-and-ask conditions,
-     branch etiquette, run/build/lint/deploy commands.
+     branch etiquette, run/build/lint/test/deploy commands, the
+     **Test gate enforcement** subsection pointing at
+     scripts/test-gate-mapping.json, and the closed-state M1
+     summary with the post-M1 punch list (Groups E/F/G/H + lint gap).
 
 If you're touching admin code or anything on the do-not-touch list,
-also skim docs/audit/00-overview.md and docs/audit/05-coupling-analysis.md
-before editing.
+also skim docs/audit/00-overview.md and
+docs/audit/05-coupling-analysis.md before editing — and run the test
+paths listed in scripts/test-gate-mapping.json `gates` for the file
+you're touching.
 
 Production: https://airactionsport.com (custom domain, Cloudflare Worker,
 auto-deploy on `git push origin main`). The .workers.dev fallback URL
@@ -619,29 +628,40 @@ Current state — all shipped and live:
           0010_* filename collision (intentional, alphabetic order).
       (5) package.json `name` renamed temp-react → air-action-sports.
       (6) .gitattributes for LF normalization.
-  - **Milestone 1 — Test infrastructure (IN PROGRESS, started
-    2026-05-06):** branch `milestone-1-test-infrastructure` (NOT
-    merged to main; milestone is incomplete). Adds Vitest + Playwright
-    + characterization tests Groups A-D. **Purely additive — zero
-    production code changes.** Sub-branches use flat `m1-batch-N-slug`
-    naming (NOT `milestone/.../batch-N` — git ref path collision).
-    5 of 9 batches complete (B1 setup, B2a/B2b pricing, B3a/B3b
-    webhook). 141 tests pass across 30 files. **Group A (pricing) ✓
-    complete; Group B (webhook) ✓ complete; Group C (waiver sign) +
-    Group D (auto-link) pending in B4/B5; B6 Playwright smoke; B7 CI;
-    B8 gate mapping + CLAUDE.md; B9 runbooks.** Detailed batch-by-batch
-    state in CLAUDE.md "Milestone 1" section — READ THAT FIRST when
-    resuming.
+  - **Milestone 1 — Test Infrastructure (closed 2026-05-06,
+    merge commit `c4d67a6`):** First repo-wide test suite + CI.
+    216 vitest unit tests across 54 files locking the four
+    critical-tier paths: `worker/lib/pricing.js` 95.95% lines,
+    `worker/routes/webhooks.js` 91.08%, `worker/routes/waivers.js`
+    93.61%, `worker/lib/stripe.js` signature-verify subset 56.06%.
+    7 Playwright smoke tests scaffolded in tests/e2e/
+    (operator-triggered via `npm run test:e2e` against deployed
+    Worker; NOT in CI by default). CI workflow at
+    .github/workflows/ci.yml runs vitest+coverage on every PR;
+    lint with continue-on-error pending eslint.config.js
+    (audit pain-point #8). Test-gate map at
+    scripts/test-gate-mapping.json (4 gates + 7 uncovered punch-list
+    entries — Groups E/F/G/H deferred to a future milestone).
+    Closing runbooks at docs/runbooks/. CONTRIBUTING.md +
+    .github/PULL_REQUEST_TEMPLATE.md codify operating rules.
   - Tools: tools/cover-banner-builder.html (1200×630 design tool).
   - Docs: docs/staff-job-descriptions.md (22 role descriptions across
-    4 tiers), docs/audit/* (Phase 1 audit, see above).
+    4 tiers), docs/audit/* (Phase 1 audit, see above), docs/runbooks/*
+    (M1 closing runbooks: baseline-coverage / rollback / deploy).
 
 Cloudflare Workers Builds deploy command (in dashboard): `npm run build &&
 npx wrangler deploy`. Do NOT change to plain `npx wrangler deploy` (see
 §13 gotcha).
 
 Most recent deploy as of 2026-05-06:
-  ead41292-a8e5-4d9b-85df-9b05382f2803 (post-audit + hygiene merge)
+  triggered by `c4d67a6` (M1 milestone merge to main; CI green via
+  PR #14). Earlier: ead41292-a8e5-4d9b-85df-9b05382f2803 (post-audit
+  + hygiene merge).
+
+Post-M1 operator one-time setup (after this merge to main):
+  - `npx playwright install chromium` (downloads ~150 MB Chrome
+    binary; not part of `npm install`). Then `npm run test:e2e` for
+    a smoke pass against production.
 
 Pre-launch operational items still to be done by owner (NOT code):
   - **DMARC TXT record + Resend DKIM CNAMEs** in Cloudflare DNS —
@@ -679,15 +699,18 @@ Operation Nightfall (first live event) was 2026-05-09. Today: <update>.
 After you've read the docs, give me:
   1. A one-paragraph status summary of where things actually stand
      (verify against `curl https://airactionsport.com/api/health` and
-     `/api/events` rather than just trusting the doc).
+     `/api/events`, plus run `npm test` locally — should be 216
+     passing across 54 files).
   2. A ranked top-3 of what I should work on next, with rough effort
      estimates and why-now. Use §11's pre-launch checklist + deferred
      list as the primary candidate pool, plus the audit's open
-     questions and pain-point lists. Flag anything low-hanging and
-     high-value you notice.
+     questions and pain-point lists, plus the post-M1 punch list in
+     scripts/test-gate-mapping.json `uncovered`. Flag anything
+     low-hanging and high-value you notice.
   3. Any drift between HANDOFF.md / CLAUDE.md and the actual live
      state (stale counts, new feedback tickets, undeployed code,
-     unapplied migrations, etc.).
+     unapplied migrations, vitest count not 216, coverage diff vs
+     docs/runbooks/m1-baseline-coverage.txt, etc.).
   4. Open feedback queue (pull via /api/admin/feedback or D1).
      Summarize anything in `new` or `in-progress` status in 1–2
      sentences each.
@@ -704,22 +727,24 @@ Most likely next pickups (roughly priority order):
   - Invite a second admin.
   - Comp-ticket dry run.
 
+  Post-M1 test coverage (next milestone candidate — see
+  scripts/test-gate-mapping.json `uncovered`):
+  - Group E — admin manual booking (E47-E53):
+    worker/routes/admin/bookings.js POST /manual + POST /:id/refund.
+  - Group F — auth (F54-F64): worker/lib/auth.js (verifyPassword,
+    hashPassword, requireAuth, requireRole), worker/lib/vendorToken.js.
+  - Group G — worker-level (G65-G70): worker/index.js serveUpload,
+    rewriteEventOg.
+  - Group H — cron (H71-H76): worker/index.js scheduled handler.
+  - Lint config gap (audit pain-point #8): add eslint.config.js so
+    the CI lint step can become blocking.
+
   Phase 2 — admin overhaul:
-  - **Milestone 1 (test infrastructure) IS IN PROGRESS** on
-    `milestone-1-test-infrastructure`. 5 of 9 batches done. Resume
-    via:
-      git checkout milestone-1-test-infrastructure
-      git pull origin milestone-1-test-infrastructure
-      npm install
-      npm test         # confirm 141/141 pass
-    Then read CLAUDE.md "Milestone 1" section for batch-by-batch state.
-    Next batch: **B4 Group C waiver sign (16 files, 2 sub-PRs 4a/4b)**.
-    Post B4 plan FIRST, await "proceed", then create
-    `m1-batch-4a-waiver-validation` (NOT a nested branch — flat name).
   - Audit's open question #13 (what is the goal of the admin
-    overhaul) is OPERATOR-DECISION-PENDING — answer before M2+ planning.
+    overhaul) is OPERATOR-DECISION-PENDING — answer before Phase 2
+    planning.
   - docs/audit/08-pain-points.md Section 1 (operator-stated pain
-    points) is empty placeholder — fill before M2+.
+    points) is empty placeholder — fill before Phase 2.
 
   ROE follow-up (owner-decision gaps — needs owner input before
   coding):
@@ -740,9 +765,11 @@ Most likely next pickups (roughly priority order):
 Don't start coding until I pick one. CLAUDE.md's stop-and-ask
 conditions apply: confirm before any change to the do-not-touch list
 (payments, waivers, auth, customer-email, cron, audit-log emitter,
-shared public/admin assets). If a task involves destructive ops
-(secret rotation, Stripe mode change, DB writes, R2 deletions),
-confirm the plan with me first.
+shared public/admin assets). For test-gated paths, run the listed
+test paths from scripts/test-gate-mapping.json before AND after the
+edit. If a task involves destructive ops (secret rotation, Stripe
+mode change, DB writes, R2 deletions), confirm the plan with me
+first.
 ```
 
 End of handoff.
