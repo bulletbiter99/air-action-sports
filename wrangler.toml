@@ -27,7 +27,7 @@ bucket_name = "air-action-sports-uploads"
 crons = ["*/15 * * * *"]
 
 [vars]
-SITE_URL = "https://air-action-sports.bulletbiter99.workers.dev"
+SITE_URL = "https://airactionsport.com"
 FROM_EMAIL = "Air Action Sports <noreply@airactionsport.com>"
 REPLY_TO_EMAIL = "actionairsport@gmail.com"
 ADMIN_NOTIFY_EMAIL = "actionairsport@gmail.com"
