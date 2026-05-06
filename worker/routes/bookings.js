@@ -95,7 +95,7 @@ async function resolvePromoCode(db, code, eventId, subtotalCents) {
 }
 
 // POST /api/bookings/quote — preview total without committing
-bookings.post('/quote', async (c) => {
+bookings.post('/quote', rateLimit('RL_QUOTE'), async (c) => {
     const p = await readJson(c, BODY_LIMITS.BOOKING);
     if (p.error) return c.json({ error: p.error }, p.status);
     const body = p.body;
