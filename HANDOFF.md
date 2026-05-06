@@ -548,72 +548,68 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 Copy and paste the following into a new Claude Code session:
 
 ```
-I'm resuming work on the Air Action Sports booking system. Read HANDOFF.md in the
-project root first — it has full context on the stack, deployed state, all shipped
-phases + polish, every API and frontend route, a list of what's deferred in §11,
-and the pre-launch operational checklist also in §11.
+I'm resuming work on the Air Action Sports booking system. Read HANDOFF.md
+in the project root first — it has full context on the stack, deployed
+state, every shipped phase, every API and frontend route, deferred items
+in §11, the pre-launch operational checklist also in §11, the cover-image
+surface reference table in §12, and the §10 phase log.
 
-Current state: all roadmap phases (1–9), the 5 polish items, vendor MVP + v1,
-waiver hardening, admin UI refactor, global money/tax unification, the
-full feedback/ticket system, event-creation hardening + dynamic homepage,
-the public Rules of Engagement page, the booking-flow cutover (Peek widget
-removed, all "Book Now" CTAs route to internal /booking), the
-smaller-polish wave, the **waiver overhaul (Phase A/B/C)** — wd_v4
-corporate-wide release of liability live, 4-tier age policy enforced
-client + server, 365-day Claim Period auto-link wired into both Stripe
-webhook and admin manual booking, "✓ ON FILE — valid through {date}"
-notifications on /booking/success and /waiver pages — plus tax/fee bug
-fixes (Stripe line item filter, admin/public math parity, empty-cart
-short-circuit), audit-polish items, **Cloudflare custom domain
-attachment** (SITE_URL, OG meta, email links all use airactionsport.com
-now; /.well-known/security.txt added per RFC 9116), and the
-**per-surface event cover images** upgrade — migration 0019 added
-`card_image_url` (2:1) / `hero_image_url` (3.2:1) / `banner_image_url`
-(4:1) / `og_image_url` (1.91:1); each consumer surface prefers its own
-column and falls back to the original `cover_image_url`; admin editor's
-single Cover picker replaced with a 5-picker "Event Images" section
-that shows per-ratio cropped previews (with muted fallback previews
-when an override isn't set).
+Production: https://airactionsport.com (custom domain, Cloudflare Worker,
+auto-deploy on `git push origin main`). The .workers.dev fallback URL
+still resolves but is no longer canonical.
 
-All shipped and live at https://airactionsport.com.
+Current state — all shipped and live:
+  - Phases 1–9, the 5 polish items, vendor MVP + v1, waiver hardening,
+    admin UI refactor, global money/tax unification, the feedback/ticket
+    system, event-creation hardening + dynamic homepage, Rules of
+    Engagement page, the booking-flow cutover (Peek widget removed —
+    /booking is canonical), the smaller-polish wave, the waiver overhaul
+    (Phase A/B/C — wd_v4 corporate-wide release of liability, 4-tier age
+    policy enforced client + server, 365-day Claim Period auto-link),
+    tax/fee bug fixes (Stripe line items, admin/public parity, empty-cart
+    short-circuit), audit polish, Cloudflare security insights cleanup
+    (security.txt, custom-domain SITE_URL switch), per-surface event
+    cover images (migration 0019 — card 2:1 / hero 3.2:1 / banner 4:1 /
+    og 1.91:1 — admin editor has 5 image pickers, consumer surfaces
+    prefer their own column with cover fallback).
+  - Tools: tools/cover-banner-builder.html (1200×630 design tool with
+    live preview + html2canvas download).
+  - Docs: docs/staff-job-descriptions.md (12 full HR-ready job posts
+    organized by tier, with admin-system role mappings).
 
-Cloudflare Workers Builds auto-deploy is wired — `git push origin main`
-builds + deploys on its own. Deploy command in the dashboard is
-`npm run build && npx wrangler deploy` (do NOT change to plain
-`npx wrangler deploy` — see §13 gotcha).
+Cloudflare Workers Builds deploy command (in dashboard): `npm run build &&
+npx wrangler deploy`. Do NOT change to plain `npx wrangler deploy` (see
+§13 gotcha — wrangler 4.x assets-directory check short-circuits before
+the [build] hook).
 
-Pre-launch operational items still to be done by owner (NOT code) —
-see §11 for the full list:
-  - Add DMARC TXT record + Resend DKIM CNAMEs in Cloudflare DNS so
-    booking confirmation emails don't land in spam (HIGH priority —
-    do BEFORE Stripe live cutover)
+Pre-launch operational items still to be done by owner (NOT code):
+  - DMARC TXT record + Resend DKIM CNAMEs in Cloudflare DNS — booking
+    confirmation emails will land in spam without it. HIGH priority.
+    Do BEFORE Stripe live cutover. Exact records in §11.
   - Enable "Always Use HTTPS" toggle in Cloudflare SSL/TLS Edge
-    Certificates (currently OFF — HTTP returns 200 instead of 301)
-  - Stripe sandbox → live cutover ($1 real-money end-to-end test)
+    Certificates (currently OFF — HTTP returns 200 not 301).
+  - Stripe sandbox → live cutover + $1 real-money end-to-end test.
   - Per-surface cover image uploads for Operation Nightfall via
-    /admin/events → Edit → Event Images section. The existing cover
-    keeps powering every surface until per-surface assets are uploaded.
-    Recommended sizes (also rendered in the editor's picker labels):
+    /admin/events → Edit → Event Images section. Recommended sizes:
       Card hero      1200×600  (2:1)
       Event hero     1920×600  (3.2:1)
       Booking banner 1920×500  (4:1)
       Social / OG    1200×630  (1.91:1)
-  - Invite a second admin via /admin/users
-  - Comp-ticket dry run
+  - Invite a second admin via /admin/users (manager role).
+  - Comp-ticket dry run end-to-end (book → confirm → waiver → check-in).
 
 Next-up code work (optional, owner-decision):
-  1. **Cover-banner builder per-surface export** — `tools/cover-banner-builder.html`
-     currently emits a single 1200×630. Useful follow-up: extend it to
-     output all 4 cropped sizes from one source design (design once at
-     the widest ratio, get 4 ratio-correct exports for upload). Not
-     blocking — admins can also upload separately-designed images.
-  2. **ROE owner-decision gaps** — six policy questions deferred from
-     the Rules of Engagement page; needs owner input before adding
-     sections. See §11 deferred list.
-  3. **City/region per Location site** — content-blocked on owner
-     supplying regions for Ghost Town / Echo Urban / Foxtrot Fields.
+  1. Cover-banner builder per-surface export — extend
+     tools/cover-banner-builder.html to output all 4 cropped sizes from
+     one source design.
+  2. ROE owner-decision gaps — six policy questions deferred from
+     /rules-of-engagement; needs owner input before adding sections.
+     See §11.
+  3. City/region per Location site — content-blocked on owner supplying
+     regions for Ghost Town / Echo Urban / Foxtrot Fields.
 
-Today's date when this prompt was written: 2026-05-05.
+Stripe is still in sandbox mode (BLOCKING for first real sale). Operation
+Nightfall (first live event) is 2026-05-09. Today: 2026-05-06.
 
 After you've read the handoff, give me:
   1. A one-paragraph status summary of where things actually stand (verify against
