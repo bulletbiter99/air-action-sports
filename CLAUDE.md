@@ -440,3 +440,64 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 - A test fails after a behavior-preserving refactor (investigate, don't "fix" the test)
 - Coverage on any of the 12 gated files drops from M3 closing baseline (per [docs/runbooks/m3-baseline-coverage.txt](docs/runbooks/m3-baseline-coverage.txt))
 - Any production-data anomaly during local backfill testing
+
+### Milestone 4 — Bookings + Detail Workspace + Visual Regression (in progress; B0-B3b shipped 2026-05-07)
+
+Long-lived branch: `milestone/4-bookings-ia-completion` (off `main` at `87da972`, M3 close). Sub-branches use **flat `m4-batch-N-slug` naming** — same git ref-collision workaround M1/M2/M3 used. Per-batch rolling brings-up to main (every batch goes live on main soon after milestone-merge, not held until close).
+
+**Per-batch operating rules** (preserved from M3):
+- Plan-mode-first per batch
+- 10-file cap per PR (split a/b/c when needed — B1, B2, B3 all split)
+- Conventional Commits with `m4-<area>` scope
+- No `--force`, no rebases on shared branches, no direct commits to `main` or `milestone/4-bookings-ia-completion`
+- All tests use M2 mock helpers; no live D1 / Stripe / Resend
+- **No remote D1 migration apply from Claude Code by default.** Operator pre-authorizes per-batch (B2a's 0026 and B3a's 0027 were both applied with explicit operator authorization in-session).
+- Schema-then-code ordering enforced for migrations
+- Existing Group E tests must stay green on every batch that touches `worker/routes/admin/bookings.js`
+
+**Status (as of 2026-05-07):**
+
+| Batch | What it ships | Main merge commit | PR |
+|---|---|---|---|
+| **B0** Reality audit + decisions reconciliation (6 files) | `docs/m4-discovery/{persona-dashboard-audit,sidebar-ia-audit,m3-invariants-check,decisions-register-reconciliation}.md`; `docs/decisions.md` D04-D07 captured (D04 legacy AdminDashboard removed, D05 PII gated by `bookings.read.pii`, D06 external refund always notifies, D07 `refund_recorded_external` template seed); `CLAUDE.md` D1-quirks subsection promoted | `fca7e2b` | [#56](https://github.com/bulletbiter99/air-action-sports/pull/56) |
+| **B1a** Group G worker-level tests (5 files) | `tests/unit/worker/{serveUpload,rewriteEventOg,scheduled}.test.js` + `tests/helpers/workerEnvFixture.js` (HTMLRewriter mock + ASSETS binding + ctx). Promotes `worker/index.js` from `uncovered` to `gates` for the G surface. **+57 tests** (617 → 674/83). | `44908cf` | [#58](https://github.com/bulletbiter99/air-action-sports/pull/58) |
+| **B1b** Visual regression suite + CI gating (8 files) | `tests/visual/public.spec.js` (7 surfaces) + `tests/visual/helpers.js` + extended `playwright.config.js` (visual project at 1440×900) + `.github/workflows/{ci.yml,capture-baselines.yml}` (label-driven baseline capture) + `docs/runbooks/visual-regression.md` + `docs/decisions.md` D08+D09 (persona model + Roster/Scan/Rentals collapse). 7 PNG baselines committed via the labeled-PR workflow. **No vitest count change.** | `e72cd97` | [#60](https://github.com/bulletbiter99/air-action-sports/pull/60) |
+| **B2a** Saved-views D1 substrate (8 files) | `migrations/0026_saved_views.sql` + `worker/routes/admin/savedViews.js` (4 endpoints; table-missing graceful) + worker/index.js mount + `src/hooks/useSavedViews.js` rewritten to API-backed (preserves M2 hook surface) + 35 new tests (route + imperative helpers per useFeatureFlag pattern) − 8 obsolete localStorage tests. **Migration 0026 applied to remote D1 ✓.** Includes inline fix to `tests/visual/helpers.js` (`waitForLoadState('networkidle')` to fix home.png flake surfaced on B2a's PR run). **+27 net tests** (674 → 701/85). | `d92cb3b` | [#62](https://github.com/bulletbiter99/air-action-sports/pull/62) |
+| **B2b** /admin/bookings list page + rich filter API + bulk + CSV export (8 files) | `src/admin/AdminBookings.jsx` + `.css` + `src/App.jsx` route; `worker/routes/admin/bookings.js` extended with `payment_method`/`has_refund`/`waiver_status`/`min_amount`/`max_amount`/`customer_id` filters + `POST /bulk/resend-confirmation` + `POST /bulk/resend-waiver-request` + `GET /export.csv`; 3 test files (29 tests). All 8 Group E tests pass unchanged. **+29 net tests** (701 → 730/88). | `e2dbc6c` | [#64](https://github.com/bulletbiter99/air-action-sports/pull/64) |
+| **B3a** Backend for detail view + external refund + PII masking (8 files) | `migrations/0027_bookings_refund_external.sql` (4 nullable columns + `refund_recorded_external` template seed); `worker/lib/emailSender.js` `sendRefundRecordedExternal` (additive — DNT 9 senders untouched); `worker/lib/capabilities.js` (NEW — `hasCapability(user, cap)` stub, M5 will formalize); `worker/lib/formatters.js` extended with 4 refund_external fields; `worker/routes/admin/bookings.js` extends GET /:id (customer card + activity log + PII masking + audit) + adds POST /:id/refund-external (5 methods: cash/venmo/paypal/comp/waived); 26 new tests. **Migration 0027 applied to remote D1 ✓.** All 8 Group E tests pass unchanged. **+26 net tests** (730 → 756/90). | `961d12a` | [#66](https://github.com/bulletbiter99/air-action-sports/pull/66) |
+| **B3b** /admin/bookings/:id detail workspace + 2 refund modals (5 files) | `src/admin/AdminBookingsDetail.jsx` (two-column layout per Surface 2; AttendeeRow inline edit) + `.css` (density-token aware) + `src/admin/AdminBookingRefund.jsx` (Stripe — required reason field) + `src/admin/AdminBookingExternalRefund.jsx` (out-of-band — method dropdown + reference + reason; persistent D06 always-notify banner) + `src/App.jsx` route. Wires up the View button on /admin/bookings (which 404'd post-B2b). **No vitest count change** (pure frontend; RTL not installed). | `955ffbb` | [#68](https://github.com/bulletbiter99/air-action-sports/pull/68) |
+| **B3c** Docs hygiene + handoff refresh (this batch) | CLAUDE.md M4 section + HANDOFF.md §10/§12/§14 + Prompt for fresh session refresh. No code changes. | pending | pending |
+| **B4** Persona dashboard widget completion | scope per [docs/m4-discovery/persona-dashboard-audit.md](docs/m4-discovery/persona-dashboard-audit.md): adds `users.persona` column per D08; completes Owner / BC / Marketing / Bookkeeper widget sets; refresh-cadence primitive (5min/30s/10s); `/api/admin/today/active` endpoint that B5/B6 also depend on | pending | pending |
+| **B5** Sidebar / IA reorganization | scope per [docs/m4-discovery/sidebar-ia-audit.md](docs/m4-discovery/sidebar-ia-audit.md) | pending | pending |
+| **B6** Walk-up booking speed wins (typeahead, recall, check-in banner) | scope per M4 prompt | pending | pending |
+| **B7** Command palette (⌘K minimum scope) | scope per M4 prompt + migration 0028 (command_palette flag) | pending | pending |
+| **B8 / B9 / B10** | Operator-pending flag rollouts (`new_admin_dashboard` → `user_opt_in` → `on`; `customers_entity` → `on`; legacy AdminDashboard table removed) | pending | pending |
+| **B11** | Group G coverage hardening + edge-case backfill if needed | pending | pending |
+| **B12** | Closing — runbooks (m4-baseline-coverage / m4-deploy / m4-rollback), `/admin/today` page activation, legacy AdminDashboardLegacy removal, flag-row delete | pending | pending |
+
+**Cumulative through B3b (current):** 756 unit tests across 90 files (+139 vs M3 close). 7 visual regression baselines captured and CI-gated at 1% threshold. 19 gated paths in `scripts/test-gate-mapping.json` (added `worker/index.js` Group G surface, `worker/routes/admin/savedViews.js`, `worker/lib/capabilities.js`; existing `worker/routes/admin/bookings.js` extended). 2 D1 migrations applied to remote in M4 so far: 0026 (saved_views) and 0027 (bookings_refund_external + email template seed). 9 decision-register entries (D01-D09). Lint: 0 errors / 281 warnings (273 M3 baseline + 8 false-positive JSX-usage warnings consistent with App.jsx's 50+ pre-existing).
+
+**M4-specific carry-forward facts:**
+- **Persona model decision (D08)**: `users.persona` column added in B4a (planned) maps job-title personas (owner / booking_coordinator / marketing / bookkeeper / generic_manager / staff) separately from the role hierarchy that drives capability gating.
+- **Roster/Scan/Rentals (D09)**: collapse under `/admin/today` in B5 — routes stay alive (deep links work; B4's TodayCheckIns widget links to `/admin/scan?event=...`); sidebar hides them by default and only surfaces under "Today" when `/api/admin/today/active` returns activeEventToday.
+- **`/api/admin/today/active` endpoint**: B4 (persona widgets) builds it; B5 (sidebar dynamic Today item) and B6 (walk-up active-checkin banner) both consume it.
+- **Bookings workspace is feature-complete** as of B3b — list view + detail view + refund flows + bulk actions + CSV export all live. B5's sidebar entry, B10's legacy table removal, and the `/admin/bookings/:id`-targeting RecentBookings widget remain.
+- **Capabilities stub** (`worker/lib/capabilities.js`) maps the M3-era 3-role hierarchy. M5 will replace with a DB-backed query when role hierarchy expands (Marketing role + per-user overrides). Capabilities introduced in M4: `bookings.read.pii`, `bookings.email`, `bookings.export`, `bookings.refund`, `bookings.refund.external`.
+- **Visual regression baseline capture flow** is CI-driven, not local. Label any UI-changing PR with `capture-baselines` to refresh; bot commits new PNGs back via the `.github/workflows/capture-baselines.yml` workflow. After bot push, manually re-trigger CI (push an empty commit) — GitHub anti-recursion blocks GITHUB_TOKEN-pushed commits from auto-firing `pull_request: synchronize`. Documented in [docs/runbooks/visual-regression.md](docs/runbooks/visual-regression.md).
+- **PII masking pattern**: server-side. `worker/routes/admin/bookings.js` GET /:id checks `hasCapability(user, 'bookings.read.pii')` and returns full or masked email/phone accordingly. Audit row `customer_pii.unmasked` written per call when capability is exercised. Frontend renders whatever server returns + a "(masked)" UX badge when `viewerCanSeePII === false`. No client-side click-to-reveal interaction in M4.
+
+**Resume the milestone in a fresh session:**
+1. `git checkout milestone/4-bookings-ia-completion && git pull origin milestone/4-bookings-ia-completion`
+2. `npm install`
+3. `npm test` — confirm **756/90 passing**
+4. `npm run lint` — confirm 0 errors / 281 warnings
+5. Pick the next batch: B4 (persona dashboard widget completion) is next on the build path. B3c is this docs batch.
+6. Read this Milestone 4 section + the relevant batch's row above + the M4 plan in this CLAUDE.md if not yet executed.
+
+**Stop-and-ask conditions during M4:**
+- A do-not-touch file needs modification beyond what the documented batches specify (DNT list mirrors `docs/audit/06-do-not-touch.md`)
+- Existing Group E tests fail after a `worker/routes/admin/bookings.js` edit (do-not-touch contract violation)
+- A test fails after a behavior-preserving refactor (investigate, don't "fix" the test)
+- Coverage on any gated file drops from M3 + B3a baseline
+- Visual regression on a public baseline after a non-public-touching batch (would indicate a regression we missed)
+- Migration syntax issue (M3 D1 quirks: BEGIN/COMMIT keywords rejected; FK enforcement on table-rebuild — use column-rename pattern)
