@@ -333,4 +333,76 @@ The audit prescribed 83 characterization tests across Groups A–I. M1 landed Gr
 
 Plus the **lint config gap** (audit pain-point #8 — eslint.config.js missing) so the CI lint step can become blocking.
 
-The admin-overhaul work (Phase 2 broader goal — see [docs/audit/10-open-questions.md](docs/audit/10-open-questions.md) #13) builds on M2's shared primitives. M3+ planning awaits operator decision on Phase 2 direction.
+The admin-overhaul work (Phase 2 broader goal — see [docs/audit/10-open-questions.md](docs/audit/10-open-questions.md) #13, **resolved as A+B+C+incremental** per [docs/decisions.md](docs/decisions.md) D01) builds on M2's shared primitives. M3 is in flight on `milestone/3-customers`.
+
+### Milestone 3 — Customers Schema + Persona-Tailored AdminDashboard (in flight 2026-05-07)
+
+Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branches use **flat `m3-batch-N-slug` naming** (the prompt's `milestone/3-customers/batch-N-slug` form was rejected — same git ref-collision workaround M1/M2 used). PRs from sub-branch to `milestone/3-customers`; milestone merges to `main` at close per `docs/runbooks/m3-deploy.md` (lands in B12).
+
+**Per-batch operating rules:**
+- Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing.
+- 10-file cap per PR. Hard rule.
+- Conventional Commits with `m3-<area>` scope.
+- No `--force`, no rebases on shared branches, no direct commits to `main` or `milestone/3-customers`.
+- All tests use M2 mock helpers. No live D1 / Stripe / Resend.
+- **No remote D1 migration apply from Claude.** Schema migrations land in repo only; tested via `wrangler dev --local` against the local D1 fixture (Batch 1 establishes); operator applies remote per `docs/runbooks/m3-deploy.md`.
+- **Schema-then-code ordering enforced.** Migration goes in first, locally verified, *operator applies remote*, *then* dependent code lands in a subsequent batch. Never combine.
+
+**M3-specific do-not-touch (cumulative with audit DNT):**
+- `worker/routes/bookings.js` (public POST /checkout) — M6 territory
+- `worker/routes/waivers.js` (public waiver sign) — DNT
+- `worker/lib/stripe.js` — M6 territory; coverage already 93.93%
+
+**Status (as of 2026-05-07):**
+
+| Batch | What it ships | Status | Squash on milestone | PR |
+|---|---|---|---|---|
+| **B0** Hygiene + dogfood verification (~9 files) | ESLint flat config + lint blocking; M2 staleness cleanup; decisions register; M2 primitive dogfood verification; coverage floor capture; M3 plan in this section | in flight | — | — |
+| **B1** Local D1 setup + staging seed fixtures (4 files) | `scripts/{seed-staging.sql,setup-local-d1.sh,teardown-local-d1.sh}`; CLAUDE.md "Local D1 setup" section | pending | — | — |
+| **B2** `customerEmail.js` lib + tests (dual-target, 4 files) | `worker/lib/customerEmail.js` + `src/utils/customerEmail.js` + ~25 tests | pending | — | — |
+| **B3** Migration A — customers schema additive (1 file) | `migrations/0022_customers_schema.sql`. **Operator applies 0022 to remote before B4 starts.** | pending | — | — |
+| **B4** Backfill script + idempotency tests (3 files) | `scripts/backfill-customers.js` + ~15 tests | pending | — | — |
+| **B5** Dual-write code paths (4 files) | `worker/lib/customers.js`; webhook + admin/bookings.js wired; ~10 new tests | pending | — | — |
+| **B6** Migration C — NOT NULL + remove fallback (~5 files) | `migrations/0023_customers_not_null.sql` (12-step rebuild). **Pre-condition: 7-day dual-write verification window.** | pending | — | — |
+| **B7** Group F — auth characterization tests (~12 files) | 11 audit-prescribed tests (F54-F64); gate map updated | pending | — | — |
+| **B8** Customers UI: list / detail / merge (~8 files) | `AdminCustomers*` + route + `customers_entity` flag (state `off`). Reuses `<FilterBar>` + `useFeatureFlag` from M2 | pending | — | — |
+| **B9** Persona-tailored AdminDashboard (~10 files) | New `AdminDashboard.jsx` (persona shell) + widgets + `personaLayouts.js` + `new_admin_dashboard` flag | pending | — | — |
+| **B10** System tag refresh cron (2 files) | `worker/index.js` scheduled() addition for nightly tag-refresh sweep at 03:00 UTC | pending | — | — |
+| **B11** GDPR deletion workflow (~4 files) | `POST /api/admin/customers/:id/gdpr-delete` + UI modal + tests | pending | — | — |
+| **B12** Closing: rollback + deploy + baseline coverage runbooks + final docs (~5 files) | `docs/runbooks/m3-{rollback,deploy,baseline-coverage}.{md,txt}`; CLAUDE.md/HANDOFF.md M3 closed-state | pending | — | — |
+
+**Critical dependency chain (the migration cadence):**
+
+```
+B2 customerEmail.js → B3 schema A (operator applies 0022)
+                    → B4 backfill script (tested locally)
+                    → B5 dual-write code (merge; operator runs backfill on remote)
+                    → 7-day dual-write verification window (operator-driven)
+                    → B6 schema C (operator applies 0023)
+```
+
+B7 (Group F tests) is the only batch independent of the chain.
+B9 / B10 have lighter dependencies. B8 / B11 gate on B6's NOT NULL.
+
+**Schema migrations being introduced:**
+
+| Migration | Batch | Type | Operator-applies-remote step |
+|---|---|---|---|
+| `0022_customers_schema.sql` | B3 | Additive | After B3 PR merges to milestone — **before B4** |
+| `0023_customers_not_null.sql` | B6 | NOT NULL via 12-step rebuild | After B5 merges to main + 7-day window |
+| `0024_customers_entity_flag.sql` | B8 | Flag row state `off` | After B8 PR merges |
+| `0025_new_admin_dashboard_flag.sql` | B9 | Flag row state `off` | After B9 PR merges |
+
+**Resume the milestone in a fresh session:**
+1. `git checkout milestone/3-customers && git pull origin milestone/3-customers`
+2. `npm install`
+3. `npm test` — confirm 471/471 passing (or higher if subsequent batches landed)
+4. Read this section + the next pending batch's row in the table above
+5. Post the batch's plan; wait for "proceed"; create sub-branch `m3-batch-N-slug`; execute; PR; merge — repeat through B12
+
+**Stop-and-ask conditions:**
+- A do-not-touch file needs modification beyond what the documented batches specify
+- The backfill script produces non-idempotent results across re-runs
+- A test fails after a behavior-preserving refactor (investigate, don't "fix" the test)
+- Coverage on any of the six gated files drops from M2 baseline (per `docs/runbooks/m3-pre-flight-coverage.txt`)
+- Any production-data anomaly during local backfill testing
