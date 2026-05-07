@@ -18,8 +18,19 @@
 -- NULL directly; the rebuild is the canonical workaround.
 --
 -- D1 has foreign key enforcement disabled by default (per Cloudflare
--- docs), so no PRAGMA foreign_keys=OFF/ON dance is needed. Wrapping in
--- a transaction so a partial failure leaves the original tables intact.
+-- docs), so no PRAGMA foreign_keys=OFF/ON dance is needed.
+--
+-- D1 also does NOT support the SQL `BEGIN TRANSACTION`/`COMMIT`
+-- statements via the wrangler execute / migrations-apply path —
+-- attempting them returns a runtime error directing callers to use
+-- the JS `db.batch()` API instead. This migration runs each statement
+-- sequentially without an enclosing transaction. Partial-failure risk
+-- is bounded because the rebuild pattern is well-understood and the
+-- production dataset is tiny (2 bookings, 4 attendees as of B6 land).
+-- Recovery from a mid-rebuild failure is manual: drop *_new tables if
+-- present, restore from the originals (which are still intact until
+-- the DROP step), then retry. Operator should snapshot critical row
+-- counts before applying.
 --
 -- Operator-applies-remote step (post-backfill, post-spot-check):
 --   CLOUDFLARE_API_TOKEN=$TOKEN \
@@ -29,8 +40,6 @@
 -- via sqlite_master 2026-05-07). The new tables retain every column,
 -- index, and FK reference of the originals — only the NOT NULL on
 -- customer_id changes.
-
-BEGIN TRANSACTION;
 
 -- ────────────────────────────────────────────────────────────────────
 -- bookings rebuild
@@ -133,5 +142,3 @@ CREATE INDEX idx_attendees_booking     ON attendees(booking_id);
 CREATE INDEX idx_attendees_customer    ON attendees(customer_id);
 CREATE INDEX idx_attendees_qr          ON attendees(qr_token);
 CREATE INDEX idx_attendees_ticket_type ON attendees(ticket_type_id);
-
-COMMIT;
