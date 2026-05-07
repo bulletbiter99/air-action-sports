@@ -56,7 +56,18 @@ The audit has mapped the present surface and the danger zones, but the Phase 2 b
 
 ## Recommended next step
 
-1. **Paul reviews this overview and the 10 area docs.**
-2. **Paul fills in [§08 Section 1](08-pain-points.md) — operator-stated pain points.** That table is the single biggest unknown the audit can't fill on its own.
-3. **Paul answers the [§10 operator-decision questions](10-open-questions.md)**, especially #13 (Phase 2 goal), #15 (which missing entities ship in Phase 2), #28 (test runner approval), #29 (test-tier sequencing).
-4. **Hand the answers back as input to a Phase 2 prompt.** That phase will produce a plan; it should explicitly cite this audit's do-not-touch list and characterization-test prerequisites.
+**As of 2026-05-07, this audit's "next step" has been executed:**
+
+1. ✓ **Phase 2 launched.** M1 (test infrastructure, closed `c4d67a6`) and M2 (shared primitives + cross-route fix, closed `7a87f28`) both shipped. M3 (customers schema + persona dashboard) in flight on `milestone/3-customers`.
+2. ✓ **Audit open question #13 resolved** as A+B+C+incremental, sequenced across M2-M8. See [docs/decisions.md](../decisions.md) D01.
+3. ✓ **§08 Section 1** placeholder closed; seeded items 2-42 are ground truth. See [docs/decisions.md](../decisions.md) D02.
+4. ✓ **Audit pain-point #8** (lint config gap) closed in M3 batch 0; lint now blocking in CI. See [docs/decisions.md](../decisions.md) D03.
+
+For current state and what's next, see CLAUDE.md "Milestone 3" section + HANDOFF.md §10.
+
+**Original audit-handoff steps preserved for archaeology:**
+
+1. ~~Paul reviews this overview and the 10 area docs.~~ (done)
+2. ~~Paul fills in §08 Section 1 — operator-stated pain points.~~ (closed; seeded items are ground truth)
+3. ~~Paul answers the §10 operator-decision questions, especially #13 (Phase 2 goal), #15 (which missing entities ship in Phase 2), #28 (test runner approval), #29 (test-tier sequencing).~~ (resolved; see decisions register)
+4. ~~Hand the answers back as input to a Phase 2 prompt.~~ (Phase 2 in flight)

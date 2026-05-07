@@ -1,21 +1,21 @@
-# Repo-wide CI for the Air Action Sports Worker. Runs vitest + coverage on
-# every PR targeting main or any milestone-* branch.
+# Repo-wide CI for the Air Action Sports Worker. Runs lint + vitest + coverage
+# on every PR targeting main or any milestone-* / milestone/* branch.
 #
 # What this DOES:
 #   * `npm ci` (deterministic install from package-lock.json)
-#   * `npm run lint` — non-blocking; lint config is currently broken
-#                       (docs/audit/08-pain-points.md #8). Surfaces the gap
-#                       in every CI run without blocking PRs during M1.
-#   * `npm run test:coverage` — vitest run with v8 coverage (216 unit tests
-#                                as of m1-batch-7-ci)
+#   * `npm run lint` — BLOCKING as of M3 batch 0 (eslint.config.js landed,
+#                      closing audit pain-point #8). Errors fail the PR;
+#                      warnings are informational.
+#   * `npm run test:coverage` — vitest run with v8 coverage (471+ unit tests
+#                                as of M3 baseline)
 #   * Uploads the HTML coverage report as an artifact for 14 days.
 #
-# What this does NOT do (out of scope for B7):
+# What this does NOT do:
 #   * Playwright `npm run test:e2e` — requires a deployed Worker + browser
 #                                       binary. Operator-triggered.
 #   * `wrangler deploy` — Cloudflare deploy is a separate workflow / a
 #                          push-to-main hook on the dashboard side.
-#   * Coverage thresholds — measurement only; gating comes in a later batch.
+#   * Coverage thresholds — measurement only; gating comes in a later milestone.
 
 name: CI
 
@@ -24,6 +24,7 @@ on:
     branches:
       - main
       - 'milestone-*'
+      - 'milestone/**'
 
 # Cancel an in-flight run when the same PR gets a new push.
 concurrency:
@@ -49,13 +50,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Lint is currently broken — see docs/audit/08-pain-points.md #8
-      # (ESLint 9 + plugins declared in package.json but no eslint.config.js
-      # exists). Documented here as a follow-up per the audit's "document
-      # in CI; don't fix in B7" guidance. Visible in every CI run so the
-      # gap doesn't go silent, but does not block PRs during M1.
-      - name: Lint (non-blocking — see audit pain-point #8)
-        continue-on-error: true
+      # Lint is BLOCKING as of M3 batch 0 — eslint.config.js (flat config)
+      # landed; closes audit pain-point #8. Errors fail the PR; warnings
+      # remain (253 inherited warnings; new code is held to "no new warnings"
+      # informally per code review).
+      - name: Lint (blocking)
         run: npm run lint
 
       - name: Run vitest with coverage

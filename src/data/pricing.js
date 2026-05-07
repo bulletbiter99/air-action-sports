@@ -13,7 +13,7 @@ export const pricingPlans = [
       'Free parking',
       'Tea/coffee at staging',
     ],
-    cta: { label: 'Book Now', href: '' // Uses siteConfig.bookingLink via PricingCard },
+    cta: { label: 'Book Now', href: '' }, // Uses siteConfig.bookingLink via PricingCard
   },
   {
     id: 'walk-in-gear',
@@ -29,7 +29,7 @@ export const pricingPlans = [
       'Tactical vest',
       'BBs included (500 rounds)',
     ],
-    cta: { label: 'Book Now', href: '' // Uses siteConfig.bookingLink via PricingCard },
+    cta: { label: 'Book Now', href: '' }, // Uses siteConfig.bookingLink via PricingCard
   },
   {
     id: 'private-hire',
