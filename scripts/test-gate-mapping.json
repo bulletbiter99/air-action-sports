@@ -104,7 +104,11 @@
       "tier": "critical",
       "covers": [
         "POST /api/admin/bookings/manual",
-        "POST /api/admin/bookings/:id/refund"
+        "POST /api/admin/bookings/:id/refund",
+        "GET /api/admin/bookings (list with rich filters: status, event_id, q, from, to, payment_method, has_refund, waiver_status, min_amount, max_amount, customer_id) — M4 B2b",
+        "POST /api/admin/bookings/bulk/resend-confirmation — M4 B2b",
+        "POST /api/admin/bookings/bulk/resend-waiver-request — M4 B2b",
+        "GET /api/admin/bookings/export.csv — M4 B2b"
       ],
       "audit_group": "E",
       "tests": [
@@ -114,7 +118,10 @@
         "tests/unit/admin/manual-pricing-parity.test.js",
         "tests/unit/admin/manual-auto-link.test.js",
         "tests/unit/admin/refund-idempotency-key.test.js",
-        "tests/unit/admin/refund-rejects-cash.test.js"
+        "tests/unit/admin/refund-rejects-cash.test.js",
+        "tests/unit/admin/bookings/list-rich-filters.test.js",
+        "tests/unit/admin/bookings/bulk-actions.test.js",
+        "tests/unit/admin/bookings/export-csv.test.js"
       ]
     },
     "worker/lib/customers.js": {
