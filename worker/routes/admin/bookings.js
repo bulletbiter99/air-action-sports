@@ -6,6 +6,7 @@ import { bookingId, attendeeId, qrToken } from '../../lib/ids.js';
 import { sendBookingConfirmation } from '../../lib/emailSender.js';
 import { findExistingValidWaiver } from '../../lib/waiverLookup.js';
 import { loadActiveTaxesFees } from '../../lib/pricing.js';
+import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
 
 // Allowed manual booking payment methods.
 //   card   → admin creates pending booking + Stripe Checkout URL;
@@ -240,6 +241,18 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
     const methodTag = METHOD_TAG[paymentMethod] || '';
     const combinedNotes = [methodTag, body.notes?.trim()].filter(Boolean).join(' ');
 
+    // M3 B5 dual-write: resolve customer_id from buyer email/name. Returns
+    // null when email is missing/malformed; booking + attendees stay
+    // unlinked (NULL customer_id) until B4 backfill or a future correction.
+    // Card branch defers the recompute to the webhook (since LTV only
+    // counts paid bookings); other branches recompute after attendees insert.
+    const resolvedCustomerId = await findOrCreateCustomerForBooking(c.env.DB, {
+        email: buyer.email,
+        name: buyer.fullName,
+        phone: buyer.phone,
+        actorUserId: user.id,
+    });
+
     // ─── Card branch: pending row + Stripe Checkout link, webhook completes ───
     if (paymentMethod === 'card') {
         // Tag attendees with their selected ticketTypeId so the webhook can fan
@@ -257,8 +270,8 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
             `INSERT INTO bookings (
                 id, event_id, full_name, email, phone, player_count,
                 line_items_json, subtotal_cents, discount_cents, tax_cents, fee_cents, total_cents,
-                status, notes, payment_method, pending_attendees_json, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 'pending', ?, 'card', ?, ?)`
+                status, notes, payment_method, pending_attendees_json, created_at, customer_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 'pending', ?, 'card', ?, ?, ?)`
         ).bind(
             id, body.eventId, buyer.fullName.trim(), buyer.email.trim(), buyer.phone?.trim() || '',
             attendees.length,
@@ -266,6 +279,7 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
             combinedNotes || null,
             JSON.stringify(pendingAttendees),
             now,
+            resolvedCustomerId,
         ).run();
 
         // Build Stripe line items from our authoritative line items (mirrors public flow).
@@ -325,14 +339,15 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
         `INSERT INTO bookings (
             id, event_id, full_name, email, phone, player_count,
             line_items_json, subtotal_cents, discount_cents, tax_cents, fee_cents, total_cents,
-            status, notes, payment_method, stripe_payment_intent, created_at, paid_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            status, notes, payment_method, stripe_payment_intent, created_at, paid_at, customer_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
         id, body.eventId, buyer.fullName.trim(), buyer.email.trim(), buyer.phone?.trim() || '',
         attendees.length,
         JSON.stringify(lineItems), subtotal, tax, fee, total,
         status, combinedNotes || null, paymentMethod, stripePi,
         now, now,
+        resolvedCustomerId,
     ).run();
 
     // Phase C annual-renewal: auto-link to existing valid waivers when present.
@@ -346,8 +361,8 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
         await c.env.DB.prepare(
             `INSERT INTO attendees (
                 id, booking_id, ticket_type_id, first_name, last_name, email, phone,
-                qr_token, created_at, custom_answers_json, waiver_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                qr_token, created_at, custom_answers_json, waiver_id, customer_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
             newAttendeeId, id, a.ticketTypeId,
             firstName, lastName,
@@ -355,6 +370,7 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
             qrToken(), now,
             a.customAnswers && Object.keys(a.customAnswers).length ? JSON.stringify(a.customAnswers) : null,
             linkedWaiverId,
+            resolvedCustomerId,
         ).run();
 
         if (linkedWaiverId) {
@@ -381,6 +397,10 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
         JSON.stringify({ event_id: body.eventId, attendees: attendees.length, total_cents: total, payment_method: paymentMethod }),
         now,
     ).run();
+
+    // M3 B5 dual-write: refresh denormalized aggregates. No-op when
+    // resolvedCustomerId is null (legacy / malformed-email bookings).
+    await recomputeCustomerDenormalizedFields(c.env.DB, resolvedCustomerId);
 
     return c.json({ bookingId: id, totalCents: total, status, paymentMethod });
 });
@@ -436,6 +456,11 @@ adminBookings.post('/:id/refund', requireRole('owner', 'manager'), async (c) => 
         `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
          VALUES (?, 'booking.refunded', 'booking', ?, ?, ?)`
     ).bind(user.id, id, JSON.stringify({ stripe_refund_id: refund?.id, reason, amount_cents: booking.total_cents }), now).run();
+
+    // M3 B5 dual-write: refresh denormalized aggregates so refund_count
+    // increments and lifetime_value_cents drops to reflect the refund.
+    // No-op for legacy bookings without customer_id (pre-B5 / pre-backfill).
+    await recomputeCustomerDenormalizedFields(c.env.DB, booking.customer_id);
 
     return c.json({ refund: { id: refund?.id, amountCents: booking.total_cents, status: refund?.status } });
 });

@@ -353,7 +353,7 @@ Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branch
 - `worker/routes/waivers.js` (public waiver sign) — DNT
 - `worker/lib/stripe.js` — M6 territory; coverage already 93.93%
 
-**Status (as of 2026-05-07, post-B4):**
+**Status (as of 2026-05-07, post-B5):**
 
 | Batch | What it ships | Status | Squash on milestone |
 |---|---|---|---|
@@ -361,8 +361,8 @@ Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branch
 | **B1** Local D1 setup + staging seed (4 files) | `scripts/{seed-staging.sql,setup-local-d1.sh,teardown-local-d1.sh}`; CLAUDE.md "Local D1 setup" subsection | ✓ merged | `aee3791` ([#31](https://github.com/bulletbiter99/air-action-sports/pull/31)) |
 | **B2** `customerEmail.js` lib (dual-target, 5 files) | `worker/lib/customerEmail.js` + `src/utils/customerEmail.js` mirror + 62 tests; closes decision register #32 | ✓ merged | `0cfd436` ([#32](https://github.com/bulletbiter99/air-action-sports/pull/32)) |
 | **B3** Migration A — customers schema additive (1 file) | `migrations/0022_customers_schema.sql` — customers + customer_tags + segments + gdpr_deletions tables; nullable customer_id columns; indexes. **Migration applied to remote D1 2026-05-07 ✓** | ✓ merged | `0e06b85` ([#33](https://github.com/bulletbiter99/air-action-sports/pull/33)) |
-| **B4** Backfill script + tests (3 files) | `scripts/backfill-customers.js` (Node CLI + helpers); `scripts/backfill-customers.test.js` (operator-runnable integration test); `tests/unit/scripts/backfill.test.js` (31 vitest unit tests). Local-D1 integration verified end-to-end (38 customers from 50 bookings; idempotent). **Backfill script ready but NOT YET RUN on remote D1** — runs after B5 dual-write code lands. | ✓ merged | `a3bfcc5` ([#34](https://github.com/bulletbiter99/air-action-sports/pull/34)) |
-| **B5** Dual-write code paths (~4 files) | `worker/lib/customers.js` + tests; webhook + admin/bookings.js wired to call `findOrCreateCustomerForBooking`; ~10 new tests | pending | — |
+| **B4** Backfill script + tests (3 files) | `scripts/backfill-customers.js` (Node CLI + helpers); `scripts/backfill-customers.test.js` (operator-runnable integration test); `tests/unit/scripts/backfill.test.js` (31 vitest unit tests). Local-D1 integration verified end-to-end (38 customers from 50 bookings; idempotent). **Backfill script ready but NOT YET RUN on remote D1** — runs after B5 dual-write code lands on main. | ✓ merged | `a3bfcc5` ([#34](https://github.com/bulletbiter99/air-action-sports/pull/34)) |
+| **B5** Dual-write code paths (6 files) | `worker/lib/customers.js` (NEW — `findOrCreateCustomerForBooking` + `recomputeCustomerDenormalizedFields`); `worker/lib/ids.js` adds `customerId()` generator; `worker/routes/webhooks.js` + `worker/routes/admin/bookings.js` wired (resolve customer_id pre-INSERT/UPDATE; recompute aggregates post-attendees + post-refund); `tests/unit/lib/customers.test.js` 11 new tests; `scripts/test-gate-mapping.json` adds `customers.js` gate. NO edits to `worker/routes/bookings.js` or `worker/lib/stripe.js` (M6 territory). | ✓ merged | `a4870f6` ([#36](https://github.com/bulletbiter99/air-action-sports/pull/36)) |
 | **B6** Migration C — NOT NULL + remove fallback (~5 files) | `migrations/0023_customers_not_null.sql` (12-step rebuild). **Pre-condition: 7-day dual-write verification window post-B5 deploy.** | pending | — |
 | **B7** Group F — auth characterization tests (~12 files) | 11 audit-prescribed tests (F54-F64); gate map updated for `worker/lib/{auth,session,password}.js` | pending | — |
 | **B8** Customers UI: list / detail / merge (~8 files) | `AdminCustomers*` + route + `customers_entity` flag (state `off`). Reuses `<FilterBar>` + `useFeatureFlag` from M2 | pending | — |
@@ -371,7 +371,7 @@ Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branch
 | **B11** GDPR deletion workflow (~4 files) | `POST /api/admin/customers/:id/gdpr-delete` + UI modal + tests | pending | — |
 | **B12** Closing: rollback + deploy + baseline coverage runbooks + final docs (~5 files) | `docs/runbooks/m3-{rollback,deploy,baseline-coverage}.{md,txt}`; CLAUDE.md/HANDOFF.md M3 closed-state | pending | — |
 
-**Cumulative on milestone branch (after B4):** 564 unit tests across 73 files (471 M2 baseline + 93 new across B0-B4 — 0 from B0/B1/B3, 62 from B2 customerEmail, 31 from B4 backfill helpers).
+**Cumulative on milestone branch (after B5):** 575 unit tests across 74 files (471 M2 baseline + 104 new across B0-B5 — 0 from B0/B1/B3, 62 from B2 customerEmail, 31 from B4 backfill helpers, 11 from B5 customers helpers).
 
 **Critical dependency chain (the migration cadence):**
 
@@ -395,8 +395,8 @@ B7 (Group F tests) is the only batch independent of the chain. B9/B10 have light
 **Resume the milestone in a fresh session:**
 1. `git checkout milestone/3-customers && git pull origin milestone/3-customers`
 2. `npm install`
-3. `npm test` — confirm **564/564** passing across 73 files
-4. Read this section + the next pending batch's row in the table above (B5 is next)
+3. `npm test` — confirm **575/575** passing across 74 files
+4. Read this section + the next pending batch's row in the table above (B6 is next — gate-locked behind the 7-day dual-write verification window after B5 deploy)
 5. Post the batch's plan; wait for "proceed"; create sub-branch `m3-batch-N-slug`; execute; PR; merge — repeat through B12
 
 For local-D1 work (B5+, B6's migration, B8 schema):

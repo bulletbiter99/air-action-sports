@@ -10,7 +10,7 @@ const CONDITIONS = ['new', 'good', 'fair', 'damaged', 'retired'];
 const centsToDollars = (c) => formatMoney(c, { currency: '', emptyFor: '' });
 const dollarsToCents = (s) => {
   if (s === '' || s == null) return 0;
-  const n = Number(String(s).replace(/[^0-9.\-]/g, ''));
+  const n = Number(String(s).replace(/[^0-9.-]/g, ''));
   if (!isFinite(n)) return 0;
   return Math.round(n * 100);
 };
