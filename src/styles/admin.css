@@ -66,6 +66,83 @@ nav.admin-sidebar-nav a { text-align: left; }
   opacity: 0.7;
 }
 
+/* ----- M4 B5: new sidebar IA (gated by new_admin_dashboard flag) ----- */
+
+/* Visual separator between top-level items and the Settings group. */
+.admin-sidebar-separator {
+  height: 1px;
+  background: rgba(200, 184, 154, 0.1);
+  margin: 8px 18px;
+}
+
+/* Collapsible Settings group. The toggle button uses the same navLink
+ * inline style as items; the chevron rotates on expand. */
+.admin-sidebar-group { display: flex; flex-direction: column; }
+
+.admin-sidebar-group-toggle {
+  background: transparent;
+  border: 0;
+  width: 100%;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  color: var(--tan-light);
+  display: block;
+}
+
+.admin-sidebar-group-toggle:hover {
+  background: rgba(200, 184, 154, 0.04);
+}
+
+.admin-sidebar-chevron {
+  display: inline-block;
+  transition: transform 160ms ease;
+  font-size: 10px;
+  color: var(--olive-light);
+}
+
+.admin-sidebar-chevron--open {
+  transform: rotate(90deg);
+}
+
+.admin-sidebar-group-items {
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* Dynamic Today pulse — orange dot signaling "live event today" when
+ * /api/admin/today/active returns activeEventToday=true. */
+.admin-sidebar-pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--orange);
+  box-shadow: 0 0 0 0 rgba(215, 108, 33, 0.7);
+  animation: admin-sidebar-pulse-keyframes 1.6s ease-out infinite;
+}
+
+@keyframes admin-sidebar-pulse-keyframes {
+  0% {
+    box-shadow: 0 0 0 0 rgba(215, 108, 33, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(215, 108, 33, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(215, 108, 33, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-sidebar-pulse {
+    animation: none;
+  }
+  .admin-sidebar-chevron {
+    transition: none;
+  }
+}
+
 /* ----- Mobile topbar (hidden on desktop) ----- */
 .admin-mobile-topbar {
   display: none;

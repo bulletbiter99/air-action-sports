@@ -3,6 +3,13 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AdminProvider, useAdmin } from './AdminContext';
 import FeedbackModal from '../components/FeedbackModal';
 import { useFeatureFlag } from './useFeatureFlag';
+import { useTodayActive } from '../hooks/useWidgetData.js';
+import {
+    SIDEBAR,
+    getVisibleItems,
+    loadSidebarExpand,
+    saveSidebarExpand,
+} from './sidebarConfig.js';
 import '../styles/admin.css';
 
 // Sidebar grouped by operational rhythm: setup → event-day → review → admin.
@@ -104,6 +111,10 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
   const [badges, setBadges] = useState({ newFeedback: 0 });
   const loc = useLocation();
   const { enabled: customersEnabled } = useFeatureFlag('customers_entity');
+  // M4 B5 — flag-gated sidebar reorg. When new_admin_dashboard is on,
+  // render the new Surface 1 IA from sidebarConfig.js. Otherwise fall
+  // through to the legacy NAV_SECTIONS (current behavior).
+  const { enabled: newAdminDashboard } = useFeatureFlag('new_admin_dashboard');
 
   // Derive the actual nav sections by injecting the Customers entry under
   // Insights when the customers_entity flag is on. The flag ships off
@@ -144,37 +155,177 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
         <span style={logoSub}>Admin</span>
       </div>
       <nav className="admin-sidebar-nav" aria-label="Admin navigation">
-        {sections.map((section, sIdx) => (
-          <div key={sIdx} className="admin-sidebar-section">
-            {section.label && (
-              <div className="admin-sidebar-section-label">{section.label}</div>
-            )}
-            {section.items.map((item) => {
-              const count = item.badgeKey ? badges[item.badgeKey] : 0;
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  onClick={onClose}
-                  style={({ isActive }) => ({
-                    ...navLink,
-                    color: isActive ? 'var(--orange)' : 'var(--tan-light)',
-                    background: isActive ? 'rgba(215,108,33,0.08)' : 'transparent',
-                    borderLeft: isActive ? '3px solid var(--orange)' : '3px solid transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  })}
-                >
-                  <span>{item.label}</span>
-                  {count > 0 && <span style={navBadge}>{count}</span>}
-                </NavLink>
-              );
-            })}
-          </div>
-        ))}
+        {newAdminDashboard ? (
+          <NewSidebarNav
+            badges={badges}
+            customersEnabled={customersEnabled}
+            onClose={onClose}
+          />
+        ) : (
+          sections.map((section, sIdx) => (
+            <div key={sIdx} className="admin-sidebar-section">
+              {section.label && (
+                <div className="admin-sidebar-section-label">{section.label}</div>
+              )}
+              {section.items.map((item) => {
+                const count = item.badgeKey ? badges[item.badgeKey] : 0;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={onClose}
+                    style={({ isActive }) => ({
+                      ...navLink,
+                      color: isActive ? 'var(--orange)' : 'var(--tan-light)',
+                      background: isActive ? 'rgba(215,108,33,0.08)' : 'transparent',
+                      borderLeft: isActive ? '3px solid var(--orange)' : '3px solid transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    })}
+                  >
+                    <span>{item.label}</span>
+                    {count > 0 && <span style={navBadge}>{count}</span>}
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))
+        )}
       </nav>
       <ProfileMenu onOpenFeedback={onOpenFeedback} />
     </aside>
+  );
+}
+
+// M4 B5 — new sidebar implementation rendering the SIDEBAR config from
+// sidebarConfig.js. Filters items via getVisibleItems based on the
+// today-active state (from useTodayActive) and customers_entity flag.
+// Settings group expand/collapse persists in localStorage.
+function NewSidebarNav({ badges, customersEnabled, onClose }) {
+  const todayState = useTodayActive();
+  // Inline `flags` inside useMemo so ESLint's exhaustive-deps rule can
+  // see the dependency through customersEnabled (the actual source of
+  // truth) rather than through a destructured object literal.
+  const visibleEntries = useMemo(
+    () => getVisibleItems(SIDEBAR, {
+      todayState,
+      flags: { customers_entity: customersEnabled },
+    }),
+    [todayState, customersEnabled],
+  );
+
+  return (
+    <>
+      {visibleEntries.map((entry, idx) => {
+        if (entry.type === 'separator') {
+          return <div key={`sep-${idx}`} className="admin-sidebar-separator" aria-hidden="true" />;
+        }
+        if (entry.type === 'group') {
+          return (
+            <SidebarGroup
+              key={entry.key || entry.label}
+              group={entry}
+              badges={badges}
+              onClose={onClose}
+            />
+          );
+        }
+        // type === 'item'
+        return (
+          <SidebarItem
+            key={entry.to}
+            item={entry}
+            badges={badges}
+            todayActive={Boolean(todayState?.activeEventToday)}
+            onClose={onClose}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function SidebarItem({ item, badges, todayActive, onClose }) {
+  const count = item.badgeKey ? badges[item.badgeKey] : 0;
+  // The Today item gets a small orange-pulse dot when activeEventToday
+  // is true to signal "live event in progress."
+  const showTodayPulse = item.dynamic === 'todayActive' && todayActive;
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      onClick={onClose}
+      aria-label={showTodayPulse ? `${item.label} (active event)` : undefined}
+      style={({ isActive }) => ({
+        ...navLink,
+        color: isActive ? 'var(--orange)' : 'var(--tan-light)',
+        background: isActive ? 'rgba(215,108,33,0.08)' : 'transparent',
+        borderLeft: isActive ? '3px solid var(--orange)' : '3px solid transparent',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      })}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {showTodayPulse && <span className="admin-sidebar-pulse" aria-hidden="true" />}
+        {item.label}
+      </span>
+      {count > 0 && <span style={navBadge}>{count}</span>}
+    </NavLink>
+  );
+}
+
+function SidebarGroup({ group, badges, onClose }) {
+  const [isOpen, setIsOpen] = useState(() =>
+    loadSidebarExpand(group.key || group.label, group.defaultExpanded || false),
+  );
+
+  const toggle = () => {
+    const next = !isOpen;
+    setIsOpen(next);
+    saveSidebarExpand(group.key || group.label, next);
+  };
+
+  return (
+    <div className="admin-sidebar-group">
+      <button
+        type="button"
+        className="admin-sidebar-group-toggle"
+        onClick={toggle}
+        aria-expanded={isOpen}
+        style={navLink}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <span>{group.label}</span>
+          <span className={`admin-sidebar-chevron${isOpen ? ' admin-sidebar-chevron--open' : ''}`} aria-hidden="true">▸</span>
+        </span>
+      </button>
+      {isOpen && (
+        <div className="admin-sidebar-group-items">
+          {(group.items || []).map((item) => {
+            const count = item.badgeKey ? badges[item.badgeKey] : 0;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                onClick={onClose}
+                style={({ isActive }) => ({
+                  ...navLink,
+                  paddingLeft: 32,
+                  fontSize: 11,
+                  color: isActive ? 'var(--orange)' : 'var(--tan-light)',
+                  background: isActive ? 'rgba(215,108,33,0.08)' : 'transparent',
+                  borderLeft: isActive ? '3px solid var(--orange)' : '3px solid transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                })}
+              >
+                <span>{item.label}</span>
+                {count > 0 && <span style={navBadge}>{count}</span>}
+              </NavLink>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
