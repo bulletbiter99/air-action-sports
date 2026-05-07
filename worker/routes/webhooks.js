@@ -3,35 +3,15 @@ import { verifyWebhookSignature } from '../lib/stripe.js';
 import { attendeeId, qrToken } from '../lib/ids.js';
 import { safeJson } from '../lib/formatters.js';
 import { sendBookingConfirmation, sendAdminNotify, sendWaiverRequest } from '../lib/emailSender.js';
+import { findExistingValidWaiver } from '../lib/waiverLookup.js';
+
+// Backward-compat re-export shim — kept transiently in M2 batch 4a so the
+// 9 Group D test files in tests/unit/auto-link/ (which import the function
+// from this path) keep passing. The shim is removed in M2 batch 4b after
+// the test imports are re-targeted to worker/lib/waiverLookup.js.
+export { findExistingValidWaiver } from '../lib/waiverLookup.js';
 
 const webhooks = new Hono();
-
-// Phase C annual-renewal lookup. Find a non-expired signed waiver matching
-// this attendee's email + full name (lowercased + whitespace-collapsed). If
-// found, the attendee skips the waiver step entirely. Returns the waiver id
-// or null. Designed to be cheap — covered by idx_waivers_claim_lookup.
-//
-// Match identity: (email, full_name). Two siblings booking with the same
-// parent's email but different names get different waivers (correct). One
-// person rebooking with the same email + name gets their existing waiver
-// linked (correct).
-export async function findExistingValidWaiver(db, email, firstName, lastName, asOfMs) {
-    if (!email) return null;
-    const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
-    if (!fullName) return null;
-    const normEmail = email.trim().toLowerCase();
-    const normName = fullName.toLowerCase().replace(/\s+/g, ' ');
-    const row = await db.prepare(
-        `SELECT id FROM waivers
-         WHERE LOWER(TRIM(email)) = ?
-           AND LOWER(TRIM(player_name)) = ?
-           AND claim_period_expires_at IS NOT NULL
-           AND claim_period_expires_at > ?
-         ORDER BY signed_at DESC
-         LIMIT 1`
-    ).bind(normEmail, normName, asOfMs).first();
-    return row?.id || null;
-}
 
 webhooks.post('/stripe', async (c) => {
     const secret = c.env.STRIPE_WEBHOOK_SECRET;

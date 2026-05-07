@@ -4,7 +4,7 @@ import { formatBooking, formatEvent, safeJson } from '../../lib/formatters.js';
 import { issueRefund, createCheckoutSession } from '../../lib/stripe.js';
 import { bookingId, attendeeId, qrToken } from '../../lib/ids.js';
 import { sendBookingConfirmation } from '../../lib/emailSender.js';
-import { findExistingValidWaiver } from '../webhooks.js';
+import { findExistingValidWaiver } from '../../lib/waiverLookup.js';
 import { loadActiveTaxesFees } from '../../lib/pricing.js';
 
 // Allowed manual booking payment methods.
