@@ -152,6 +152,23 @@ Stop work and ask the user before continuing if you encounter any of:
 
 When in doubt, ask. The cost of a confirmation is low; the cost of an unwanted change to a system that handles real bookings is high.
 
+### Carry-forward: D1 quirks (added 2026-05-07 in m4-batch-0)
+
+Three behaviors of Cloudflare D1 + wrangler discovered during M3 that bite any future migration or remote D1 operation. Read these before writing a `migrations/*.sql` file or running a `wrangler d1 execute --remote` command. Captured in detail in [docs/runbooks/m3-deploy.md](docs/runbooks/m3-deploy.md).
+
+1. **No `BEGIN TRANSACTION` / `COMMIT` keywords** — wrangler's parser keyword-scans uploaded SQL and rejects anything containing the literal word `TRANSACTION`, **including in SQL comments**. To document transactional intent in a migration, phrase it as "transaction-control statements" or similar — never use the literal keyword. D1 wraps each statement implicitly; you don't need to wrap manually.
+
+2. **NOT NULL via table-rebuild fails on D1** with `FOREIGN KEY constraint failed` during `DROP TABLE`. D1 enforces FKs during DROP even though runtime FK enforcement is off by default, and the SQLite "create new table → copy → drop old → rename" pattern hits this. Use the SQLite 3.35+ **column-rename pattern** instead:
+   ```sql
+   ALTER TABLE foo ADD COLUMN bar_new TEXT NOT NULL DEFAULT '';
+   UPDATE foo SET bar_new = bar;
+   ALTER TABLE foo DROP COLUMN bar;
+   ALTER TABLE foo RENAME COLUMN bar_new TO bar;
+   ```
+   Reference: [migrations/0023_customers_not_null.sql](migrations/0023_customers_not_null.sql) (M3 B6).
+
+3. **`wrangler --remote --json --file` emits upload-progress UI characters before the JSON payload.** `JSON.parse(stdout)` fails on raw output. When parsing programmatically, strip everything before the first `[` or `{`. Reference: [scripts/backfill-customers.js](scripts/backfill-customers.js) (M3 B6 fix).
+
 ### Where to find each audit document
 
 - [docs/audit/00-overview.md](docs/audit/00-overview.md) — executive summary; start here
