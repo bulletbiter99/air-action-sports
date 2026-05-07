@@ -171,6 +171,56 @@ export function sendEventReminder1hr(env, args) {
     return sendReminder(env, { ...args, templateSlug: 'event_reminder_1hr' });
 }
 
+// M4 B3a — out-of-band refund customer notification. D06 mandates
+// always-send (no opt-out checkbox); D07 specifies the seeded template
+// `refund_recorded_external` (migration 0027). Operator records the
+// refund in /admin/bookings/:id; this sender confirms it to the customer.
+//
+// `method` is one of cash | venmo | paypal | comp | waived. The template's
+// `method_label` variable receives a human-friendly rendering ("Cash",
+// "Venmo", etc.). `reference` is the operator-entered identifier (Venmo
+// txn id, check #, "n/a" for comp/waived).
+export async function sendRefundRecordedExternal(env, { booking, event, refundCents, method, reference }) {
+    if (!booking?.email) return { skipped: 'no_buyer_email' };
+
+    const template = await loadTemplate(env.DB, 'refund_recorded_external');
+    if (!template) return { skipped: 'template_missing' };
+
+    const methodLabels = {
+        cash: 'Cash',
+        venmo: 'Venmo',
+        paypal: 'PayPal',
+        comp: 'Comped (no charge)',
+        waived: 'Fee waived',
+    };
+
+    const vars = {
+        player_name: booking.full_name || booking.fullName,
+        event_name: event.title,
+        event_date: event.display_date || event.displayDate,
+        amount_refunded: money(refundCents ?? booking.total_cents ?? booking.totalCents),
+        method_label: methodLabels[method] || method,
+        reference: reference || 'n/a',
+        support_email: env.REPLY_TO_EMAIL || 'support@airactionsport.com',
+    };
+    const rendered = renderTemplate(template, vars);
+
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: booking.email,
+        replyTo: env.REPLY_TO_EMAIL,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: 'refund_recorded_external' },
+            { name: 'booking_id', value: booking.id },
+            { name: 'method', value: method },
+        ],
+    });
+}
+
 export async function sendWaiverRequest(env, { attendee, event }) {
     if (!attendee.email) return { skipped: 'no_attendee_email' };
 

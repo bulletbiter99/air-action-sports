@@ -3,10 +3,11 @@ import { requireAuth, requireRole } from '../../lib/auth.js';
 import { formatBooking, formatEvent, safeJson } from '../../lib/formatters.js';
 import { issueRefund, createCheckoutSession } from '../../lib/stripe.js';
 import { bookingId, attendeeId, qrToken } from '../../lib/ids.js';
-import { sendBookingConfirmation, sendWaiverRequest } from '../../lib/emailSender.js';
+import { sendBookingConfirmation, sendWaiverRequest, sendRefundRecordedExternal } from '../../lib/emailSender.js';
 import { findExistingValidWaiver } from '../../lib/waiverLookup.js';
 import { loadActiveTaxesFees } from '../../lib/pricing.js';
 import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
+import { hasCapability } from '../../lib/capabilities.js';
 
 // Allowed manual booking payment methods.
 //   card   → admin creates pending booking + Stripe Checkout URL;
@@ -316,9 +317,34 @@ adminBookings.get('/export.csv', requireRole('owner', 'manager'), async (c) => {
     });
 });
 
+// PII masking helpers — D05 ("customer PII gated by bookings.read.pii;
+// Marketing role sees masked"). Mask just the local part of email and the
+// last 4 of phone — preserves rough recognition (so the operator can still
+// triage by domain or the trailing digits) while preventing PII enumeration
+// by users without the capability.
+function maskEmail(email) {
+    if (!email || typeof email !== 'string') return email;
+    const at = email.indexOf('@');
+    if (at <= 0) return '***';
+    const local = email.slice(0, at);
+    const domain = email.slice(at);
+    const head = local[0] || '';
+    return `${head}***${domain}`;
+}
+
+function maskPhone(phone) {
+    if (!phone || typeof phone !== 'string') return phone;
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 4) return '***';
+    return `(***) ***-${digits.slice(-4)}`;
+}
+
 adminBookings.get('/:id', async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+
     const row = await c.env.DB.prepare(`SELECT * FROM bookings WHERE id = ?`)
-        .bind(c.req.param('id')).first();
+        .bind(id).first();
     if (!row) return c.json({ error: 'Not found' }, 404);
 
     const eventRow = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`)
@@ -329,21 +355,93 @@ adminBookings.get('/:id', async (c) => {
          WHERE a.booking_id = ? ORDER BY a.created_at ASC`
     ).bind(row.id).all();
 
+    // M4 B3a — customer card. Joins customers + computes prior-bookings
+    // count (excluding this booking). Returns null for legacy rows
+    // without customer_id (pre-M3 B6 NOT NULL — should be empty in
+    // production but defensive for older fixtures and tests).
+    let customerCard = null;
+    if (row.customer_id) {
+        const cust = await c.env.DB.prepare(
+            `SELECT id, email, name, phone, total_bookings, total_attendees,
+                    lifetime_value_cents, refund_count,
+                    first_booking_at, last_booking_at, archived_at
+             FROM customers WHERE id = ?`
+        ).bind(row.customer_id).first();
+        if (cust) {
+            customerCard = {
+                id: cust.id,
+                name: cust.name,
+                email: cust.email,
+                phone: cust.phone,
+                totalBookings: cust.total_bookings ?? 0,
+                totalAttendees: cust.total_attendees ?? 0,
+                lifetimeValueCents: cust.lifetime_value_cents ?? 0,
+                refundCount: cust.refund_count ?? 0,
+                priorBookingCount: Math.max(0, (cust.total_bookings ?? 0) - 1),
+                firstBookingAt: cust.first_booking_at,
+                lastBookingAt: cust.last_booking_at,
+                archived: !!cust.archived_at,
+            };
+        }
+    }
+
+    // M4 B3a — activity log slice. Last 20 audit_log rows targeting this
+    // booking. The audit_log has rows for booking.manual_*, booking.refunded,
+    // booking.refunded_external, booking.confirmation_resent_bulk, etc.
+    const activityResult = await c.env.DB.prepare(
+        `SELECT id, user_id, action, target_type, target_id, meta_json, created_at
+         FROM audit_log
+         WHERE target_id = ? AND target_type = 'booking'
+         ORDER BY created_at DESC
+         LIMIT 20`
+    ).bind(id).all();
+    const activityLog = (activityResult.results || []).map((r) => ({
+        id: r.id,
+        userId: r.user_id,
+        action: r.action,
+        meta: r.meta_json ? safeJson(r.meta_json, null) : null,
+        createdAt: r.created_at,
+    }));
+
+    // M4 B3a — PII masking per D05. Caller with bookings.read.pii sees
+    // full email/phone (and an audit row 'customer_pii.unmasked' is written
+    // per call). Caller without the capability sees masked values; no
+    // audit row (no PII was exposed).
+    const canSeePII = hasCapability(user, 'bookings.read.pii');
+    const formattedBooking = formatBooking(row, { includeInternal: true });
+    if (!canSeePII) {
+        formattedBooking.email = maskEmail(formattedBooking.email);
+        formattedBooking.phone = maskPhone(formattedBooking.phone);
+        if (customerCard) {
+            customerCard.email = maskEmail(customerCard.email);
+            customerCard.phone = maskPhone(customerCard.phone);
+        }
+    } else {
+        // Audit per capability check that exposes PII (D05).
+        await c.env.DB.prepare(
+            `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+             VALUES (?, 'customer_pii.unmasked', 'booking', ?, ?, ?)`
+        ).bind(user.id, id, JSON.stringify({ fields: ['email', 'phone'] }), Date.now()).run();
+    }
+
     return c.json({
-        booking: formatBooking(row, { includeInternal: true }),
+        booking: formattedBooking,
         event: eventRow ? formatEvent(eventRow) : null,
         attendees: (attendeesResult.results || []).map((a) => ({
             id: a.id,
             firstName: a.first_name,
             lastName: a.last_name,
-            email: a.email,
-            phone: a.phone,
+            email: canSeePII ? a.email : maskEmail(a.email),
+            phone: canSeePII ? a.phone : maskPhone(a.phone),
             qrToken: a.qr_token,
             waiverSigned: !!a.waiver_id,
             signedAt: a.signed_at,
             checkedIn: !!a.checked_in_at,
             customAnswers: a.custom_answers_json ? JSON.parse(a.custom_answers_json) : {},
         })),
+        customer: customerCard,
+        activityLog,
+        viewerCanSeePII: canSeePII,
     });
 });
 
@@ -724,6 +822,122 @@ adminBookings.post('/:id/refund', requireRole('owner', 'manager'), async (c) => 
     await recomputeCustomerDenormalizedFields(c.env.DB, booking.customer_id);
 
     return c.json({ refund: { id: refund?.id, amountCents: booking.total_cents, status: refund?.status } });
+});
+
+// POST /api/admin/bookings/:id/refund-external — out-of-band refund (M4 B3a)
+//
+// Records a refund processed outside Stripe (cash / venmo / paypal / comp /
+// waived). Mirrors the Stripe-refund effects on the booking row + ticket
+// inventory + customer aggregates, plus sends the customer the
+// `refund_recorded_external` email (D06 — always sends; no opt-out).
+//
+// Body shape:
+//   { method: 'cash'|'venmo'|'paypal'|'comp'|'waived',
+//     reference?: string,   // operator-entered identifier (Venmo txn id, check #)
+//     reason: string }      // required — captured to audit_log
+const EXTERNAL_REFUND_METHODS = new Set(['cash', 'venmo', 'paypal', 'comp', 'waived']);
+
+adminBookings.post('/:id/refund-external', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => null);
+
+    if (!body || typeof body !== 'object') {
+        return c.json({ error: 'JSON body required' }, 400);
+    }
+    if (!EXTERNAL_REFUND_METHODS.has(body.method)) {
+        return c.json({ error: `method must be one of: ${[...EXTERNAL_REFUND_METHODS].join(', ')}` }, 400);
+    }
+    const reason = (body.reason && String(body.reason).trim()) || '';
+    if (!reason) {
+        return c.json({ error: 'reason is required' }, 400);
+    }
+    const reference = body.reference != null ? String(body.reference).trim() : '';
+
+    const booking = await c.env.DB.prepare(`SELECT * FROM bookings WHERE id = ?`).bind(id).first();
+    if (!booking) return c.json({ error: 'Booking not found' }, 404);
+    if (!['paid', 'comp'].includes(booking.status)) {
+        return c.json({ error: `Cannot refund booking with status: ${booking.status}` }, 409);
+    }
+    if (booking.refunded_at) {
+        return c.json({ error: 'Booking already refunded' }, 409);
+    }
+
+    const now = Date.now();
+
+    // Update the booking row in a single statement so refund_external,
+    // refund_external_method, refund_external_reference, refund_requested_at,
+    // refunded_at, and status all settle together.
+    await c.env.DB.prepare(
+        `UPDATE bookings
+         SET status = 'refunded',
+             refunded_at = ?,
+             refund_external = 1,
+             refund_external_method = ?,
+             refund_external_reference = ?,
+             refund_requested_at = ?
+         WHERE id = ?`
+    ).bind(now, body.method, reference || null, now, id).run();
+
+    // Release inventory — same pattern as Stripe refund handler. Even
+    // comp/waived bookings should release seats since the seat is no
+    // longer occupied.
+    const lineItems = safeJson(booking.line_items_json, []);
+    for (const item of lineItems) {
+        if (item.type === 'ticket') {
+            await c.env.DB.prepare(
+                `UPDATE ticket_types SET sold = MAX(0, sold - ?), updated_at = ? WHERE id = ?`
+            ).bind(item.qty, now, item.ticket_type_id).run();
+        }
+    }
+
+    // Audit row.
+    await c.env.DB.prepare(
+        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+         VALUES (?, 'booking.refunded_external', 'booking', ?, ?, ?)`
+    ).bind(
+        user.id,
+        id,
+        JSON.stringify({
+            method: body.method,
+            reference: reference || null,
+            amount_cents: booking.total_cents,
+            reason,
+        }),
+        now,
+    ).run();
+
+    // Refresh customer denormalized fields (refund_count + lifetime_value_cents).
+    if (booking.customer_id) {
+        await recomputeCustomerDenormalizedFields(c.env.DB, booking.customer_id);
+    }
+
+    // D06 — always send refund_recorded_external. No opt-out checkbox.
+    // Email failure does NOT roll back the refund (it's already recorded);
+    // operator can resend manually if needed.
+    let emailResult = null;
+    const event = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(booking.event_id).first();
+    try {
+        emailResult = await sendRefundRecordedExternal(c.env, {
+            booking,
+            event: event || { title: 'Air Action Sports event', display_date: '' },
+            refundCents: booking.total_cents,
+            method: body.method,
+            reference,
+        });
+    } catch (err) {
+        console.error('refund_recorded_external email send failed', err);
+        emailResult = { skipped: 'send_error', error: err?.message };
+    }
+
+    return c.json({
+        bookingId: id,
+        status: 'refunded',
+        method: body.method,
+        reference: reference || null,
+        amountCents: booking.total_cents,
+        emailResult,
+    });
 });
 
 // POST /api/admin/bookings/:id/resend-confirmation — re-email the confirmation
