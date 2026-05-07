@@ -59,10 +59,16 @@ export const PERSONA_LAYOUTS = {
         'RecentFeedback',
         'AssetLibraryShortcut',
     ],
-    // Personas without dedicated widget sets yet — alias to a role-derived
-    // default in resolveLayout(). Listed here for self-documentation +
-    // personaLabel coverage.
-    bookkeeper: null,
+    // M4 B4f — Bookkeeper widget set ships in this batch.
+    // All 6 personas now have concrete widget arrays; the resolveLayout
+    // fallback path is exercised only when user.persona is null/unknown.
+    bookkeeper: [
+        'BookkeeperKPIs',
+        'RevenueTrend',
+        'TaxFeeSummary',
+        'RefundActivity',
+        'Staff1099Thresholds',
+    ],
 };
 
 const FALLBACK_LAYOUT = ['TodayEvents', 'RecentBookings'];
