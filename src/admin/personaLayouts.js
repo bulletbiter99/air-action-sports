@@ -31,10 +31,17 @@ export const PERSONA_LAYOUTS = {
     owner: ['RevenueSummary', 'CronHealth', 'TodayEvents', 'RecentBookings'],
     generic_manager: ['TodayEvents', 'RecentBookings', 'CronHealth'],
     staff: ['TodayEvents', 'RecentBookings'],
+    // M4 B4c — Booking Coordinator widget set ships in this batch.
+    booking_coordinator: [
+        'BookingCoordinatorKPIs',
+        'BookingsNeedingAction',
+        'TodayCheckIns',
+        'QuickActions',
+        'RecentFeedback',
+    ],
     // Personas without dedicated widget sets yet — alias to a role-derived
     // default in resolveLayout(). Listed here for self-documentation +
     // personaLabel coverage.
-    booking_coordinator: null,
     marketing: null,
     bookkeeper: null,
 };

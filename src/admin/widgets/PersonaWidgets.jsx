@@ -22,7 +22,7 @@
 
 import { Link } from 'react-router-dom';
 import { formatMoney } from '../../utils/money.js';
-import { useWidgetData } from '../../hooks/useWidgetData.js';
+import { useWidgetData, useTodayActive } from '../../hooks/useWidgetData.js';
 
 // ────────────────────────────────────────────────────────────────────
 // RevenueSummary — net / gross / refunded across all time
@@ -192,6 +192,244 @@ export function RecentBookings() {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// M4 B4c — Booking Coordinator persona widgets
+// ────────────────────────────────────────────────────────────────────
+
+// BookingCoordinatorKPIs — 4-stat grid for the BC persona's
+// at-a-glance summary. Reuses /api/admin/analytics/overview (already
+// shared with RevenueSummary; same URL deduped at the edge) + a count
+// of bookings with pending refunds. tier='live' so it auto-promotes
+// to 30s polling on event days.
+//
+// KPI selections in B4c are pragmatic — a future B4d combined endpoint
+// (/api/admin/dashboard/kpis) can refine to the audit's exact "New today /
+// Needs action / Refund queue / Walk-ups today" without touching this
+// widget's render shape.
+export function BookingCoordinatorKPIs() {
+    const { data: overview, error: overviewErr } = useWidgetData(
+        '/api/admin/analytics/overview',
+        { tier: 'live' },
+    );
+    const { data: refundQueue } = useWidgetData(
+        '/api/admin/bookings?has_refund=true&status=paid&limit=1',
+        { tier: 'live' },
+    );
+
+    const totals = overview?.totals;
+    const refundCount = refundQueue?.total ?? 0;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--bc-kpis">
+            <h2>At a glance</h2>
+            {overviewErr && <p className="admin-persona-widget__error">Error: {overviewErr}</p>}
+            {!totals && !overviewErr && <p className="admin-persona-widget__loading">Loading…</p>}
+            {totals && (
+                <div className="admin-persona-widget__stats">
+                    <Stat label="Bookings" value={totals.bookings ?? 0} highlight />
+                    <Stat label="Pending refunds" value={refundCount} />
+                    <Stat label="Attendees" value={totals.attendees ?? 0} />
+                    <Stat label="Checked in" value={totals.checkedIn ?? 0} />
+                </div>
+            )}
+        </section>
+    );
+}
+
+// BookingsNeedingAction — paid bookings with missing waivers. The BC
+// triages these every morning. Compact 4-row table with a "View all"
+// link to /admin/bookings?waiver_status=missing for the full list.
+export function BookingsNeedingAction() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/bookings?waiver_status=missing&status=paid&limit=4',
+        { tier: 'live' },
+    );
+    const bookings = data ? (data.bookings || []) : null;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--needs-action">
+            <h2>Needs action</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!bookings && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {bookings && bookings.length === 0 && (
+                <p className="admin-persona-widget__empty">All caught up — no missing waivers.</p>
+            )}
+            {bookings && bookings.length > 0 && (
+                <table className="admin-persona-widget__table">
+                    <thead>
+                        <tr>
+                            <th>Buyer</th>
+                            <th>Total</th>
+                            <th>Issue</th>
+                            <th />
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {bookings.map((b) => (
+                            <tr key={b.id}>
+                                <td>{b.fullName || b.email || <em>—</em>}</td>
+                                <td className="admin-persona-widget__num">{formatMoney(b.totalCents)}</td>
+                                <td><span className="admin-persona-widget__pill admin-persona-widget__pill--pending">Waiver missing</span></td>
+                                <td className="admin-persona-widget__num">
+                                    <Link to={`/admin/bookings/${encodeURIComponent(b.id)}`}>Open →</Link>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+            <Link
+                to="/admin/bookings?waiver_status=missing&status=paid"
+                className="admin-persona-widget__link"
+            >
+                View all →
+            </Link>
+        </section>
+    );
+}
+
+// TodayCheckIns — gates render on /api/admin/today/active (B4b). When
+// activeEventToday=true, fetches today's events + total attendee count
+// from /api/admin/analytics/overview. Polls at 30s during event-day
+// (current /today/active stub returns checkInOpen=false; B4d wires the
+// real check-in window so this widget hits the 10s tier).
+export function TodayCheckIns() {
+    const todayActive = useTodayActive();
+    const { data: rawEvents, error: eventsErr } = useWidgetData(
+        '/api/admin/events',
+        { tier: 'live' },
+    );
+    const { data: overview } = useWidgetData(
+        '/api/admin/analytics/overview',
+        { tier: 'live' },
+    );
+
+    const today = ymdLocal(new Date());
+    const todaysEvents = rawEvents
+        ? (rawEvents.events || []).filter((e) => e.dateIso && ymdLocal(new Date(e.dateIso)) === today)
+        : null;
+
+    const isActiveDay = todayActive?.activeEventToday;
+    const totals = overview?.totals;
+    const checkedIn = totals?.checkedIn ?? 0;
+    const attendees = totals?.attendees ?? 0;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--today-checkins">
+            <h2>Today's check-ins</h2>
+            {eventsErr && <p className="admin-persona-widget__error">Error: {eventsErr}</p>}
+            {!isActiveDay && (
+                <p className="admin-persona-widget__empty">No events today.</p>
+            )}
+            {isActiveDay && !todaysEvents && (
+                <p className="admin-persona-widget__loading">Loading…</p>
+            )}
+            {isActiveDay && todaysEvents && (
+                <>
+                    <div className="admin-persona-widget__stats">
+                        <Stat
+                            label="Checked in"
+                            value={`${checkedIn} / ${attendees}`}
+                            highlight
+                        />
+                        <Stat label="Events today" value={todaysEvents.length} />
+                    </div>
+                    {todaysEvents.length > 0 && (
+                        <ul className="admin-persona-widget__list">
+                            {todaysEvents.map((e) => (
+                                <li key={e.id} className="admin-persona-widget__event">
+                                    <strong>{e.title}</strong>
+                                    {e.timeRange && (
+                                        <span className="admin-persona-widget__muted"> · {e.timeRange}</span>
+                                    )}
+                                    <div className="admin-persona-widget__event-links">
+                                        <Link to={`/admin/scan?event=${encodeURIComponent(e.id)}`}>Scan</Link>
+                                        <Link to={`/admin/roster?event=${encodeURIComponent(e.id)}`}>Roster</Link>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </>
+            )}
+        </section>
+    );
+}
+
+// QuickActions — 4-tile grid of high-frequency BC operations. Pure
+// static link grid; no fetching. Cadence-irrelevant.
+export function QuickActions() {
+    return (
+        <section className="admin-persona-widget admin-persona-widget--quick-actions">
+            <h2>Quick actions</h2>
+            <div className="admin-persona-widget__tiles">
+                <Link to="/admin/new-booking" className="admin-persona-widget__tile">
+                    <span className="admin-persona-widget__tile-label">+ New booking</span>
+                </Link>
+                <Link to="/admin/scan" className="admin-persona-widget__tile">
+                    <span className="admin-persona-widget__tile-label">Scan ticket</span>
+                </Link>
+                <Link to="/admin/roster" className="admin-persona-widget__tile">
+                    <span className="admin-persona-widget__tile-label">Roster</span>
+                </Link>
+                <Link to="/admin/rentals/assignments" className="admin-persona-widget__tile">
+                    <span className="admin-persona-widget__tile-label">Rentals</span>
+                </Link>
+            </div>
+        </section>
+    );
+}
+
+// RecentFeedback — last 5 unresolved feedback items. Polls live so
+// new submissions surface within 30s on event day. Each row links to
+// /admin/feedback/:id for triage.
+export function RecentFeedback() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/feedback?status=new&limit=5',
+        { tier: 'live' },
+    );
+    const items = data ? (data.items || []) : null;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--recent-feedback">
+            <h2>Recent feedback</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!items && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {items && items.length === 0 && (
+                <p className="admin-persona-widget__empty">No new feedback.</p>
+            )}
+            {items && items.length > 0 && (
+                <ul className="admin-persona-widget__list">
+                    {items.map((it) => (
+                        <li key={it.id} className="admin-persona-widget__feedback-item">
+                            <div>
+                                <strong>{it.title || it.type || 'Untitled'}</strong>
+                                {it.priority && (
+                                    <span className={`admin-persona-widget__pill admin-persona-widget__pill--${priorityClass(it.priority)}`}>
+                                        {it.priority}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="admin-persona-widget__muted">
+                                {it.email || 'Anonymous'} · {formatRelative(it.createdAt)}
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            <Link to="/admin/feedback?status=new" className="admin-persona-widget__link">
+                View all →
+            </Link>
+        </section>
+    );
+}
+
+function priorityClass(priority) {
+    if (priority === 'critical' || priority === 'high') return 'refunded'; // red-ish
+    if (priority === 'medium') return 'pending';                            // amber
+    return 'comp';                                                          // blue (low / default)
+}
+
+// ────────────────────────────────────────────────────────────────────
 // Shared small components
 // ────────────────────────────────────────────────────────────────────
 
@@ -259,4 +497,10 @@ export const WIDGETS = {
     CronHealth,
     TodayEvents,
     RecentBookings,
+    // M4 B4c — Booking Coordinator persona widgets
+    BookingCoordinatorKPIs,
+    BookingsNeedingAction,
+    TodayCheckIns,
+    QuickActions,
+    RecentFeedback,
 };
