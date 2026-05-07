@@ -75,11 +75,22 @@ export function formatBooking(row, { includeInternal = false } = {}) {
         paidAt: row.paid_at,
         lineItems: safeJson(row.line_items_json, []),
     };
+    // M4 B3a — out-of-band refund fields (migration 0027). Public callers
+    // see refundedAt + the external-refund summary; admin (includeInternal)
+    // additionally sees the operator-entered reference. Each field defaults
+    // to null/false when the row predates migration 0027 — formatBooking
+    // gracefully handles both pre- and post-migration row shapes.
+    base.refundedAt = row.refunded_at || null;
+    base.refundExternal = !!row.refund_external;
+    base.refundExternalMethod = row.refund_external_method || null;
+    base.refundRequestedAt = row.refund_requested_at || null;
+
     if (includeInternal) {
         base.stripeSessionId = row.stripe_session_id;
         base.stripePaymentIntent = row.stripe_payment_intent;
         base.notes = row.notes;
         base.pendingAttendees = safeJson(row.pending_attendees_json, []);
+        base.refundExternalReference = row.refund_external_reference || null;
     }
     return base;
 }

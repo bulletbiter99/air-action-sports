@@ -108,7 +108,9 @@
         "GET /api/admin/bookings (list with rich filters: status, event_id, q, from, to, payment_method, has_refund, waiver_status, min_amount, max_amount, customer_id) — M4 B2b",
         "POST /api/admin/bookings/bulk/resend-confirmation — M4 B2b",
         "POST /api/admin/bookings/bulk/resend-waiver-request — M4 B2b",
-        "GET /api/admin/bookings/export.csv — M4 B2b"
+        "GET /api/admin/bookings/export.csv — M4 B2b",
+        "GET /api/admin/bookings/:id (detail with customer card + activity log + PII masking + audit) — M4 B3a",
+        "POST /api/admin/bookings/:id/refund-external (5 methods, always-notify customer per D06) — M4 B3a"
       ],
       "audit_group": "E",
       "tests": [
@@ -121,7 +123,20 @@
         "tests/unit/admin/refund-rejects-cash.test.js",
         "tests/unit/admin/bookings/list-rich-filters.test.js",
         "tests/unit/admin/bookings/bulk-actions.test.js",
-        "tests/unit/admin/bookings/export-csv.test.js"
+        "tests/unit/admin/bookings/export-csv.test.js",
+        "tests/unit/admin/bookings/detail-view.test.js",
+        "tests/unit/admin/bookings/refund-external.test.js"
+      ]
+    },
+    "worker/lib/capabilities.js": {
+      "tier": "high",
+      "covers": [
+        "hasCapability(user, capability)",
+        "userCapabilities(user)"
+      ],
+      "audit_group": "(M4 B3a — capability stub for the M3-era 3-role hierarchy; M5 will formalize)",
+      "tests": [
+        "tests/unit/admin/bookings/detail-view.test.js"
       ]
     },
     "worker/lib/customers.js": {
