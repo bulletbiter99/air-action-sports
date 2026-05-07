@@ -23,7 +23,9 @@ import './widgets/PersonaWidgets.css';
 export default function AdminDashboardPersona() {
     const { user, hasRole } = useAdmin();
     const layout = resolveLayout(user);
-    const role = user?.role;
+    // M4 B4b: prefer persona for the label; fall back to role until a
+    // persona-selection UI ships (B4d+) and every user has persona set.
+    const personaKey = user?.persona ?? user?.role;
 
     return (
         <div className="admin-persona-dashboard">
@@ -33,7 +35,7 @@ export default function AdminDashboardPersona() {
                     <p className="admin-persona-dashboard__subtitle">
                         {user?.displayName || user?.email || 'Admin'}{' '}
                         <span className="admin-persona-dashboard__persona-tag">
-                            {personaLabel(role)}
+                            {personaLabel(personaKey)}
                         </span>
                     </p>
                 </div>
