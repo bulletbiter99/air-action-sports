@@ -1,8 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
-
-const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
+import { formatMoney as fmt } from '../utils/money.js';
 const dateFmt = (ms) => ms ? new Date(ms).toLocaleString() : '—';
 
 const STATUS_OPTIONS = [
@@ -452,8 +451,8 @@ function BookingDetailModal({ id, onClose, onChanged }) {
                   <tbody>
                     {data.booking.lineItems.filter((li) => li.type === 'tax' || li.type === 'fee').map((li, i) => {
                       const parts = [];
-                      if (li.percent_bps) parts.push(`${(li.percent_bps / 100).toFixed(2)}%`);
-                      if (li.fixed_cents) parts.push(`+ $${(li.fixed_cents / 100).toFixed(2)}`);
+                      if (li.percent_bps) parts.push(`${(li.percent_bps / 100).toFixed(2)}%`);  // basis-points → percent (NOT money)
+                      if (li.fixed_cents) parts.push(`+ ${fmt(li.fixed_cents)}`);
                       return (
                         <tr key={`tf-${i}`} style={tr}>
                           <td style={td}>

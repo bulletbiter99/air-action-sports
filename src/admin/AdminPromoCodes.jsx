@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import { formatMoney } from '../utils/money.js';
 
-const centsToDollars = (c) => (c === '' || c == null ? '' : (Number(c) / 100).toFixed(2));
+const centsToDollars = (c) => formatMoney(c, { currency: '', emptyFor: '' });
 const dollarsToCents = (s) => {
   if (s === '' || s == null) return 0;
   const n = Number(String(s).replace(/[^0-9.\-]/g, ''));
@@ -141,8 +142,8 @@ export default function AdminPromoCodes() {
                   <td style={td}>
                     {p.discountType === 'percent'
                       ? `${p.discountValue}% off`
-                      : `$${(p.discountValue / 100).toFixed(2)} off`}
-                    {p.minOrderCents ? <div style={{ fontSize: 10, color: 'var(--olive-light)' }}>min ${(p.minOrderCents / 100).toFixed(2)}</div> : null}
+                      : `${formatMoney(p.discountValue)} off`}
+                    {p.minOrderCents ? <div style={{ fontSize: 10, color: 'var(--olive-light)' }}>min {formatMoney(p.minOrderCents)}</div> : null}
                   </td>
                   <td style={{ ...td, fontSize: 12 }}>{eventTitle(p.eventId)}</td>
                   <td style={td}>

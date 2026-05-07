@@ -2,8 +2,8 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import { BarChart, ProgressBar } from './charts';
+import { formatMoney as $ } from '../utils/money.js';
 
-const $ = (c) => `$${((c || 0) / 100).toFixed(2)}`;
 const pct = (n) => `${Math.round((n || 0) * 100)}%`;
 
 export default function AdminAnalytics() {
