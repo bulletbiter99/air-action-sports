@@ -1,21 +1,22 @@
-# Repo-wide CI for the Air Action Sports Worker. Runs lint + vitest + coverage
-# on every PR targeting main or any milestone-* / milestone/* branch.
+# Repo-wide CI for the Air Action Sports Worker. Runs on every PR targeting
+# main or any milestone-* / milestone/* branch.
 #
-# What this DOES:
-#   * `npm ci` (deterministic install from package-lock.json)
-#   * `npm run lint` — BLOCKING as of M3 batch 0 (eslint.config.js landed,
-#                      closing audit pain-point #8). Errors fail the PR;
-#                      warnings are informational.
-#   * `npm run test:coverage` — vitest run with v8 coverage (471+ unit tests
-#                                as of M3 baseline)
-#   * Uploads the HTML coverage report as an artifact for 14 days.
+# Two parallel jobs:
+#   * test    — lint (blocking) + vitest with v8 coverage (M4 B1a baseline:
+#               674 unit tests across 83 files; coverage HTML uploaded as
+#               artifact for 14 days)
+#   * visual  — Playwright visual-regression suite against deployed
+#               airactionsport.com (M4 B1b — 7 public surfaces, pixel diffs
+#               > 1% fail the PR; HTML report + diff PNGs uploaded on failure)
 #
 # What this does NOT do:
-#   * Playwright `npm run test:e2e` — requires a deployed Worker + browser
-#                                       binary. Operator-triggered.
+#   * Playwright `npm run test:e2e` — operator-triggered against a deployed
+#                                       Worker. Smoke suite, separate from visual.
 #   * `wrangler deploy` — Cloudflare deploy is a separate workflow / a
 #                          push-to-main hook on the dashboard side.
 #   * Coverage thresholds — measurement only; gating comes in a later milestone.
+#   * Baseline capture — the .github/workflows/capture-baselines.yml
+#                          workflow handles that on PRs labeled `capture-baselines`.
 
 name: CI
 
@@ -66,4 +67,55 @@ jobs:
         with:
           name: coverage-html
           path: coverage/
+          retention-days: 14
+
+  visual:
+    name: Visual regression (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        run: npx playwright install chromium
+
+      # Runs the `visual` project from playwright.config.js. Will FAIL on the
+      # first run of the visual-suite-introducing PR (M4 B1b) because no
+      # baselines exist yet — operator labels the PR `capture-baselines` to
+      # invoke the dedicated capture workflow which commits baselines back.
+      # See docs/runbooks/visual-regression.md.
+      - name: Run visual regression suite
+        run: npm run test:visual
+
+      - name: Upload Playwright HTML report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-visual-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload visual diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-visual-diffs
+          path: test-results/
           retention-days: 14

@@ -4,6 +4,42 @@ Closes audit open questions and operator-decision-pending placeholders as they'r
 
 ---
 
+## 2026-05-07 — D09: Roster / Scan / Rentals collapse under Today (M4 B5)
+
+**Source:** Operator confirmation in M4 Batch 0 review (PR [#55](https://github.com/bulletbiter99/air-action-sports/pull/55)). Recommendation surfaced in [docs/m4-discovery/sidebar-ia-audit.md](m4-discovery/sidebar-ia-audit.md).
+
+**Resolution:** Batch 5's IA reorganization will collapse the current "Event Day" sidebar section (Roster / Scan / Rentals) under the new dynamic Today nav item. Implementation:
+- Routes `/admin/roster`, `/admin/scan`, `/admin/rentals` stay alive (deep links continue to work; widgets in Batch 4 link to `/admin/scan?event=...` etc.)
+- Sidebar hides them by default
+- They surface as Today's sub-items only when `/api/admin/today/active` returns `activeEventToday: true`
+- They surface as prominent action tiles inside `/admin/today` (page built in Batch 12)
+
+Rationale: event-day operations are subordinate to the event being live. When no event is today, exposing them as top-level sidebar items adds noise without value.
+
+**Status:** ✓ resolved — implementation lands in M4 Batches 4 (`/api/admin/today/active`), 5 (sidebar reorg), and 12 (`/admin/today` page).
+
+---
+
+## 2026-05-07 — D08: Persona model adds `users.persona` column (M4 B4a)
+
+**Source:** Operator confirmation in M4 Batch 0 review (PR [#55](https://github.com/bulletbiter99/air-action-sports/pull/55)). Three-option recommendation surfaced in [docs/m4-discovery/persona-dashboard-audit.md](m4-discovery/persona-dashboard-audit.md).
+
+**Resolution:** M4 Batch 4a adds a `users.persona` column with values matching Surface 1's job-title personas (`owner / booking_coordinator / marketing / bookkeeper / generic_manager / staff`). The DB-level `users.role` column (3 values: owner / manager / staff) stays unchanged for capability gating; `users.persona` is a separate "lens preference" that drives which dashboard widgets render.
+
+Sequencing:
+- Migration 0026 (or later, depending on B2's saved_views migration cadence): add nullable `users.persona TEXT` column with CHECK constraint enumerating valid values
+- Backfill: each existing user gets a default persona derived from their role (owner→owner, manager→generic_manager, staff→staff)
+- `personaLayouts.js` keys flip from role-keyed to persona-keyed; the dashboard reads `user.persona` instead of `user.role`
+- Admin UI: each user can change their own persona in profile settings; owners can set initial persona at user creation/invitation time
+
+Rationale (rejecting Options 1 and 3):
+- Option 1 (map design-personas → existing roles): would force every Marketing-style user to share Owner widgets, losing the "lens" quality of persona-tailored UX.
+- Option 3 (per-user drag-drop personalization): much higher effort, blocks shipping, and adds a new abstraction (widget layouts table) to maintain. Defer to M5 or later.
+
+**Status:** ✓ resolved — implementation lands in M4 Batch 4a.
+
+---
+
 ## 2026-05-07 — D07: `refund_recorded_external` email template seeded (M4 prompt #30)
 
 **Source:** M4 milestone prompt, Batch 3 spec — captured in [docs/m4-discovery/decisions-register-reconciliation.md](m4-discovery/decisions-register-reconciliation.md).
