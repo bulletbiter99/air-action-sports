@@ -233,6 +233,104 @@ adminCustomers.post('/merge', requireRole('owner', 'manager'), async (c) => {
     });
 });
 
+// ────────────────────────────────────────────────────────────────────
+// POST /api/admin/customers/:id/gdpr-delete — owner only.
+//   Body: { reason?: string, requestedVia: 'CCPA'|'GDPR'|'manual',
+//           retentionUntil?: number (ms epoch) }
+//   Soft-archives the customer with archived_reason='gdpr_delete',
+//   redacts personal fields (email, email_normalized, name, phone,
+//   notes, notes_sensitive) to NULL/anonymized strings, deletes their
+//   customer_tags, and writes a gdpr_deletions audit row. Bookings +
+//   attendees keep customer_id pointing at the archived row so
+//   accounting + history stay intact, but the personal data is gone.
+//
+//   Idempotent: the FK on customer_id (post-B6 NOT NULL) means the
+//   row CAN'T be hard-deleted without orphaning bookings; the
+//   soft-archive + redact is the canonical "delete" for our schema.
+//
+//   The gdpr_deletions row is intentionally not FK-bound to
+//   customers (per migration 0022 #3 design) so the audit row
+//   survives even if a future cleanup ever does hard-delete the
+//   customer record.
+// ────────────────────────────────────────────────────────────────────
+adminCustomers.post('/:id/gdpr-delete', requireRole('owner'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => ({}));
+
+    const requestedVia = body?.requestedVia || 'manual';
+    if (!['CCPA', 'GDPR', 'manual'].includes(requestedVia)) {
+        return c.json({ error: "requestedVia must be 'CCPA', 'GDPR', or 'manual'" }, 400);
+    }
+    const reason = typeof body?.reason === 'string' ? body.reason.trim() : null;
+    const retentionUntil = Number.isFinite(Number(body?.retentionUntil))
+        ? Number(body.retentionUntil)
+        : null;
+
+    const row = await c.env.DB.prepare(
+        `SELECT id, archived_at FROM customers WHERE id = ?`,
+    ).bind(id).first();
+    if (!row) return c.json({ error: 'Customer not found' }, 404);
+    if (row.archived_at) {
+        return c.json({ error: 'Customer is already archived; cannot re-delete' }, 409);
+    }
+
+    const now = Date.now();
+    const redactedEmail = `gdpr-deleted+${id}@redacted.local`;
+
+    // Redact personal fields + soft-archive in one UPDATE so a partial
+    // failure doesn't leave personal data sitting around with an
+    // archive flag set elsewhere.
+    await c.env.DB.prepare(
+        `UPDATE customers SET
+            email = ?,
+            email_normalized = ?,
+            name = NULL,
+            phone = NULL,
+            notes = NULL,
+            notes_sensitive = NULL,
+            archived_at = ?,
+            archived_reason = 'gdpr_delete',
+            archived_by = ?,
+            updated_at = ?
+         WHERE id = ?`,
+    ).bind(redactedEmail, redactedEmail, now, user.id, now, id).run();
+
+    // Drop the customer's tags (no value retaining tags on a deleted person).
+    await c.env.DB.prepare(
+        `DELETE FROM customer_tags WHERE customer_id = ?`,
+    ).bind(id).run();
+
+    // Audit trail. customer_id is intentionally non-FK (per migration
+    // 0022) so this row survives even if the customer is ever fully
+    // hard-deleted in a future cleanup.
+    await c.env.DB.prepare(
+        `INSERT INTO gdpr_deletions
+            (customer_id, reason, requested_via, requested_at, deleted_at,
+             deleted_by, retention_until, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+        id,
+        reason,
+        requestedVia,
+        now,
+        now,
+        user.id,
+        retentionUntil,
+        null,
+    ).run();
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'customer.gdpr_deleted',
+        targetType: 'customer',
+        targetId: id,
+        meta: { requestedVia, reason: reason || null },
+    });
+
+    return c.json({ success: true, customerId: id, archivedAt: now });
+});
+
 function formatCustomer(row) {
     if (!row) return null;
     return {

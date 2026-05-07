@@ -14,6 +14,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useFeatureFlag } from './useFeatureFlag.js';
+import { useAdmin } from './AdminContext';
 import { formatMoney } from '../utils/money.js';
 import './AdminCustomers.css';
 
@@ -21,10 +22,12 @@ export default function AdminCustomerDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { enabled: flagEnabled, loading: flagLoading } = useFeatureFlag('customers_entity');
+    const { hasRole } = useAdmin();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState(null);
     const [mergeOpen, setMergeOpen] = useState(false);
+    const [gdprOpen, setGdprOpen] = useState(false);
 
     const reload = useCallback(async () => {
         if (!flagEnabled || !id) return;
@@ -209,6 +212,24 @@ export default function AdminCustomerDetail() {
                     >
                         Merge this customer into…
                     </button>
+                    {hasRole?.('owner') && (
+                        <>
+                            <p style={{ marginTop: '1rem' }}>
+                                Or, if the customer has invoked their right to erasure (GDPR / CCPA),
+                                redact their personal fields and write the deletion to the
+                                <code> gdpr_deletions </code>audit table. Bookings + attendees stay linked
+                                (anonymized) so accounting + history remain intact, but email, name,
+                                phone, and notes are nulled out. <strong>Owner only — irreversible.</strong>
+                            </p>
+                            <button
+                                type="button"
+                                className="admin-customers__btn admin-customers__btn--danger"
+                                onClick={() => setGdprOpen(true)}
+                            >
+                                GDPR / CCPA delete…
+                            </button>
+                        </>
+                    )}
                 </section>
             )}
 
@@ -235,6 +256,130 @@ export default function AdminCustomerDetail() {
                     }}
                 />
             )}
+
+            {gdprOpen && (
+                <GdprDeleteModal
+                    customer={customer}
+                    onClose={() => setGdprOpen(false)}
+                    onDeleted={() => {
+                        setGdprOpen(false);
+                        reload(); // page refresh — customer is now archived/redacted
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+function GdprDeleteModal({ customer, onClose, onDeleted }) {
+    const [requestedVia, setRequestedVia] = useState('GDPR');
+    const [reason, setReason] = useState('');
+    const [confirmTyped, setConfirmTyped] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [err, setErr] = useState(null);
+
+    const expectedConfirmation = customer.email || customer.id;
+    const canSubmit = confirmTyped === expectedConfirmation && !submitting;
+
+    async function submit() {
+        if (!canSubmit) return;
+        setSubmitting(true);
+        setErr(null);
+        try {
+            const res = await fetch(
+                `/api/admin/customers/${encodeURIComponent(customer.id)}/gdpr-delete`,
+                {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        requestedVia,
+                        reason: reason.trim() || null,
+                    }),
+                },
+            );
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setErr(json.error || `HTTP ${res.status}`);
+                return;
+            }
+            onDeleted();
+        } catch (e) {
+            setErr(String(e.message || e));
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    return (
+        <div className="admin-customers__modal-backdrop" onClick={onClose}>
+            <div className="admin-customers__modal" onClick={(e) => e.stopPropagation()}>
+                <header className="admin-customers__modal-header">
+                    <h2>GDPR / CCPA delete</h2>
+                    <button type="button" className="admin-customers__modal-close" onClick={onClose} aria-label="Close">×</button>
+                </header>
+
+                <div className="admin-customers__modal-body">
+                    <p>
+                        This will <strong>permanently redact</strong> personal fields on{' '}
+                        <strong>{customer.name || customer.email || customer.id}</strong>:
+                        email, name, phone, and notes will be nulled out; tags will be deleted;
+                        the row will be archived with <code>archived_reason='gdpr_delete'</code>.
+                        Bookings + attendees keep <code>customer_id</code> set so accounting +
+                        history stay valid, but the personal data is gone.
+                    </p>
+                    <p>This action is logged to the <code>gdpr_deletions</code> table and the audit_log.</p>
+
+                    <label className="admin-customers__merge-search-label">Requested via</label>
+                    <select
+                        value={requestedVia}
+                        onChange={(e) => setRequestedVia(e.target.value)}
+                        className="admin-customers__merge-search"
+                        style={{ marginTop: '0.25rem' }}
+                    >
+                        <option value="GDPR">GDPR</option>
+                        <option value="CCPA">CCPA</option>
+                        <option value="manual">Manual / other</option>
+                    </select>
+
+                    <label style={{ display: 'block', marginTop: '0.85rem' }}>Reason (optional)</label>
+                    <textarea
+                        rows={2}
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        className="admin-customers__merge-search"
+                        placeholder="e.g. ticket #1234 — user emailed actionairsport@gmail.com requesting deletion"
+                        style={{ marginTop: '0.25rem' }}
+                    />
+
+                    <label style={{ display: 'block', marginTop: '0.85rem' }}>
+                        To confirm, type <code>{expectedConfirmation}</code>:
+                    </label>
+                    <input
+                        type="text"
+                        autoFocus
+                        value={confirmTyped}
+                        onChange={(e) => setConfirmTyped(e.target.value)}
+                        className="admin-customers__merge-search"
+                        placeholder={expectedConfirmation}
+                        style={{ marginTop: '0.25rem' }}
+                    />
+
+                    {err && <p className="admin-customers__error">Error: {err}</p>}
+                </div>
+
+                <footer className="admin-customers__modal-footer">
+                    <button type="button" className="admin-customers__btn" onClick={onClose}>Cancel</button>
+                    <button
+                        type="button"
+                        className="admin-customers__btn admin-customers__btn--danger"
+                        disabled={!canSubmit}
+                        onClick={submit}
+                    >
+                        {submitting ? 'Deleting…' : 'Permanently redact this customer'}
+                    </button>
+                </footer>
+            </div>
         </div>
     );
 }
