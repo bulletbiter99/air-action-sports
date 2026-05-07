@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
 import { sendEmail } from '../../lib/email.js';
 import { renderTemplate } from '../../lib/templates.js';
+import { writeAudit } from '../../lib/auditLog.js';
 
 const adminEmailTemplates = new Hono();
 adminEmailTemplates.use('*', requireAuth);
@@ -107,10 +108,13 @@ adminEmailTemplates.put('/:slug', requireRole('owner'), async (c) => {
     binds.push(slug);
     await c.env.DB.prepare(`UPDATE email_templates SET ${sets} WHERE slug = ?`).bind(...binds).run();
 
-    await c.env.DB.prepare(
-        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
-         VALUES (?, 'email_template.updated', 'email_template', ?, ?, ?)`
-    ).bind(user.id, slug, JSON.stringify({ fields: keys.filter((k) => k !== 'updated_at' && k !== 'updated_by') }), Date.now()).run();
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'email_template.updated',
+        targetType: 'email_template',
+        targetId: slug,
+        meta: { fields: keys.filter((k) => k !== 'updated_at' && k !== 'updated_by') },
+    });
 
     const row = await c.env.DB.prepare(`SELECT * FROM email_templates WHERE slug = ?`).bind(slug).first();
     return c.json({ template: formatTemplate(row) });
@@ -150,10 +154,13 @@ adminEmailTemplates.post('/:slug/send-test', requireRole('owner'), async (c) => 
         return c.json({ error: 'Send failed' }, 502);
     }
 
-    await c.env.DB.prepare(
-        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
-         VALUES (?, 'email_template.test_sent', 'email_template', ?, ?, ?)`
-    ).bind(user.id, slug, JSON.stringify({ to }), Date.now()).run();
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'email_template.test_sent',
+        targetType: 'email_template',
+        targetId: slug,
+        meta: { to },
+    });
 
     return c.json({ success: true, sentTo: to });
 });
