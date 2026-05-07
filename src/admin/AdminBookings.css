@@ -1,0 +1,318 @@
+/* M4 Batch 2b — AdminBookings page styles. Mirrors the visual language
+   of AdminCustomers (M3) and AdminFeedback (M2). Density tokens from
+   M2 B5c (data-density="compact") apply via the AdminLayout shell. */
+
+.admin-bookings {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 2rem;
+    color: var(--cream);
+}
+
+.admin-bookings__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.admin-bookings__header h1 {
+    font-size: 28px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -1px;
+    color: var(--cream);
+    margin: 0;
+}
+
+.admin-bookings__cta {
+    padding: 10px 18px;
+    background: var(--orange);
+    color: #fff;
+    border: none;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.admin-bookings__quick-filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.admin-bookings__quick-chip {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.25);
+    color: var(--tan-light);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.admin-bookings__quick-chip:hover {
+    background: rgba(215, 108, 33, 0.06);
+    border-color: rgba(215, 108, 33, 0.4);
+    color: var(--cream);
+}
+
+.admin-bookings__quick-chip--active {
+    background: rgba(215, 108, 33, 0.12);
+    border-color: var(--orange);
+    color: var(--orange);
+}
+
+.admin-bookings__date-range {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.admin-bookings__date-range label {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    color: var(--olive-light);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+}
+
+.admin-bookings__date-range input[type="date"] {
+    padding: 6px 10px;
+    background: var(--dark);
+    border: 1px solid rgba(200, 184, 154, 0.2);
+    color: var(--cream);
+    font-size: 12px;
+    font-family: inherit;
+}
+
+.admin-bookings__date-clear {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.2);
+    color: var(--tan-light);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.admin-bookings__bulk-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 16px;
+    background: rgba(215, 108, 33, 0.08);
+    border: 1px solid rgba(215, 108, 33, 0.3);
+    border-left: 3px solid var(--orange);
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.admin-bookings__bulk-count {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--orange);
+}
+
+.admin-bookings__bulk-toolbar button {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.3);
+    color: var(--cream);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.admin-bookings__bulk-toolbar button:hover {
+    background: rgba(200, 184, 154, 0.06);
+}
+
+.admin-bookings__bulk-clear {
+    margin-left: auto;
+}
+
+.admin-bookings__bulk-msg {
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+.admin-bookings__bulk-msg--ok {
+    background: rgba(46, 204, 113, 0.1);
+    border-left: 3px solid #2ecc71;
+    color: #2ecc71;
+}
+
+.admin-bookings__bulk-msg--err {
+    background: rgba(231, 76, 60, 0.1);
+    border-left: 3px solid #e74c3c;
+    color: #ff8a7e;
+}
+
+.admin-bookings__bulk-msg--pending {
+    background: rgba(241, 196, 15, 0.1);
+    border-left: 3px solid #f1c40f;
+    color: #f1c40f;
+}
+
+.admin-bookings__export {
+    margin-bottom: 12px;
+}
+
+.admin-bookings__export button {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.25);
+    color: var(--tan-light);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.admin-bookings__export button:hover {
+    background: rgba(200, 184, 154, 0.06);
+    color: var(--cream);
+}
+
+.admin-bookings__table-wrap {
+    background: var(--mid);
+    border: 1px solid rgba(200, 184, 154, 0.1);
+    overflow-x: auto;
+}
+
+.admin-bookings__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.admin-bookings__table th {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(200, 184, 154, 0.15);
+    color: var(--orange);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+.admin-bookings__table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(200, 184, 154, 0.05);
+    color: var(--cream);
+}
+
+.admin-bookings__num {
+    text-align: right;
+}
+
+.admin-bookings__col-check {
+    width: 36px;
+    text-align: center;
+}
+
+.admin-bookings__loading,
+.admin-bookings__empty {
+    text-align: center;
+    color: var(--olive-light);
+    padding: 24px 12px !important;
+}
+
+.admin-bookings__view {
+    padding: 4px 12px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.3);
+    color: var(--tan);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.admin-bookings__status {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border: 1px solid currentColor;
+}
+
+.admin-bookings__status--paid    { background: rgba(39, 174, 96, 0.15);  color: #2ecc71; }
+.admin-bookings__status--pending { background: rgba(212, 84, 26, 0.15);  color: var(--orange); }
+.admin-bookings__status--cancelled { background: rgba(149, 165, 166, 0.15); color: #95a5a6; }
+.admin-bookings__status--refunded  { background: rgba(230, 126, 34, 0.15); color: #e67e22; }
+.admin-bookings__status--comp      { background: rgba(155, 89, 182, 0.15); color: #9b59b6; }
+.admin-bookings__status--unknown   { background: rgba(149, 165, 166, 0.15); color: #95a5a6; }
+
+.admin-bookings__pagination {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 0;
+    margin-top: 12px;
+}
+
+.admin-bookings__pagination button {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.3);
+    color: var(--tan);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.admin-bookings__pagination button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.admin-bookings__page-info {
+    color: var(--olive-light);
+    font-size: 12px;
+}
+
+/* Density tokens — compact mode shrinks paddings (M2 B5c). */
+[data-density="compact"] .admin-bookings__table th,
+[data-density="compact"] .admin-bookings__table td {
+    padding: 6px 10px;
+}
+
+[data-density="compact"] .admin-bookings__quick-chip,
+[data-density="compact"] .admin-bookings__bulk-toolbar button,
+[data-density="compact"] .admin-bookings__export button {
+    padding: 4px 12px;
+}

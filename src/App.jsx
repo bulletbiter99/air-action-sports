@@ -56,6 +56,7 @@ const AdminWaivers = lazy(() => import('./admin/AdminWaivers'));
 const AdminFeedback = lazy(() => import('./admin/AdminFeedback'));
 const AdminCustomers = lazy(() => import('./admin/AdminCustomers'));
 const AdminCustomerDetail = lazy(() => import('./admin/AdminCustomerDetail'));
+const AdminBookings = lazy(() => import('./admin/AdminBookings'));
 
 export default function App() {
   return (
@@ -116,6 +117,7 @@ export default function App() {
             <Route path="feedback" element={<AdminFeedback />} />
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="customers/:id" element={<AdminCustomerDetail />} />
+            <Route path="bookings" element={<AdminBookings />} />
           </Route>
         </Routes>
       </Suspense>

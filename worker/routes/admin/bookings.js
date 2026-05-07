@@ -3,7 +3,7 @@ import { requireAuth, requireRole } from '../../lib/auth.js';
 import { formatBooking, formatEvent, safeJson } from '../../lib/formatters.js';
 import { issueRefund, createCheckoutSession } from '../../lib/stripe.js';
 import { bookingId, attendeeId, qrToken } from '../../lib/ids.js';
-import { sendBookingConfirmation } from '../../lib/emailSender.js';
+import { sendBookingConfirmation, sendWaiverRequest } from '../../lib/emailSender.js';
 import { findExistingValidWaiver } from '../../lib/waiverLookup.js';
 import { loadActiveTaxesFees } from '../../lib/pricing.js';
 import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
@@ -23,25 +23,72 @@ const adminBookings = new Hono();
 
 adminBookings.use('*', requireAuth);
 
-adminBookings.get('/', async (c) => {
-    const url = new URL(c.req.url);
-    const params = url.searchParams;
+// Build the WHERE clause + binds shared by GET / and GET /export.csv.
+// Existing parameters (event_id, status, q, from, to) preserved verbatim
+// — Group E tests against POST /manual and POST /:id/refund are unaffected
+// since they don't exercise the list endpoint, but downstream consumers
+// may rely on the existing param names.
+//
+// New parameters added in M4 B2b:
+//   payment_method  → exact match against bookings.payment_method
+//   has_refund      → 'true' (refunded_at IS NOT NULL) | 'false' (IS NULL)
+//   waiver_status   → 'complete' | 'missing' | 'partial' against attendees
+//                      (subquery on attendees.waiver_id null-count)
+//   min_amount      → total_cents >= ?
+//   max_amount      → total_cents <= ?
+//   customer_id     → exact match against bookings.customer_id (M3 B6 column)
+function buildBookingsListFilter(params) {
+    const where = [];
+    const binds = [];
+
     const eventId = params.get('event_id');
     const status = params.get('status');
     const q = params.get('q');
     const from = params.get('from');
     const to = params.get('to');
-    const limit = Math.min(Number(params.get('limit') || 50), 200);
-    const offset = Math.max(0, Number(params.get('offset') || 0));
+    const paymentMethod = params.get('payment_method');
+    const hasRefund = params.get('has_refund');
+    const waiverStatus = params.get('waiver_status');
+    const minAmount = params.get('min_amount');
+    const maxAmount = params.get('max_amount');
+    const customerId = params.get('customer_id');
 
-    const where = [];
-    const binds = [];
     if (eventId) { where.push('event_id = ?'); binds.push(eventId); }
     if (status)  { where.push('status = ?');   binds.push(status); }
     if (q)       { where.push('(LOWER(full_name) LIKE ? OR LOWER(email) LIKE ?)'); binds.push(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`); }
     if (from)    { where.push('created_at >= ?'); binds.push(Number(from)); }
     if (to)      { where.push('created_at <= ?'); binds.push(Number(to)); }
-    const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    if (paymentMethod) { where.push('payment_method = ?'); binds.push(paymentMethod); }
+    if (hasRefund === 'true')  { where.push('refunded_at IS NOT NULL'); }
+    if (hasRefund === 'false') { where.push('refunded_at IS NULL'); }
+    if (minAmount) { where.push('total_cents >= ?'); binds.push(Number(minAmount)); }
+    if (maxAmount) { where.push('total_cents <= ?'); binds.push(Number(maxAmount)); }
+    if (customerId) { where.push('customer_id = ?'); binds.push(customerId); }
+
+    // Waiver-status subquery — booking matches when its attendees' waiver_id
+    // null-count satisfies the predicate. complete=0, missing=COUNT(*),
+    // partial=between 1 and COUNT(*)-1. Booking with zero attendees is
+    // considered 'missing' (no waivers signed because no attendees).
+    if (waiverStatus === 'complete') {
+        where.push('id IN (SELECT booking_id FROM attendees GROUP BY booking_id HAVING SUM(CASE WHEN waiver_id IS NULL THEN 1 ELSE 0 END) = 0 AND COUNT(*) > 0)');
+    } else if (waiverStatus === 'missing') {
+        where.push('id IN (SELECT booking_id FROM attendees GROUP BY booking_id HAVING SUM(CASE WHEN waiver_id IS NULL THEN 1 ELSE 0 END) = COUNT(*))');
+    } else if (waiverStatus === 'partial') {
+        where.push('id IN (SELECT booking_id FROM attendees GROUP BY booking_id HAVING SUM(CASE WHEN waiver_id IS NULL THEN 1 ELSE 0 END) BETWEEN 1 AND COUNT(*) - 1)');
+    }
+
+    return {
+        whereSQL: where.length ? `WHERE ${where.join(' AND ')}` : '',
+        binds,
+    };
+}
+
+adminBookings.get('/', async (c) => {
+    const url = new URL(c.req.url);
+    const params = url.searchParams;
+    const limit = Math.min(Number(params.get('limit') || 50), 200);
+    const offset = Math.max(0, Number(params.get('offset') || 0));
+    const { whereSQL, binds } = buildBookingsListFilter(params);
 
     const countRow = await c.env.DB.prepare(
         `SELECT COUNT(*) AS n FROM bookings ${whereSQL}`
@@ -56,6 +103,216 @@ adminBookings.get('/', async (c) => {
         limit,
         offset,
         bookings: (rows.results || []).map((b) => formatBooking(b, { includeInternal: true })),
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// Bulk + export endpoints (M4 B2b)
+//
+// Mounted BEFORE the dynamic /:id routes so Hono's router resolves the
+// static segments first. requireRole('owner','manager') gates all three —
+// staff cannot bulk-email customers or export PII. M4 plan defers the
+// formal capabilities `bookings.email` / `bookings.export` to M5's role
+// hierarchy expansion (per docs/decisions.md D05 nearby context).
+// ────────────────────────────────────────────────────────────────────
+
+const BULK_MAX = 100;
+
+function csvField(val) {
+    if (val === null || val === undefined) return '';
+    const s = String(val);
+    if (/[",\n\r]/.test(s)) {
+        return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+}
+
+// POST /api/admin/bookings/bulk/resend-confirmation
+// Body: { bookingIds: string[] }
+// Per-booking outcomes: sent | skipped (status not paid/comp) | failed.
+// Audit row written per successful send.
+adminBookings.post('/bulk/resend-confirmation', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const body = await c.req.json().catch(() => null);
+    if (!body || !Array.isArray(body.bookingIds) || body.bookingIds.length === 0) {
+        return c.json({ error: 'bookingIds array is required' }, 400);
+    }
+    if (!body.bookingIds.every((id) => typeof id === 'string' && id.length > 0)) {
+        return c.json({ error: 'bookingIds must contain non-empty strings' }, 400);
+    }
+    if (body.bookingIds.length > BULK_MAX) {
+        return c.json({ error: `Max ${BULK_MAX} bookings per bulk action` }, 400);
+    }
+
+    const results = { sent: 0, skipped: 0, failed: 0, errors: [] };
+    const now = Date.now();
+
+    for (const id of body.bookingIds) {
+        const booking = await c.env.DB.prepare(`SELECT * FROM bookings WHERE id = ?`).bind(id).first();
+        if (!booking) {
+            results.failed++;
+            results.errors.push({ id, reason: 'not_found' });
+            continue;
+        }
+        if (!['paid', 'comp'].includes(booking.status)) {
+            results.skipped++;
+            continue;
+        }
+
+        const event = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(booking.event_id).first();
+        if (!event) {
+            results.failed++;
+            results.errors.push({ id, reason: 'event_not_found' });
+            continue;
+        }
+
+        const attendeesRes = await c.env.DB.prepare(
+            `SELECT id, waiver_id FROM attendees WHERE booking_id = ?`
+        ).bind(id).all();
+
+        try {
+            const result = await sendBookingConfirmation(c.env, {
+                booking,
+                event,
+                attendees: attendeesRes.results || [],
+            });
+            if (result?.skipped) {
+                results.skipped++;
+            } else {
+                results.sent++;
+                await c.env.DB.prepare(
+                    `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+                     VALUES (?, 'booking.confirmation_resent_bulk', 'booking', ?, ?, ?)`
+                ).bind(user.id, id, JSON.stringify({ to: booking.email }), now).run();
+            }
+        } catch (err) {
+            console.error('bulk resend-confirmation failed for', id, err);
+            results.failed++;
+            results.errors.push({ id, reason: err?.message || 'send_failed' });
+        }
+    }
+
+    return c.json(results);
+});
+
+// POST /api/admin/bookings/bulk/resend-waiver-request
+// Body: { bookingIds: string[] }
+// Sends sendWaiverRequest per attendee in the named bookings whose
+// waiver_id IS NULL. Bookings with all-signed attendees are 'skipped';
+// per-attendee send is the unit of action and counted in `sent`.
+adminBookings.post('/bulk/resend-waiver-request', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const body = await c.req.json().catch(() => null);
+    if (!body || !Array.isArray(body.bookingIds) || body.bookingIds.length === 0) {
+        return c.json({ error: 'bookingIds array is required' }, 400);
+    }
+    if (!body.bookingIds.every((id) => typeof id === 'string' && id.length > 0)) {
+        return c.json({ error: 'bookingIds must contain non-empty strings' }, 400);
+    }
+    if (body.bookingIds.length > BULK_MAX) {
+        return c.json({ error: `Max ${BULK_MAX} bookings per bulk action` }, 400);
+    }
+
+    const results = { sent: 0, skipped: 0, failed: 0, errors: [] };
+    const now = Date.now();
+
+    for (const bid of body.bookingIds) {
+        const attendeesRes = await c.env.DB.prepare(
+            `SELECT a.*, b.event_id AS booking_event_id FROM attendees a
+             JOIN bookings b ON b.id = a.booking_id
+             WHERE a.booking_id = ? AND a.waiver_id IS NULL`
+        ).bind(bid).all();
+
+        const attendees = attendeesRes.results || [];
+        if (attendees.length === 0) {
+            results.skipped++;
+            continue;
+        }
+
+        const eventId = attendees[0].booking_event_id;
+        const event = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(eventId).first();
+        if (!event) {
+            results.failed++;
+            results.errors.push({ id: bid, reason: 'event_not_found' });
+            continue;
+        }
+
+        for (const attendee of attendees) {
+            try {
+                const result = await sendWaiverRequest(c.env, { attendee, event });
+                if (result?.skipped) {
+                    results.skipped++;
+                } else {
+                    results.sent++;
+                    await c.env.DB.prepare(
+                        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+                         VALUES (?, 'attendee.waiver_request_resent_bulk', 'attendee', ?, ?, ?)`
+                    ).bind(user.id, attendee.id, JSON.stringify({ booking_id: bid, to: attendee.email }), now).run();
+                }
+            } catch (err) {
+                console.error('bulk resend-waiver-request failed for attendee', attendee.id, err);
+                results.failed++;
+                results.errors.push({ id: attendee.id, reason: err?.message || 'send_failed' });
+            }
+        }
+    }
+
+    return c.json(results);
+});
+
+// GET /api/admin/bookings/export.csv
+// Same query params as GET / (uses buildBookingsListFilter). Streams a
+// CSV with one header row + one row per matched booking. Hard cap of
+// 10k rows; operator refines the filter for larger sets. Audit-logged.
+adminBookings.get('/export.csv', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const url = new URL(c.req.url);
+    const params = url.searchParams;
+    const { whereSQL, binds } = buildBookingsListFilter(params);
+
+    const EXPORT_LIMIT = 10_000;
+    const rows = await c.env.DB.prepare(
+        `SELECT b.*, e.title AS event_title, e.date_iso AS event_date_iso
+         FROM bookings b
+         LEFT JOIN events e ON e.id = b.event_id
+         ${whereSQL}
+         ORDER BY b.created_at DESC
+         LIMIT ?`
+    ).bind(...binds, EXPORT_LIMIT).all();
+
+    const HEADER = [
+        'id', 'event_id', 'event_title', 'event_date_iso',
+        'full_name', 'email', 'phone', 'player_count',
+        'status', 'payment_method',
+        'subtotal_cents', 'tax_cents', 'fee_cents', 'total_cents',
+        'created_at', 'paid_at', 'refunded_at',
+        'customer_id', 'notes',
+    ];
+
+    const csvLines = [HEADER.join(',')];
+    for (const r of (rows.results || [])) {
+        csvLines.push(HEADER.map((col) => csvField(r[col])).join(','));
+    }
+
+    // PII access trace. target_id='export-csv' is a sentinel since the
+    // export targets a filter result, not a single booking. meta_json
+    // captures the row count and the active filters for forensic recall.
+    await c.env.DB.prepare(
+        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+         VALUES (?, 'booking.exported_csv', 'booking', 'export-csv', ?, ?)`
+    ).bind(
+        user.id,
+        JSON.stringify({ row_count: rows.results?.length ?? 0, filters: Object.fromEntries(params) }),
+        Date.now(),
+    ).run();
+
+    const filename = `bookings-${new Date().toISOString().slice(0, 10)}.csv`;
+    return new Response(csvLines.join('\n'), {
+        status: 200,
+        headers: {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="${filename}"`,
+        },
     });
 });
 
