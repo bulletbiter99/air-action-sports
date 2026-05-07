@@ -4,6 +4,7 @@ import { sendEventReminder, sendEventReminder1hr } from './lib/emailSender.js';
 import { loadTemplate, renderTemplate } from './lib/templates.js';
 import { sendEmail } from './lib/email.js';
 import { createVendorToken } from './lib/vendorToken.js';
+import { runCustomerTagsSweep } from './lib/customerTags.js';
 
 import events from './routes/events.js';
 import bookings from './routes/bookings.js';
@@ -558,17 +559,35 @@ export default {
     async scheduled(event, env, ctx) {
         ctx.waitUntil((async () => {
             const startedAt = Date.now();
-            const [r, a, v] = await Promise.all([
-                runReminderSweep(env),
-                runAbandonPendingSweep(env).catch((err) => {
-                    console.error('abandon sweep failed', err);
-                    return { abandoned: 0, error: err?.message };
-                }),
-                runVendorSweep(env).catch((err) => {
-                    console.error('vendor sweep failed', err);
+            const cron = event.cron || 'manual';
+            let summary;
+
+            // M3 B10: branch by cron schedule. The 03:00 UTC nightly
+            // sweep refreshes customer_tags (tag_type='system') and
+            // does NOT run the 15-min reminder/abandon/vendor sweeps.
+            // Every other cron (today: just '*/15 * * * *') runs the
+            // existing three-way reminder sweep.
+            if (cron === '0 3 * * *') {
+                const tags = await runCustomerTagsSweep(env).catch((err) => {
+                    console.error('customer-tags sweep failed', err);
                     return { error: err?.message };
-                }),
-            ]);
+                });
+                summary = { tags };
+            } else {
+                const [r, a, v] = await Promise.all([
+                    runReminderSweep(env),
+                    runAbandonPendingSweep(env).catch((err) => {
+                        console.error('abandon sweep failed', err);
+                        return { abandoned: 0, error: err?.message };
+                    }),
+                    runVendorSweep(env).catch((err) => {
+                        console.error('vendor sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                ]);
+                summary = { reminders: r, pending: a, vendor: v };
+            }
+
             const finishedAt = Date.now();
             const durationMs = finishedAt - startedAt;
 
@@ -580,21 +599,15 @@ export default {
                     `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
                      VALUES (NULL, 'cron.swept', 'cron', ?, ?, ?)`
                 ).bind(
-                    event.cron || 'manual',
-                    JSON.stringify({
-                        cron: event.cron || null,
-                        durationMs,
-                        reminders: r,
-                        pending: a,
-                        vendor: v,
-                    }),
+                    cron,
+                    JSON.stringify({ cron: event.cron || null, durationMs, ...summary }),
                     finishedAt,
                 ).run();
             } catch (err) {
                 console.error('cron.swept audit insert failed', err);
             }
 
-            console.log('scheduled sweeps', event.cron, { reminders: r, pending: a, vendor: v });
+            console.log('scheduled sweeps', cron, summary);
         })());
     },
 };
