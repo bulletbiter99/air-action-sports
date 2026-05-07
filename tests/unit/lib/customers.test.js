@@ -169,14 +169,10 @@ describe('findOrCreateCustomerForBooking', () => {
 });
 
 describe('recomputeCustomerDenormalizedFields', () => {
-    it('is a no-op when customerId is null or undefined', async () => {
-        const db = createMockD1();
-        await recomputeCustomerDenormalizedFields(db, null);
-        await recomputeCustomerDenormalizedFields(db, undefined);
-        await recomputeCustomerDenormalizedFields(db, '');
-        const writes = db.__writes();
-        expect(writes).toHaveLength(0);
-    });
+    // Post-B6: customer_id is NOT NULL on both bookings and attendees, so the
+    // helper no longer guards against null/empty input. Tests that exercised
+    // the null-no-op path (B5) are removed; callers are now contract-bound
+    // to pass a non-empty customer id.
 
     it('aggregates paid LTV / refund_count / total_attendees / first/last_booking_at correctly', async () => {
         const db = createMockD1();
