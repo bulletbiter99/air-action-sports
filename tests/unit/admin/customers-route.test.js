@@ -306,3 +306,140 @@ describe('POST /api/admin/customers/merge', () => {
         expect(res.status).toBe(403);
     });
 });
+
+describe('POST /api/admin/customers/:id/gdpr-delete (B11)', () => {
+    it('happy path: redacts personal fields, archives, writes gdpr_deletions + audit row', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'owner' });
+
+        env.DB.__on(/SELECT id, archived_at FROM customers WHERE id = \?/, (sql, args) => {
+            if (args[0] === 'cus_target') return { id: 'cus_target', archived_at: null };
+            return null;
+        }, 'first');
+
+        const res = await worker.fetch(
+            fetchJson('/api/admin/customers/cus_target/gdpr-delete', {
+                method: 'POST',
+                headers: { cookie: cookieHeader, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    requestedVia: 'GDPR',
+                    reason: 'User invoked right to erasure',
+                    retentionUntil: 9_999_999_999_999,
+                }),
+            }),
+            env, {}
+        );
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.success).toBe(true);
+        expect(json.customerId).toBe('cus_target');
+        expect(typeof json.archivedAt).toBe('number');
+
+        const writes = env.DB.__writes();
+
+        // Customer redacted + archived
+        const redact = writes.find((w) =>
+            w.kind === 'run' && /UPDATE customers SET[\s\S]*archived_reason = 'gdpr_delete'/.test(w.sql)
+        );
+        expect(redact).toBeTruthy();
+        // bind 0/1 = redacted email values; both should match the gdpr-deleted format
+        expect(redact.args[0]).toMatch(/^gdpr-deleted\+cus_target@redacted\.local$/);
+        expect(redact.args[1]).toMatch(/^gdpr-deleted\+cus_target@redacted\.local$/);
+        // bind 3 = archived_by user id
+        expect(redact.args[3]).toBe('u_actor');
+        // bind 5 (last) = id
+        expect(redact.args[5]).toBe('cus_target');
+
+        // Tags dropped
+        const tagsDelete = writes.find((w) =>
+            w.kind === 'run' && /DELETE FROM customer_tags WHERE customer_id = \?/.test(w.sql)
+        );
+        expect(tagsDelete).toBeTruthy();
+        expect(tagsDelete.args[0]).toBe('cus_target');
+
+        // gdpr_deletions audit row
+        const gdprInsert = writes.find((w) =>
+            w.kind === 'run' && /INSERT INTO gdpr_deletions/.test(w.sql)
+        );
+        expect(gdprInsert).toBeTruthy();
+        // args: customer_id, reason, requested_via, requested_at, deleted_at, deleted_by, retention_until, notes
+        expect(gdprInsert.args[0]).toBe('cus_target');
+        expect(gdprInsert.args[1]).toBe('User invoked right to erasure');
+        expect(gdprInsert.args[2]).toBe('GDPR');
+        expect(gdprInsert.args[5]).toBe('u_actor');
+        expect(gdprInsert.args[6]).toBe(9_999_999_999_999);
+
+        // customer.gdpr_deleted audit row (via writeAudit)
+        const audit = writes.find((w) =>
+            w.kind === 'run' && /INSERT INTO audit_log/.test(w.sql) && w.args[1] === 'customer.gdpr_deleted'
+        );
+        expect(audit).toBeTruthy();
+        expect(audit.args[0]).toBe('u_actor');
+        expect(audit.args[3]).toBe('cus_target');
+        expect(JSON.parse(audit.args[4]).requestedVia).toBe('GDPR');
+    });
+
+    it('refuses already-archived customer with 409', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'owner' });
+
+        env.DB.__on(/SELECT id, archived_at FROM customers WHERE id = \?/,
+            { id: 'cus_archived', archived_at: 9_999 }, 'first');
+
+        const res = await worker.fetch(
+            fetchJson('/api/admin/customers/cus_archived/gdpr-delete', {
+                method: 'POST',
+                headers: { cookie: cookieHeader, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestedVia: 'manual' }),
+            }),
+            env, {}
+        );
+        expect(res.status).toBe(409);
+    });
+
+    it('returns 404 for unknown customer', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'owner' });
+        // No __on registered → SELECT returns null
+
+        const res = await worker.fetch(
+            fetchJson('/api/admin/customers/cus_unknown/gdpr-delete', {
+                method: 'POST',
+                headers: { cookie: cookieHeader, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestedVia: 'manual' }),
+            }),
+            env, {}
+        );
+        expect(res.status).toBe(404);
+    });
+
+    it('manager role gets 403 (owner-only)', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'manager' });
+
+        const res = await worker.fetch(
+            fetchJson('/api/admin/customers/cus_x/gdpr-delete', {
+                method: 'POST',
+                headers: { cookie: cookieHeader, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestedVia: 'manual' }),
+            }),
+            env, {}
+        );
+        expect(res.status).toBe(403);
+    });
+
+    it('rejects invalid requestedVia with 400', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'owner' });
+
+        const res = await worker.fetch(
+            fetchJson('/api/admin/customers/cus_x/gdpr-delete', {
+                method: 'POST',
+                headers: { cookie: cookieHeader, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestedVia: 'invalid-value' }),
+            }),
+            env, {}
+        );
+        expect(res.status).toBe(400);
+    });
+});
