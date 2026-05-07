@@ -299,6 +299,17 @@
       "tests": [
         "tests/unit/admin/walkUpHelpers.test.js"
       ]
+    },
+    "src/admin/commandRegistry.js": {
+      "tier": "high",
+      "covers": [
+        "commandsFromSidebar (derive flat command list from SIDEBAR; honors getVisibleItems predicates for dynamic todayActive + requiresFlag)",
+        "filterCommands (case-insensitive substring match; prefix-priority sort; defensive against non-array/non-string-label inputs)"
+      ],
+      "audit_group": "(M4 B7 command palette)",
+      "tests": [
+        "tests/unit/admin/commandRegistry.test.js"
+      ]
     }
   },
   "uncovered": {
