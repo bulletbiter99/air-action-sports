@@ -276,7 +276,13 @@ function execWrangler(flags, sqlOrFile, isFile = false) {
         ? `npx wrangler d1 execute ${DB} ${flags} --json --file ${sqlOrFile}`
         : `npx wrangler d1 execute ${DB} ${flags} --json --command ${JSON.stringify(sqlOrFile)}`;
     const result = execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
-    return JSON.parse(result);
+    // Wrangler --remote --file emits upload-progress UI characters
+    // (e.g. "├ Checking if file needs uploading", "🌀 Uploading…")
+    // to stdout BEFORE the JSON payload, even with --json. Slice off
+    // everything before the first `[` or `{` so JSON.parse succeeds.
+    const jsonStart = result.search(/[\[\{]/);
+    const jsonText = jsonStart >= 0 ? result.slice(jsonStart) : result;
+    return JSON.parse(jsonText);
 }
 
 function readBookings(flags, limit = null) {
