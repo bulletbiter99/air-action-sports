@@ -166,6 +166,14 @@
       "tests": [
         "tests/unit/admin/customers-route.test.js"
       ]
+    },
+    "worker/lib/customerTags.js": {
+      "tier": "high",
+      "covers": ["computeSystemTags", "runCustomerTagsSweep"],
+      "audit_group": "(M3 B10 nightly tag refresh)",
+      "tests": [
+        "tests/unit/lib/customer-tags.test.js"
+      ]
     }
   },
   "uncovered": {

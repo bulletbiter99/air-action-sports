@@ -353,7 +353,7 @@ Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branch
 - `worker/routes/waivers.js` (public waiver sign) — DNT
 - `worker/lib/stripe.js` — M6 territory; coverage already 93.93%
 
-**Status (as of 2026-05-07, post-B9):**
+**Status (as of 2026-05-07, post-B10):**
 
 | Batch | What it ships | Status | Squash on milestone |
 |---|---|---|---|
@@ -368,11 +368,11 @@ Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branch
 | **B8a** Customers admin route + flag migration (7 files) | `worker/routes/admin/customers.js` (NEW — GET list, GET :id detail, POST merge with manager+ role); `worker/index.js` mounts route at `/api/admin/customers`; `migrations/0024_customers_entity_flag.sql` (NEW — flag `customers_entity` state=`off`); `tests/unit/admin/customers-route.test.js` (NEW — 11 tests covering pagination/search/archived filter/detail 404/merge happy-path/self-merge refuse/already-archived refuse/staff 403); gate map adds `worker/routes/admin/customers.js`. **Migration 0024 applied to remote 2026-05-07 ✓** (flag stays `off` until owner flips). | ✓ merged | `765f792` ([#42](https://github.com/bulletbiter99/air-action-sports/pull/42)) |
 | **B8b** Customers UI: list / detail / merge pages (7 files) | `src/admin/AdminCustomers.jsx` (list with FilterBar — search by email/name, archived enum filter active/archived/all, paginated table); `src/admin/AdminCustomerDetail.jsx` (detail with contact card, aggregates, comm prefs, notes, tags, bookings table, merge modal — type-ahead search for primary, debounced /api/admin/customers?q query, on submit POST /merge then redirect to primary); `src/admin/AdminCustomers.css` (page styling with density-aware table padding); `src/App.jsx` registers `/admin/customers` + `/admin/customers/:id` routes; `src/admin/AdminLayout.jsx` injects "Customers" sidebar entry under Insights, gated by `useFeatureFlag('customers_entity')` (flag is `off` in production so the entry is hidden by default; pages render a "feature not enabled" placeholder if visited directly). | ✓ merged | `203e640` ([#44](https://github.com/bulletbiter99/air-action-sports/pull/44)) |
 | **B9** Persona-tailored AdminDashboard (8 files) | `migrations/0025_new_admin_dashboard_flag.sql` (flag `new_admin_dashboard`, state=`off`); `src/admin/personaLayouts.js` (NEW — role→widget-key list config + `resolveLayout(user)` + `personaLabel(role)` helpers, owner=`[RevenueSummary, CronHealth, TodayEvents, RecentBookings]`, manager=`[TodayEvents, RecentBookings, CronHealth]`, staff=`[TodayEvents, RecentBookings]`); `src/admin/AdminDashboardPersona.jsx` (NEW — persona shell that resolves layout per `user.role` and renders widgets via the WIDGETS registry; preserves the +New Booking CTA from legacy for manager+); `src/admin/widgets/PersonaWidgets.jsx` (NEW — RevenueSummary/CronHealth/TodayEvents/RecentBookings, each self-contained data fetcher hitting existing /api/admin/analytics + /events + /bookings endpoints); `src/admin/widgets/PersonaWidgets.css`; `src/admin/AdminDashboard.jsx` (EDIT — adds flag-gated dispatcher at the top; legacy code path renamed to `AdminDashboardLegacy()` and falls through unchanged when flag is off; persona shell lazy-loaded so legacy bundle doesn't grow). **`npm run build` clean.** | pending | — |
-| **B10** System tag refresh cron (2 files) | `worker/index.js` scheduled() addition for nightly tag-refresh sweep at 03:00 UTC | pending | — |
+| **B10** System tag refresh cron (7 files) | `worker/lib/customerTags.js` (NEW — `computeSystemTags(customer, now)` pure helper + `runCustomerTagsSweep(env)` I/O wrapper using `db.batch()` for atomic clear+reinsert; 4 system tags v1: `vip` LTV>$500, `frequent` ≥5 bookings, `lapsed` no booking 180+ days, `new` first booking ≤30 days); `worker/index.js` scheduled() branches on `event.cron === '0 3 * * *'` to dispatch tag sweep vs the existing 15-min reminder/abandon/vendor sweeps; `wrangler.toml` adds `"0 3 * * *"` to `triggers.crons`; `tests/unit/lib/customer-tags.test.js` (NEW — 12 tests covering each tag threshold + multi-tag combinations + zero-customer + sweep summary shape); gate map adds `worker/lib/customerTags.js`. Test count 600 → 612. **The new cron registers automatically on Workers Builds redeploy** — no operator step needed. | pending | — |
 | **B11** GDPR deletion workflow (~4 files) | `POST /api/admin/customers/:id/gdpr-delete` + UI modal + tests | pending | — |
 | **B12** Closing: rollback + deploy + baseline coverage runbooks + final docs (~5 files) | `docs/runbooks/m3-{rollback,deploy,baseline-coverage}.{md,txt}`; CLAUDE.md/HANDOFF.md M3 closed-state | pending | — |
 
-**Cumulative on milestone branch (after B8b):** 600 unit tests across 79 files (B8b is purely client-side React + CSS + route registration + sidebar wiring + docs — no test additions since the existing customers-route tests from B8a already cover the API surface the UI talks to).
+**Cumulative on milestone branch (after B10):** 612 unit tests across 80 files (B8b/B9 added 0 tests; B10 adds 12 tests for `customerTags.js`).
 
 **Critical dependency chain (the migration cadence):**
 
@@ -396,8 +396,8 @@ B7 (Group F tests) is the only batch independent of the chain. B9/B10 have light
 **Resume the milestone in a fresh session:**
 1. `git checkout milestone/3-customers && git pull origin milestone/3-customers`
 2. `npm install`
-3. `npm test` — confirm **600/600** passing across 79 files
-4. Read this section + the next pending batch's row in the table above (B10 is next — system tag refresh cron, nightly 03:00 UTC sweep)
+3. `npm test` — confirm **612/612** passing across 80 files
+4. Read this section + the next pending batch's row in the table above (B11 is next — GDPR deletion workflow)
 5. Post the batch's plan; wait for "proceed"; create sub-branch `m3-batch-N-slug`; execute; PR; merge — repeat through B12
 
 For local-D1 work (B5+, B6's migration, B8 schema):
