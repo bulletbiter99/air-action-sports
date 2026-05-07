@@ -1,54 +1,99 @@
 // M3 Batch 9 — persona layouts for the new AdminDashboard.
+// M4 B4b — rewired to read user.persona (decoupled from role per D08).
 //
-// Maps user.role → ordered list of widget keys. The persona shell
+// Maps user.persona → ordered list of widget keys. The persona shell
 // (src/admin/AdminDashboardPersona.jsx) iterates the resolved layout
 // and renders the corresponding widget from src/admin/widgets/PersonaWidgets.jsx.
 //
-// Rationale:
-//   - owner   : business-health view. Revenue first, then operational
-//               health (cron), then today's load + recent activity.
-//   - manager : operational view. Today + recent bookings up top, system
-//               health below for the off-chance the cron stalls.
-//   - staff   : event-day view. Today + recent bookings only — staff
-//               don't have access to revenue or system internals.
+// Persona model (per migration 0028 + decision D08):
+//   - 6 persona enum values: owner / booking_coordinator / marketing /
+//     bookkeeper / generic_manager / staff
+//   - Persona is a "lens preference" decoupled from role. Capability
+//     gating still uses role; widget selection uses persona.
+//   - Existing rows backfilled in B4a: owner→owner, manager→generic_manager,
+//     staff→staff. New users created between B4a and a future "persona
+//     selection at user-create time" batch will have persona=NULL —
+//     resolveLayout falls back to roleDerivedDefault(role) gracefully.
 //
-// Adding a new persona or widget is a config-only change here +
-// implementing the corresponding component in PersonaWidgets.jsx.
+// Widget set status:
+//   - owner: M3 widget set (RevenueSummary, CronHealth, TodayEvents,
+//     RecentBookings). Owner extension widgets (UpcomingEventsReadiness,
+//     ActionQueue, RecentActivity) ship in M4 B4d.
+//   - generic_manager: M3 manager widget set (TodayEvents, RecentBookings,
+//     CronHealth).
+//   - staff: M3 staff widget set (TodayEvents, RecentBookings).
+//   - booking_coordinator / marketing / bookkeeper: until B4c-B4f ship
+//     dedicated widget sets, alias-map to roleDerivedDefault — so a
+//     manager who picked persona='booking_coordinator' before B4c sees
+//     the same widgets as a generic_manager would.
 
 export const PERSONA_LAYOUTS = {
     owner: ['RevenueSummary', 'CronHealth', 'TodayEvents', 'RecentBookings'],
-    manager: ['TodayEvents', 'RecentBookings', 'CronHealth'],
+    generic_manager: ['TodayEvents', 'RecentBookings', 'CronHealth'],
     staff: ['TodayEvents', 'RecentBookings'],
+    // Personas without dedicated widget sets yet — alias to a role-derived
+    // default in resolveLayout(). Listed here for self-documentation +
+    // personaLabel coverage.
+    booking_coordinator: null,
+    marketing: null,
+    bookkeeper: null,
 };
 
 const FALLBACK_LAYOUT = ['TodayEvents', 'RecentBookings'];
 
-/**
- * Resolves a layout for the given user. Falls back to the staff-style
- * minimal layout when role is missing or unrecognized — defensive in
- * case a future role is added in DB before code knows about it.
- *
- * @param {{ role?: string } | null | undefined} user
- * @returns {string[]} ordered widget keys
- */
-export function resolveLayout(user) {
-    const role = user?.role;
-    if (role && Object.prototype.hasOwnProperty.call(PERSONA_LAYOUTS, role)) {
-        return PERSONA_LAYOUTS[role];
-    }
+// Maps a user role to the persona key whose layout best approximates
+// that role's needs when no specific persona has been selected.
+//
+// Used by resolveLayout when:
+//   - user.persona is null/undefined (e.g., a user created post-B4a but
+//     before persona-selection UI exists)
+//   - user.persona is an enum value without its own layout yet
+//     (booking_coordinator, marketing, bookkeeper — until B4c-B4f ship)
+//
+// Exported so future batches can reuse the same mapping (e.g., a "your
+// view will change soon" toast that shows what you'll see post-B4c).
+export function roleDerivedDefault(role) {
+    if (role === 'owner') return PERSONA_LAYOUTS.owner;
+    if (role === 'manager') return PERSONA_LAYOUTS.generic_manager;
+    if (role === 'staff') return PERSONA_LAYOUTS.staff;
     return FALLBACK_LAYOUT;
 }
 
 /**
- * Display name for a persona — surfaced in the dashboard header so the
- * admin knows which lens they're viewing.
+ * Resolves a layout for the given user. Reads user.persona first,
+ * falls back to role-derived default when persona is null or maps to
+ * an alias-only entry.
  *
- * @param {string|null|undefined} role
+ * @param {{ persona?: string|null, role?: string } | null | undefined} user
+ * @returns {string[]} ordered widget keys
+ */
+export function resolveLayout(user) {
+    const persona = user?.persona;
+    if (persona && Object.prototype.hasOwnProperty.call(PERSONA_LAYOUTS, persona)) {
+        const layout = PERSONA_LAYOUTS[persona];
+        if (Array.isArray(layout)) return layout;
+        // Alias entry (booking_coordinator/marketing/bookkeeper before
+        // their dedicated widget sets ship) — fall through to role-derived.
+    }
+    return roleDerivedDefault(user?.role);
+}
+
+/**
+ * Display name for the active persona — surfaced in the dashboard
+ * header so the admin knows which lens they're viewing. Accepts either
+ * a persona key or a legacy role key (callers haven't all migrated).
+ *
+ * @param {string|null|undefined} key
  * @returns {string}
  */
-export function personaLabel(role) {
-    if (role === 'owner')   return 'Owner view';
-    if (role === 'manager') return 'Manager view';
-    if (role === 'staff')   return 'Staff view';
+export function personaLabel(key) {
+    if (key === 'owner') return 'Owner view';
+    if (key === 'booking_coordinator') return 'Booking coordinator view';
+    if (key === 'marketing') return 'Marketing view';
+    if (key === 'bookkeeper') return 'Bookkeeper view';
+    if (key === 'generic_manager') return 'Manager view';
+    if (key === 'staff') return 'Staff view';
+    // Legacy role key compatibility — pre-B4b callers passed user.role.
+    if (key === 'manager') return 'Manager view';
     return 'Default view';
 }
