@@ -174,6 +174,21 @@
       "tests": [
         "tests/unit/lib/customer-tags.test.js"
       ]
+    },
+    "worker/index.js": {
+      "tier": "critical",
+      "covers": [
+        "serveUpload (full — allowlist regex, MIME mapping, 404/500 paths, security headers)",
+        "rewriteEventOg (full — DB lookup, all 10 SEO meta selectors, fallback when event missing, slug parsing variants)",
+        "scheduled outer dispatch (full — cron-string branching, parallel sweep dispatch, error containment, always-on cron.swept audit row, ctx.waitUntil contract)"
+      ],
+      "audit_group": "G (full), H (outer dispatch only — inner sweeps runReminderSweep/runAbandonPendingSweep/runVendorSweep remain uncovered, see uncovered.worker/index.js)",
+      "audit_tests_prescribed": ["G65", "G66", "G67", "G68", "G69", "G70"],
+      "tests": [
+        "tests/unit/worker/serveUpload.test.js",
+        "tests/unit/worker/rewriteEventOg.test.js",
+        "tests/unit/worker/scheduled.test.js"
+      ]
     }
   },
   "uncovered": {
@@ -186,10 +201,14 @@
     },
     "worker/index.js": {
       "tier": "critical",
-      "covers": ["serveUpload", "rewriteEventOg", "scheduled cron handler"],
-      "audit_groups": ["G", "H"],
-      "audit_tests_prescribed": ["G65", "G66", "G67", "G68", "G69", "G70", "H71", "H72", "H73", "H74", "H75", "H76"],
-      "status": "deferred to post-M1; rewriteEventOg has indirect Group I smoke coverage via tests/e2e/smoke.test.js #79"
+      "covers": [
+        "runReminderSweep inner behavior (sentinel-first idempotency, 24hr/1hr window math, batch parallelism, send/rollback)",
+        "runAbandonPendingSweep inner behavior (PENDING_ABANDON_MS cutoff)",
+        "runVendorSweep inner behavior (COI 30d/7d, package reminder, signature reminder windows + sentinels)"
+      ],
+      "audit_groups": ["H"],
+      "audit_tests_prescribed": ["H71", "H72", "H73", "H74", "H75", "H76"],
+      "status": "Group G outer dispatch covered M4 B1a; H deferred to M5 per docs/runbooks/m3-baseline-coverage.txt + M4 milestone plan"
     },
     "worker/lib/emailSender.js": {
       "tier": "critical",
