@@ -50,10 +50,18 @@ export const PERSONA_LAYOUTS = {
         'QuickActions',
         'RecentFeedback',
     ],
+    // M4 B4e — Marketing widget set ships in this batch.
+    marketing: [
+        'MarketingKPIs',
+        'ConversionFunnel',
+        'UpcomingEventsFillRate',
+        'PromoCodePerformance',
+        'RecentFeedback',
+        'AssetLibraryShortcut',
+    ],
     // Personas without dedicated widget sets yet — alias to a role-derived
     // default in resolveLayout(). Listed here for self-documentation +
     // personaLabel coverage.
-    marketing: null,
     bookkeeper: null,
 };
 

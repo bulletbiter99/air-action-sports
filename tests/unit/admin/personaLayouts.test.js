@@ -21,16 +21,17 @@ describe('PERSONA_LAYOUTS registry', () => {
         expect(keys).toContain('staff');
     });
 
-    it('owner / generic_manager / staff / booking_coordinator have concrete widget arrays', () => {
+    it('owner / generic_manager / staff / booking_coordinator / marketing have concrete widget arrays', () => {
         expect(Array.isArray(PERSONA_LAYOUTS.owner)).toBe(true);
         expect(Array.isArray(PERSONA_LAYOUTS.generic_manager)).toBe(true);
         expect(Array.isArray(PERSONA_LAYOUTS.staff)).toBe(true);
         // M4 B4c — booking_coordinator promoted from alias to concrete set
         expect(Array.isArray(PERSONA_LAYOUTS.booking_coordinator)).toBe(true);
+        // M4 B4e — marketing promoted from alias to concrete set
+        expect(Array.isArray(PERSONA_LAYOUTS.marketing)).toBe(true);
     });
 
-    it('marketing / bookkeeper are alias-only (null) until B4e/B4f', () => {
-        expect(PERSONA_LAYOUTS.marketing).toBeNull();
+    it('bookkeeper is the only remaining alias-only persona (null) until B4f', () => {
         expect(PERSONA_LAYOUTS.bookkeeper).toBeNull();
     });
 
@@ -53,6 +54,17 @@ describe('PERSONA_LAYOUTS registry', () => {
             'RecentBookings',
             'RecentActivity',
             'CronHealth',
+        ]);
+    });
+
+    it('marketing widget set ships the 6-widget M4 B4e order (5 new + RecentFeedback reused)', () => {
+        expect(PERSONA_LAYOUTS.marketing).toEqual([
+            'MarketingKPIs',
+            'ConversionFunnel',
+            'UpcomingEventsFillRate',
+            'PromoCodePerformance',
+            'RecentFeedback',
+            'AssetLibraryShortcut',
         ]);
     });
 });
@@ -109,9 +121,14 @@ describe('resolveLayout', () => {
         expect(layout).toBe(PERSONA_LAYOUTS.booking_coordinator);
     });
 
-    it('persona=marketing (alias-only) with role=manager falls back to generic_manager set', () => {
+    it('persona=marketing returns the dedicated Marketing widget set (M4 B4e)', () => {
         const layout = resolveLayout({ persona: 'marketing', role: 'manager' });
-        expect(layout).toBe(PERSONA_LAYOUTS.generic_manager);
+        expect(layout).toBe(PERSONA_LAYOUTS.marketing);
+    });
+
+    it('persona=marketing with role=staff still returns the Marketing widget set (persona wins)', () => {
+        const layout = resolveLayout({ persona: 'marketing', role: 'staff' });
+        expect(layout).toBe(PERSONA_LAYOUTS.marketing);
     });
 
     it('persona=bookkeeper (alias-only) with role=owner falls back to owner set', () => {
