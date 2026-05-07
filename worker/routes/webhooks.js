@@ -5,12 +5,6 @@ import { safeJson } from '../lib/formatters.js';
 import { sendBookingConfirmation, sendAdminNotify, sendWaiverRequest } from '../lib/emailSender.js';
 import { findExistingValidWaiver } from '../lib/waiverLookup.js';
 
-// Backward-compat re-export shim — kept transiently in M2 batch 4a so the
-// 9 Group D test files in tests/unit/auto-link/ (which import the function
-// from this path) keep passing. The shim is removed in M2 batch 4b after
-// the test imports are re-targeted to worker/lib/waiverLookup.js.
-export { findExistingValidWaiver } from '../lib/waiverLookup.js';
-
 const webhooks = new Hono();
 
 webhooks.post('/stripe', async (c) => {
