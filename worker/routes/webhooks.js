@@ -4,6 +4,7 @@ import { attendeeId, qrToken } from '../lib/ids.js';
 import { safeJson } from '../lib/formatters.js';
 import { sendBookingConfirmation, sendAdminNotify, sendWaiverRequest } from '../lib/emailSender.js';
 import { findExistingValidWaiver } from '../lib/waiverLookup.js';
+import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../lib/customers.js';
 
 const webhooks = new Hono();
 
@@ -93,14 +94,28 @@ async function handleCheckoutCompleted(db, session) {
     const pendingAttendees = safeJson(bookingRow.pending_attendees_json, []);
     const lineItems = safeJson(bookingRow.line_items_json, []);
 
-    // Flip booking to paid
+    // M3 B5 dual-write: resolve customer_id from buyer email/name. Returns
+    // null when the email is missing or malformed; the booking + attendees
+    // stay unlinked (NULL customer_id) until B4's backfill or a future
+    // correction. The webhook is idempotent so re-firing for the same
+    // session.id short-circuits at the bookingRow.status === 'paid' check
+    // above before we get here.
+    const resolvedCustomerId = await findOrCreateCustomerForBooking(db, {
+        email: bookingRow.email,
+        name: bookingRow.full_name,
+        phone: bookingRow.phone,
+        actorUserId: null,
+    });
+
+    // Flip booking to paid (now also sets customer_id from dual-write resolution)
     await db.prepare(
         `UPDATE bookings SET
             status = 'paid',
             paid_at = ?,
-            stripe_payment_intent = ?
+            stripe_payment_intent = ?,
+            customer_id = ?
          WHERE id = ?`
-    ).bind(now, session.payment_intent || null, bookingRow.id).run();
+    ).bind(now, session.payment_intent || null, resolvedCustomerId, bookingRow.id).run();
 
     // Insert attendee rows. Phase C annual-renewal: for each new attendee,
     // check for an existing non-expired waiver matching by (email, full name).
@@ -118,8 +133,8 @@ async function handleCheckoutCompleted(db, session) {
             `INSERT INTO attendees (
                 id, booking_id, ticket_type_id,
                 first_name, last_name, email, phone,
-                qr_token, created_at, custom_answers_json, waiver_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                qr_token, created_at, custom_answers_json, waiver_id, customer_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
             newAttendeeId,
             bookingRow.id,
@@ -132,6 +147,7 @@ async function handleCheckoutCompleted(db, session) {
             now,
             a.customAnswers && Object.keys(a.customAnswers).length ? JSON.stringify(a.customAnswers) : null,
             linkedWaiverId,
+            resolvedCustomerId,
         ).run();
 
         if (linkedWaiverId) {
@@ -179,6 +195,10 @@ async function handleCheckoutCompleted(db, session) {
         JSON.stringify({ stripe_session_id: sessionId, total_cents: bookingRow.total_cents }),
         now,
     ).run();
+
+    // M3 B5 dual-write: refresh denormalized aggregates (LTV, totals,
+    // first/last_booking_at). No-op when resolvedCustomerId is null.
+    await recomputeCustomerDenormalizedFields(db, resolvedCustomerId);
 
     console.log(`Booking ${bookingRow.id} marked paid (${pendingAttendees.length} attendees)`);
 

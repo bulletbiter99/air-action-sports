@@ -116,6 +116,17 @@
         "tests/unit/admin/refund-idempotency-key.test.js",
         "tests/unit/admin/refund-rejects-cash.test.js"
       ]
+    },
+    "worker/lib/customers.js": {
+      "tier": "critical",
+      "covers": [
+        "findOrCreateCustomerForBooking",
+        "recomputeCustomerDenormalizedFields"
+      ],
+      "audit_group": "(M3 B5 dual-write helpers)",
+      "tests": [
+        "tests/unit/lib/customers.test.js"
+      ]
     }
   },
   "uncovered": {

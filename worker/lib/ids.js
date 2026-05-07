@@ -52,6 +52,10 @@ export function feedbackId() {
     return `fb_${randomId(12)}`;
 }
 
+export function customerId() {
+    return `cus_${randomId(14)}`;
+}
+
 // Turn "Operation Nightfall" into "operation-nightfall". Returns a safe slug
 // (lowercase, hyphen-separated, alnum only). Falls back to random if empty.
 export function slugify(input) {
