@@ -236,3 +236,101 @@ Plus the **lint config gap** (audit pain-point #8 — eslint.config.js missing) 
 1. `npx playwright install chromium` (downloads the Chrome binary used by `npm run test:e2e`).
 2. Run the smoke suite once against production: `npm run test:e2e` — should be 6/7 passing (#79 skipped without `E2E_TEST_EVENT_SLUG`).
 3. Optional: tighten #79 by exporting `E2E_TEST_EVENT_SLUG=operation-nightfall` and re-running.
+
+### Milestone 2 — Shared Primitives + Cross-Route Fix (✓ all batches merged on milestone branch 2026-05-07; ready to merge to main)
+
+**Status: closed on milestone branch.** The long-lived branch `milestone-2-shared-primitives` carries 11 squashed batch SHAs ready for the milestone-to-main merge per [docs/runbooks/m2-deploy.md](docs/runbooks/m2-deploy.md). Sub-branches used flat `m2-batch-N-slug` naming (the M2 prompt's `milestone/2-shared-primitives/batch-N` form was rejected — git ref path collision; same workaround as M1).
+
+The milestone shipped **+255 vitest unit tests across +16 new files** (216 M1 baseline → 471), six new gated paths in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json), six shared admin primitives ready for M3+ reuse, the closure of the cross-route smell from audit §08 #7, and the feature-flag substrate end-to-end (lib + admin route + density toggle UI).
+
+**Per-batch operating rules used during M2** (same as M1):
+- Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing.
+- One commit per sub-PR. Conventional Commits with `m2-<area>` scope.
+- 10-file cap per PR. Hard rule. Splits used: B3 → 3a/3b, B4 → 4a/4b, B5 → 5a/5b/5c.
+- No `--force` ever. No rebases on shared branches. No direct commits to `main` or `milestone-2-shared-primitives`.
+- All tests use mocks (Vitest + mockD1 + mockEnv + mockStripe + mockResend). No live D1 / Stripe / Resend / `wrangler deploy` from Claude.
+- **No remote D1 migration apply from Claude.** Migration `0021_feature_flags.sql` ships in repo only; operator applies via `npx wrangler d1 migrations apply --remote` after milestone merges to main (see [m2-deploy.md](docs/runbooks/m2-deploy.md)).
+- Stop-and-ask if a do-not-touch file appears to need editing or a test reveals current behavior conflicting with audit-documented behavior.
+
+**Final batch table (all 11 merged on milestone; milestone → main merge SHA TBD post-merge per [m2-deploy.md](docs/runbooks/m2-deploy.md)):**
+
+| Batch | What it ships | Squash on milestone | PR |
+|---|---|---|---|
+| **B1** FilterBar primitive + AdminFeedback proof (7 files) | `src/components/admin/FilterBar.{jsx,css}`, `src/hooks/useFilterState.js`, `src/hooks/useSavedViews.js`, 2 tests, AdminFeedback.jsx refactor | `658e95b` | [#16](https://github.com/bulletbiter99/air-action-sports/pull/16) |
+| **B2** writeAudit() helper + 5 admin call sites (4 files) | `worker/lib/auditLog.js` + test; refactored users.js (3 sites) + emailTemplates.js (2 sites) | `2cf1485` | [#17](https://github.com/bulletbiter99/air-action-sports/pull/17) |
+| **B3a** Money helpers + 6 admin sites (9 files) | `src/utils/money.js`, `worker/lib/money.js`, dual-import test (66 tests), 6 admin pages refactored | `1d3ed98` | [#18](https://github.com/bulletbiter99/air-action-sports/pull/18) |
+| **B3b** Email helpers + 4 admin sites (6 files) | `src/utils/email.js`, `worker/lib/email.js` extended, dual-import test (76 tests), 3 admin route files refactored | `f35a0ec` | [#19](https://github.com/bulletbiter99/air-action-sports/pull/19) |
+| **B4a** `findExistingValidWaiver` relocation [CRITICAL] (4 files) | `worker/lib/waiverLookup.js` (verbatim copy), webhooks.js (def removed + shim re-export), admin/bookings.js (new import path), gate map updated | `683f4a6` | [#20](https://github.com/bulletbiter99/air-action-sports/pull/20) |
+| **B4b** Re-target Group D test imports + drop shim (10 files) | 9 test files retargeted, webhooks.js shim removed | `36fda2b` | [#21](https://github.com/bulletbiter99/air-action-sports/pull/21) |
+| **B5a** Feature-flag substrate (4 files) | `migrations/0021_feature_flags.sql` (operator-applies-remote), `worker/lib/featureFlags.js` (isEnabled/listFlags/setUserOverride with graceful table-missing handling), 27+7 tests | `5e1f568` | [#22](https://github.com/bulletbiter99/air-action-sports/pull/22) |
+| **B5b** Feature-flag admin route + client hook (5 files) | `worker/routes/admin/featureFlags.js` (GET list / PUT override), worker/index.js mount, `src/admin/useFeatureFlag.js`, `tests/helpers/adminSession.js`, 7 route tests | `95983f4` | [#24](https://github.com/bulletbiter99/air-action-sports/pull/24) |
+| **B5c** Design tokens + density toggle UI (6 files) | `src/styles/tokens.css` (new), `src/styles/admin.css` (refactor — zero pixel diff target verified), AdminLayout.jsx (data-density attr), AdminSettings.jsx (toggle UI), useFeatureFlag.js extended (exists + setFeatureFlagOverride), 3 helper tests | `a6ab6e9` | [#25](https://github.com/bulletbiter99/air-action-sports/pull/25) |
+| **B6** Group E admin booking characterization tests (9 files) | `tests/helpers/adminBookingFixture.js` (new) + 7 audit tests (E47-E53) for `worker/routes/admin/bookings.js` (manual cash/comp/card branches, pricing parity, auto-link, refund Idempotency-Key, refund-rejects-cash) + gate map promotion | `d40e099` | [#26](https://github.com/bulletbiter99/air-action-sports/pull/26) |
+| **B7** Closing: rollback + deploy + baseline coverage runbooks + final docs (5 files) | `docs/runbooks/m2-{rollback,deploy,baseline-coverage}.{md,txt}`, CLAUDE.md + HANDOFF.md M2 closed-state update | `<TBD-after-this-batch>` | `<TBD>` |
+| **milestone → main** | merge commit per [m2-deploy.md](docs/runbooks/m2-deploy.md) (preserves per-batch SHAs) | `<TBD-after-milestone-merge>` | `<TBD>` |
+
+**Final test count:** 471 unit tests across 70 files (216 M1 baseline + 255 new across M2 batches 1–6) + 7 Playwright smoke tests scaffolded across 3 files (M1) = **478 tests across 73 files**.
+
+- M1 carryover: 216 unit tests (sanity / pricing / webhook / waiver / auto-link)
+- B1 FilterBar: +45
+- B2 writeAudit: +16
+- B3a money: +66 (33 per target × 2 targets — client + worker mirror)
+- B3b email: +76 (38 per target × 2 targets)
+- B4a/4b: 0 (relocation; same 25 Group D tests, just retargeted import paths)
+- B5a feature-flags: +34 (27 main + 7 readiness)
+- B5b feature-flag route: +7
+- B5c density toggle: +3
+- B6 admin booking: +8 (7 audit-prescribed E47-E53 + 1 sibling negative case for auto-link)
+
+Audit Groups F (auth), G (worker-level), H (cron) remain **deferred to post-M2** — see `uncovered` in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) for the punch list.
+
+**Gated paths after M2** (in `scripts/test-gate-mapping.json gates`):
+- `worker/lib/pricing.js` (M1)
+- `worker/lib/stripe.js` (M1, signature subset)
+- `worker/routes/webhooks.js` (M1)
+- `worker/routes/waivers.js` (M1)
+- `worker/lib/waiverLookup.js` (NEW M2 B4a/4b)
+- `worker/routes/admin/bookings.js` (NEW M2 B6 — promoted from `uncovered`)
+
+**Operator-applies-remote action queued for M2 deploy:**
+After M2 merges to main, operator runs `npx wrangler d1 migrations apply air-action-sports-db --remote` to apply `migrations/0021_feature_flags.sql`. Until then, `worker/lib/featureFlags.js` returns `false`/`[]` gracefully on missing tables — the density toggle UI in B5c is hidden until migration applies. Documented in [docs/runbooks/m2-deploy.md](docs/runbooks/m2-deploy.md).
+
+**Critical do-not-touch handled in M2:**
+- B4a/4b moved `findExistingValidWaiver` from `worker/routes/webhooks.js` to `worker/lib/waiverLookup.js`. The function body is **byte-identical** to the original; only its location changed. Group D's 25 characterization tests pass identically. The cross-route import smell from audit §08 #7 is fully closed.
+- B2/B3a/B3b refactors only touched admin-side surfaces. Public-side files (Booking.jsx, Waiver.jsx, feedback.js, pricing.js, webhooks.js's webhook handler logic) are untouched.
+- B5b adds one route mount line to `worker/index.js` alongside the existing 17 admin mounts. The DNT-listed functions in worker/index.js (`serveUpload`, `rewriteEventOg`, `scheduled`, `withSecurityHeaders`) are untouched.
+
+**Conventions established / used during M2** (preserved as a template for the next milestone):
+- Conventional Commits with `m2-<area>` scope: `feat`, `refactor`, `test`, `chore`, `docs`.
+- Sub-branches: flat `m2-batch-N-slug` (NOT nested under `milestone-2-shared-primitives/...` — git ref path collision avoided, same as M1).
+- Dual-target testing pattern (B3a money, B3b email): `tests/unit/utils/<helper>.test.js` imports BOTH `src/utils/<helper>.js` AND `worker/lib/<helper>.js`, runs identical suite against each. Proves "same logic, same return shape" required when client + worker can't share code (Vite bundles src/ for SPA only).
+- Audit-log helper API: `writeAudit(env, { userId, action, targetType, targetId, meta, ipAddress? })`. The optional `ipAddress` selects between 6-col (admin routes) and 7-col (webhook + waivers) shape; M3+ refactors of those flows use the same helper.
+- Feature-flag lib API: `isEnabled(env, flagKey, user)`, `listFlags(env, user)`, `setUserOverride(env, flagKey, userId, enabled)`. Reads degrade gracefully on missing tables; writes throw loudly. 4 flag states: off/on/user_opt_in/role_scoped.
+- Feature-flag client API: `useFeatureFlag(key) → { enabled, exists, loading, refresh }` with module-level fetch cache. `setFeatureFlagOverride(key, enabled)` issues PUT + busts cache. Hide UI when `!exists` (graceful migration-unapplied state).
+- CSS density tokens: `:root` block at default values + `[data-density="compact"]` override block. Zero pixel diff at default verified via dev-server `getComputedStyle` probe.
+- Reusable test helpers: `adminSession.js` (cookie minting + user-row lookup binding) used by 7 admin route tests in B5b + 8 admin booking tests in B6. Same M1 helper-extraction pattern as `webhookFixture.js`/`waiverFixture.js`.
+
+**Resume the milestone in a fresh session (if any post-merge fix-up needed):**
+1. `git checkout milestone-2-shared-primitives && git pull origin milestone-2-shared-primitives`
+2. `npm install`
+3. `npm test` — confirm 471/471 passing
+4. Read this section + the relevant batch's row in the table above
+5. Use the post-merge SHA fill-in step in [m2-deploy.md](docs/runbooks/m2-deploy.md) for the small follow-up doc PR after milestone merges.
+
+**M2 stop-and-ask conditions** (preserved here as a checklist for any future related work):
+- A do-not-touch file needs modification beyond Batch 4's documented relocation (which is now complete).
+- A test fails after a refactor that should be behavior-preserving (signals real drift; investigate, don't "fix" the test).
+- Coverage on protected files drops from M2 baseline (per [docs/runbooks/m2-baseline-coverage.txt](docs/runbooks/m2-baseline-coverage.txt)).
+- A dependency missing from `package.json` that the original code path requires.
+
+**Post-M2 — what's next:**
+
+The audit prescribed 83 characterization tests across Groups A–I. M1 landed Groups A, B, C, D, and I (smoke scaffolded). M2 landed Group E. **Groups F, G, H remain deferred** — see the `uncovered` section of [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json):
+
+- **Group F** — auth (audit F54–F64): `worker/lib/auth.js` (verifyPassword, hashPassword, requireAuth, requireRole), `worker/lib/vendorToken.js`.
+- **Group G** — worker-level (audit G65–G70): `worker/index.js` serveUpload, rewriteEventOg.
+- **Group H** — cron (audit H71–H76): `worker/index.js` scheduled handler.
+
+Plus the **lint config gap** (audit pain-point #8 — eslint.config.js missing) so the CI lint step can become blocking.
+
+The admin-overhaul work (Phase 2 broader goal — see [docs/audit/10-open-questions.md](docs/audit/10-open-questions.md) #13) builds on M2's shared primitives. M3+ planning awaits operator decision on Phase 2 direction.

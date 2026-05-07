@@ -1,0 +1,168 @@
+# M2 baseline coverage snapshot
+# Captured 2026-05-07T02:24Z (UTC)
+# Branch:  m2-batch-7-closing (off milestone-2-shared-primitives at d40e099)
+# Tip seq: B1 658e95b → B2 2cf1485 → B3a 1d3ed98 → B3b f35a0ec
+#          → B4a 683f4a6 → B4b 36fda2b → B5a 5e1f568 → B5b 95983f4
+#          → B5c a6ab6e9 → B6 d40e099 → B7 (this batch — pre-merge)
+# Command: npx vitest run --coverage --reporter=basic --silent
+# Notes:
+#   - Strip ANSI color codes via `sed 's/\x1b\[[0-9;]*[mGKH]//g'`
+#   - 471 tests across 70 files (M1 baseline was 216 across 54 — M2 added
+#     255 tests across 16 new files plus expanded coverage of existing
+#     gated paths).
+#   - Gated paths in scripts/test-gate-mapping.json — their %Stmts is the
+#     regression-detection floor for the next milestone:
+#       worker/lib/pricing.js              98.84  (M1 baseline 95.95 — up)
+#       worker/lib/stripe.js               93.93  (M1 baseline 56.06 — up;
+#                                                  admin booking tests
+#                                                  exercise createCheckoutSession + issueRefund)
+#       worker/routes/webhooks.js          91.17  (M1 baseline 91.08 — same)
+#       worker/routes/waivers.js           93.61  (M1 baseline 93.61 — same)
+#       worker/lib/waiverLookup.js          100   (NEW gate, B4a/4b)
+#       worker/lib/featureFlags.js          100   (NEW gate, B5a)
+#       worker/routes/admin/featureFlags    100   (NEW, B5b)
+#       worker/routes/admin/bookings.js    71.11  (NEW gate, B6 — Group E
+#                                                  characterization tests)
+#   - Files with NEW non-gate coverage gains from M2:
+#       worker/lib/auditLog.js             100    (B2 writeAudit helper)
+#       worker/lib/email.js                94.64  (B3b email helpers)
+#       worker/lib/money.js                100    (B3a money helpers; mirror
+#                                                  of src/utils/money.js)
+#   - Files at <30% are still deferred to a future milestone (audit Groups
+#     F/G/H — see scripts/test-gate-mapping.json `uncovered`).
+
+ RUN  v2.1.9 C:/Users/bulle/OneDrive/Desktop/Claude Code Projects/action-air-sports/.claude/worktrees/zealous-nobel-9c4cfc
+      Coverage enabled with v8
+
+ ✓ tests/unit/pricing/cents-precision.test.js (5 tests) 3ms
+ ✓ tests/unit/pricing/line-items-shape.test.js (6 tests) 5ms
+ ✓ tests/unit/pricing/percent-tax-fixed-fee.test.js (5 tests) 3ms
+ ✓ tests/unit/pricing/applies-to-tickets.test.js (4 tests) 3ms
+ ✓ tests/unit/pricing/multi-ticket-with-addon.test.js (7 tests) 4ms
+ ✓ tests/unit/pricing/min-max-per-order.test.js (8 tests) 4ms
+ ✓ tests/unit/pricing/applies-to-all.test.js (4 tests) 3ms
+ ✓ tests/unit/lib/featureFlags.test.js (27 tests) 9ms
+ ✓ tests/unit/lib/auditLog.test.js (16 tests) 8ms
+ ✓ tests/unit/pricing/inactive-fee-excluded.test.js (4 tests) 6ms
+ ✓ tests/unit/admin/featureFlags-readiness.test.js (7 tests) 6ms
+ ✓ tests/unit/utils/email.test.js (76 tests) 16ms
+ ✓ tests/unit/pricing/percent-fee-on-percent-tax.test.js (3 tests) 3ms
+ ✓ tests/unit/utils/money.test.js (66 tests) 13ms
+ ✓ tests/unit/pricing/per-unit-multipliers.test.js (6 tests) 4ms
+ ✓ tests/unit/hooks/useFilterState.test.js (22 tests) 6ms
+ ✓ tests/unit/webhook/signature-constant-time.test.js (4 tests) 9ms
+ ✓ tests/unit/webhook/signature-verify-multi-v1.test.js (5 tests) 12ms
+ ✓ tests/unit/components/FilterBar.test.js (23 tests) 11ms
+ ✓ tests/unit/pricing/capacity-errors.test.js (6 tests) 5ms
+ ✓ tests/unit/webhook/signature-verify-invalid.test.js (8 tests) 12ms
+ ✓ tests/unit/webhook/signature-verify-stale.test.js (5 tests) 9ms
+ ✓ tests/unit/pricing/empty-cart.test.js (5 tests) 5ms
+ ✓ tests/unit/pricing/single-ticket-no-addon.test.js (5 tests) 7ms
+ ✓ tests/unit/pricing/promo-fixed.test.js (6 tests) 4ms
+ ✓ tests/unit/pricing/promo-percent.test.js (5 tests) 4ms
+ ✓ tests/unit/auto-link/cross-flow-consistency.test.js (2 tests) 4ms
+ ✓ tests/unit/auto-link/match-by-email-and-name.test.js (3 tests) 5ms
+ ✓ tests/unit/auto-link/sibling-different-name-no-match.test.js (2 tests) 3ms
+ ✓ tests/unit/auto-link/null-inputs-return-null.test.js (5 tests) 4ms
+ ✓ tests/unit/waiver/already-signed-409.test.js (3 tests) 54ms
+ ✓ tests/unit/waiver/audit-log-waiver-signed.test.js (4 tests) 49ms
+ ✓ tests/unit/waiver/age-tier-12-15-requires-parent-and-supervisor.test.js (7 tests) 54ms
+ ✓ tests/unit/waiver/row-claim-period.test.js (3 tests) 63ms
+ ✓ tests/unit/waiver/integrity-fail-on-get.test.js (3 tests) 53ms
+ ✓ tests/unit/waiver/row-doc-link-and-snapshot.test.js (4 tests) 61ms
+ ✓ tests/unit/waiver/row-tier-flags.test.js (4 tests) 63ms
+ ✓ tests/unit/waiver/signature-must-match-name.test.js (4 tests) 69ms
+ ✓ tests/unit/webhook/email-send-confirmation.test.js (3 tests) 63ms
+ ✓ tests/unit/webhook/attendee-creation.test.js (4 tests) 67ms
+ ✓ tests/unit/webhook/audit-log-emission.test.js (4 tests) 71ms
+ ✓ tests/unit/webhook/idempotency-already-paid.test.js (2 tests) 72ms
+ ✓ tests/unit/admin/feature-flags-route.test.js (7 tests) 74ms
+ ✓ tests/unit/webhook/ticket-types-sold-increment.test.js (4 tests) 75ms
+ ✓ tests/unit/webhook/email-send-admin-notify.test.js (3 tests) 69ms
+ ✓ tests/unit/waiver/jury-trial-initials-required.test.js (4 tests) 46ms
+ ✓ tests/unit/webhook/promo-uses-increment.test.js (4 tests) 78ms
+ ✓ tests/unit/admin/manual-comp.test.js (1 test) 58ms
+ ✓ tests/unit/admin/manual-pricing-parity.test.js (1 test) 60ms
+ ✓ tests/unit/admin/manual-auto-link.test.js (2 tests) 63ms
+ ✓ tests/unit/admin/manual-card.test.js (1 test) 60ms
+ ✓ tests/unit/admin/manual-cash.test.js (1 test) 62ms
+ ✓ tests/unit/webhook/waiver-auto-link-on-paid.test.js (4 tests) 72ms
+ ✓ tests/unit/admin/refund-idempotency-key.test.js (1 test) 58ms
+ ✓ tests/unit/waiver/age-tier-under-12-blocked.test.js (2 tests) 56ms
+ ✓ tests/unit/waiver/integrity-fail-on-post.test.js (2 tests) 53ms
+ ✓ tests/unit/auto-link/expired-claim-period-no-match.test.js (3 tests) 4ms
+ ✓ tests/unit/auto-link/whitespace-tolerant-name.test.js (3 tests) 4ms
+ ✓ tests/unit/waiver/attendee-waiver-id-set.test.js (2 tests) 54ms
+ ✓ tests/unit/health.test.js (3 tests) 42ms
+ ✓ tests/unit/webhook/unknown-event-type.test.js (6 tests) 57ms
+ ✓ tests/unit/auto-link/claim-period-required.test.js (2 tests) 3ms
+ ✓ tests/unit/auto-link/case-insensitive-email.test.js (3 tests) 4ms
+ ✓ tests/unit/auto-link/latest-by-signed-at.test.js (2 tests) 2ms
+ ✓ tests/unit/webhook/signature-verify-valid.test.js (3 tests) 7ms
+ ✓ tests/unit/hooks/useFeatureFlag.test.js (3 tests) 5ms
+ ✓ tests/unit/waiver/erecords-consent-required.test.js (3 tests) 41ms
+ ✓ tests/unit/admin/refund-rejects-cash.test.js (1 test) 36ms
+ ✓ tests/unit/waiver/age-tier-16-17-requires-parent-only.test.js (3 tests) 33ms
+ ✓ tests/unit/waiver/age-tier-18-plus-independent.test.js (2 tests) 31ms
+
+ Test Files  70 passed (70)
+      Tests  471 passed (471)
+   Start at  20:24:16
+   Duration  2.25s (transform 2.31s, setup 1.38s, collect 22.00s, tests 2.13s, environment 19ms, prepare 9.78s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------|---------|----------|---------|---------|-------------------
+All files          |    35.9 |    74.23 |    35.5 |    35.9 |
+ worker            |   34.78 |       60 |   28.57 |   34.78 |
+  index.js         |   34.78 |       60 |   28.57 |   34.78 | ...38-548,557-596
+ worker/lib        |   70.71 |    80.71 |   49.48 |   70.71 |
+  auditLog.js      |     100 |     82.6 |     100 |     100 | 28,65-66,76
+  auth.js          |      65 |       70 |   66.66 |      65 | 19-20,30-31,37-46
+  bodyGuard.js     |   85.18 |    14.28 |     100 |   85.18 | ...35,39-40,45-46
+  email.js         |   94.64 |       80 |     100 |   94.64 | 62-64
+  emailSender.js   |   51.95 |    53.65 |   38.46 |   51.95 | ...59-271,274-293
+  featureFlags.js  |     100 |    94.23 |     100 |     100 | 28,122,161
+  formatters.js    |     9.3 |    33.33 |      25 |     9.3 | 4-36,39-57,60-85
+  ids.js           |   55.35 |      100 |   30.76 |   55.35 | ...53,58-66,69-70
+  magicBytes.js    |   34.69 |      100 |       0 |   34.69 | 7-29,33-41
+  money.js         |     100 |    96.42 |     100 |     100 | 50
+  password.js      |   16.98 |      100 |       0 |   16.98 | 11-14,17-58
+  pricing.js       |   98.84 |    90.66 |      75 |   98.84 | 188-189
+  rateLimit.js     |   88.63 |       40 |     100 |   88.63 | 31-32,34-36
+  session.js       |   91.78 |    74.07 |      80 |   91.78 | 36-37,39-40,50-51
+  stripe.js        |   93.93 |    89.47 |   85.71 |   93.93 | 27-32,70-71
+  templates.js     |     100 |       70 |     100 |     100 | 18,23,26
+  vendorSession.js |   15.78 |      100 |       0 |   15.78 | ...31,34-35,37-62
+  vendorToken.js   |   24.24 |      100 |       0 |   24.24 | 14-22,28-70
+  waiverLookup.js  |     100 |      100 |     100 |     100 |
+ worker/routes     |   38.71 |    73.78 |   36.84 |   38.71 |
+  bookings.js      |    10.2 |      100 |       0 |    10.2 | ...56-337,342-379
+  events.js        |    16.3 |      100 |     100 |    16.3 | 7-51,55-80,84-89
+  feedback.js      |   23.35 |      100 |       0 |   23.35 | ...6,81-89,92-164
+  taxesFees.js     |   58.82 |      100 |     100 |   58.82 | 8-14
+  vendor.js        |   15.21 |      100 |       0 |   15.21 | ...91-367,375-411
+  vendorAuth.js    |   21.26 |      100 |       0 |   21.26 | ...49-159,167-221
+  waivers.js       |   93.61 |     71.9 |     100 |   93.61 | ...68-169,171-172
+  webhooks.js      |   91.17 |    79.06 |     100 |   91.17 | ...55,70-72,85-87
+ ...r/routes/admin |   23.93 |     48.8 |    2.56 |   23.93 |
+  analytics.js     |    13.7 |      100 |     100 |    13.7 | ...98-224,234-267
+  attendees.js     |   16.73 |      100 |     100 |   16.73 | ...32-201,206-236
+  auditLog.js      |   20.93 |      100 |       0 |   20.93 | 11-71,76-79,82-84
+  auth.js          |   23.52 |      100 |     100 |   23.52 | ...28-272,278-286
+  bookings.js      |   71.11 |    45.56 |     100 |   71.11 | ...46-476,480-492
+  ...lTemplates.js |   20.83 |      100 |       0 |   20.83 | ...77-120,127-165
+  eventVendors.js  |   15.34 |      100 |       0 |   15.34 | ...21-583,588-616
+  events.js        |   10.18 |      100 |       0 |   10.18 | ...23-653,657-679
+  featureFlags.js  |     100 |      100 |     100 |     100 |
+  feedback.js      |   19.06 |      100 |       0 |   19.06 | ...37-253,258-275
+  promoCodes.js    |   14.92 |      100 |       0 |   14.92 | ...44-174,179-198
+  rentals.js       |   14.75 |      100 |       0 |   14.75 | ...27-362,369-390
+  taxesFees.js     |   19.62 |      100 |       0 |   19.62 | ...,66-98,102-104
+  uploads.js       |   22.22 |      100 |       0 |   22.22 | ...50-251,256-267
+  users.js         |   18.75 |      100 |       0 |   18.75 | ...19-135,141-189
+  ...rContracts.js |   33.03 |      100 |       0 |   33.03 | ...,90-93,100-109
+  vendors.js       |   18.91 |      100 |       0 |   18.91 | ...57-287,293-309
+  ...rDocuments.js |   35.96 |      100 |       0 |   35.96 | ...,91-94,102-111
+-------------------|---------|----------|---------|---------|-------------------
