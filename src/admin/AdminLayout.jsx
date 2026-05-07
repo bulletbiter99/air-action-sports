@@ -11,6 +11,7 @@ import {
     saveSidebarExpand,
 } from './sidebarConfig.js';
 import CheckInBanner from './CheckInBanner.jsx';
+import CommandPalette from './CommandPalette.jsx';
 import '../styles/admin.css';
 
 // Sidebar grouped by operational rhythm: setup → event-day → review → admin.
@@ -71,8 +72,28 @@ function AdminShell() {
   // M4 B6 — CheckInBanner gates on the same flag as the dashboard +
   // sidebar reorg. Single flip migrates everything together.
   const { enabled: newAdminDashboard } = useFeatureFlag('new_admin_dashboard');
+  // M4 B7 — Command palette has its own flag so it can roll out
+  // independently of the new admin shell. Cmd+K listener + modal
+  // mount only when on.
+  const { enabled: cmdkEnabled } = useFeatureFlag('command_palette');
+  const [cmdkOpen, setCmdkOpen] = useState(false);
 
   useEffect(() => { setDrawerOpen(false); }, [loc.pathname]);
+
+  // M4 B7 — global Cmd+K / Ctrl+K opens the command palette. Ignored
+  // when the flag is off. preventDefault wins the race against
+  // browser bindings (Firefox uses Cmd+K for quick search).
+  useEffect(() => {
+    if (!cmdkEnabled) return undefined;
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setCmdkOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [cmdkEnabled]);
 
   if (!showChrome) {
     return (
@@ -96,6 +117,7 @@ function AdminShell() {
         <Outlet />
       </main>
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} defaultEmail={user?.email || ''} />
+      {cmdkEnabled && <CommandPalette open={cmdkOpen} onClose={() => setCmdkOpen(false)} />}
     </div>
   );
 }
