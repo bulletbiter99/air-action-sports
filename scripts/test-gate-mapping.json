@@ -224,6 +224,41 @@
         "tests/unit/worker/rewriteEventOg.test.js",
         "tests/unit/worker/scheduled.test.js"
       ]
+    },
+    "worker/routes/admin/dashboard.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/today/active (activeEventToday / eventId / checkInOpen response shape — contract for B5 sidebar + B6 banner)"
+      ],
+      "audit_group": "(M4 B4b persona dashboard foundation)",
+      "tests": [
+        "tests/unit/admin/today-active.test.js"
+      ]
+    },
+    "src/hooks/useWidgetData.js": {
+      "tier": "high",
+      "covers": [
+        "intervalForTier (cadence rule: 5min default / 30s on event day / 10s during check-in)",
+        "useTodayActive (shared module-level subscription)",
+        "useWidgetData (fetch + poll + visibility-aware)"
+      ],
+      "audit_group": "(M4 B4b persona dashboard foundation)",
+      "tests": [
+        "tests/unit/hooks/useWidgetData.test.js"
+      ]
+    },
+    "src/admin/personaLayouts.js": {
+      "tier": "high",
+      "covers": [
+        "PERSONA_LAYOUTS registry (6 persona enum values per migration 0028 + decision D08)",
+        "resolveLayout (read user.persona; alias-only personas fall back to roleDerivedDefault)",
+        "roleDerivedDefault (role → widget set fallback)",
+        "personaLabel (display name for all 6 personas + legacy role compat)"
+      ],
+      "audit_group": "(M4 B4b persona dashboard foundation)",
+      "tests": [
+        "tests/unit/admin/personaLayouts.test.js"
+      ]
     }
   },
   "uncovered": {

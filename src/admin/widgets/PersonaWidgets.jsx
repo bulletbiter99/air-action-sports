@@ -1,21 +1,28 @@
 // M3 Batch 9 — widget components for the persona-tailored AdminDashboard.
+// M4 B4b — wrapped each widget in useWidgetData for cadence-aware refresh.
 //
 // Each widget is a self-contained component that fetches its own data
-// from existing admin endpoints. The shell (AdminDashboardPersona)
-// renders them per the role-keyed PERSONA_LAYOUTS array in
-// personaLayouts.js. To add a widget, implement it here and register
-// it in WIDGETS at the bottom; to add it to a persona, append the key
-// to that persona's array in personaLayouts.js.
+// from existing admin endpoints via useWidgetData (src/hooks/useWidgetData.js).
+// The shell (AdminDashboardPersona) renders them per the persona-keyed
+// PERSONA_LAYOUTS array in personaLayouts.js. To add a widget, implement
+// it here and register it in WIDGETS at the bottom; to add it to a
+// persona, append the key to that persona's array in personaLayouts.js.
+//
+// Cadence tiers (per useWidgetData):
+//   tier='static'  — fetch once on mount, no polling. Use when data is
+//                    aggregate / slow-moving (RevenueSummary, CronHealth).
+//   tier='live'    — 5min default → 30s on event day → 10s during check-in.
+//                    Use when data shifts intra-day (TodayEvents, RecentBookings).
 //
 // API endpoints consumed (all admin-cookie-authenticated):
-//   /api/admin/analytics/overview     → RevenueSummary + TodayEvents counts
+//   /api/admin/analytics/overview     → RevenueSummary
 //   /api/admin/analytics/cron-status  → CronHealth
-//   /api/admin/events?include_past=0  → TodayEvents (filtered to today)
+//   /api/admin/events                 → TodayEvents (client-filters to today)
 //   /api/admin/bookings?limit=5       → RecentBookings
 
-import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { formatMoney } from '../../utils/money.js';
+import { useWidgetData } from '../../hooks/useWidgetData.js';
 
 // ────────────────────────────────────────────────────────────────────
 // RevenueSummary — net / gross / refunded across all time
@@ -23,17 +30,10 @@ import { formatMoney } from '../../utils/money.js';
 // ────────────────────────────────────────────────────────────────────
 
 export function RevenueSummary() {
-    const [data, setData] = useState(null);
-    const [err, setErr] = useState(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        fetch('/api/admin/analytics/overview', { credentials: 'include', cache: 'no-store' })
-            .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-            .then((j) => { if (!cancelled) setData(j); })
-            .catch((e) => { if (!cancelled) setErr(String(e.message || e)); });
-        return () => { cancelled = true; };
-    }, []);
+    const { data, error: err } = useWidgetData(
+        '/api/admin/analytics/overview',
+        { tier: 'static' },
+    );
 
     return (
         <section className="admin-persona-widget admin-persona-widget--revenue">
@@ -67,17 +67,10 @@ export function RevenueSummary() {
 // ────────────────────────────────────────────────────────────────────
 
 export function CronHealth() {
-    const [data, setData] = useState(null);
-    const [err, setErr] = useState(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        fetch('/api/admin/analytics/cron-status', { credentials: 'include', cache: 'no-store' })
-            .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-            .then((j) => { if (!cancelled) setData(j); })
-            .catch((e) => { if (!cancelled) setErr(String(e.message || e)); });
-        return () => { cancelled = true; };
-    }, []);
+    const { data, error: err } = useWidgetData(
+        '/api/admin/analytics/cron-status',
+        { tier: 'static' },
+    );
 
     const stale = data && (data.lastSweepAgeMs == null || data.lastSweepAgeMs > 60 * 60 * 1000);
     const status = err ? 'error' : !data ? 'loading' : stale ? 'stale' : 'fresh';
@@ -109,25 +102,19 @@ export function CronHealth() {
 // ────────────────────────────────────────────────────────────────────
 
 export function TodayEvents() {
-    const [events, setEvents] = useState(null);
-    const [err, setErr] = useState(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        fetch('/api/admin/events', { credentials: 'include', cache: 'no-store' })
-            .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-            .then((j) => {
-                if (cancelled) return;
-                const today = ymdLocal(new Date());
-                const list = (j.events || []).filter((e) => {
-                    if (!e.dateIso) return false;
-                    return ymdLocal(new Date(e.dateIso)) === today;
-                });
-                setEvents(list);
-            })
-            .catch((e) => { if (!cancelled) setErr(String(e.message || e)); });
-        return () => { cancelled = true; };
-    }, []);
+    const { data: rawData, error: err } = useWidgetData(
+        '/api/admin/events',
+        { tier: 'live' },
+    );
+    // Client-side filter to today; data refreshes on cadence-driven re-fetch
+    // so the filter stays current as the day rolls.
+    const today = ymdLocal(new Date());
+    const events = rawData
+        ? (rawData.events || []).filter((e) => {
+            if (!e.dateIso) return false;
+            return ymdLocal(new Date(e.dateIso)) === today;
+        })
+        : null;
 
     return (
         <section className="admin-persona-widget admin-persona-widget--events">
@@ -164,17 +151,11 @@ export function TodayEvents() {
 // ────────────────────────────────────────────────────────────────────
 
 export function RecentBookings() {
-    const [bookings, setBookings] = useState(null);
-    const [err, setErr] = useState(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        fetch('/api/admin/bookings?limit=5', { credentials: 'include', cache: 'no-store' })
-            .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-            .then((j) => { if (!cancelled) setBookings(j.bookings || []); })
-            .catch((e) => { if (!cancelled) setErr(String(e.message || e)); });
-        return () => { cancelled = true; };
-    }, []);
+    const { data: rawData, error: err } = useWidgetData(
+        '/api/admin/bookings?limit=5',
+        { tier: 'live' },
+    );
+    const bookings = rawData ? (rawData.bookings || []) : null;
 
     return (
         <section className="admin-persona-widget admin-persona-widget--bookings">
