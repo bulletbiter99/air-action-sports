@@ -228,11 +228,25 @@
     "worker/routes/admin/dashboard.js": {
       "tier": "high",
       "covers": [
-        "GET /api/admin/today/active (activeEventToday / eventId / checkInOpen response shape — contract for B5 sidebar + B6 banner)"
+        "GET /api/admin/today/active (activeEventToday / eventId / checkInOpen response shape — contract for B5 sidebar + B6 banner)",
+        "GET /api/admin/dashboard/upcoming-readiness (top-3 events with capacity + waiver pct — M4 B4d)",
+        "GET /api/admin/dashboard/action-queue (4-count aggregate for owner triage — M4 B4d)"
       ],
-      "audit_group": "(M4 B4b persona dashboard foundation)",
+      "audit_group": "(M4 B4b persona dashboard foundation; B4d owner extension)",
       "tests": [
-        "tests/unit/admin/today-active.test.js"
+        "tests/unit/admin/today-active.test.js",
+        "tests/unit/admin/upcoming-readiness.test.js",
+        "tests/unit/admin/action-queue.test.js"
+      ]
+    },
+    "worker/routes/admin/analytics.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/analytics/overview (?event_id + ?period=mtd query params — M4 B4d added MTD scoping for the RevenueSummary widget)"
+      ],
+      "audit_group": "(M4 B4d owner persona MTD revenue scoping)",
+      "tests": [
+        "tests/unit/admin/analytics-mtd.test.js"
       ]
     },
     "src/hooks/useWidgetData.js": {

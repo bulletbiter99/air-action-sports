@@ -25,19 +25,20 @@ import { formatMoney } from '../../utils/money.js';
 import { useWidgetData, useTodayActive } from '../../hooks/useWidgetData.js';
 
 // ────────────────────────────────────────────────────────────────────
-// RevenueSummary — net / gross / refunded across all time
+// RevenueSummary — net / gross / refunded scoped to current month
+// (M4 B4d added ?period=mtd; pre-B4d was lifetime).
 // Owner persona only (financial visibility scoped to owner role).
 // ────────────────────────────────────────────────────────────────────
 
 export function RevenueSummary() {
     const { data, error: err } = useWidgetData(
-        '/api/admin/analytics/overview',
+        '/api/admin/analytics/overview?period=mtd',
         { tier: 'static' },
     );
 
     return (
         <section className="admin-persona-widget admin-persona-widget--revenue">
-            <h2>Revenue</h2>
+            <h2>Revenue (this month)</h2>
             {err && <p className="admin-persona-widget__error">Error: {err}</p>}
             {!data && !err && <p className="admin-persona-widget__loading">Loading…</p>}
             {data && (
@@ -430,6 +431,169 @@ function priorityClass(priority) {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// M4 B4d — Owner persona extension widgets
+// ────────────────────────────────────────────────────────────────────
+
+// UpcomingEventsReadiness — top-3 upcoming events with capacity and
+// waiver readiness bars. Owner uses this for "do we need to push
+// promo?" decisions (low capacity %) and "who needs to chase waivers?"
+// (low waiver %). tier='live' so the bars stay current as bookings come in.
+export function UpcomingEventsReadiness() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/dashboard/upcoming-readiness',
+        { tier: 'live' },
+    );
+    const events = data ? (data.events || []) : null;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--upcoming-readiness">
+            <h2>Upcoming readiness</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!events && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {events && events.length === 0 && (
+                <p className="admin-persona-widget__empty">No upcoming events.</p>
+            )}
+            {events && events.length > 0 && (
+                <ul className="admin-persona-widget__list">
+                    {events.map((e) => (
+                        <li key={e.eventId} className="admin-persona-widget__readiness-row">
+                            <div className="admin-persona-widget__readiness-head">
+                                <strong>{e.title}</strong>
+                                <span className="admin-persona-widget__muted"> · {e.dateIso}</span>
+                            </div>
+                            <CapacityBar
+                                label="Capacity"
+                                pct={e.capacityPct}
+                                detail={`${e.paidCount} / ${e.totalSlots}`}
+                            />
+                            <CapacityBar
+                                label="Waivers"
+                                pct={e.waiverPct}
+                                detail={`${e.waiverSignedCount} / ${e.attendeeCount}`}
+                            />
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+}
+
+// ActionQueue — 4-stat grid of items needing owner attention with deep
+// links into the relevant admin page. tier='live' to surface new items
+// as they arrive during the day.
+export function ActionQueue() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/dashboard/action-queue',
+        { tier: 'live' },
+    );
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--action-queue">
+            <h2>Action queue</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!data && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {data && (
+                <div className="admin-persona-widget__action-queue-stats">
+                    <ActionQueueStat
+                        label="Missing waivers"
+                        count={data.missingWaiversCount}
+                        href="/admin/bookings?waiver_status=missing&status=paid"
+                    />
+                    <ActionQueueStat
+                        label="Pending countersigns"
+                        count={data.pendingVendorCountersignsCount}
+                        href="/admin/vendors"
+                    />
+                    <ActionQueueStat
+                        label="New feedback"
+                        count={data.feedbackUntriagedCount}
+                        href="/admin/feedback?status=new"
+                    />
+                    <ActionQueueStat
+                        label="Refunds (7d)"
+                        count={data.recentRefundsCount}
+                        href="/admin/bookings?has_refund=true"
+                    />
+                </div>
+            )}
+        </section>
+    );
+}
+
+function ActionQueueStat({ label, count, href }) {
+    const isAction = (count || 0) > 0;
+    return (
+        <Link
+            to={href}
+            className={`admin-persona-widget__action-stat${isAction ? ' admin-persona-widget__action-stat--active' : ''}`}
+        >
+            <div className="admin-persona-widget__action-stat-count">{count ?? 0}</div>
+            <div className="admin-persona-widget__action-stat-label">{label}</div>
+        </Link>
+    );
+}
+
+// CapacityBar — small reusable progress bar for percentages. Used by
+// UpcomingEventsReadiness; could be reused by future readiness widgets.
+function CapacityBar({ label, pct, detail }) {
+    const safe = Math.max(0, Math.min(100, pct || 0));
+    return (
+        <div className="admin-persona-widget__capacity-bar">
+            <div className="admin-persona-widget__capacity-bar-head">
+                <span className="admin-persona-widget__capacity-bar-label">{label}</span>
+                <span className="admin-persona-widget__muted">{detail} · {safe}%</span>
+            </div>
+            <div className="admin-persona-widget__capacity-bar-track">
+                <div
+                    className="admin-persona-widget__capacity-bar-fill"
+                    style={{ width: `${safe}%` }}
+                />
+            </div>
+        </div>
+    );
+}
+
+// RecentActivity — last 10 audit log entries. Reuses /api/admin/audit-log
+// which is owner+manager gated; safe since RecentActivity only renders
+// in the owner persona layout. tier='live' for owner pulse-of-ops view.
+export function RecentActivity() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/audit-log?limit=10',
+        { tier: 'live' },
+    );
+    const entries = data ? (data.entries || []) : null;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--recent-activity">
+            <h2>Recent activity</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!entries && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {entries && entries.length === 0 && (
+                <p className="admin-persona-widget__empty">No recent activity.</p>
+            )}
+            {entries && entries.length > 0 && (
+                <ul className="admin-persona-widget__list">
+                    {entries.map((e) => (
+                        <li key={e.id} className="admin-persona-widget__activity-item">
+                            <div>
+                                <strong>{e.action}</strong>
+                                {e.targetType && (
+                                    <span className="admin-persona-widget__muted"> · {e.targetType}</span>
+                                )}
+                            </div>
+                            <div className="admin-persona-widget__muted">
+                                {e.userName || e.userEmail || 'system'} · {formatRelative(e.createdAt)}
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+}
+
+// ────────────────────────────────────────────────────────────────────
 // Shared small components
 // ────────────────────────────────────────────────────────────────────
 
@@ -503,4 +667,8 @@ export const WIDGETS = {
     TodayCheckIns,
     QuickActions,
     RecentFeedback,
+    // M4 B4d — Owner persona extension widgets
+    UpcomingEventsReadiness,
+    ActionQueue,
+    RecentActivity,
 };
