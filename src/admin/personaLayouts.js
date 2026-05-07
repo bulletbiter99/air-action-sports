@@ -28,7 +28,18 @@
 //     the same widgets as a generic_manager would.
 
 export const PERSONA_LAYOUTS = {
-    owner: ['RevenueSummary', 'CronHealth', 'TodayEvents', 'RecentBookings'],
+    // M4 B4d — Owner persona extended from 4 to 7 widgets. Order:
+    // financial top → action items → forward-looking → today's ops →
+    // context → system pulse.
+    owner: [
+        'RevenueSummary',
+        'ActionQueue',
+        'UpcomingEventsReadiness',
+        'TodayEvents',
+        'RecentBookings',
+        'RecentActivity',
+        'CronHealth',
+    ],
     generic_manager: ['TodayEvents', 'RecentBookings', 'CronHealth'],
     staff: ['TodayEvents', 'RecentBookings'],
     // M4 B4c — Booking Coordinator widget set ships in this batch.

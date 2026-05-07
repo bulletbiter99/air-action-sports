@@ -332,3 +332,139 @@
 .admin-persona-widget--today-checkins .admin-persona-widget__stats {
     margin-bottom: 0.6rem;
 }
+
+/* === M4 B4d — Owner extension widgets === */
+
+/* UpcomingEventsReadiness — capacity bars per event */
+.admin-persona-widget__readiness-row {
+    padding: 0.6rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.admin-persona-widget__readiness-row:last-child {
+    border-bottom: none;
+}
+
+.admin-persona-widget__readiness-head {
+    margin-bottom: 0.1rem;
+}
+
+.admin-persona-widget__capacity-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.admin-persona-widget__capacity-bar-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.8rem;
+}
+
+.admin-persona-widget__capacity-bar-label {
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.admin-persona-widget__capacity-bar-track {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.admin-persona-widget__capacity-bar-fill {
+    height: 100%;
+    background: var(--orange);
+    border-radius: 3px;
+    transition: width 240ms ease;
+}
+
+[data-density='compact'] .admin-persona-widget__readiness-row {
+    padding: 0.4rem 0;
+    gap: 0.3rem;
+}
+
+/* ActionQueue — 4-stat link grid; stats with non-zero counts get
+ * an orange accent to draw the eye. */
+.admin-persona-widget__action-queue-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+}
+
+.admin-persona-widget__action-stat {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 5px;
+    padding: 0.7rem 0.8rem;
+    color: var(--cream);
+    text-decoration: none;
+    transition: background 120ms ease, border-color 120ms ease;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.admin-persona-widget__action-stat:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.admin-persona-widget__action-stat--active {
+    background: rgba(215, 108, 33, 0.1);
+    border-color: rgba(215, 108, 33, 0.4);
+}
+
+.admin-persona-widget__action-stat--active:hover {
+    background: rgba(215, 108, 33, 0.16);
+}
+
+.admin-persona-widget__action-stat-count {
+    font-size: 1.4rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--cream);
+}
+
+.admin-persona-widget__action-stat--active .admin-persona-widget__action-stat-count {
+    color: var(--orange);
+}
+
+.admin-persona-widget__action-stat-label {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.65);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+[data-density='compact'] .admin-persona-widget__action-stat {
+    padding: 0.5rem 0.6rem;
+}
+
+[data-density='compact'] .admin-persona-widget__action-stat-count {
+    font-size: 1.15rem;
+}
+
+/* RecentActivity — compact audit log feed */
+.admin-persona-widget__activity-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.admin-persona-widget__activity-item:last-child {
+    border-bottom: none;
+}
+
+[data-density='compact'] .admin-persona-widget__activity-item {
+    padding: 0.35rem 0;
+}
