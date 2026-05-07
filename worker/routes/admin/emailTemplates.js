@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
-import { sendEmail } from '../../lib/email.js';
+import { sendEmail, isValidEmail } from '../../lib/email.js';
 import { renderTemplate } from '../../lib/templates.js';
 import { writeAudit } from '../../lib/auditLog.js';
 
@@ -128,7 +128,7 @@ adminEmailTemplates.post('/:slug/send-test', requireRole('owner'), async (c) => 
     const slug = c.req.param('slug');
     const body = await c.req.json().catch(() => null);
     const to = body?.to?.trim();
-    if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+    if (!isValidEmail(to)) {
         return c.json({ error: 'Valid "to" email required' }, 400);
     }
     const row = await c.env.DB.prepare(`SELECT * FROM email_templates WHERE slug = ?`).bind(slug).first();

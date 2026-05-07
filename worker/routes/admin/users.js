@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from '../../lib/auth.js';
 import { randomId } from '../../lib/ids.js';
 import { sendUserInvite } from '../../lib/emailSender.js';
 import { writeAudit } from '../../lib/auditLog.js';
+import { isValidEmail } from '../../lib/email.js';
 
 const adminUsers = new Hono();
 adminUsers.use('*', requireAuth);
@@ -67,7 +68,7 @@ adminUsers.post('/invite', requireRole('owner'), async (c) => {
 
     const email = String(body.email || '').trim().toLowerCase();
     const role = body.role;
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    if (!isValidEmail(email)) {
         return c.json({ error: 'Valid email required' }, 400);
     }
     if (!ROLES.includes(role)) return c.json({ error: `role must be one of ${ROLES.join(', ')}` }, 400);
