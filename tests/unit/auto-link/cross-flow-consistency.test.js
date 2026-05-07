@@ -12,7 +12,7 @@
 //   asOfMs     → passed through unchanged                          (idx 2 bind)
 
 import { describe, it, expect } from 'vitest';
-import { findExistingValidWaiver } from '../../../worker/routes/webhooks.js';
+import { findExistingValidWaiver } from '../../../worker/lib/waiverLookup.js';
 import { createMockD1 } from '../../helpers/mockD1.js';
 
 describe('findExistingValidWaiver — cross-flow normalization pipeline', () => {
