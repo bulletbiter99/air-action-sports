@@ -40,14 +40,26 @@ export async function waitForFontsLoaded(page) {
 }
 
 /**
- * Standard pre-screenshot prep: freeze animations + wait for fonts.
- * Call after page.goto() and before expect(page).toHaveScreenshot().
+ * Standard pre-screenshot prep: freeze animations + wait for fonts +
+ * wait for network to go idle. Call after page.goto() and before
+ * expect(page).toHaveScreenshot().
+ *
+ * The networkidle wait prevents `Failed to take two consecutive stable
+ * screenshots` errors caused by lazy-loaded sections (images far down
+ * the page, late-arriving fetches) that change the page height between
+ * Playwright's two consecutive comparison screenshots. Discovered in
+ * M4 B2a when the home page baseline (~5500px tall) flaked against a
+ * mid-load capture (~900px). The 10s timeout is generous; the .catch()
+ * swallows the rare case where a page has long-poll connections that
+ * never quiet (preserves the test's screenshot attempt rather than
+ * failing the suite).
  *
  * @param {import('@playwright/test').Page} page
  */
 export async function preparePage(page) {
     await freezeAnimations(page);
     await waitForFontsLoaded(page);
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
 }
 
 /**

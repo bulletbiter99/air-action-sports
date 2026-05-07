@@ -175,6 +175,19 @@
         "tests/unit/lib/customer-tags.test.js"
       ]
     },
+    "worker/routes/admin/savedViews.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/saved-views (list with table-missing graceful fallback)",
+        "POST /api/admin/saved-views (upsert by user+page+name)",
+        "PUT /api/admin/saved-views/:id (rename with user_id ownership check)",
+        "DELETE /api/admin/saved-views/:id (delete with user_id ownership check)"
+      ],
+      "audit_group": "(M4 B2a per-user saved filter views)",
+      "tests": [
+        "tests/unit/admin/saved-views.test.js"
+      ]
+    },
     "worker/index.js": {
       "tier": "critical",
       "covers": [
