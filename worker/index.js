@@ -33,6 +33,7 @@ import adminWaiverDocuments from './routes/admin/waiverDocuments.js';
 import adminFeedback from './routes/admin/feedback.js';
 import adminFeatureFlags from './routes/admin/featureFlags.js';
 import adminCustomers from './routes/admin/customers.js';
+import adminSavedViews from './routes/admin/savedViews.js';
 
 const app = new Hono();
 
@@ -116,6 +117,7 @@ app.route('/api/admin/waiver-documents', adminWaiverDocuments);
 app.route('/api/admin/feedback', adminFeedback);
 app.route('/api/admin/feature-flags', adminFeatureFlags);
 app.route('/api/admin/customers', adminCustomers);
+app.route('/api/admin/saved-views', adminSavedViews);
 
 app.onError((err, c) => {
     console.error('API error', err);
