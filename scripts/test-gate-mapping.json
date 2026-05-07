@@ -99,9 +99,7 @@
         "tests/unit/waiver/integrity-fail-on-post.test.js",
         "tests/unit/waiver/integrity-fail-on-get.test.js"
       ]
-    }
-  },
-  "uncovered": {
+    },
     "worker/routes/admin/bookings.js": {
       "tier": "critical",
       "covers": [
@@ -109,9 +107,18 @@
         "POST /api/admin/bookings/:id/refund"
       ],
       "audit_group": "E",
-      "audit_tests_prescribed": ["E47", "E48", "E49", "E50", "E51", "E52", "E53"],
-      "status": "deferred to post-M1"
-    },
+      "tests": [
+        "tests/unit/admin/manual-cash.test.js",
+        "tests/unit/admin/manual-comp.test.js",
+        "tests/unit/admin/manual-card.test.js",
+        "tests/unit/admin/manual-pricing-parity.test.js",
+        "tests/unit/admin/manual-auto-link.test.js",
+        "tests/unit/admin/refund-idempotency-key.test.js",
+        "tests/unit/admin/refund-rejects-cash.test.js"
+      ]
+    }
+  },
+  "uncovered": {
     "worker/routes/bookings.js": {
       "tier": "critical",
       "covers": ["POST /api/bookings/checkout", "POST /api/bookings/quote"],
