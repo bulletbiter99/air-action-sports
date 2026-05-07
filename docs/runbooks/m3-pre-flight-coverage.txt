@@ -1,0 +1,118 @@
+# M3 pre-flight coverage floor
+# Captured 2026-05-07 in M3 batch 0 task 0e.
+# Branch:  m3-batch-0-hygiene-dogfood (off milestone/3-customers off origin/main at 6323500)
+# Command: npx vitest run --coverage --reporter=basic --silent
+#
+# Purpose: lock the regression-detection floor before M3's schema work
+# starts. Every batch in M3 must land with all gated paths' coverage at
+# or above this snapshot. M6's pre-flight requires Stripe ≥85%; current
+# 93.93% gives M6 plenty of headroom.
+
+# ─── Gated paths (in scripts/test-gate-mapping.json `gates`) ─────────────
+
+| Path                              | M2 baseline | M3 floor (this snapshot) | Δ |
+|-----------------------------------|------------:|-------------------------:|--:|
+| worker/lib/pricing.js             |       98.84 |                    98.84 |  0 |
+| worker/lib/stripe.js              |       93.93 |                    93.93 |  0 |
+| worker/routes/webhooks.js         |       91.17 |                    91.17 |  0 |
+| worker/routes/waivers.js          |       93.61 |                    93.61 |  0 |
+| worker/lib/waiverLookup.js        |        100  |                     100  |  0 |
+| worker/routes/admin/bookings.js   |       71.11 |                    71.11 |  0 |
+
+# All gated paths held. No drift.
+
+# ─── M2 supporting libs (not in `gates` but covered) ──────────────────────
+
+| Path                                  | Coverage |
+|---------------------------------------|---------:|
+| worker/lib/auditLog.js                |    100   |
+| worker/lib/email.js                   |     94.64|
+| worker/lib/featureFlags.js            |    100   |
+| worker/lib/money.js                   |    100   |
+| worker/routes/admin/featureFlags.js   |    100   |
+
+# ─── Gates planned for M3 (will be added at end of M3 in batch 12) ────────
+
+| Path                                  | Target | Lands in |
+|---------------------------------------|-------:|----------|
+| worker/lib/customerEmail.js           |   100  | B2       |
+| worker/lib/customers.js               |   ≥95  | B5       |
+| worker/lib/auth.js                    |   ≥90  | B7 (Group F) |
+| worker/lib/session.js                 |   ≥90  | B7       |
+| worker/lib/password.js                |   100  | B7       |
+| worker/routes/admin/customers.js      |   ≥80  | B8       |
+
+# ─── Other paths (still in scripts/test-gate-mapping.json `uncovered`) ────
+
+# Group F (auth) lands in M3 batch 7, expected to bring up:
+#   worker/lib/auth.js     — currently 65% (target ≥90)
+#   worker/lib/session.js  — currently 91.78% (target ≥90, already there)
+#   worker/lib/password.js — currently 16.98% (target 100%)
+#   worker/lib/vendorToken.js — currently 24.24% (Group F partial; full coverage in M5)
+#
+# Group G (worker-level) deferred to M4 batch 1:
+#   worker/index.js — currently 34.78% (target ≥80% on serveUpload + rewriteEventOg)
+#
+# Group H (cron) deferred to M5:
+#   worker/index.js scheduled() — covered as part of Group G partially
+
+
+ RUN  v2.1.9 (M3 batch 0 hygiene + dogfood)
+      Coverage enabled with v8
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------|---------|----------|---------|---------|-------------------
+All files          |    35.9 |    74.23 |    35.5 |    35.9 |
+ worker            |   34.78 |       60 |   28.57 |   34.78 |
+  index.js         |   34.78 |       60 |   28.57 |   34.78 | ...38-548,557-596
+ worker/lib        |   70.71 |    80.71 |   49.48 |   70.71 |
+  auditLog.js      |     100 |     82.6 |     100 |     100 | 28,65-66,76
+  auth.js          |      65 |       70 |   66.66 |      65 | 19-20,30-31,37-46
+  bodyGuard.js     |   85.18 |    14.28 |     100 |   85.18 | ...35,39-40,45-46
+  email.js         |   94.64 |       80 |     100 |   94.64 | 62-64
+  emailSender.js   |   51.95 |    53.65 |   38.46 |   51.95 | ...59-271,274-293
+  featureFlags.js  |     100 |    94.23 |     100 |     100 | 28,122,161
+  formatters.js    |     9.3 |    33.33 |      25 |     9.3 | 4-36,39-57,60-85
+  ids.js           |   55.35 |      100 |   30.76 |   55.35 | ...53,58-66,69-70
+  magicBytes.js    |   34.69 |      100 |       0 |   34.69 | 7-29,33-41
+  money.js         |     100 |    96.42 |     100 |     100 | 50
+  password.js      |   16.98 |      100 |       0 |   16.98 | 11-14,17-58
+  pricing.js       |   98.84 |    90.66 |      75 |   98.84 | 188-189
+  rateLimit.js     |   88.63 |       40 |     100 |   88.63 | 31-32,34-36
+  session.js       |   91.78 |    74.07 |      80 |   91.78 | 36-37,39-40,50-51
+  stripe.js        |   93.93 |    89.47 |   85.71 |   93.93 | 27-32,70-71
+  templates.js     |     100 |       70 |     100 |     100 | 18,23,26
+  vendorSession.js |   15.78 |      100 |       0 |   15.78 | ...31,34-35,37-62
+  vendorToken.js   |   24.24 |      100 |       0 |   24.24 | 14-22,28-70
+  waiverLookup.js  |     100 |      100 |     100 |     100 |
+ worker/routes     |   38.71 |    73.78 |   36.84 |   38.71 |
+  bookings.js      |    10.2 |      100 |       0 |    10.2 | ...56-337,342-379
+  events.js        |    16.3 |      100 |     100 |    16.3 | 7-51,55-80,84-89
+  feedback.js      |   23.35 |      100 |       0 |   23.35 | ...6,81-89,92-164
+  taxesFees.js     |   58.82 |      100 |     100 |   58.82 | 8-14
+  vendor.js        |   15.21 |      100 |       0 |   15.21 | ...91-367,375-411
+  vendorAuth.js    |   21.26 |      100 |       0 |   21.26 | ...49-159,167-221
+  waivers.js       |   93.61 |     71.9 |     100 |   93.61 | ...68-169,171-172
+  webhooks.js      |   91.17 |    79.06 |     100 |   91.17 | ...55,70-72,85-87
+ ...r/routes/admin |   23.93 |     48.8 |    2.56 |   23.93 |
+  analytics.js     |    13.7 |      100 |     100 |    13.7 | ...98-224,234-267
+  attendees.js     |   16.73 |      100 |     100 |   16.73 | ...32-201,206-236
+  auditLog.js      |   20.93 |      100 |       0 |   20.93 | 11-71,76-79,82-84
+  auth.js          |   23.52 |      100 |     100 |   23.52 | ...28-272,278-286
+  bookings.js      |   71.11 |    45.56 |     100 |   71.11 | ...46-476,480-492
+  ...lTemplates.js |   20.83 |      100 |       0 |   20.83 | ...77-120,127-165
+  eventVendors.js  |   15.34 |      100 |       0 |   15.34 | ...21-583,588-616
+  events.js        |   10.18 |      100 |       0 |   10.18 | ...23-653,657-679
+  featureFlags.js  |     100 |      100 |     100 |     100 |
+  feedback.js      |   19.06 |      100 |       0 |   19.06 | ...37-253,258-275
+  promoCodes.js    |   14.92 |      100 |       0 |   14.92 | ...44-174,179-198
+  rentals.js       |   14.75 |      100 |       0 |   14.75 | ...27-362,369-390
+  taxesFees.js     |   19.62 |      100 |       0 |   19.62 | ...,66-98,102-104
+  uploads.js       |   22.22 |      100 |       0 |   22.22 | ...50-251,256-267
+  users.js         |   18.75 |      100 |       0 |   18.75 | ...19-135,141-189
+  ...rContracts.js |   33.03 |      100 |       0 |   33.03 | ...,90-93,100-109
+  vendors.js       |   18.91 |      100 |       0 |   18.91 | ...57-287,293-309
+  ...rDocuments.js |   35.96 |      100 |       0 |   35.96 | ...,91-94,102-111
+-------------------|---------|----------|---------|---------|-------------------

@@ -13,7 +13,7 @@ Business economics:
 - This system charges ~$2.62 in Stripe fees on an $80 booking (~3.3%)
 - **Savings: ~$10 per ticket**, ~$60 on a 6-player booking
 
-**Status:** feature-complete. All numbered phases (1–9), all 5 polish items, the Phase 1 audit, Milestone 1 (test infrastructure: 216 vitest unit tests + 7 Playwright smoke tests + CI workflow), and **Milestone 2 (shared primitives + cross-route fix: 471 tests across 70 files, 6 gated paths) merged to `main` 2026-05-07 as `7a87f28`** — migration `0021_feature_flags.sql` applied to remote D1 same day, density toggle live at `/admin/settings`. See §10 row "Milestone 2" + the CLAUDE.md "Milestone 2" section. The remaining work before first live event is operational, not code — see §11.
+**Status:** feature-complete. All numbered phases (1–9), all 5 polish items, the Phase 1 audit, Milestone 1 (test infrastructure: 216 vitest unit tests + 7 Playwright smoke tests + CI workflow), and Milestone 2 (shared primitives + cross-route fix: 471 tests across 70 files, 6 gated paths) merged to `main` 2026-05-07 as `7a87f28` — migration `0021_feature_flags.sql` applied to remote D1, density toggle live at `/admin/settings`. **Milestone 3 (customers schema + persona-tailored AdminDashboard) is in flight on `milestone/3-customers`** as of 2026-05-07: 5 of 13 batches (B0-B4) merged with 564/564 tests passing across 73 files, migration `0022_customers_schema.sql` applied to remote D1 (B3 closing step), backfill script tested and ready (B4) but NOT YET RUN on remote (per the schema-then-code ordering — runs after B5 dual-write code lands). See §10 row "Milestone 3" + the CLAUDE.md "Milestone 3" section. The remaining work before first live event is operational, not code — see §11.
 
 ## 2. Stack
 
@@ -646,9 +646,8 @@ Current state — all shipped and live:
     CONTRIBUTING.md + .github/PULL_REQUEST_TEMPLATE.md codify
     operating rules.
   - **Milestone 2 — Shared Primitives + Cross-Route Fix
-    (closed on milestone branch 2026-05-07; ready to merge to
-    main per `docs/runbooks/m2-deploy.md`):** First milestone of
-    Phase 2. 11 batches merged on `milestone-2-shared-primitives`
+    (closed 2026-05-07; merged to main as `7a87f28` via PR #28):**
+    First milestone of Phase 2. 11 batches merged on `milestone-2-shared-primitives`
     (B1-B7, with B3/B4/B5 split into a/b sub-batches per the
     10-file cap). Per-batch squash SHAs:
       B1 FilterBar             658e95b (#16)
@@ -681,10 +680,46 @@ Current state — all shipped and live:
     state in CLAUDE.md "Milestone 2" section — read that first
     when resuming any related work. Closing runbooks at
     docs/runbooks/m2-{rollback,deploy,baseline-coverage}.{md,txt}.
+  - **Milestone 3 — Customers Schema + Persona-Tailored AdminDashboard
+    (IN FLIGHT 2026-05-07; branch `milestone/3-customers`):**
+    Largest schema migration in the engagement. 13 batches; 5 of 13
+    merged on milestone branch:
+      B0 hygiene + dogfood     3afbb4c (#30) — closes pain-point #8
+                                                (lint blocking in CI)
+      B1 local D1 setup        aee3791 (#31) — scripts/seed-staging.sql
+                                                + setup/teardown shells
+      B2 customerEmail.js      0cfd436 (#32) — dual-target normalization
+                                                (decision register #32);
+                                                +62 tests
+      B3 migration A           0e06b85 (#33) — 0022 customers schema
+                                                additive. **Migration
+                                                applied to remote D1
+                                                2026-05-07 ✓**
+      B4 backfill script       a3bfcc5 (#34) — Node CLI + 31 unit tests
+                                                + operator-runnable
+                                                local-D1 integration test.
+                                                **NOT YET RUN on remote.**
+    Pending: B5 dual-write code; B6 NOT NULL migration (after 7-day
+    verification window post-B5 deploy); B7 Group F auth tests; B8
+    customers UI; B9 persona AdminDashboard; B10 system tag cron;
+    B11 GDPR delete; B12 closing runbooks.
+    Cumulative on milestone branch (after B4): **564 unit tests across
+    73 files** (471 M2 baseline + 93 new across B0-B4).
+    OPERATOR-RUN-ON-REMOTE QUEUED (post-B5-deploy):
+      `node scripts/backfill-customers.js --remote`
+    starts the 7-day dual-write verification window before B6's
+    NOT NULL migration. Detailed batch-by-batch state in CLAUDE.md
+    "Milestone 3" section — read that first when resuming M3 work.
+    docs/decisions.md captures the resolved audit open questions
+    (D01 Phase 2 goal A+B+C+incremental; D02 §08 §1 closed;
+    D03 audit pain-point #8 closed in M3 B0).
   - Tools: tools/cover-banner-builder.html (1200×630 design tool).
   - Docs: docs/staff-job-descriptions.md (22 role descriptions across
     4 tiers), docs/audit/* (Phase 1 audit, see above), docs/runbooks/*
-    (M1 + M2 closing runbooks).
+    (M1 + M2 closing runbooks; M3 pre-flight coverage in
+    m3-pre-flight-coverage.txt; M3 dogfood verification in
+    docs/m3-pre-flight-verification.md), docs/decisions.md
+    (D01-D03 resolved).
 
 Cloudflare Workers Builds deploy command (in dashboard): `npm run build &&
 npx wrangler deploy`. Do NOT change to plain `npx wrangler deploy` (see
@@ -736,19 +771,20 @@ Operation Nightfall (first live event) was 2026-05-09. Today: <update>.
 After you've read the docs, give me:
   1. A one-paragraph status summary of where things actually stand
      (verify against `curl https://airactionsport.com/api/health` and
-     `/api/events`, plus run `npm test` locally — should be 471
-     passing across 70 files on milestone-2-shared-primitives, or
-     216 across 54 if main hasn't received the M2 milestone merge yet).
+     `/api/events`, plus run `npm test` locally — should be **564
+     passing across 73 files on milestone/3-customers** [the
+     milestone is in-flight; checkout that branch to resume M3 work],
+     or **471 across 70 files on main** if you're running on main).
   2. A ranked top-3 of what I should work on next, with rough effort
      estimates and why-now. Use §11's pre-launch checklist + deferred
      list as the primary candidate pool, plus the audit's open
-     questions and pain-point lists, plus the post-M2 punch list in
-     scripts/test-gate-mapping.json `uncovered` (Groups F/G/H + lint
-     config gap). Flag anything low-hanging and high-value you notice.
+     questions and pain-point lists. For M3 work: B5 dual-write is
+     the next batch (see CLAUDE.md "Milestone 3" status table for
+     the full chain B5-B12). Lint config gap is **closed** in B0.
   3. Any drift between HANDOFF.md / CLAUDE.md and the actual live
      state (stale counts, new feedback tickets, undeployed code,
-     unapplied migrations, vitest count not 471, coverage diff vs
-     docs/runbooks/m2-baseline-coverage.txt, etc.).
+     unapplied migrations, vitest count not 564, coverage diff vs
+     docs/runbooks/m2-baseline-coverage.txt or m3-pre-flight-coverage.txt).
   4. Open feedback queue (pull via /api/admin/feedback or D1).
      Summarize anything in `new` or `in-progress` status in 1–2
      sentences each.
@@ -765,32 +801,67 @@ Most likely next pickups (roughly priority order):
   - Invite a second admin.
   - Comp-ticket dry run.
 
-  Post-M2 test coverage (next milestone candidate — see
-  scripts/test-gate-mapping.json `uncovered`; Group E was landed
-  in M2 batch 6):
-  - Group F — auth (F54-F64): worker/lib/auth.js (verifyPassword,
-    hashPassword, requireAuth, requireRole), worker/lib/vendorToken.js.
+  **M3 IS IN FLIGHT — RESUME HERE FIRST IF CONTINUING M3:**
+  Branch: `milestone/3-customers`. 5 of 13 batches merged
+  (B0 hygiene 3afbb4c, B1 local-D1 aee3791, B2 customerEmail 0cfd436,
+  B3 schema 0e06b85 + migration 0022 applied to remote ✓,
+  B4 backfill a3bfcc5).
+
+  Resume recipe:
+    git checkout milestone/3-customers
+    git pull origin milestone/3-customers
+    npm install
+    npm test         # confirm 564/564 across 73 files
+
+  Then read CLAUDE.md "Milestone 3" section for batch-by-batch
+  state. Post next batch's plan first (plan-mode-first per batch
+  — same convention as M1/M2). Sub-branches use flat
+  `m3-batch-N-slug` naming (NOT `milestone/3-customers/batch-N`
+  — git ref-collision workaround per M1/M2 precedent).
+
+  Pending batches in order:
+    B5 dual-write code paths — worker/lib/customers.js +
+       findOrCreateCustomerForBooking wired into webhooks.js +
+       admin/bookings.js. ~4 files. Critical: NO edits to
+       worker/routes/bookings.js (M6 territory) or worker/lib/stripe.js.
+    B6 migration C — bookings.customer_id + attendees.customer_id
+       NOT NULL via 12-step rebuild. Pre-condition: 7-day dual-write
+       verification window post-B5 deploy.
+    B7 Group F auth tests (F54-F64) — independent of the chain.
+       11 tests across worker/lib/auth.js + session.js + password.js.
+    B8 customers UI — list + detail + merge workflow + 0024 flag
+       (state off). Reuses M2 <FilterBar> + useFeatureFlag.
+    B9 persona AdminDashboard — new shell + widgets + 0025 flag.
+       Old dashboard preserved as AdminDashboardLegacy.
+    B10 system tag cron — nightly 03:00 UTC tag refresh.
+    B11 GDPR deletion workflow — soft-archive + redaction pattern.
+    B12 closing runbooks + final docs update.
+
+  After B5 lands on main:
+    OPERATOR runs: node scripts/backfill-customers.js --remote
+    The backfill creates customer records, links bookings/attendees,
+    emits customer.created audit rows. Idempotent. Spot-check 5-10
+    customers post-run; verify total count matches local prediction
+    (~38 customers from current 50 fixture bookings, scaled to actual
+    production booking count).
+
+    Then 7-day dual-write verification window (operator monitors
+    audit log for customer.created errors, checks for orphan bookings
+    without customer_id). After window passes: B6 NOT NULL migration.
+
+  Post-M3 test coverage (deferred — Groups G + H still uncovered):
   - Group G — worker-level (G65-G70): worker/index.js serveUpload,
-    rewriteEventOg.
+    rewriteEventOg. Lands in M4 batch 1.
   - Group H — cron (H71-H76): worker/index.js scheduled handler.
-  - Lint config gap (audit pain-point #8): add eslint.config.js so
-    the CI lint step can become blocking.
+    Lands in M5.
+    (Group F lands in M3 batch 7; Group E landed in M2.)
 
-  M2 milestone-merge: ✓ done 2026-05-07.
-  - Milestone merged to main as `7a87f28` via PR #28 (merge-commit
-    strategy preserves per-batch SHAs for git bisect).
-  - Migration 0021_feature_flags.sql applied to remote D1 same day.
-  - Density toggle live at /admin/settings.
-  - This doc PR (the small follow-up) replaced the post-merge SHA
-    placeholders.
-
-  Phase 2 — admin overhaul (M3+):
-  - M2 (shared primitives + cross-route fix) is closed; M3+
-    builds on the shared primitives (FilterBar, money/email helpers,
-    writeAudit, useFeatureFlag, density tokens).
-  - Audit's open question #13 (broader goal of admin overhaul beyond
-    shared primitives) and §08 Section 1 (operator-stated pain points)
-    remain OPERATOR-DECISION-PENDING for M3+ planning.
+  Phase 2 — admin overhaul (M3 ↔ M8):
+  - Audit open question #13 RESOLVED as A+B+C+incremental,
+    sequenced across M2-M8 (see docs/decisions.md D01).
+  - M3: customers entity + persona dashboard. M4: IA reorganization.
+    M5: staff infrastructure. M6: Stripe setup_future_usage.
+    M7: reporting (funnel, LTV, segments). M8: closing.
 
   ROE follow-up (owner-decision gaps — needs owner input before
   coding):

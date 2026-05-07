@@ -331,6 +331,85 @@ The audit prescribed 83 characterization tests across Groups A–I. M1 landed Gr
 - **Group G** — worker-level (audit G65–G70): `worker/index.js` serveUpload, rewriteEventOg.
 - **Group H** — cron (audit H71–H76): `worker/index.js` scheduled handler.
 
-Plus the **lint config gap** (audit pain-point #8 — eslint.config.js missing) so the CI lint step can become blocking.
+The **lint config gap** (audit pain-point #8 — `eslint.config.js` missing) was closed in M3 batch 0; lint is now blocking in CI.
 
-The admin-overhaul work (Phase 2 broader goal — see [docs/audit/10-open-questions.md](docs/audit/10-open-questions.md) #13) builds on M2's shared primitives. M3+ planning awaits operator decision on Phase 2 direction.
+The admin-overhaul work (Phase 2 broader goal — see [docs/audit/10-open-questions.md](docs/audit/10-open-questions.md) #13, **resolved as A+B+C+incremental** per [docs/decisions.md](docs/decisions.md) D01) builds on M2's shared primitives. M3 is in flight on `milestone/3-customers`.
+
+### Milestone 3 — Customers Schema + Persona-Tailored AdminDashboard (in flight 2026-05-07)
+
+Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branches use **flat `m3-batch-N-slug` naming** (the prompt's `milestone/3-customers/batch-N-slug` form was rejected — same git ref-collision workaround M1/M2 used). PRs from sub-branch to `milestone/3-customers`; milestone merges to `main` at close per `docs/runbooks/m3-deploy.md` (lands in B12).
+
+**Per-batch operating rules:**
+- Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing.
+- 10-file cap per PR. Hard rule.
+- Conventional Commits with `m3-<area>` scope.
+- No `--force`, no rebases on shared branches, no direct commits to `main` or `milestone/3-customers`.
+- All tests use M2 mock helpers. No live D1 / Stripe / Resend.
+- **No remote D1 migration apply from Claude.** Schema migrations land in repo only; tested via `wrangler dev --local` against the local D1 fixture (B1 establishes); operator applies remote per `docs/runbooks/m3-deploy.md`.
+- **Schema-then-code ordering enforced.** Migration goes in first, locally verified, *operator applies remote*, *then* dependent code lands in a subsequent batch. Never combine.
+
+**M3-specific do-not-touch (cumulative with audit DNT):**
+- `worker/routes/bookings.js` (public POST /checkout) — M6 territory
+- `worker/routes/waivers.js` (public waiver sign) — DNT
+- `worker/lib/stripe.js` — M6 territory; coverage already 93.93%
+
+**Status (as of 2026-05-07, post-B4):**
+
+| Batch | What it ships | Status | Squash on milestone |
+|---|---|---|---|
+| **B0** Hygiene + dogfood verification (10 files) | ESLint flat config + lint blocking; M2 staleness cleanup; decisions register; M2 primitive dogfood; coverage floor; M3 plan in this section | ✓ merged | `3afbb4c` ([#30](https://github.com/bulletbiter99/air-action-sports/pull/30)) |
+| **B1** Local D1 setup + staging seed (4 files) | `scripts/{seed-staging.sql,setup-local-d1.sh,teardown-local-d1.sh}`; CLAUDE.md "Local D1 setup" subsection | ✓ merged | `aee3791` ([#31](https://github.com/bulletbiter99/air-action-sports/pull/31)) |
+| **B2** `customerEmail.js` lib (dual-target, 5 files) | `worker/lib/customerEmail.js` + `src/utils/customerEmail.js` mirror + 62 tests; closes decision register #32 | ✓ merged | `0cfd436` ([#32](https://github.com/bulletbiter99/air-action-sports/pull/32)) |
+| **B3** Migration A — customers schema additive (1 file) | `migrations/0022_customers_schema.sql` — customers + customer_tags + segments + gdpr_deletions tables; nullable customer_id columns; indexes. **Migration applied to remote D1 2026-05-07 ✓** | ✓ merged | `0e06b85` ([#33](https://github.com/bulletbiter99/air-action-sports/pull/33)) |
+| **B4** Backfill script + tests (3 files) | `scripts/backfill-customers.js` (Node CLI + helpers); `scripts/backfill-customers.test.js` (operator-runnable integration test); `tests/unit/scripts/backfill.test.js` (31 vitest unit tests). Local-D1 integration verified end-to-end (38 customers from 50 bookings; idempotent). **Backfill script ready but NOT YET RUN on remote D1** — runs after B5 dual-write code lands. | ✓ merged | `a3bfcc5` ([#34](https://github.com/bulletbiter99/air-action-sports/pull/34)) |
+| **B5** Dual-write code paths (~4 files) | `worker/lib/customers.js` + tests; webhook + admin/bookings.js wired to call `findOrCreateCustomerForBooking`; ~10 new tests | pending | — |
+| **B6** Migration C — NOT NULL + remove fallback (~5 files) | `migrations/0023_customers_not_null.sql` (12-step rebuild). **Pre-condition: 7-day dual-write verification window post-B5 deploy.** | pending | — |
+| **B7** Group F — auth characterization tests (~12 files) | 11 audit-prescribed tests (F54-F64); gate map updated for `worker/lib/{auth,session,password}.js` | pending | — |
+| **B8** Customers UI: list / detail / merge (~8 files) | `AdminCustomers*` + route + `customers_entity` flag (state `off`). Reuses `<FilterBar>` + `useFeatureFlag` from M2 | pending | — |
+| **B9** Persona-tailored AdminDashboard (~10 files) | New `AdminDashboard.jsx` (persona shell) + widgets + `personaLayouts.js` + `new_admin_dashboard` flag | pending | — |
+| **B10** System tag refresh cron (2 files) | `worker/index.js` scheduled() addition for nightly tag-refresh sweep at 03:00 UTC | pending | — |
+| **B11** GDPR deletion workflow (~4 files) | `POST /api/admin/customers/:id/gdpr-delete` + UI modal + tests | pending | — |
+| **B12** Closing: rollback + deploy + baseline coverage runbooks + final docs (~5 files) | `docs/runbooks/m3-{rollback,deploy,baseline-coverage}.{md,txt}`; CLAUDE.md/HANDOFF.md M3 closed-state | pending | — |
+
+**Cumulative on milestone branch (after B4):** 564 unit tests across 73 files (471 M2 baseline + 93 new across B0-B4 — 0 from B0/B1/B3, 62 from B2 customerEmail, 31 from B4 backfill helpers).
+
+**Critical dependency chain (the migration cadence):**
+
+```
+B2 customerEmail.js → B3 schema A (operator applied 0022 to remote ✓)
+                    → B4 backfill script (tested locally ✓)
+                    → B5 dual-write code (merge to main; operator runs backfill on remote)
+                    → 7-day dual-write verification window (operator-driven)
+                    → B6 schema C (operator applies 0023)
+```
+
+B7 (Group F tests) is the only batch independent of the chain. B9/B10 have lighter dependencies. B8/B11 gate on B6's NOT NULL.
+
+**Operator-applies-remote actions** (cumulative):
+- ✓ Migration `0022_customers_schema.sql` applied 2026-05-07 (B3 closing step)
+- ⏳ Backfill `node scripts/backfill-customers.js --remote` — runs AFTER B5 merges to main and Workers Builds redeploys. The 7-day verification window starts after backfill completes.
+- ⏳ Migration `0023_customers_not_null.sql` — applied AFTER 7-day window verification (B6 closing step)
+- ⏳ `customers_entity` flag (B8 ships migration `0024`; flag stays `off` until owner flips)
+- ⏳ `new_admin_dashboard` flag (B9 ships migration `0025`; flag stays `off`)
+
+**Resume the milestone in a fresh session:**
+1. `git checkout milestone/3-customers && git pull origin milestone/3-customers`
+2. `npm install`
+3. `npm test` — confirm **564/564** passing across 73 files
+4. Read this section + the next pending batch's row in the table above (B5 is next)
+5. Post the batch's plan; wait for "proceed"; create sub-branch `m3-batch-N-slug`; execute; PR; merge — repeat through B12
+
+For local-D1 work (B5+, B6's migration, B8 schema):
+```bash
+bash scripts/setup-local-d1.sh   # apply all 22 migrations + seed (idempotent)
+bash scripts/teardown-local-d1.sh  # nuke local D1 for fresh runs
+```
+
+The seed populates 50 bookings with deliberate email-distribution edge cases (Sarah's 8 Gmail dot-variants, Mike's 4 plus-aliases, john.doe vs johndoe yahoo split, malformed + null emails). B4's backfill collapses those to 38 customers; the integration test asserts.
+
+**Stop-and-ask conditions:**
+- A do-not-touch file needs modification beyond what the documented batches specify
+- The backfill script produces non-idempotent results across re-runs (correctness bug; halt)
+- A test fails after a behavior-preserving refactor (investigate, don't "fix" the test)
+- Coverage on any of the six gated files drops from M2 baseline (per [docs/runbooks/m3-pre-flight-coverage.txt](docs/runbooks/m3-pre-flight-coverage.txt))
+- Any production-data anomaly during local backfill testing
