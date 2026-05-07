@@ -1,0 +1,628 @@
+/* M4 Batch 3b — AdminBookingsDetail page + refund modal styling.
+   Mirrors AdminBookings.css visual language; density-token aware. */
+
+.abd {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 2rem;
+    color: var(--cream);
+}
+
+.abd-back {
+    display: inline-block;
+    margin-bottom: 1rem;
+    color: var(--tan-light);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.abd-back:hover {
+    color: var(--orange);
+}
+
+.abd-loading,
+.abd-error {
+    padding: 2rem;
+    text-align: center;
+    color: var(--olive-light);
+}
+
+.abd-error h2 {
+    color: #ff8a7e;
+}
+
+.abd-header {
+    margin-bottom: 1.5rem;
+}
+
+.abd-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.abd-header-row h1 {
+    font-size: 24px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+    color: var(--cream);
+    margin: 0 0 4px;
+}
+
+.abd-header-row h1 code {
+    font-family: 'SF Mono', 'Courier New', monospace;
+    background: rgba(200, 184, 154, 0.08);
+    padding: 2px 8px;
+    font-size: 18px;
+    color: var(--tan);
+}
+
+.abd-subtitle {
+    color: var(--olive-light);
+    font-size: 13px;
+    margin: 0;
+}
+
+.abd-pii-banner {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(212, 84, 26, 0.08);
+    border: 1px solid rgba(212, 84, 26, 0.3);
+    border-left: 3px solid var(--orange);
+    color: var(--tan-light);
+    font-size: 12px;
+}
+
+.abd-msg {
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    border-left: 3px solid;
+}
+
+.abd-msg--ok {
+    background: rgba(46, 204, 113, 0.1);
+    border-left-color: #2ecc71;
+    color: #2ecc71;
+}
+
+.abd-msg--err {
+    background: rgba(231, 76, 60, 0.1);
+    border-left-color: #e74c3c;
+    color: #ff8a7e;
+}
+
+.abd-msg--pending {
+    background: rgba(241, 196, 15, 0.1);
+    border-left-color: #f1c40f;
+    color: #f1c40f;
+}
+
+/* ────────────── Two-column grid ────────────── */
+.abd-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+    .abd-cols {
+        grid-template-columns: 1fr;
+    }
+}
+
+.abd-col {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.abd-card {
+    background: var(--mid);
+    border: 1px solid rgba(200, 184, 154, 0.1);
+    padding: 1.25rem 1.5rem;
+}
+
+.abd-card h2 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--orange);
+}
+
+.abd-empty {
+    color: var(--olive-light);
+    font-size: 13px;
+    margin: 8px 0;
+}
+
+/* ────────────── Row label/value pairs ────────────── */
+.abd-row {
+    display: flex;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(200, 184, 154, 0.05);
+    font-size: 13px;
+}
+
+.abd-row:last-child {
+    border-bottom: none;
+}
+
+.abd-row-label {
+    flex: 0 0 140px;
+    color: var(--olive-light);
+}
+
+.abd-row-value {
+    flex: 1;
+    color: var(--cream);
+}
+
+.abd-pii-line {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--tan-light);
+}
+
+.abd-pii-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    background: rgba(212, 84, 26, 0.15);
+    color: var(--orange);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.abd-refund-tag {
+    color: var(--olive-light);
+    font-size: 11px;
+}
+
+.abd-customer-link {
+    display: inline-block;
+    margin-top: 12px;
+    color: var(--orange);
+    font-size: 12px;
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* ────────────── Tables ────────────── */
+.abd-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.abd-table th {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(200, 184, 154, 0.15);
+    color: var(--orange);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+.abd-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(200, 184, 154, 0.05);
+    color: var(--cream);
+}
+
+.abd-num {
+    text-align: right;
+}
+
+.abd-yes {
+    color: #2ecc71;
+}
+
+.abd-pending {
+    color: var(--olive-light);
+    font-style: italic;
+}
+
+/* ────────────── Status + method badges ────────────── */
+.abd-status {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border: 1px solid currentColor;
+}
+
+.abd-status--paid     { background: rgba(39, 174, 96, 0.15);  color: #2ecc71; }
+.abd-status--pending  { background: rgba(212, 84, 26, 0.15);  color: var(--orange); }
+.abd-status--cancelled { background: rgba(149, 165, 166, 0.15); color: #95a5a6; }
+.abd-status--refunded { background: rgba(230, 126, 34, 0.15); color: #e67e22; }
+.abd-status--comp     { background: rgba(155, 89, 182, 0.15); color: #9b59b6; }
+
+.abd-method {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: 1px solid currentColor;
+}
+
+.abd-method--card,
+.abd-method--stripe { background: rgba(99, 91, 255, 0.15); color: #7e72ff; }
+.abd-method--cash   { background: rgba(46, 204, 113, 0.15); color: #2ecc71; }
+.abd-method--venmo  { background: rgba(0, 142, 194, 0.15); color: #3da5d9; }
+.abd-method--paypal { background: rgba(0, 48, 135, 0.20); color: #5a8dee; }
+.abd-method--comp   { background: rgba(155, 89, 182, 0.15); color: #9b59b6; }
+
+.abd-method-empty {
+    color: var(--olive-light);
+}
+
+/* ────────────── Attendees inline edit ────────────── */
+.abd-attendees-table {
+    table-layout: auto;
+}
+
+.abd-attendee-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.abd-edit-btn {
+    padding: 3px 10px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.25);
+    color: var(--tan-light);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-left: 4px;
+}
+
+.abd-edit-btn:hover {
+    background: rgba(200, 184, 154, 0.06);
+    color: var(--cream);
+}
+
+.abd-edit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.5fr 1fr auto auto;
+    gap: 6px;
+    align-items: center;
+}
+
+.abd-edit-grid input {
+    padding: 6px 10px;
+    background: var(--dark);
+    border: 1px solid rgba(200, 184, 154, 0.2);
+    color: var(--cream);
+    font-size: 12px;
+    font-family: inherit;
+}
+
+.abd-edit-save {
+    padding: 6px 12px;
+    background: var(--orange);
+    color: #fff;
+    border: none;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.abd-edit-save:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.abd-edit-cancel {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.25);
+    color: var(--tan-light);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.abd-edit-warn {
+    margin-top: 6px;
+    font-size: 10px;
+    color: #f39c12;
+}
+
+.abd-edit-err {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #ff8a7e;
+}
+
+/* ────────────── Actions panel ────────────── */
+.abd-actions-card {
+    background: var(--mid);
+}
+
+.abd-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.abd-action-btn {
+    padding: 10px 14px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.3);
+    color: var(--tan);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    text-align: left;
+}
+
+.abd-action-btn:hover {
+    background: rgba(200, 184, 154, 0.06);
+    color: var(--cream);
+}
+
+.abd-action-btn:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.abd-action-btn--danger {
+    border-color: rgba(231, 76, 60, 0.4);
+    color: #ff8a7e;
+}
+
+.abd-action-btn--danger:hover {
+    background: rgba(231, 76, 60, 0.08);
+}
+
+/* ────────────── Activity log ────────────── */
+.abd-activity .abd-meta {
+    font-family: 'SF Mono', 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--olive-light);
+    word-break: break-all;
+    display: inline-block;
+    max-width: 600px;
+}
+
+/* ────────────── Modal (shared by Refund + ExternalRefund) ────────────── */
+.abd-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.abd-modal {
+    background: var(--mid);
+    border: 1px solid rgba(231, 76, 60, 0.4);
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+}
+
+.abd-modal-header {
+    padding: 1.5rem 1.5rem 0.5rem;
+    position: relative;
+}
+
+.abd-modal-eyebrow {
+    color: #ff8a7e;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.abd-modal-header h2 {
+    color: var(--cream);
+    font-size: 20px;
+    font-weight: 900;
+    margin: 0;
+    letter-spacing: -0.5px;
+}
+
+.abd-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.25);
+    color: var(--tan-light);
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.abd-modal-body {
+    padding: 1rem 1.5rem;
+    color: var(--cream);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.abd-modal-banner {
+    padding: 10px 14px;
+    background: rgba(212, 84, 26, 0.08);
+    border-left: 3px solid var(--orange);
+    color: var(--tan-light);
+    font-size: 12px;
+    margin-bottom: 12px;
+}
+
+.abd-modal-banner code {
+    font-family: 'SF Mono', 'Courier New', monospace;
+    background: rgba(200, 184, 154, 0.08);
+    padding: 1px 4px;
+    color: var(--tan);
+}
+
+.abd-modal-bullets {
+    margin: 8px 0 16px;
+    padding-left: 20px;
+    color: var(--tan-light);
+    line-height: 1.6;
+    font-size: 12px;
+}
+
+.abd-modal-meta {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: rgba(200, 184, 154, 0.04);
+    color: var(--olive-light);
+    font-size: 11px;
+}
+
+.abd-modal-meta code {
+    font-family: 'SF Mono', 'Courier New', monospace;
+    color: var(--tan);
+}
+
+.abd-modal-error {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(231, 76, 60, 0.15);
+    color: #ff8a7e;
+    font-size: 13px;
+    border-left: 3px solid #e74c3c;
+}
+
+.abd-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.abd-field-label {
+    color: var(--olive-light);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.abd-field-optional {
+    color: var(--olive-light);
+    font-weight: 400;
+    text-transform: none;
+    font-size: 10px;
+}
+
+.abd-required {
+    color: #ff8a7e;
+}
+
+.abd-field input,
+.abd-field textarea,
+.abd-field select {
+    padding: 8px 12px;
+    background: var(--dark);
+    border: 1px solid rgba(200, 184, 154, 0.2);
+    color: var(--cream);
+    font-size: 13px;
+    font-family: inherit;
+}
+
+.abd-field textarea {
+    resize: vertical;
+    min-height: 70px;
+}
+
+.abd-field-counter {
+    color: var(--olive-light);
+    font-size: 10px;
+    text-align: right;
+}
+
+.abd-modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid rgba(200, 184, 154, 0.1);
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.abd-btn-cancel {
+    padding: 10px 20px;
+    background: transparent;
+    border: 1px solid rgba(200, 184, 154, 0.3);
+    color: var(--tan);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.abd-btn-confirm {
+    padding: 10px 20px;
+    background: var(--orange);
+    color: #fff;
+    border: none;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.abd-btn-confirm--danger {
+    background: #c0392b;
+}
+
+.abd-btn-confirm:disabled,
+.abd-btn-cancel:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Density-aware compact mode (M2 B5c). */
+[data-density="compact"] .abd-card {
+    padding: 0.85rem 1rem;
+}
+
+[data-density="compact"] .abd-row {
+    padding: 4px 0;
+    font-size: 12px;
+}
+
+[data-density="compact"] .abd-table th,
+[data-density="compact"] .abd-table td {
+    padding: 5px 8px;
+}
