@@ -1,0 +1,270 @@
+/* M3 Batch 9 — persona-tailored AdminDashboard widget styles.
+ *
+ * Reuses the global admin tokens from src/styles/tokens.css. Density-
+ * aware where padding/spacing matters. The grid is responsive — wide
+ * screens show the layout in 2 columns, narrow screens stack. */
+
+.admin-persona-dashboard {
+    color: var(--cream);
+    padding: 1.5rem;
+    max-width: 1280px;
+    margin: 0 auto;
+}
+
+.admin-persona-dashboard__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+
+.admin-persona-dashboard__header h1 {
+    margin: 0;
+    color: var(--cream);
+}
+
+.admin-persona-dashboard__subtitle {
+    color: rgba(255, 255, 255, 0.65);
+    margin: 0.25rem 0 0;
+}
+
+.admin-persona-dashboard__persona-tag {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(215, 108, 33, 0.15);
+    color: var(--orange);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.admin-persona-dashboard__cta {
+    background: var(--orange);
+    color: white;
+    padding: 0.55rem 1.1rem;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.admin-persona-dashboard__cta:hover {
+    background: #e07a3a;
+}
+
+.admin-persona-dashboard__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 1rem;
+}
+
+/* === Widget shell === */
+
+.admin-persona-widget {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+}
+
+.admin-persona-widget h2 {
+    margin: 0 0 0.85rem;
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--cream);
+}
+
+.admin-persona-widget__loading,
+.admin-persona-widget__empty {
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0;
+    font-size: 0.92rem;
+}
+
+.admin-persona-widget__error {
+    color: #ff8888;
+    margin: 0;
+    font-size: 0.92rem;
+}
+
+.admin-persona-widget__muted {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.88rem;
+}
+
+.admin-persona-widget__link {
+    display: inline-block;
+    margin-top: 0.85rem;
+    color: var(--orange);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.admin-persona-widget__link:hover {
+    text-decoration: underline;
+}
+
+.admin-persona-widget__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.admin-persona-widget--placeholder {
+    border-style: dashed;
+    opacity: 0.55;
+}
+
+/* === Stats grid (RevenueSummary) === */
+
+.admin-persona-widget__stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.6rem;
+}
+
+.admin-persona-widget__stat {
+    background: rgba(255, 255, 255, 0.04);
+    padding: 0.55rem 0.7rem;
+    border-radius: 5px;
+}
+
+.admin-persona-widget__stat--highlight {
+    background: rgba(215, 108, 33, 0.12);
+    border: 1px solid rgba(215, 108, 33, 0.3);
+}
+
+.admin-persona-widget__stat-label {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.admin-persona-widget__stat-value {
+    color: var(--cream);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-top: 0.2rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* === Cron === */
+
+.admin-persona-widget--cron-fresh strong {
+    color: #9ee79e;
+}
+
+.admin-persona-widget--cron-stale strong,
+.admin-persona-widget--cron-error strong {
+    color: #ff8888;
+}
+
+.admin-persona-widget__cron-line {
+    margin: 0.3rem 0;
+    font-size: 0.95rem;
+}
+
+/* === Events list === */
+
+.admin-persona-widget__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.admin-persona-widget__event {
+    padding: 0.6rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-persona-widget__event:last-child {
+    border-bottom: none;
+}
+
+.admin-persona-widget__event-links {
+    margin-top: 0.35rem;
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+}
+
+.admin-persona-widget__event-links a {
+    color: var(--orange);
+    text-decoration: none;
+}
+
+.admin-persona-widget__event-links a:hover {
+    text-decoration: underline;
+}
+
+/* === Bookings table === */
+
+.admin-persona-widget__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+}
+
+.admin-persona-widget__table thead th {
+    text-align: left;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-persona-widget__table tbody td {
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.admin-persona-widget__table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+[data-density='compact'] .admin-persona-widget__table tbody td,
+[data-density='compact'] .admin-persona-widget__table thead th {
+    padding-top: 0.3rem;
+    padding-bottom: 0.3rem;
+}
+
+.admin-persona-widget__pill {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.admin-persona-widget__pill--paid {
+    background: rgba(120, 220, 120, 0.18);
+    color: #9ee79e;
+}
+
+.admin-persona-widget__pill--pending {
+    background: rgba(220, 180, 80, 0.18);
+    color: #f1cb6b;
+}
+
+.admin-persona-widget__pill--refunded,
+.admin-persona-widget__pill--cancelled,
+.admin-persona-widget__pill--abandoned {
+    background: rgba(220, 80, 80, 0.18);
+    color: #ff9e9e;
+}
+
+.admin-persona-widget__pill--comp {
+    background: rgba(140, 180, 220, 0.18);
+    color: #9ec6f1;
+}

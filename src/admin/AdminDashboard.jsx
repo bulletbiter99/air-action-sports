@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import { useFeatureFlag } from './useFeatureFlag';
 import { formatMoney as fmt } from '../utils/money.js';
 const dateFmt = (ms) => ms ? new Date(ms).toLocaleString() : '—';
 
@@ -13,7 +14,29 @@ const STATUS_OPTIONS = [
   { value: 'comp', label: 'Comp' },
 ];
 
+// M3 Batch 9 — flag-gated dispatcher. When new_admin_dashboard is on,
+// render the persona-tailored shell (lazy-loaded so the legacy bundle
+// doesn't grow until the flag flips). Otherwise fall through to the
+// legacy AdminDashboard (the function below). Flipping the flag back
+// to off is an instant rollback with no redeploy.
+const AdminDashboardPersonaLazy = lazy(() => import('./AdminDashboardPersona'));
+
 export default function AdminDashboard() {
+  const { enabled: personaOn, loading: flagLoading } = useFeatureFlag('new_admin_dashboard');
+
+  // While the flag fetch is in-flight, render the legacy view rather
+  // than nothing — keeps existing perception of dashboard load time
+  // for the unflipped (off) case, which is the production default.
+  if (flagLoading || !personaOn) return <AdminDashboardLegacy />;
+
+  return (
+    <Suspense fallback={<div style={{ padding: '1.5rem', color: 'var(--cream)' }}>Loading…</div>}>
+      <AdminDashboardPersonaLazy />
+    </Suspense>
+  );
+}
+
+function AdminDashboardLegacy() {
   const { user, isAuthenticated, loading, setupNeeded, hasRole } = useAdmin();
   const navigate = useNavigate();
 
