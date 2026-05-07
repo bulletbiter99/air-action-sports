@@ -252,6 +252,69 @@ adminAnalytics.get('/attendance/:eventId', async (c) => {
     return c.json({ checkIns: checkIns.length, buckets });
 });
 
+// GET /api/admin/analytics/funnel?days=30
+//
+// M4 B4e — 4-step "checkout funnel" computed from bookings + attendees
+// for the trailing N-day window. Powers the Marketing persona's
+// ConversionFunnel widget.
+//
+// Step definitions:
+//   - Created:    bookings WHERE created_at >= window_start_ms
+//   - Paid:       bookings WHERE status IN ('paid', 'comp') AND
+//                 paid_at >= window_start_ms
+//   - Waivers:    attendees WHERE waiver_id IS NOT NULL JOIN bookings
+//                 WHERE status IN ('paid', 'comp') AND
+//                 paid_at >= window_start_ms
+//   - Checked in: attendees WHERE checked_in_at IS NOT NULL JOIN
+//                 bookings WHERE status IN ('paid', 'comp') AND
+//                 paid_at >= window_start_ms
+//
+// Caveat: step 4 (Checked in) lags reality because future events
+// inside the window haven't happened yet. Acceptable for a trend
+// indicator; not a precise per-event metric. M5+ refinements could
+// scope step 4 by event_date <= now() for stricter accuracy.
+adminAnalytics.get('/funnel', async (c) => {
+    const url = new URL(c.req.url);
+    const days = Math.min(365, Math.max(1, Number(url.searchParams.get('days') || 30)));
+    const windowStartMs = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    const [createdRow, paidRow, waiversRow, checkedInRow] = await Promise.all([
+        c.env.DB.prepare(
+            `SELECT COUNT(*) AS n FROM bookings WHERE created_at >= ?`,
+        ).bind(windowStartMs).first(),
+        c.env.DB.prepare(
+            `SELECT COUNT(*) AS n FROM bookings
+             WHERE status IN ('paid', 'comp') AND paid_at >= ?`,
+        ).bind(windowStartMs).first(),
+        c.env.DB.prepare(
+            `SELECT COUNT(*) AS n
+             FROM attendees a
+             JOIN bookings b ON b.id = a.booking_id
+             WHERE a.waiver_id IS NOT NULL
+               AND b.status IN ('paid', 'comp')
+               AND b.paid_at >= ?`,
+        ).bind(windowStartMs).first(),
+        c.env.DB.prepare(
+            `SELECT COUNT(*) AS n
+             FROM attendees a
+             JOIN bookings b ON b.id = a.booking_id
+             WHERE a.checked_in_at IS NOT NULL
+               AND b.status IN ('paid', 'comp')
+               AND b.paid_at >= ?`,
+        ).bind(windowStartMs).first(),
+    ]);
+
+    return c.json({
+        days,
+        steps: [
+            { name: 'Created', count: createdRow?.n || 0 },
+            { name: 'Paid', count: paidRow?.n || 0 },
+            { name: 'Waivers', count: waiversRow?.n || 0 },
+            { name: 'Checked in', count: checkedInRow?.n || 0 },
+        ],
+    });
+});
+
 // GET /api/admin/analytics/cron-status — proves the reminder cron is alive.
 // Returns:
 //   - lastSweepAt: ms epoch of the most recent scheduled() run (audit row)

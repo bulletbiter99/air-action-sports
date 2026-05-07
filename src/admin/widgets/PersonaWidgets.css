@@ -468,3 +468,107 @@
 [data-density='compact'] .admin-persona-widget__activity-item {
     padding: 0.35rem 0;
 }
+
+/* === M4 B4e — Marketing widgets === */
+
+/* Pending state — for "Coming in M5" indicators on stats and tiles */
+.admin-persona-widget__pending {
+    color: var(--orange);
+    opacity: 0.85;
+    font-style: italic;
+    font-weight: 500;
+}
+
+.admin-persona-widget__stat--pending {
+    background: rgba(215, 108, 33, 0.06);
+    border: 1px dashed rgba(215, 108, 33, 0.25);
+}
+
+.admin-persona-widget__stat--pending .admin-persona-widget__stat-value {
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+/* AssetLibraryShortcut placeholder tile */
+.admin-persona-widget__pending-tile {
+    text-align: center;
+    padding: 1.5rem 1rem;
+    background: rgba(215, 108, 33, 0.04);
+    border: 1px dashed rgba(215, 108, 33, 0.25);
+    border-radius: 6px;
+}
+
+.admin-persona-widget__pending-tile-label {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--cream);
+    margin-bottom: 0.4rem;
+}
+
+.admin-persona-widget__pending-tile .admin-persona-widget__pending {
+    display: inline-block;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+}
+
+[data-density='compact'] .admin-persona-widget__pending-tile {
+    padding: 1rem 0.75rem;
+}
+
+/* ConversionFunnel — vertical bars stacked top-to-bottom */
+.admin-persona-widget__funnel-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.admin-persona-widget__funnel-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.admin-persona-widget__funnel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.85rem;
+}
+
+.admin-persona-widget__funnel-track {
+    height: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.admin-persona-widget__funnel-fill {
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        rgba(215, 108, 33, 0.85),
+        rgba(215, 108, 33, 0.55)
+    );
+    border-radius: 4px;
+    transition: width 280ms ease;
+}
+
+[data-density='compact'] .admin-persona-widget__funnel-list {
+    gap: 0.45rem;
+}
+
+[data-density='compact'] .admin-persona-widget__funnel-track {
+    height: 12px;
+}
+
+/* PromoCodePerformance — code column gets monospace pill style */
+.admin-persona-widget--promo-perf .admin-persona-widget__table code {
+    background: rgba(255, 255, 255, 0.06);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}

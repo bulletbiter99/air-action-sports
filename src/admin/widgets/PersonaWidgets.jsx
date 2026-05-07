@@ -594,6 +594,230 @@ export function RecentActivity() {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// M4 B4e — Marketing persona widgets
+// ────────────────────────────────────────────────────────────────────
+
+// MarketingKPIs — 4-stat grid: Conversion / Promo redemption / AOV /
+// Email open rate. Email-open shows degraded "Pending" state until
+// Resend webhook ships in M5+. Conversion = paid / total bookings.
+export function MarketingKPIs() {
+    const { data: overview, error: overviewErr } = useWidgetData(
+        '/api/admin/analytics/overview',
+        { tier: 'static' },
+    );
+    const { data: promos } = useWidgetData(
+        '/api/admin/promo-codes?active=1',
+        { tier: 'static' },
+    );
+
+    const totals = overview?.totals;
+    const totalBookings = totals?.bookings || 0;
+    const paidCount = totals?.paidCount || 0;
+    const conversionPct = totalBookings > 0 ? Math.round((paidCount / totalBookings) * 100) : 0;
+    const promoUses = promos
+        ? (promos.codes || []).reduce((sum, c) => sum + (c.usesCount || c.uses_count || 0), 0)
+        : null;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--marketing-kpis">
+            <h2>Marketing KPIs</h2>
+            {overviewErr && <p className="admin-persona-widget__error">Error: {overviewErr}</p>}
+            {!totals && !overviewErr && <p className="admin-persona-widget__loading">Loading…</p>}
+            {totals && (
+                <div className="admin-persona-widget__stats">
+                    <Stat label="Conversion" value={`${conversionPct}%`} highlight />
+                    <Stat label="Promo uses" value={promoUses ?? '…'} />
+                    <Stat label="Avg order" value={formatMoney(totals.avgOrderCents)} />
+                    <PendingStat label="Email opens" hint="M5" />
+                </div>
+            )}
+        </section>
+    );
+}
+
+// PendingStat — tile rendered like Stat but with a "data pending" badge
+// instead of a number. Used by MarketingKPIs (email opens) until Resend
+// webhook integration ships in M5+.
+function PendingStat({ label, hint }) {
+    return (
+        <div className="admin-persona-widget__stat admin-persona-widget__stat--pending">
+            <div className="admin-persona-widget__stat-label">{label}</div>
+            <div className="admin-persona-widget__stat-value admin-persona-widget__pending">
+                Pending{hint ? ` · ${hint}` : ''}
+            </div>
+        </div>
+    );
+}
+
+// ConversionFunnel — vertical 4-step funnel with bar widths proportional
+// to step count. Per-step drop-off % computed client-side from the
+// /analytics/funnel endpoint counts.
+export function ConversionFunnel() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/analytics/funnel?days=30',
+        { tier: 'static' },
+    );
+    const steps = data?.steps;
+    const top = steps && steps.length > 0 ? Math.max(1, steps[0].count) : 1;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--funnel">
+            <h2>Conversion funnel (30d)</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!steps && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {steps && steps.length > 0 && (
+                <ul className="admin-persona-widget__funnel-list">
+                    {steps.map((s, i) => {
+                        const pct = Math.round((s.count / top) * 100);
+                        const fromPrev = i > 0 && steps[i - 1].count > 0
+                            ? Math.round((s.count / steps[i - 1].count) * 100)
+                            : null;
+                        return (
+                            <li key={s.name} className="admin-persona-widget__funnel-row">
+                                <div className="admin-persona-widget__funnel-head">
+                                    <strong>{s.name}</strong>
+                                    <span className="admin-persona-widget__muted">
+                                        {s.count}{fromPrev !== null ? ` · ${fromPrev}% from prev` : ''}
+                                    </span>
+                                </div>
+                                <div className="admin-persona-widget__funnel-track">
+                                    <div
+                                        className="admin-persona-widget__funnel-fill"
+                                        style={{ width: `${pct}%` }}
+                                    />
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </section>
+    );
+}
+
+// UpcomingEventsFillRate — list of upcoming events with capacity bar.
+// Reuses /analytics/per-event (already returns fillRate per event);
+// client-side filter for past=false.
+export function UpcomingEventsFillRate() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/analytics/per-event',
+        { tier: 'live' },
+    );
+    const upcoming = data
+        ? (data.events || []).filter((e) => !e.past).slice(0, 5)
+        : null;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--fill-rate">
+            <h2>Upcoming fill rate</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!upcoming && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {upcoming && upcoming.length === 0 && (
+                <p className="admin-persona-widget__empty">No upcoming events.</p>
+            )}
+            {upcoming && upcoming.length > 0 && (
+                <ul className="admin-persona-widget__list">
+                    {upcoming.map((e) => {
+                        const pct = Math.min(100, Math.round((e.fillRate || 0) * 100));
+                        return (
+                            <li key={e.id} className="admin-persona-widget__readiness-row">
+                                <div className="admin-persona-widget__readiness-head">
+                                    <strong>{e.title}</strong>
+                                    <span className="admin-persona-widget__muted"> · {e.dateIso}</span>
+                                </div>
+                                <CapacityBar
+                                    label="Sold"
+                                    pct={pct}
+                                    detail={`${e.seatsSold || 0} / ${e.capacity || 0}`}
+                                />
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </section>
+    );
+}
+
+// PromoCodePerformance — top-5 active promo codes by usage. Pulls from
+// existing /api/admin/promo-codes; sorts client-side by uses_count desc.
+export function PromoCodePerformance() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/promo-codes?active=1',
+        { tier: 'live' },
+    );
+    const codes = data
+        ? (data.codes || [])
+            .map((c) => ({
+                code: c.code,
+                discountType: c.discountType || c.discount_type,
+                usesCount: c.usesCount || c.uses_count || 0,
+                maxUses: c.maxUses || c.max_uses,
+            }))
+            .sort((a, b) => b.usesCount - a.usesCount)
+            .slice(0, 5)
+        : null;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--promo-perf">
+            <h2>Promo performance</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!codes && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {codes && codes.length === 0 && (
+                <p className="admin-persona-widget__empty">No active promo codes.</p>
+            )}
+            {codes && codes.length > 0 && (
+                <table className="admin-persona-widget__table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Type</th>
+                            <th className="admin-persona-widget__num">Uses</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {codes.map((c) => (
+                            <tr key={c.code}>
+                                <td><code>{c.code}</code></td>
+                                <td>{c.discountType || '—'}</td>
+                                <td className="admin-persona-widget__num">
+                                    {c.usesCount}{c.maxUses ? ` / ${c.maxUses}` : ''}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+            <Link to="/admin/promo-codes" className="admin-persona-widget__link">
+                Manage promo codes →
+            </Link>
+        </section>
+    );
+}
+
+// AssetLibraryShortcut — static "Coming in M5" placeholder tile. No
+// fetch; no link target (the asset library admin UI hasn't shipped yet).
+// When M5 ships the asset library, this becomes a real shortcut.
+export function AssetLibraryShortcut() {
+    return (
+        <section className="admin-persona-widget admin-persona-widget--asset-library">
+            <h2>Asset library</h2>
+            <div className="admin-persona-widget__pending-tile">
+                <div className="admin-persona-widget__pending-tile-label">
+                    Asset library
+                </div>
+                <div className="admin-persona-widget__pending">
+                    Coming in M5
+                </div>
+                <p className="admin-persona-widget__muted">
+                    Marketing photos and social-ready exports, organized by event.
+                </p>
+            </div>
+        </section>
+    );
+}
+
+// ────────────────────────────────────────────────────────────────────
 // Shared small components
 // ────────────────────────────────────────────────────────────────────
 
@@ -671,4 +895,10 @@ export const WIDGETS = {
     UpcomingEventsReadiness,
     ActionQueue,
     RecentActivity,
+    // M4 B4e — Marketing persona widgets
+    MarketingKPIs,
+    ConversionFunnel,
+    UpcomingEventsFillRate,
+    PromoCodePerformance,
+    AssetLibraryShortcut,
 };

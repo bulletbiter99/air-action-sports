@@ -242,11 +242,13 @@
     "worker/routes/admin/analytics.js": {
       "tier": "high",
       "covers": [
-        "GET /api/admin/analytics/overview (?event_id + ?period=mtd query params — M4 B4d added MTD scoping for the RevenueSummary widget)"
+        "GET /api/admin/analytics/overview (?event_id + ?period=mtd query params — M4 B4d added MTD scoping for the RevenueSummary widget)",
+        "GET /api/admin/analytics/funnel (?days N-day checkout funnel: Created -> Paid -> Waivers -> Checked in — M4 B4e powers the ConversionFunnel widget)"
       ],
-      "audit_group": "(M4 B4d owner persona MTD revenue scoping)",
+      "audit_group": "(M4 B4d owner persona MTD revenue scoping; B4e marketing persona funnel)",
       "tests": [
-        "tests/unit/admin/analytics-mtd.test.js"
+        "tests/unit/admin/analytics-mtd.test.js",
+        "tests/unit/admin/analytics-funnel.test.js"
       ]
     },
     "src/hooks/useWidgetData.js": {
