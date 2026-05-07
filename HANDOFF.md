@@ -106,7 +106,7 @@ action-air-sports/
 │   ├── 0017_event_featured.sql         ← events.featured (admin-picked headliner sort)
 │   ├── 0018_waiver_v4_fields.sql       ← 4-tier age, jury trial initials, supervising adult, claim_period_expires_at + idx_waivers_claim_lookup
 │   ├── 0019_event_per_surface_images.sql ← card/hero/banner/og image URL columns (per-surface cover images, cover_image_url stays as fallback)
-│   ├── 0020_drop_admin_sessions.sql ← drop dead admin_sessions table (NOT YET APPLIED to remote — see §11)
+│   ├── 0020_drop_admin_sessions.sql ← drop dead admin_sessions table (applied to remote D1)
 │   └── README.md            ← migration convention + 0010_* collision explanation
 ├── docs/
 │   ├── audit/                ← Phase 1 audit: 00-overview.md + 10 area docs
@@ -178,7 +178,7 @@ To rotate: generate new value in the respective dashboard → `echo "new-value" 
 | `attendees` | Individual players under a booking, each with `qr_token` and `custom_answers_json` |
 | `waivers` | Signed waiver tied to an attendee |
 | `users` | Admin accounts (owner / manager / staff) |
-| `admin_sessions` | Legacy — sessions live in HMAC-signed cookies now. **Migration `0020_drop_admin_sessions.sql` drops this table; pending application to remote D1 (see §11).** |
+| ~~`admin_sessions`~~ | Dropped 2026-05-07 by migration 0020 (applied to remote). Sessions live in HMAC-signed cookies now. Row preserved here for git-history searchability. |
 | `password_resets` | Reset tokens, 1hr TTL |
 | `invitations` | Team invite tokens, 7-day TTL, single-use |
 | `promo_codes` | Discount codes (percent or fixed) |
@@ -459,7 +459,7 @@ The admin shell uses a **left sidebar** (not a top bar) at ≥900px and converts
 | **Waiver overhaul (Phase A/B/C)** | Three-phase upgrade from the original 6-bullet seed waiver to a corporate-wide release of liability with Utah-specific minor handling, 365-day Claim Period (annual renewal), and full auto-link UX. **Phase A** — published `wd_v4` (current live waiver doc, SHA prefix `525a075a7…`): 22 sections including Release & Indemnity, PPE Compliance, FPS chrono, Weather, Camping, Third-Party Injuries, Sponsor/Vendor zones, Insurance certification, Choice of Law (Davis County, Utah), Photo/Drone Policy, Social Media Release, Medical Emergency Authorization, Data Privacy (7y adult / age-23 minor retention), Jury Trial Waiver §22, Annual Renewal §21, Electronic Signature Acknowledgment per Utah Code §46-4-201, Age Participation Policy table, Exhibit A Site Schedule (Ghost Town active / Foxtrot Fields coming soon). v2 and v3 superseded immediately due to Exhibit A status reconciliation; v4 strips an internal-only Hawkins v. Peart explainer. wd_v1 thru wd_v3 retired; future signers see v4. **Phase B** — migration 0018 + 4-tier age policy enforced both client- and server-side. Under 12 hard-blocks at submit. 12-15: parent fields + parent_initials + ON-SITE supervising adult name/signature/phone (defaults to "same as parent" toggle). 16-17: parent fields + parent_initials only. 18+: independent. Jury Trial Waiver initials field required for all tiers. Medical Conditions optional textarea (page-1 section). All new fields landed on `waivers` (see §6 row). Server `ageTier(age)` helper mirrors client logic exactly to prevent client/server drift. **Phase C** — `findExistingValidWaiver(db, email, firstName, lastName, asOf)` (worker/routes/webhooks.js, exported) matches by (LOWER(TRIM(email)), LOWER(TRIM(player_name))) + claim_period_expires_at > now. Called from both the Stripe webhook and admin manual booking handler — new attendee rows get `waiver_id` pre-populated when a match exists. Auto-linked attendees skip the per-attendee waiver-request email entirely (`out.waivers.push({skipped: 'already_on_file'})`). User-facing notifications: (1) `/booking/success` summary banner branches on per-booking waiver status ("All N already on file" / "M of N on file, rest need to sign" / "each player needs to sign") + per-attendee row shows green "✓ ON FILE — valid through {date}" or "Sign Waiver" link; (2) `/waiver?token=...` shows green-bordered "Waiver On File" card with signed date, expiry, doc version when attendee.waiver_id is set; falls through to the form if expiry has passed; (3) booking confirmation email gets a `{{waiver_summary}}` template variable matching the success page. Annual-renewal lookup is covered by `idx_waivers_claim_lookup`. audit_log entries: `waiver.auto_linked` per linked attendee. |
 | **Smaller polish wave** | Five items shipped in one commit: (1) **Notify-submitter preview-before-send modal** — new `GET /api/admin/feedback/:id/notify-preview` renders the resolution-notice template with this ticket's actual status + admin_note (not sample data). AdminFeedback's "Notify submitter…" button now opens a sandboxed-iframe modal showing recipient + subject + rendered body before sending. `renderFeedbackResolutionNotice` helper extracted from `sendFeedbackResolutionNotice` so preview + send share the rendering path. (2) **Featured-event flag** — migration 0017 adds `events.featured INTEGER DEFAULT 0`; `/api/events` ORDER BY now `featured DESC, date_iso ASC|DESC` so admin-picked headliner wins ties; checkbox in AdminEvents Publishing section; orange "Featured" pill on `/events` cards (top-right of cover, or inline in header) + orange ring around featured cards. (3) **Reminder-cron monitoring** — `scheduled()` writes a `cron.swept` audit row on every run regardless of whether work was done, with full results metadata. New `GET /api/admin/analytics/cron-status` returns last sweep age + 24h `reminder.sent`/`reminder_1hr.sent` counts. AdminDashboard renders a CronHealth strip: green when last sweep <60min, red + STALE badge if older. (4) **`/events` cover-image hero** — 160px gradient-overlaid hero on cards with `coverImageUrl`; featured cards get accented styling. (5) **Booking total bug fix** (user-reported): per-order fixed fee (e.g., Stripe's $0.30 processing fee) was leaking into the total before any tickets were selected because the unit multiplier defaults to 1 for non-attendee `per_unit` values. Short-circuit in `totals` returns all zeros when subtotal === 0; once the user adds anything, taxes/fees apply correctly on top. |
 | **Per-surface event cover images (Option A — full 4 fields)** | Migration 0019 adds four nullable URL columns to `events`: `card_image_url` (2:1, recommended 1200×600), `hero_image_url` (3.2:1, 1920×600), `banner_image_url` (4:1, 1920×500), `og_image_url` (1.91:1, 1200×630). The original `cover_image_url` stays as the universal fallback so existing events keep working unchanged. Backend: `worker/lib/formatters.js formatEvent()` exposes the four new fields as camelCased; `worker/routes/admin/events.js parseEventBody()` accepts them, INSERT/UPDATE write all five image columns, the duplicate handler clones every column, and the per-URL HEAD preflight (`preflightCoverImage`) now runs against every image URL the admin set, not just the cover — error returns prefix the column name so the editor knows which picker failed. `worker/index.js rewriteEventOg()` prefers `og_image_url` over `cover_image_url` for the OG meta image so social unfurls get the dedicated 1.91:1 asset when uploaded. Frontend consumers each prefer their own column with a fallback chain: `Events.jsx` uses `cardImageUrl ?? coverImageUrl` for the grid card hero, `EventDetail.jsx` uses `heroImageUrl ?? coverImageUrl` for the page hero, `Booking.jsx` uses `bannerImageUrl ?? coverImageUrl` for the step-1 banner. Admin editor: single "Cover image" Field replaced with an **Event Images** section containing 5 ratio-aware pickers (Cover · Card · Event Hero · Booking Banner · Social/OG). Each picker renders a 320px-wide preview cropped to its actual aspect ratio so the admin sees what customers will see; when a picker is empty but the universal cover is set, the cropped fallback shows in muted form (55% opacity + slight grayscale) with a "Showing fallback…" hint so the admin can decide whether the cover crop is acceptable for that surface or warrants a dedicated upload. Reuses the existing `/api/admin/uploads/image` endpoint — no new upload route. All four new fields are optional; events shipped with only `cover_image_url` continue to render correctly everywhere. |
-| **Phase 1 audit + Pre-Phase-2 hygiene batch (2026-05-06)** | **Phase 1 audit** (read-only inventory ahead of admin overhaul) shipped to `docs/audit/`: 11 markdown files (~1800 lines) covering stack, route inventory (103 API endpoints + 50 SPA routes), data model (27 tables + ERD), integrations (Stripe + Resend + R2 + waiver service + secret-name inventory — zero committed credentials), public/admin coupling (28 cross-boundary assets), 60-entry do-not-touch list, admin surface map (24 screens with git history + JD persona mapping), pain points (42 code-observable issues), test coverage (zero today; 83 characterization tests prescribed), open questions (50 — 12 runtime / 21 operator / 11 external / 6 access). `CLAUDE.md` at repo root mirrors the do-not-touch list and stop-and-ask conditions. **Pre-Phase-2 hygiene batch** (6 zero-risk follow-ups, all merged 2026-05-06): (1) **Stripe API version pinned** to `2026-04-22.dahlia` via `Stripe-Version` header on every outbound call in `worker/lib/stripe.js stripeFetch()` — no more silent drift if the account default rotates. (2) **`RL_QUOTE` rate-limit binding** added (namespace 1009, 30/min/IP) on `POST /api/bookings/quote`. (3) Migration `0020_drop_admin_sessions.sql` drops the dead `admin_sessions` table — **in repo but NOT yet applied to remote D1; operator runs `wrangler d1 migrations apply --remote`**. (4) `migrations/README.md` documenting forward-only convention + the `0010_*` filename collision (`0010_session_version.sql` + `0010_vendors.sql` are independent and order-deterministic via alphabetic sort). (5) `package.json name` renamed `temp-react` → `air-action-sports`. (6) `.gitattributes` for LF normalization (eol=lf default; *.bat eol=crlf). Audit branch (`audit/phase-1`) retained on remote for reference; chore branch deleted. |
+| **Phase 1 audit + Pre-Phase-2 hygiene batch (2026-05-06)** | **Phase 1 audit** (read-only inventory ahead of admin overhaul) shipped to `docs/audit/`: 11 markdown files (~1800 lines) covering stack, route inventory (103 API endpoints + 50 SPA routes), data model (27 tables + ERD), integrations (Stripe + Resend + R2 + waiver service + secret-name inventory — zero committed credentials), public/admin coupling (28 cross-boundary assets), 60-entry do-not-touch list, admin surface map (24 screens with git history + JD persona mapping), pain points (42 code-observable issues), test coverage (zero today; 83 characterization tests prescribed), open questions (50 — 12 runtime / 21 operator / 11 external / 6 access). `CLAUDE.md` at repo root mirrors the do-not-touch list and stop-and-ask conditions. **Pre-Phase-2 hygiene batch** (6 zero-risk follow-ups, all merged 2026-05-06): (1) **Stripe API version pinned** to `2026-04-22.dahlia` via `Stripe-Version` header on every outbound call in `worker/lib/stripe.js stripeFetch()` — no more silent drift if the account default rotates. (2) **`RL_QUOTE` rate-limit binding** added (namespace 1009, 30/min/IP) on `POST /api/bookings/quote`. (3) Migration `0020_drop_admin_sessions.sql` drops the dead `admin_sessions` table — shipped to repo unapplied; **applied to remote D1 2026-05-07** during the M3 deploy session (got swept up by a later `wrangler d1 migrations apply --remote`). (4) `migrations/README.md` documenting forward-only convention + the `0010_*` filename collision (`0010_session_version.sql` + `0010_vendors.sql` are independent and order-deterministic via alphabetic sort). (5) `package.json name` renamed `temp-react` → `air-action-sports`. (6) `.gitattributes` for LF normalization (eol=lf default; *.bat eol=crlf). Audit branch (`audit/phase-1`) retained on remote for reference; chore branch deleted. |
 | **Milestone 1 — Test infrastructure (✓ closed 2026-05-06; merged to main as `c4d67a6`)** | First repo-wide test suite + CI. Long-lived branch `milestone-1-test-infrastructure` shipped 9 batches (PRs #2–#13) and was merged into `main` via merge commit `c4d67a6` (PR #14) — merge strategy preserved per-batch SHAs for `git bisect` access. **Purely additive** — zero modifications to production code. Lands the audit-prescribed characterization tests for Groups A–D (the 4 critical-tier paths in `scripts/test-gate-mapping.json gates`) plus a Playwright smoke scaffold for Group I. **216 vitest unit tests across 54 files**, locking `worker/lib/pricing.js` 95.95% lines, `worker/routes/webhooks.js` 91.08%, `worker/routes/waivers.js` 93.61%, `worker/lib/stripe.js` signature-verify subset 56.06% (per `docs/runbooks/m1-baseline-coverage.txt`). **7 Playwright smoke tests** in `tests/e2e/` covering audit Group I (#77–#83) — operator-triggered via `npm run test:e2e` against a deployed Worker; **NOT in CI by default**. **CI workflow** at `.github/workflows/ci.yml` runs vitest+coverage on every PR to `main` or `milestone-*`; lint included with `continue-on-error: true` until `eslint.config.js` is added (audit pain-point #8). **CONTRIBUTING.md** + `.github/PULL_REQUEST_TEMPLATE.md` codify the M1 operating rules. **Test-gate map** at `scripts/test-gate-mapping.json` (4 `gates` + 7 `uncovered` entries — the latter is the post-M1 punch list: Groups E/F/G/H + the lint config gap). **Closing runbooks** at `docs/runbooks/`: `m1-baseline-coverage.txt` (captured `npm run test:coverage` table for regression detection), `m1-rollback.md` (full + partial rollback recipes with `git revert -m 1` syntax for the merge commit), `m1-deploy.md` (the milestone → main playbook this row records the result of). **Test runner**: Vitest 2.1.9 + @vitest/coverage-v8 (Node 20 env, Web Crypto used directly), Playwright 1.59.x. Coverage at `coverage/` (gitignored). Per-batch operating rules used during M1: plan-mode-first per batch, 10-file cap per PR, Conventional Commits with `m1-<area>` scope, no `--force`/no rebases on shared branches/no direct commits to main or milestone branch — preserved as a template in CLAUDE.md for future milestones. **Operator one-time post-merge action**: `npx playwright install chromium` (downloads ~150 MB Chrome binary; not part of `npm install`). **Deferred to a future milestone**: audit Groups E (admin manual booking — E47-E53), F (auth — F54-F64), G (worker-level — G65-G70), H (cron — H71-H76); plus the lint config gap. |
 | **Milestone 2 — Shared Primitives + Cross-Route Fix (✓ closed 2026-05-07; merged to main as `7a87f28` via PR #28)** | First milestone of Phase 2 — admin overhaul groundwork. Long-lived branch `milestone-2-shared-primitives` shipped **11 batches** (PRs #16–#27; sub-branch naming `m2-batch-N-slug` flat per same git ref-collision workaround M1 used). **Per-batch squash SHAs**: B1 FilterBar `658e95b` (#16); B2 writeAudit `2cf1485` (#17); B3a money helpers `1d3ed98` (#18); B3b email helpers `f35a0ec` (#19); B4a `findExistingValidWaiver` relocation `683f4a6` (#20); B4b drop shim + retarget tests `36fda2b` (#21); B5a feature-flag substrate `5e1f568` (#22); B5b feature-flag admin route `95983f4` (#24); B5c density toggle UI `a6ab6e9` (#25); B6 Group E admin booking tests `d40e099` (#26); B7 closing runbooks + final docs `febadf0` (#27). Plus the docs-checkpoint `8de7541` (PR #23) which captured M2 mid-flight state on main. **Milestone-to-main merged 2026-05-07 as `7a87f28` via PR [#28](https://github.com/bulletbiter99/air-action-sports/pull/28)** (merge-commit strategy preserves per-batch SHAs); migration `0021_feature_flags.sql` applied to remote D1 same day. **Test count: +255 unit tests across +16 new files** (216 M1 baseline → **471 across 70 files**), locking 6 gated paths in `scripts/test-gate-mapping.json`: `pricing.js` 98.84%, `stripe.js` 93.93%, `webhooks.js` 91.17%, `waivers.js` 93.61%, `waiverLookup.js` 100% (NEW gate B4a/4b), `admin/bookings.js` 71.11% (NEW gate B6 — promoted from `uncovered`). **Six new shared admin primitives ready for M3+ reuse**: `src/components/admin/FilterBar.jsx` (B1), `worker/lib/auditLog.js writeAudit()` (B2), dual-target `money.js` + `email.js` helpers (B3a/3b, client + worker mirror with identical test suites), relocated `worker/lib/waiverLookup.js findExistingValidWaiver()` (B4a/4b — closes audit §08 #7 cross-route smell, function body byte-identical), `worker/lib/featureFlags.js` (B5a — 4-state model: off/on/user_opt_in/role_scoped, graceful table-missing handling). **Feature-flag end-to-end** (B5a/5b/5c): migration `0021_feature_flags.sql` + admin route `GET /api/admin/feature-flags` + `PUT /:key/override` + `src/admin/useFeatureFlag.js` hook with module-level cache + density toggle UI in `/admin/settings`. **Audit Group E admin booking characterization tests** (B6, audit IDs E47-E53): manual cash/comp/card branches, public/admin pricing parity (locks the 2dd831f fix — fee on subtotal+tax), waiver auto-link, refund Idempotency-Key header, refund-rejects-cash. **Closing runbooks** at `docs/runbooks/`: `m2-rollback.md` (full + partial rollback recipes including migration 0021 reverse procedure), `m2-deploy.md` (milestone → main playbook with operator-applies-remote step for migration 0021 + post-merge SHA fill-in step), `m2-baseline-coverage.txt` (captured `npm run test:coverage` for regression detection — replaces M1 baseline as the new floor). **Operator-applies-remote action queued post-milestone-merge**: `CLOUDFLARE_API_TOKEN=$TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote` to apply `0021_feature_flags.sql`. Until applied, `featureFlags.js` returns `false`/`[]` gracefully on missing tables; density toggle UI is hidden (gated by `flag.exists` from `listFlags`). **Conventions established**: dual-target test pattern (`tests/unit/utils/<helper>.test.js` imports both client + worker variants of helpers), reusable `tests/helpers/adminSession.js` (cookie minting + user-row binding) used by 7 admin route tests in B5b + 8 admin booking tests in B6, CSS density tokens via `src/styles/tokens.css` (`:root` block at default + `[data-density="compact"]` override; zero pixel diff at default verified via dev-server `getComputedStyle` probe). **Critical do-not-touch handled in M2**: B4a/4b moved `findExistingValidWaiver` from `worker/routes/webhooks.js` to `worker/lib/waiverLookup.js`. The function body is **byte-identical** to the original; only its location changed. Group D's 25 characterization tests pass identically. The cross-route import smell from audit §08 #7 is fully closed. B5b adds one route mount line to `worker/index.js` alongside the existing 17 admin mounts; the DNT-listed functions in worker/index.js (`serveUpload`, `rewriteEventOg`, `scheduled`, `withSecurityHeaders`) are untouched. **Detailed batch-by-batch state in [CLAUDE.md](CLAUDE.md)'s "Milestone 2" section** — read that first when resuming any related work. **Deferred to post-M2 (still in `scripts/test-gate-mapping.json uncovered`)**: audit Groups F (auth — F54-F64), G (worker-level — G65-G70), H (cron — H71-H76). The lint config gap (audit pain-point #8) was closed in M3 batch 0 (`eslint.config.js` flat config landed; lint blocking in CI). |
 
@@ -468,7 +468,7 @@ The admin shell uses a **left sidebar** (not a top bar) at ≥900px and converts
 All roadmap work is shipped. The remaining items are **operational**, not code:
 
 1. **Flip Stripe sandbox → live.** Generate live keys in Stripe dashboard, rotate `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` via `wrangler secret put`, update the webhook target URL in Stripe to point at `/api/webhooks/stripe` in **live** mode, do a $1 real-money end-to-end test (buy → paid → email received → waiver link works). Note: outbound API version is now pinned (`Stripe-Version: 2026-04-22.dahlia` in `worker/lib/stripe.js`) — going live doesn't change that pin; rotate it deliberately if Stripe upgrades the account.
-2. **Apply migration `0020_drop_admin_sessions.sql` to remote D1.** Drops the dead `admin_sessions` table (unused since the cookie-auth migration). Run: `CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote`. Skipping is harmless (table is unread by app code) but leaves the dead table around.
+2. ~~**Apply migration `0020_drop_admin_sessions.sql` to remote D1.**~~ — done during M3 (got picked up by a later `wrangler d1 migrations apply --remote`). All migrations 0001-0025 are applied as of 2026-05-07.
 3. **Seed content for Operation Nightfall.** Upload a cover image via `/admin/events` → Edit → Cover image picker. Decide any custom questions (team name? rental size? experience level?). Review + customize email copy in `/admin/settings/email-templates`.
 4. **Invite a second admin.** Don't be a single point of failure on event day. Use `/admin/users` → Invite User → manager role.
 5. **Dry run.** Create a test event a few days out, book a comp ticket through `/admin/new-booking`, and walk through: confirmation email → waiver → check-in via scanner → rental assignment → return. This exercises the full operational chain.
@@ -507,7 +507,7 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **5 resolved feedback tickets** (4 smoke/dogfood from when the system shipped 2026-04-23/24, plus `fb_Tp9RIpHdKgWw` — Jesse's Rules of Engagement page request, shipped 2026-04-29). 0 open tickets.
 - **Cloudflare Workers Builds**: deploy command in dashboard is `npm run build && npx wrangler deploy` (must be both — see §13). Auto-deploys on `git push origin main`.
 - **Booking flow live**: `/booking` is the canonical Book Now path; Peek widget removed from `index.html`. Stripe still in **sandbox** mode — real-money cutover is the next pre-launch step.
-- **Migrations 0001-0019 applied to remote D1**. Migration `0020_drop_admin_sessions.sql` is **in repo but NOT yet applied to remote** (see §11 #2).
+- **All migrations 0001–0025 applied to remote D1** (last batch 0021–0025 applied during M3 2026-05-07).
 - **Stripe API version pin**: `2026-04-22.dahlia` via `Stripe-Version` header in `worker/lib/stripe.js stripeFetch()`. Applies to every outbound Stripe call. Updates require both a Stripe-dashboard rollover and a code change in lockstep.
 - **Waiver document live**: `wd_v4` (corporate-wide release of liability + 4-tier age policy + 365-day Claim Period). wd_v1 thru wd_v3 retired. Edit at `/admin/waivers` (owner only) — creates a new version, retires the previous; past signers stay pinned to whatever they signed.
 - **Custom domain live**: `https://airactionsport.com` is attached to the Worker (DNS via Cloudflare). `SITE_URL` env var, OG meta tags, and email links all use the custom domain. The `air-action-sports.bulletbiter99.workers.dev` fallback URL still resolves but is no longer canonical.
@@ -552,15 +552,16 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 
 ## 14. Resume checklist when starting fresh
 
-1. Read this file top-to-bottom. **Then read [CLAUDE.md](CLAUDE.md)** — it carries the do-not-touch list, stop-and-ask conditions, and branch etiquette derived from the Phase 1 audit, plus the M1 closing summary and post-M1 punch list. Skim [docs/audit/00-overview.md](docs/audit/00-overview.md) if more context on the present surface area is needed before touching admin code.
+1. Read this file top-to-bottom. **Then read [CLAUDE.md](CLAUDE.md)** — it carries the do-not-touch list, stop-and-ask conditions, branch etiquette, and the closing summaries for Milestones 1, 2, and 3. Skim [docs/audit/00-overview.md](docs/audit/00-overview.md) if more context on the present surface area is needed before touching admin code.
 2. Confirm the Cloudflare deploy credentials memory points to `.claude/.env` (token present).
 3. Sanity checks:
    - `curl https://airactionsport.com/api/health` → `{"ok":true,...}`
    - `curl https://airactionsport.com/api/events` → returns 1 event
-   - `npm test` → 216 passing across 54 files (vitest unit suite from M1).
-   - `npm run test:coverage` → compare gated paths against `docs/runbooks/m1-baseline-coverage.txt` (any drop > 1% on `pricing.js` / `webhooks.js` / `waivers.js` / `stripe.js` is a signal — investigate before continuing).
+   - `npm test` → 617 passing across 80 files (vitest unit suite at M3 close).
+   - `npm run lint` → 0 errors (M3 B0 made lint blocking).
+   - `npm run test:coverage` → compare gated paths against `docs/runbooks/m3-baseline-coverage.txt` (any drop > 1% on a gated file is a signal — investigate before continuing).
 4. Confirm admin login works (use `/admin/forgot-password` if needed).
-5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-06 post-M1-merge: the deploy triggered by `c4d67a6` (M1 milestone merge to main; CI green via PR #14). Earlier: `ead41292-a8e5-4d9b-85df-9b05382f2803` (Phase 1 audit + pre-Phase-2 hygiene). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
+5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-07 post-M3-close: the deploy triggered by `87da972` (M3 final close, PR [#53](https://github.com/bulletbiter99/air-action-sports/pull/53)). Earlier in the same session: `9b7b00b` (B11 GDPR), `ab1bb6d` (B10 tag cron), `5415324` (B9 persona dashboard), `2221ac4` (B8b customers UI), `09606f9` (B8a customers route), `37ad942` (B7 auth tests), `33b8a37` (B6 NOT NULL), `7be634e` (B5 dual-write). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
 6. If touching anything in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) `gates`: run the listed test paths first to confirm baseline; after editing, re-run them. If a test reveals current behavior conflicting with audit-documented behavior, **stop and ask** — do not adapt the test to match the new code.
 7. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
 
@@ -575,16 +576,17 @@ I'm resuming work on the Air Action Sports booking system. Read these
 two files in the project root first, in order:
 
   1. HANDOFF.md — full context on the stack, deployed state, every
-     shipped phase (§10 — including Milestone 1 test infrastructure,
-     closed 2026-05-06), every API and frontend route, the §11
-     pre-launch checklist + deferred list, the cover-image surface
-     reference table in §12, and §13 known-issues.
+     shipped phase (§10 — including Milestones 1, 2, and 3 all closed
+     2026-05-06/07), every API and frontend route, the §11 pre-launch
+     checklist + deferred list, the cover-image surface reference
+     table in §12, and §13 known-issues.
   2. CLAUDE.md — entry-point rules: the do-not-touch list (mirrored
      from docs/audit/06-do-not-touch.md), stop-and-ask conditions,
      branch etiquette, run/build/lint/test/deploy commands, the
      **Test gate enforcement** subsection pointing at
-     scripts/test-gate-mapping.json, and the closed-state M1
-     summary with the post-M1 punch list (Groups E/F/G/H + lint gap).
+     scripts/test-gate-mapping.json, and the closed-state summaries
+     for M1, M2, and M3 (M3 batch table includes all 13 batches B0-B12
+     with squash + main-merge SHAs).
 
 If you're touching admin code or anything on the do-not-touch list,
 also skim docs/audit/00-overview.md and
@@ -622,9 +624,9 @@ Current state — all shipped and live:
           Stripe-Version header in worker/lib/stripe.js stripeFetch().
       (2) RL_QUOTE rate-limit binding (namespace 1009, 30/min/IP) on
           POST /api/bookings/quote.
-      (3) migrations/0020_drop_admin_sessions.sql — IN REPO BUT NOT YET
-          APPLIED to remote D1; operator runs `wrangler d1 migrations
-          apply --remote` (see §11 #2).
+      (3) migrations/0020_drop_admin_sessions.sql — applied to remote
+          D1 in the M3 deploy session (got swept up by a later
+          `wrangler d1 migrations apply --remote`).
       (4) migrations/README.md documenting forward-only convention +
           0010_* filename collision (intentional, alphabetic order).
       (5) package.json `name` renamed temp-react → air-action-sports.
@@ -681,9 +683,10 @@ Current state — all shipped and live:
     when resuming any related work. Closing runbooks at
     docs/runbooks/m2-{rollback,deploy,baseline-coverage}.{md,txt}.
   - **Milestone 3 — Customers Schema + Persona-Tailored AdminDashboard
-    (IN FLIGHT 2026-05-07; branch `milestone/3-customers`):**
-    Largest schema migration in the engagement. 13 batches; 8 of 13
-    merged on milestone branch:
+    (✓ closed 2026-05-07; final main commit `87da972` via PR [#53](https://github.com/bulletbiter99/air-action-sports/pull/53)):**
+    Largest schema migration in the engagement. All 13 batches B0-B12
+    merged via per-batch rolling brings-up (each batch went live on
+    main soon after merging to milestone, not held until close).
       B0 hygiene + dogfood     3afbb4c (#30) — closes pain-point #8
                                                 (lint blocking in CI)
       B1 local D1 setup        aee3791 (#31) — scripts/seed-staging.sql
@@ -693,15 +696,13 @@ Current state — all shipped and live:
                                                 +62 tests
       B3 migration A           0e06b85 (#33) — 0022 customers schema
                                                 additive. **Migration
-                                                applied to remote D1
-                                                2026-05-07 ✓**
+                                                applied to remote D1 ✓**
       B4 backfill script       a3bfcc5 (#34) — Node CLI + 31 unit tests
                                                 + operator-runnable
                                                 local-D1 integration test.
-                                                **Backfill ran on remote
-                                                2026-05-07 ✓** (2 customers
-                                                created from 2 bookings +
-                                                4 attendees).
+                                                **Backfill ran on remote ✓**
+                                                (2 customers created from
+                                                2 bookings + 4 attendees).
       B5 dual-write code       a4870f6 (#36) — worker/lib/customers.js
                                                 (findOrCreate + recompute);
                                                 wired into webhook +
@@ -709,56 +710,97 @@ Current state — all shipped and live:
                                                 + refund); customerId()
                                                 in worker/lib/ids.js;
                                                 +11 tests; gate map
-                                                updated.
+                                                updated. Main: `7be634e` (#37).
       B6 NOT NULL + cleanup    4c2e87f (#38) — 0023_customers_not_null.sql
                                                 (column-rename approach;
                                                 table-rebuild rejected
-                                                by D1's FK enforcement);
-                                                drop null fallback in
-                                                customers.js; admin manual
-                                                booking 400 on malformed
-                                                email; backfill SQL drops
-                                                BEGIN/COMMIT (D1 forbids
-                                                them) + JSON-parse fix;
-                                                +2 tests, -1 obsolete.
+                                                by D1 FK enforcement);
+                                                drop null fallback;
+                                                admin manual booking 400
+                                                on malformed email; backfill
+                                                SQL drops BEGIN/COMMIT
+                                                (D1 forbids) + JSON-parse
+                                                fix; +2 tests, -1 obsolete.
                                                 **Migration applied to
-                                                remote D1 2026-05-07 ✓**
-                                                (skipped 7-day window
-                                                per user direction —
-                                                tiny dataset, 0 malformed
-                                                rows, low risk).
-      B7 Group F auth tests    pending      — 11 audit-prescribed tests
+                                                remote D1 ✓** (skipped
+                                                7-day window per user
+                                                direction — tiny dataset,
+                                                0 malformed rows). Main:
+                                                `33b8a37` (#39).
+      B7 Group F auth tests    b4bece9 (#40) — 11 audit-prescribed tests
                                                 (F54-F64) + 2 extras for
                                                 vendorToken defensive
-                                                cases. Purely additive.
-                                                Promotes auth.js,
+                                                cases. Promotes auth.js,
                                                 password.js, vendorToken.js
-                                                from `uncovered` to
-                                                `gates` in test gate map.
-    Pending: B8 customers UI; B9 persona AdminDashboard; B10 system tag
-    cron; B11 GDPR delete; B12 closing runbooks.
-    Cumulative on milestone branch (after B7): **589 unit tests across
-    78 files** (471 M2 baseline + 118 new across B0-B7).
-    Detailed batch-by-batch state in CLAUDE.md "Milestone 3" section —
-    read that first when resuming M3 work. docs/decisions.md captures
-    the resolved audit open questions (D01 Phase 2 goal A+B+C+incremental;
-    D02 §08 §1 closed; D03 audit pain-point #8 closed in M3 B0).
+                                                from `uncovered` to `gates`.
+                                                Main: `37ad942` (#41).
+      B8a customers route      765f792 (#42) — admin GET list / GET :id /
+                                                POST merge; 0024 flag
+                                                migration (`customers_entity`,
+                                                state=off); 11 tests.
+                                                Main: `09606f9` (#43).
+      B8b customers UI         203e640 (#44) — AdminCustomers.jsx list
+                                                + AdminCustomerDetail.jsx
+                                                detail with merge modal;
+                                                sidebar entry gated by
+                                                useFeatureFlag('customers_entity').
+                                                Main: `2221ac4` (#45).
+      B9 persona dashboard     d3891c5 (#46) — personaLayouts.js +
+                                                AdminDashboardPersona.jsx
+                                                + 4 widgets (Revenue/Cron/
+                                                TodayEvents/RecentBookings);
+                                                0025 flag (`new_admin_dashboard`,
+                                                state=off); legacy preserved
+                                                as fallback. Main: `5415324` (#47).
+      B10 tag cron             1afb594 (#48) — worker/lib/customerTags.js;
+                                                03:00 UTC nightly sweep;
+                                                4 system tags (vip/frequent/
+                                                lapsed/new); 12 tests.
+                                                Main: `ab1bb6d` (#49).
+      B11 GDPR delete          c7e5d33 (#50) — POST /:id/gdpr-delete
+                                                (owner only); UI modal;
+                                                redacts personal fields,
+                                                writes gdpr_deletions
+                                                row; 5 tests. Main:
+                                                `9b7b00b` (#51).
+      B12 closing              08b59de (#52) — docs/runbooks/m3-{baseline-coverage,
+                                                deploy,rollback}.{txt,md};
+                                                scripts/flip-flags-owner-scope.sql
+                                                captured. Main: `87da972`
+                                                (#53).
+    **Cumulative at M3 close: 617 unit tests across 80 files** (471 M2
+    baseline + 146 new across B0-B12). Six new gated paths: customers.js
+    (lib), password.js, auth.js, vendorToken.js, admin/customers.js,
+    customerTags.js. Five D1 migrations applied to remote: 0021 (M2)
+    + 0022/0023/0024/0025 (M3). Three feature flags live: density_compact
+    (M2) + customers_entity + new_admin_dashboard (M3, both currently
+    role_scoped owner per staged rollout).
+    **Three D1 quirks discovered + carried forward** in
+    docs/runbooks/m3-deploy.md: BEGIN/COMMIT rejected (incl. in
+    comments — wrangler keyword-scans), table-rebuild fails on FK
+    enforcement (use column-rename pattern), wrangler --remote --json
+    --file emits UI chars before JSON.
+    Detailed batch-by-batch state in CLAUDE.md "Milestone 3" section.
+    docs/decisions.md captures the resolved audit open questions
+    (D01 Phase 2 goal A+B+C+incremental; D02 §08 §1 closed; D03 audit
+    pain-point #8 closed in M3 B0).
   - Tools: tools/cover-banner-builder.html (1200×630 design tool).
   - Docs: docs/staff-job-descriptions.md (22 role descriptions across
     4 tiers), docs/audit/* (Phase 1 audit, see above), docs/runbooks/*
-    (M1 + M2 closing runbooks; M3 pre-flight coverage in
-    m3-pre-flight-coverage.txt; M3 dogfood verification in
-    docs/m3-pre-flight-verification.md), docs/decisions.md
-    (D01-D03 resolved).
+    (M1 + M2 + M3 closing runbooks — M3 set: m3-baseline-coverage.txt,
+    m3-deploy.md, m3-rollback.md; M3 pre-flight artifacts retained at
+    m3-pre-flight-coverage.txt + docs/m3-pre-flight-verification.md),
+    docs/decisions.md (D01-D03 resolved).
 
 Cloudflare Workers Builds deploy command (in dashboard): `npm run build &&
 npx wrangler deploy`. Do NOT change to plain `npx wrangler deploy` (see
 §13 gotcha).
 
-Most recent deploy as of 2026-05-06:
-  triggered by `c4d67a6` (M1 milestone merge to main; CI green via
-  PR #14). Earlier: ead41292-a8e5-4d9b-85df-9b05382f2803 (post-audit
-  + hygiene merge).
+Most recent deploy as of 2026-05-07 post-M3-close:
+  triggered by `87da972` (M3 final close, PR #53; CI green).
+  All M3 batches B0-B12 are on main as second-parent commits via
+  per-batch rolling brings-up — `git log --first-parent main` shows
+  just the merge commits; `git log main` follows into squashes.
 
 Post-M1 operator one-time setup (after this merge to main):
   - `npx playwright install chromium` (downloads ~150 MB Chrome
@@ -771,10 +813,8 @@ Pre-launch operational items still to be done by owner (NOT code):
     priority. Do BEFORE Stripe live cutover. Exact records in §11.
   - **Always Use HTTPS toggle** in Cloudflare SSL/TLS → Edge Certs
     (currently OFF — HTTP returns 200 not 301).
-  - **Apply migration 0020_drop_admin_sessions.sql** to remote D1:
-    `CLOUDFLARE_API_TOKEN=$TOKEN npx wrangler d1 migrations apply
-    air-action-sports-db --remote`. Drops the dead admin_sessions
-    table. Skipping is harmless but leaves the table around.
+  - ~~**Apply migration 0020_drop_admin_sessions.sql**~~ — done in
+    the M3 deploy session 2026-05-07.
   - **Stripe sandbox → live cutover** + $1 real-money end-to-end test.
     The Stripe-Version header pin stays the same on cutover.
   - **Per-surface cover image uploads for Operation Nightfall** via
@@ -787,13 +827,11 @@ Pre-launch operational items still to be done by owner (NOT code):
   - **Comp-ticket dry run** end-to-end (book → confirm → waiver →
     check-in).
 
-Phase 2 — admin overhaul — is the next coding phase. Phase 1 audit's
-top open question (docs/audit/10-open-questions.md #13) is what the
-goal of that overhaul actually is (dashboard-first redesign? IA
-reorganization? persona-tailored landing screens? incremental
-polish?). Do not start Phase 2 until that's answered. The audit's
-docs/audit/08-pain-points.md Section 1 is also an empty operator
-placeholder that needs filling.
+Phase 2 — admin overhaul — is sequenced across M3 → M8 per
+docs/decisions.md D01 (open question #13 resolved as A+B+C+incremental).
+M1 + M2 + M3 are all closed. M4 (IA reorganization) is the next
+milestone. The audit's docs/audit/08-pain-points.md Section 1 is
+still an empty operator placeholder that needs filling.
 
 Stripe is still in sandbox mode (BLOCKING for first real sale).
 Operation Nightfall (first live event) was 2026-05-09. Today: <update>.
@@ -801,24 +839,24 @@ Operation Nightfall (first live event) was 2026-05-09. Today: <update>.
 After you've read the docs, give me:
   1. A one-paragraph status summary of where things actually stand
      (verify against `curl https://airactionsport.com/api/health` and
-     `/api/events`, plus run `npm test` locally — should be **589
-     passing across 78 files on milestone/3-customers** [the
-     milestone is in-flight; checkout that branch to resume M3 work],
-     or **also 589 across 78 files on main** post-B7 merge.
+     `/api/events`, plus run `npm test` locally — should be **617
+     passing across 80 files on `main`** as of M3 close 2026-05-07).
   2. A ranked top-3 of what I should work on next, with rough effort
-     estimates and why-now. Use §11's pre-launch checklist + deferred
-     list as the primary candidate pool, plus the audit's open
-     questions and pain-point lists. For M3 work: B5/B6/B7 all
-     shipped. Migrations 0022 + 0023 applied to remote D1; backfill
-     run; auth characterization tests landed. Next batch is **B8
-     customers UI** (list + detail + merge + `customers_entity`
-     flag, reuses M2 `<FilterBar>` + `useFeatureFlag`). See
-     CLAUDE.md "Milestone 3" for the full chain B8-B12. Lint config
-     gap is **closed** in B0.
+     estimates and why-now. Candidate pools, in priority order:
+       a) §11 pre-launch operational checklist (DMARC/DKIM, Cloudflare
+          Always-Use-HTTPS, Stripe sandbox→live, Operation Nightfall
+          content seed, second-admin invite, comp-ticket dry run).
+       b) M4 — IA reorganization, the next coding milestone per
+          docs/decisions.md D01. M3 closed shipped a customers entity
+          + persona-tailored AdminDashboard; M4's mandate is the broader
+          admin nav restructure that the customers sidebar entry
+          (B8b) was a proof-of-concept for.
+       c) Audit Groups G + H (worker-level + cron tests, F65-H76)
+          remaining `uncovered` per scripts/test-gate-mapping.json.
   3. Any drift between HANDOFF.md / CLAUDE.md and the actual live
      state (stale counts, new feedback tickets, undeployed code,
-     unapplied migrations, vitest count not 564, coverage diff vs
-     docs/runbooks/m2-baseline-coverage.txt or m3-pre-flight-coverage.txt).
+     unapplied migrations, vitest count not 617, coverage diff vs
+     docs/runbooks/m3-baseline-coverage.txt).
   4. Open feedback queue (pull via /api/admin/feedback or D1).
      Summarize anything in `new` or `in-progress` status in 1–2
      sentences each.
@@ -828,76 +866,71 @@ Most likely next pickups (roughly priority order):
   Pre-launch operational (blocking go-live):
   - DMARC + Resend DKIM/SPF DNS records — exact records in §11.
   - Cloudflare Always Use HTTPS toggle.
-  - Apply migration 0020 to remote D1 (one wrangler command).
   - Stripe sandbox → live cutover + $1 e2e test (~30 min).
   - Seed Operation Nightfall content (cover images, custom questions,
     email-template review).
   - Invite a second admin.
   - Comp-ticket dry run.
 
-  **M3 IS IN FLIGHT — RESUME HERE FIRST IF CONTINUING M3:**
-  Branch: `milestone/3-customers`. 8 of 13 batches merged
-  (B0 hygiene 3afbb4c, B1 local-D1 aee3791, B2 customerEmail 0cfd436,
-  B3 schema 0e06b85 + migration 0022 applied to remote ✓,
-  B4 backfill a3bfcc5 + ran on remote ✓, B5 dual-write a4870f6,
-  B6 NOT NULL 4c2e87f + migration 0023 applied to remote ✓,
-  B7 Group F auth tests pending merge).
+  **M3 CLOSED 2026-05-07 — start M4 here:**
+  M3 final state: all 13 batches B0-B12 merged via per-batch rolling
+  brings-up. Final main commit `87da972` (PR #53). 617 unit tests
+  across 80 files. 5 D1 migrations applied (0021 M2, 0022/0023/0024/0025 M3).
+  3 feature flags live: density_compact (M2), customers_entity +
+  new_admin_dashboard (M3 — both currently `role_scoped owner` per
+  staged rollout, scripts/flip-flags-owner-scope.sql for reference).
 
-  Resume recipe:
-    git checkout milestone/3-customers
-    git pull origin milestone/3-customers
+  Sanity recipe (any new session):
+    git checkout main
+    git pull origin main
     npm install
-    npm test         # confirm 589/589 across 78 files
+    npm test         # confirm 617/617 across 80 files
+    npm run lint     # confirm 0 errors (M3 B0 made lint blocking)
 
-  Then read CLAUDE.md "Milestone 3" section for batch-by-batch
-  state. Post next batch's plan first (plan-mode-first per batch
-  — same convention as M1/M2). Sub-branches use flat
-  `m3-batch-N-slug` naming (NOT `milestone/3-customers/batch-N`
-  — git ref-collision workaround per M1/M2 precedent).
+  Read CLAUDE.md "Milestone 3" section for the full closed-state
+  inventory + the three D1 quirks (BEGIN/COMMIT rejected, FK
+  enforcement on table rebuild, wrangler stdout JSON-parse) carried
+  forward in docs/runbooks/m3-deploy.md.
 
-  Pending batches in order:
-    B5 dual-write code paths — worker/lib/customers.js +
-       findOrCreateCustomerForBooking wired into webhooks.js +
-       admin/bookings.js. ~4 files. Critical: NO edits to
-       worker/routes/bookings.js (M6 territory) or worker/lib/stripe.js.
-    B6 migration C — bookings.customer_id + attendees.customer_id
-       NOT NULL via 12-step rebuild. Pre-condition: 7-day dual-write
-       verification window post-B5 deploy.
-    B7 Group F auth tests (F54-F64) — independent of the chain.
-       11 tests across worker/lib/auth.js + session.js + password.js.
-    B8 customers UI — list + detail + merge workflow + 0024 flag
-       (state off). Reuses M2 <FilterBar> + useFeatureFlag.
-    B9 persona AdminDashboard — new shell + widgets + 0025 flag.
-       Old dashboard preserved as AdminDashboardLegacy.
-    B10 system tag cron — nightly 03:00 UTC tag refresh.
-    B11 GDPR deletion workflow — soft-archive + redaction pattern.
-    B12 closing runbooks + final docs update.
+  **For M4 (IA reorganization — admin nav restructure):**
+  - New long-lived branch: `milestone/4-ia-reorganization` (or
+    similar — operator picks the slug at kickoff). Sub-branches
+    use flat `m4-batch-N-slug` naming (NOT nested under the
+    milestone path — git ref-collision workaround per M1/M2/M3).
+  - Per-batch operating rules: plan-mode-first, ≤10 files per PR,
+    Conventional Commits with `m4-<area>` scope, no `--force`,
+    no rebases on shared branches, all tests use mocks.
+  - Per-batch rolling brings-up to main (the M3 pattern proved
+    out — every batch goes live shortly after milestone-merge,
+    not held until close).
+  - Customers sidebar entry from M3 B8b is the proof-of-concept
+    for the broader IA work.
+  - The 6 gated paths added in M3 (customers.js, password.js,
+    auth.js, vendorToken.js, admin/customers.js, customerTags.js)
+    are now part of the test-gate-map's behavioral lock — touching
+    them requires the gate-test discipline.
 
-  After B5 lands on main:
-    OPERATOR runs: node scripts/backfill-customers.js --remote
-    The backfill creates customer records, links bookings/attendees,
-    emits customer.created audit rows. Idempotent. Spot-check 5-10
-    customers post-run; verify total count matches local prediction
-    (~38 customers from current 50 fixture bookings, scaled to actual
-    production booking count).
-
-    Then 7-day dual-write verification window (operator monitors
-    audit log for customer.created errors, checks for orphan bookings
-    without customer_id). After window passes: B6 NOT NULL migration.
-
-  Post-M3 test coverage (deferred — Groups G + H still uncovered):
+  Audit Groups G + H still `uncovered` (deferred to M4+):
   - Group G — worker-level (G65-G70): worker/index.js serveUpload,
-    rewriteEventOg. Lands in M4 batch 1.
-  - Group H — cron (H71-H76): worker/index.js scheduled handler.
-    Lands in M5.
-    (Group F lands in M3 batch 7; Group E landed in M2.)
+    rewriteEventOg. Plausibly lands as an M4 sub-batch.
+  - Group H — cron (H71-H76): worker/index.js scheduled handler
+    outer loop + runReminderSweep / runAbandonPendingSweep /
+    runVendorSweep. Plausibly lands in M5 (staff infra) since the
+    cron is operationally critical.
+    (Group F landed in M3 B7; Group E landed in M2 B6.)
 
   Phase 2 — admin overhaul (M3 ↔ M8):
   - Audit open question #13 RESOLVED as A+B+C+incremental,
-    sequenced across M2-M8 (see docs/decisions.md D01).
-  - M3: customers entity + persona dashboard. M4: IA reorganization.
-    M5: staff infrastructure. M6: Stripe setup_future_usage.
-    M7: reporting (funnel, LTV, segments). M8: closing.
+    sequenced across M3-M8 (see docs/decisions.md D01).
+  - M3 ✓ DONE: customers entity + persona dashboard.
+  - M4: IA reorganization (admin nav restructure).
+  - M5: staff infrastructure.
+  - M6: Stripe setup_future_usage. **The first milestone that touches
+    worker/routes/bookings.js + worker/lib/stripe.js** (both DNT-listed
+    throughout M3-M5).
+  - M7: reporting (funnel, LTV, segments — builds on customers
+    aggregates from M3).
+  - M8: closing.
 
   ROE follow-up (owner-decision gaps — needs owner input before
   coding):
