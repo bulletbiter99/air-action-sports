@@ -2,11 +2,12 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAdmin } from './AdminContext';
+import { formatMoney } from '../utils/money.js';
 
 const CATEGORIES = ['rifle', 'mask', 'vest', 'magazine', 'battery', 'other'];
 const CONDITIONS = ['new', 'good', 'fair', 'damaged', 'retired'];
 
-const centsToDollars = (c) => (c === '' || c == null ? '' : (Number(c) / 100).toFixed(2));
+const centsToDollars = (c) => formatMoney(c, { currency: '', emptyFor: '' });
 const dollarsToCents = (s) => {
   if (s === '' || s == null) return 0;
   const n = Number(String(s).replace(/[^0-9.\-]/g, ''));

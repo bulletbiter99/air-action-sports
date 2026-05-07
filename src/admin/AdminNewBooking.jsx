@@ -2,8 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAdmin } from './AdminContext';
-
-const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
+import { formatMoney as fmt } from '../utils/money.js';
 
 const PAYMENT_METHODS = [
   { value: 'card',   label: 'Credit card (Stripe)', desc: 'Customer scans a QR code or taps the URL to pay via Stripe Checkout.' },
@@ -341,7 +340,7 @@ export default function AdminNewBooking() {
                   <div>
                     <strong style={{ color: 'var(--cream)', fontSize: 13 }}>{addon.name}</strong>
                     {addon.type === 'rental' && <span style={rentalBadge}>Rental</span>}
-                    <div style={{ fontSize: 12, color: 'var(--olive-light)' }}>${(addon.price_cents / 100).toFixed(2)}{addon.description ? ` · ${addon.description}` : ''}</div>
+                    <div style={{ fontSize: 12, color: 'var(--olive-light)' }}>{fmt(addon.price_cents)}{addon.description ? ` · ${addon.description}` : ''}</div>
                   </div>
                   <input
                     type="number" min="0" max={addon.max_per_order || 99}

@@ -43,10 +43,9 @@
       "tier": "critical",
       "covers": [
         "POST /api/webhooks/stripe",
-        "handleCheckoutCompleted",
-        "findExistingValidWaiver"
+        "handleCheckoutCompleted"
       ],
-      "audit_groups": ["B", "D"],
+      "audit_group": "B",
       "tests": [
         "tests/unit/webhook/idempotency-already-paid.test.js",
         "tests/unit/webhook/unknown-event-type.test.js",
@@ -56,7 +55,14 @@
         "tests/unit/webhook/audit-log-emission.test.js",
         "tests/unit/webhook/email-send-confirmation.test.js",
         "tests/unit/webhook/email-send-admin-notify.test.js",
-        "tests/unit/webhook/waiver-auto-link-on-paid.test.js",
+        "tests/unit/webhook/waiver-auto-link-on-paid.test.js"
+      ]
+    },
+    "worker/lib/waiverLookup.js": {
+      "tier": "critical",
+      "covers": ["findExistingValidWaiver"],
+      "audit_group": "D",
+      "tests": [
         "tests/unit/auto-link/null-inputs-return-null.test.js",
         "tests/unit/auto-link/match-by-email-and-name.test.js",
         "tests/unit/auto-link/case-insensitive-email.test.js",
@@ -93,9 +99,7 @@
         "tests/unit/waiver/integrity-fail-on-post.test.js",
         "tests/unit/waiver/integrity-fail-on-get.test.js"
       ]
-    }
-  },
-  "uncovered": {
+    },
     "worker/routes/admin/bookings.js": {
       "tier": "critical",
       "covers": [
@@ -103,9 +107,18 @@
         "POST /api/admin/bookings/:id/refund"
       ],
       "audit_group": "E",
-      "audit_tests_prescribed": ["E47", "E48", "E49", "E50", "E51", "E52", "E53"],
-      "status": "deferred to post-M1"
-    },
+      "tests": [
+        "tests/unit/admin/manual-cash.test.js",
+        "tests/unit/admin/manual-comp.test.js",
+        "tests/unit/admin/manual-card.test.js",
+        "tests/unit/admin/manual-pricing-parity.test.js",
+        "tests/unit/admin/manual-auto-link.test.js",
+        "tests/unit/admin/refund-idempotency-key.test.js",
+        "tests/unit/admin/refund-rejects-cash.test.js"
+      ]
+    }
+  },
+  "uncovered": {
     "worker/routes/bookings.js": {
       "tier": "critical",
       "covers": ["POST /api/bookings/checkout", "POST /api/bookings/quote"],

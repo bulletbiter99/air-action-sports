@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AdminProvider, useAdmin } from './AdminContext';
 import FeedbackModal from '../components/FeedbackModal';
+import { useFeatureFlag } from './useFeatureFlag';
 import '../styles/admin.css';
 
 // Sidebar grouped by operational rhythm: setup → event-day → review → admin.
@@ -58,6 +59,7 @@ function AdminShell() {
   const showChrome = isAuthenticated && !onAuthPage;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const { enabled: compactDensity } = useFeatureFlag('density_compact');
 
   useEffect(() => { setDrawerOpen(false); }, [loc.pathname]);
 
@@ -70,7 +72,11 @@ function AdminShell() {
   }
 
   return (
-    <div className="admin-shell admin-shell--with-sidebar" style={{ minHeight: '100vh', background: 'var(--dark)', color: 'var(--cream)' }}>
+    <div
+      className="admin-shell admin-shell--with-sidebar"
+      data-density={compactDensity ? 'compact' : 'normal'}
+      style={{ minHeight: '100vh', background: 'var(--dark)', color: 'var(--cream)' }}
+    >
       <MobileTopbar onOpen={() => setDrawerOpen(true)} />
       {drawerOpen && <div className="admin-drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
       <Sidebar drawerOpen={drawerOpen} onClose={() => setDrawerOpen(false)} onOpenFeedback={() => setFeedbackOpen(true)} />

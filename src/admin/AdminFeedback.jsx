@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import FeedbackModal from '../components/FeedbackModal';
+import FilterBar from '../components/admin/FilterBar.jsx';
 
 const TYPE_LABEL = { bug: 'Bug', feature: 'Feature', usability: 'Usability', other: 'Other' };
 const STATUS_LABEL = {
@@ -11,6 +12,18 @@ const STATUS_LABEL = {
 const PRIORITIES = ['low', 'medium', 'high', 'critical'];
 const STATUSES = ['new', 'triaged', 'in-progress', 'resolved', 'wont-fix', 'duplicate'];
 const TYPES = ['bug', 'feature', 'usability', 'other'];
+
+// FilterBar schema — used by the chip-based filter row replacing the
+// hand-built selects below. Status/type/priority become chips; `q`
+// (search) is a separate FilterBar prop, not part of the chip schema.
+const FEEDBACK_FILTER_SCHEMA = [
+  { key: 'status', label: 'Status', type: 'enum',
+    options: STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] })) },
+  { key: 'type', label: 'Type', type: 'enum',
+    options: TYPES.map((t) => ({ value: t, label: TYPE_LABEL[t] })) },
+  { key: 'priority', label: 'Priority', type: 'enum',
+    options: PRIORITIES.map((p) => ({ value: p, label: p })) },
+];
 
 const TYPE_COLOR = { bug: '#e74c3c', feature: '#3498db', usability: '#e67e22', other: '#95a5a6' };
 const STATUS_COLOR = {
@@ -85,27 +98,16 @@ export default function AdminFeedback() {
         <StatCard label="All time" value={summary.total} onClick={() => setFilters({ status: '', type: '', priority: '', q: '' })} />
       </div>
 
-      <div className="admin-filter-row" style={{ marginTop: 16 }}>
-        <input
-          type="search"
-          placeholder="Search title / description / email…"
-          value={filters.q}
-          onChange={(e) => setFilters({ ...filters, q: e.target.value })}
-          style={{ ...input, flex: 2 }}
-        />
-        <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} style={{ ...input, flex: 1 }}>
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-        </select>
-        <select value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })} style={{ ...input, flex: 1 }}>
-          <option value="">All types</option>
-          {TYPES.map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
-        </select>
-        <select value={filters.priority} onChange={(e) => setFilters({ ...filters, priority: e.target.value })} style={{ ...input, flex: 1 }}>
-          <option value="">All priorities</option>
-          {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-      </div>
+      <FilterBar
+        schema={FEEDBACK_FILTER_SCHEMA}
+        value={filters}
+        onChange={setFilters}
+        searchValue={filters.q}
+        onSearchChange={(q) => setFilters({ ...filters, q })}
+        searchPlaceholder="Search title / description / email…"
+        resultCount={items.length}
+        savedViewsKey="adminFeedback"
+      />
 
       <section style={{ ...tableBox, marginTop: 16 }}>
         {loadingList && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}

@@ -1,0 +1,26 @@
+/* ============================================================
+   ADMIN — density tokens
+   Drives the [data-density="compact"] toggle wired to the
+   `density_compact` feature flag. AdminLayout flips the attribute
+   on the .admin-shell--with-sidebar wrapper based on the user's
+   preference fetched from /api/admin/feature-flags.
+
+   Default values match the pre-tokenization admin.css exactly —
+   the goal is zero pixel diff at default density. Compact values
+   (~30% reduction) apply only on desktop; mobile breakpoints in
+   admin.css stay hardcoded since mobile already runs tight.
+   ============================================================ */
+
+:root {
+  --admin-pad-main: 2rem;
+  --admin-pad-nav: 12px 0;
+  --admin-pad-section-label: 10px 18px 6px;
+  --admin-row-gap: 12px;
+}
+
+[data-density="compact"] {
+  --admin-pad-main: 1.25rem;
+  --admin-pad-nav: 8px 0;
+  --admin-pad-section-label: 8px 16px 4px;
+  --admin-row-gap: 8px;
+}

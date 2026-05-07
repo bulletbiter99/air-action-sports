@@ -10,7 +10,7 @@
 // the actual ordering is D1's job.
 
 import { describe, it, expect } from 'vitest';
-import { findExistingValidWaiver } from '../../../worker/routes/webhooks.js';
+import { findExistingValidWaiver } from '../../../worker/lib/waiverLookup.js';
 import { createMockD1 } from '../../helpers/mockD1.js';
 
 describe('findExistingValidWaiver — latest-by-signed_at tiebreaker', () => {

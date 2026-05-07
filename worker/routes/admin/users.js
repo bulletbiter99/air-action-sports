@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
 import { randomId } from '../../lib/ids.js';
 import { sendUserInvite } from '../../lib/emailSender.js';
+import { writeAudit } from '../../lib/auditLog.js';
+import { isValidEmail } from '../../lib/email.js';
 
 const adminUsers = new Hono();
 adminUsers.use('*', requireAuth);
@@ -66,7 +68,7 @@ adminUsers.post('/invite', requireRole('owner'), async (c) => {
 
     const email = String(body.email || '').trim().toLowerCase();
     const role = body.role;
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    if (!isValidEmail(email)) {
         return c.json({ error: 'Valid email required' }, 400);
     }
     if (!ROLES.includes(role)) return c.json({ error: `role must be one of ${ROLES.join(', ')}` }, 400);
@@ -101,10 +103,13 @@ adminUsers.post('/invite', requireRole('owner'), async (c) => {
     if (c.executionCtx?.waitUntil) c.executionCtx.waitUntil(send());
     else await send();
 
-    await c.env.DB.prepare(
-        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
-         VALUES (?, 'user.invited', 'invitation', ?, ?, ?)`
-    ).bind(inviter.id, token, JSON.stringify({ email, role }), now).run();
+    await writeAudit(c.env, {
+        userId: inviter.id,
+        action: 'user.invited',
+        targetType: 'invitation',
+        targetId: token,
+        meta: { email, role },
+    });
 
     return c.json({ success: true, token, acceptLink });
 });
@@ -120,10 +125,13 @@ adminUsers.delete('/invitations/:token', requireRole('owner'), async (c) => {
 
     const now = Date.now();
     await c.env.DB.prepare(`UPDATE invitations SET revoked_at = ? WHERE token = ?`).bind(now, token).run();
-    await c.env.DB.prepare(
-        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
-         VALUES (?, 'user.invite_revoked', 'invitation', ?, ?, ?)`
-    ).bind(user.id, token, JSON.stringify({ email: row.email, role: row.role }), now).run();
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'user.invite_revoked',
+        targetType: 'invitation',
+        targetId: token,
+        meta: { email: row.email, role: row.role },
+    });
     return c.json({ revoked: true });
 });
 
@@ -169,10 +177,13 @@ adminUsers.put('/:id', requireRole('owner'), async (c) => {
     binds.push(id);
     await c.env.DB.prepare(`UPDATE users SET ${sets} WHERE id = ?`).bind(...binds).run();
 
-    await c.env.DB.prepare(
-        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
-         VALUES (?, 'user.updated', 'user', ?, ?, ?)`
-    ).bind(actor.id, id, JSON.stringify({ fields: keys, prev_role: target.role, prev_active: !!target.active }), Date.now()).run();
+    await writeAudit(c.env, {
+        userId: actor.id,
+        action: 'user.updated',
+        targetType: 'user',
+        targetId: id,
+        meta: { fields: keys, prev_role: target.role, prev_active: !!target.active },
+    });
 
     const row = await c.env.DB.prepare(`SELECT * FROM users WHERE id = ?`).bind(id).first();
     return c.json({ user: publicUser(row) });
