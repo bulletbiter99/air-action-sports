@@ -1,0 +1,334 @@
+/* FilterBar — chip-based filter primitive for admin list views.
+ *
+ * Tokenization note: M2 uses inline values. Batch 5c will refactor to
+ * design tokens (var(--chip-bg), var(--chip-fg), etc.). The
+ * data-density attribute hooks are wired here so 5c is a near-zero-touch
+ * swap — only needs to add the `[data-density="compact"]` rule blocks.
+ */
+
+.aas-filterbar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.aas-filterbar__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.aas-filterbar__search {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 12px;
+    border: 1px solid var(--border, #d4d4d4);
+    border-radius: 4px;
+    font-size: 14px;
+    background: var(--bg-input, #fff);
+    color: var(--fg, #1a1a1a);
+}
+
+.aas-filterbar__search:focus {
+    outline: 2px solid var(--orange, #d76c21);
+    outline-offset: -1px;
+}
+
+.aas-filterbar__chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.aas-filterbar__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 10px;
+    background: var(--chip-bg, rgba(215, 108, 33, 0.12));
+    border: 1px solid var(--chip-border, rgba(215, 108, 33, 0.3));
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--chip-fg, var(--fg, #1a1a1a));
+    line-height: 1;
+}
+
+.aas-filterbar__chip-label {
+    font-weight: 500;
+    color: var(--olive-light, #6b7042);
+}
+
+.aas-filterbar__chip-value {
+    font-weight: 600;
+}
+
+.aas-filterbar__chip-remove {
+    margin-left: 2px;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--olive-light, #6b7042);
+    cursor: pointer;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.aas-filterbar__chip-remove:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--fg, #1a1a1a);
+}
+
+.aas-filterbar__add {
+    position: relative;
+}
+
+.aas-filterbar__add-btn,
+.aas-filterbar__views-btn {
+    padding: 6px 12px;
+    border: 1px dashed var(--border, #d4d4d4);
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--olive-light, #6b7042);
+}
+
+.aas-filterbar__add-btn:hover,
+.aas-filterbar__views-btn:hover {
+    border-color: var(--orange, #d76c21);
+    color: var(--orange, #d76c21);
+}
+
+.aas-filterbar__count {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--olive-light, #6b7042);
+}
+
+.aas-filterbar__picker {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    min-width: 240px;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border, #d4d4d4);
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    z-index: 20;
+    padding: 8px;
+}
+
+.aas-filterbar__picker-search {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border, #d4d4d4);
+    border-radius: 4px;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.aas-filterbar__picker-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.aas-filterbar__picker-item {
+    padding: 6px 4px;
+}
+
+.aas-filterbar__picker-item details > summary {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    list-style: none;
+}
+
+.aas-filterbar__picker-item details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.aas-filterbar__picker-item details > summary::before {
+    content: '▸';
+    display: inline-block;
+    margin-right: 6px;
+    transition: transform 0.15s ease;
+}
+
+.aas-filterbar__picker-item details[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.aas-filterbar__picker-item details > summary:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.aas-filterbar__picker-options {
+    list-style: none;
+    margin: 4px 0 0 16px;
+    padding: 0;
+}
+
+.aas-filterbar__picker-options li button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 13px;
+    border-radius: 4px;
+    color: var(--fg, #1a1a1a);
+}
+
+.aas-filterbar__picker-options li button:hover {
+    background: rgba(215, 108, 33, 0.08);
+    color: var(--orange, #d76c21);
+}
+
+.aas-filterbar__picker-empty {
+    padding: 8px;
+    text-align: center;
+    color: var(--olive-light, #6b7042);
+    font-size: 13px;
+    font-style: italic;
+}
+
+.aas-filterbar__picker-todo {
+    display: block;
+    padding: 4px 8px;
+    color: var(--olive-light, #6b7042);
+    font-size: 13px;
+    font-style: italic;
+}
+
+.aas-filterbar__picker-todo em {
+    font-size: 11px;
+    opacity: 0.8;
+}
+
+/* Saved views dropdown */
+
+.aas-filterbar__views {
+    position: relative;
+}
+
+.aas-filterbar__views-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 220px;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border, #d4d4d4);
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    z-index: 20;
+    padding: 8px;
+}
+
+.aas-filterbar__views-save {
+    display: block;
+    width: 100%;
+    padding: 6px 8px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    color: var(--orange, #d76c21);
+    font-weight: 500;
+    border-radius: 4px;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.aas-filterbar__views-save:hover {
+    background: rgba(215, 108, 33, 0.08);
+}
+
+.aas-filterbar__views-empty {
+    margin: 8px 0 0;
+    padding: 4px 8px;
+    color: var(--olive-light, #6b7042);
+    font-size: 12px;
+    font-style: italic;
+}
+
+.aas-filterbar__views-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+}
+
+.aas-filterbar__views-item > button:first-child {
+    flex: 1;
+    text-align: left;
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--fg, #1a1a1a);
+}
+
+.aas-filterbar__views-item > button:first-child:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.aas-filterbar__views-delete {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--olive-light, #6b7042);
+    cursor: pointer;
+    border-radius: 50%;
+    font-size: 14px;
+}
+
+.aas-filterbar__views-delete:hover {
+    background: rgba(231, 76, 60, 0.1);
+    color: #e74c3c;
+}
+
+/* Density variants — compact halves the row spacing.
+ * B5c will move these into tokens.css; the selectors here stay the same. */
+
+.aas-filterbar[data-density='compact'] {
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.aas-filterbar[data-density='compact'] .aas-filterbar__row {
+    gap: 8px;
+}
+
+.aas-filterbar[data-density='compact'] .aas-filterbar__chips {
+    gap: 4px;
+}
+
+.aas-filterbar[data-density='compact'] .aas-filterbar__search {
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.aas-filterbar[data-density='compact'] .aas-filterbar__chip {
+    padding: 2px 6px 2px 8px;
+    font-size: 12px;
+}
