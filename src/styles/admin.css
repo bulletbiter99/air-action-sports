@@ -4,6 +4,8 @@
    and per-page wrappers.
    ============================================================ */
 
+@import './tokens.css';
+
 :root {
   --admin-sidebar-w: 220px;
   --admin-mobile-topbar-h: 56px;
@@ -40,7 +42,7 @@ nav.admin-sidebar-nav {
   border-bottom: 0;
   justify-content: flex-start;
   align-items: stretch;
-  padding: 12px 0;
+  padding: var(--admin-pad-nav);
   height: auto;
   display: flex;
   flex-direction: column;
@@ -60,7 +62,7 @@ nav.admin-sidebar-nav a { text-align: left; }
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--olive-light);
-  padding: 10px 18px 6px;
+  padding: var(--admin-pad-section-label);
   opacity: 0.7;
 }
 
@@ -75,7 +77,7 @@ nav.admin-sidebar-nav a { text-align: left; }
 .admin-main {
   flex: 1;
   min-width: 0;
-  padding: 2rem;
+  padding: var(--admin-pad-main);
   max-width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
@@ -137,7 +139,7 @@ nav.admin-sidebar-nav a { text-align: left; }
 /* ----- Filter rows (search + selects) ----- */
 .admin-filter-row {
   display: flex;
-  gap: 12px;
+  gap: var(--admin-row-gap);
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
