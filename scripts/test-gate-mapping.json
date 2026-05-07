@@ -127,6 +127,33 @@
       "tests": [
         "tests/unit/lib/customers.test.js"
       ]
+    },
+    "worker/lib/password.js": {
+      "tier": "high",
+      "covers": ["hashPassword", "verifyPassword"],
+      "audit_group": "F",
+      "audit_tests_prescribed": ["F54", "F55", "F56"],
+      "tests": [
+        "tests/unit/auth/password.test.js"
+      ]
+    },
+    "worker/lib/auth.js": {
+      "tier": "high",
+      "covers": ["requireAuth", "requireRole"],
+      "audit_group": "F",
+      "audit_tests_prescribed": ["F57", "F58", "F59", "F60", "F61"],
+      "tests": [
+        "tests/unit/auth/auth.test.js"
+      ]
+    },
+    "worker/lib/vendorToken.js": {
+      "tier": "high",
+      "covers": ["createVendorToken", "verifyVendorToken"],
+      "audit_group": "F",
+      "audit_tests_prescribed": ["F62", "F63", "F64"],
+      "tests": [
+        "tests/unit/auth/vendor-token.test.js"
+      ]
     }
   },
   "uncovered": {
@@ -136,20 +163,6 @@
       "audit_group": "(public-side checkout)",
       "audit_tests_prescribed": [],
       "status": "no dedicated tests; quote pricing covered indirectly via Group A"
-    },
-    "worker/lib/auth.js": {
-      "tier": "high",
-      "covers": ["verifyPassword", "hashPassword", "requireAuth", "requireRole"],
-      "audit_group": "F",
-      "audit_tests_prescribed": ["F54", "F55", "F56", "F57", "F58", "F59", "F60", "F61"],
-      "status": "deferred to post-M1"
-    },
-    "worker/lib/vendorToken.js": {
-      "tier": "high",
-      "covers": ["verifyVendorToken"],
-      "audit_group": "F",
-      "audit_tests_prescribed": ["F62", "F63", "F64"],
-      "status": "deferred to post-M1"
     },
     "worker/index.js": {
       "tier": "critical",
