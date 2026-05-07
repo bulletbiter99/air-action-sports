@@ -21,7 +21,7 @@ describe('PERSONA_LAYOUTS registry', () => {
         expect(keys).toContain('staff');
     });
 
-    it('owner / generic_manager / staff / booking_coordinator / marketing have concrete widget arrays', () => {
+    it('all 6 personas have concrete widget arrays (M4 B4f closed the last alias-only)', () => {
         expect(Array.isArray(PERSONA_LAYOUTS.owner)).toBe(true);
         expect(Array.isArray(PERSONA_LAYOUTS.generic_manager)).toBe(true);
         expect(Array.isArray(PERSONA_LAYOUTS.staff)).toBe(true);
@@ -29,10 +29,8 @@ describe('PERSONA_LAYOUTS registry', () => {
         expect(Array.isArray(PERSONA_LAYOUTS.booking_coordinator)).toBe(true);
         // M4 B4e — marketing promoted from alias to concrete set
         expect(Array.isArray(PERSONA_LAYOUTS.marketing)).toBe(true);
-    });
-
-    it('bookkeeper is the only remaining alias-only persona (null) until B4f', () => {
-        expect(PERSONA_LAYOUTS.bookkeeper).toBeNull();
+        // M4 B4f — bookkeeper promoted from alias to concrete set
+        expect(Array.isArray(PERSONA_LAYOUTS.bookkeeper)).toBe(true);
     });
 
     it('booking_coordinator widget set ships the 5 BC widgets in BC-spec order', () => {
@@ -65,6 +63,16 @@ describe('PERSONA_LAYOUTS registry', () => {
             'PromoCodePerformance',
             'RecentFeedback',
             'AssetLibraryShortcut',
+        ]);
+    });
+
+    it('bookkeeper widget set ships the 5-widget M4 B4f order', () => {
+        expect(PERSONA_LAYOUTS.bookkeeper).toEqual([
+            'BookkeeperKPIs',
+            'RevenueTrend',
+            'TaxFeeSummary',
+            'RefundActivity',
+            'Staff1099Thresholds',
         ]);
     });
 });
@@ -131,11 +139,16 @@ describe('resolveLayout', () => {
         expect(layout).toBe(PERSONA_LAYOUTS.marketing);
     });
 
-    it('persona=bookkeeper (alias-only) with role=owner falls back to owner set', () => {
-        // E.g., an owner who set persona='bookkeeper' before B4f ships
-        // bookkeeper widgets — they see the existing owner widgets.
+    it('persona=bookkeeper returns the dedicated Bookkeeper widget set (M4 B4f)', () => {
+        const layout = resolveLayout({ persona: 'bookkeeper', role: 'manager' });
+        expect(layout).toBe(PERSONA_LAYOUTS.bookkeeper);
+    });
+
+    it('persona=bookkeeper with role=owner still returns Bookkeeper set (persona wins over role)', () => {
+        // Owner who picked persona='bookkeeper' (e.g., an owner who
+        // also handles the books) gets the Bookkeeper widgets, not owner.
         const layout = resolveLayout({ persona: 'bookkeeper', role: 'owner' });
-        expect(layout).toBe(PERSONA_LAYOUTS.owner);
+        expect(layout).toBe(PERSONA_LAYOUTS.bookkeeper);
     });
 
     it('persona=null (B4a-pre-backfill or new user) falls back to role-derived default', () => {
