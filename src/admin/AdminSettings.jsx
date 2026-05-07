@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import { useFeatureFlag, setFeatureFlagOverride } from './useFeatureFlag';
 
 const CARDS = [
   {
@@ -38,6 +39,12 @@ const CARDS = [
 export default function AdminSettings() {
   const { isAuthenticated, loading, hasRole } = useAdmin();
   const navigate = useNavigate();
+  const {
+    enabled: compactDensity,
+    exists: densityExists,
+    refresh: refreshDensity,
+  } = useFeatureFlag('density_compact');
+  const [densitySaving, setDensitySaving] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -48,12 +55,54 @@ export default function AdminSettings() {
 
   const visible = CARDS.filter((c) => hasRole(c.role));
 
+  const handleDensity = async (compact) => {
+    if (densitySaving || compact === compactDensity) return;
+    setDensitySaving(true);
+    try {
+      await setFeatureFlagOverride('density_compact', compact);
+      await refreshDensity();
+    } finally {
+      setDensitySaving(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem' }}>
       <h1 style={h1}>Settings</h1>
       <p style={{ color: 'var(--olive-light)', fontSize: 13, marginBottom: 24 }}>
         Configuration for booking, pricing, and transactional messaging.
       </p>
+
+      {densityExists && (
+        <div style={densitySection}>
+          <div style={densityHeader}>
+            <div style={densityLabel}>Display Density</div>
+            <div style={densityHint}>Tighten admin padding for more content above the fold.</div>
+          </div>
+          <div style={densityControl} role="radiogroup" aria-label="Display density">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!compactDensity}
+              onClick={() => handleDensity(false)}
+              disabled={densitySaving}
+              style={{ ...densityButton, ...(compactDensity ? {} : densityButtonActive) }}
+            >
+              Normal
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={compactDensity}
+              onClick={() => handleDensity(true)}
+              disabled={densitySaving}
+              style={{ ...densityButton, ...(compactDensity ? densityButtonActive : {}) }}
+            >
+              Compact
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={grid}>
         {visible.map((c) => (
@@ -81,3 +130,40 @@ const card = {
 const cardTitle = { fontSize: 16, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--cream)', marginBottom: 8 };
 const cardDesc = { fontSize: 13, color: 'var(--tan-light)', lineHeight: 1.5, marginBottom: 12 };
 const cardCta = { fontSize: 11, fontWeight: 800, letterSpacing: 2, color: 'var(--orange)', textTransform: 'uppercase' };
+
+const densitySection = {
+  background: 'var(--mid)',
+  border: '1px solid rgba(200,184,154,0.1)',
+  padding: '1.25rem 1.5rem',
+  marginBottom: 24,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 24,
+  flexWrap: 'wrap',
+};
+const densityHeader = { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 };
+const densityLabel = { fontSize: 14, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--cream)' };
+const densityHint = { fontSize: 12, color: 'var(--olive-light)' };
+const densityControl = {
+  display: 'inline-flex',
+  border: '1px solid rgba(200,184,154,0.15)',
+  borderRadius: 4,
+  overflow: 'hidden',
+};
+const densityButton = {
+  background: 'transparent',
+  color: 'var(--tan-light)',
+  border: 0,
+  padding: '8px 16px',
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: 1,
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+  transition: 'background 0.15s, color 0.15s',
+};
+const densityButtonActive = {
+  background: 'var(--orange)',
+  color: 'var(--dark)',
+};
