@@ -275,6 +275,18 @@
       "tests": [
         "tests/unit/admin/personaLayouts.test.js"
       ]
+    },
+    "src/admin/sidebarConfig.js": {
+      "tier": "high",
+      "covers": [
+        "SIDEBAR registry (Surface 1 IA per docs/m4-discovery/sidebar-ia-audit.md — Home / Today / Events / Bookings / Customers / Settings group with 10 sub-items)",
+        "getVisibleItems (filters by dynamic todayActive + requiresFlag predicates)",
+        "loadSidebarExpand / saveSidebarExpand (localStorage helpers for Settings group expand state; namespaced aas:admin:sidebar:expand:*)"
+      ],
+      "audit_group": "(M4 B5 sidebar IA reorganization)",
+      "tests": [
+        "tests/unit/admin/sidebarConfig.test.js"
+      ]
     }
   },
   "uncovered": {
