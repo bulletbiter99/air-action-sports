@@ -463,7 +463,7 @@ The admin shell uses a **left sidebar** (not a top bar) at ≥900px and converts
 | **Milestone 1 — Test infrastructure (✓ closed 2026-05-06; merged to main as `c4d67a6`)** | First repo-wide test suite + CI. Long-lived branch `milestone-1-test-infrastructure` shipped 9 batches (PRs #2–#13) and was merged into `main` via merge commit `c4d67a6` (PR #14) — merge strategy preserved per-batch SHAs for `git bisect` access. **Purely additive** — zero modifications to production code. Lands the audit-prescribed characterization tests for Groups A–D (the 4 critical-tier paths in `scripts/test-gate-mapping.json gates`) plus a Playwright smoke scaffold for Group I. **216 vitest unit tests across 54 files**, locking `worker/lib/pricing.js` 95.95% lines, `worker/routes/webhooks.js` 91.08%, `worker/routes/waivers.js` 93.61%, `worker/lib/stripe.js` signature-verify subset 56.06% (per `docs/runbooks/m1-baseline-coverage.txt`). **7 Playwright smoke tests** in `tests/e2e/` covering audit Group I (#77–#83) — operator-triggered via `npm run test:e2e` against a deployed Worker; **NOT in CI by default**. **CI workflow** at `.github/workflows/ci.yml` runs vitest+coverage on every PR to `main` or `milestone-*`; lint included with `continue-on-error: true` until `eslint.config.js` is added (audit pain-point #8). **CONTRIBUTING.md** + `.github/PULL_REQUEST_TEMPLATE.md` codify the M1 operating rules. **Test-gate map** at `scripts/test-gate-mapping.json` (4 `gates` + 7 `uncovered` entries — the latter is the post-M1 punch list: Groups E/F/G/H + the lint config gap). **Closing runbooks** at `docs/runbooks/`: `m1-baseline-coverage.txt` (captured `npm run test:coverage` table for regression detection), `m1-rollback.md` (full + partial rollback recipes with `git revert -m 1` syntax for the merge commit), `m1-deploy.md` (the milestone → main playbook this row records the result of). **Test runner**: Vitest 2.1.9 + @vitest/coverage-v8 (Node 20 env, Web Crypto used directly), Playwright 1.59.x. Coverage at `coverage/` (gitignored). Per-batch operating rules used during M1: plan-mode-first per batch, 10-file cap per PR, Conventional Commits with `m1-<area>` scope, no `--force`/no rebases on shared branches/no direct commits to main or milestone branch — preserved as a template in CLAUDE.md for future milestones. **Operator one-time post-merge action**: `npx playwright install chromium` (downloads ~150 MB Chrome binary; not part of `npm install`). **Deferred to a future milestone**: audit Groups E (admin manual booking — E47-E53), F (auth — F54-F64), G (worker-level — G65-G70), H (cron — H71-H76); plus the lint config gap. |
 | **Milestone 2 — Shared Primitives + Cross-Route Fix (✓ closed 2026-05-07; merged to main as `7a87f28` via PR #28)** | First milestone of Phase 2 — admin overhaul groundwork. Long-lived branch `milestone-2-shared-primitives` shipped **11 batches** (PRs #16–#27; sub-branch naming `m2-batch-N-slug` flat per same git ref-collision workaround M1 used). **Per-batch squash SHAs**: B1 FilterBar `658e95b` (#16); B2 writeAudit `2cf1485` (#17); B3a money helpers `1d3ed98` (#18); B3b email helpers `f35a0ec` (#19); B4a `findExistingValidWaiver` relocation `683f4a6` (#20); B4b drop shim + retarget tests `36fda2b` (#21); B5a feature-flag substrate `5e1f568` (#22); B5b feature-flag admin route `95983f4` (#24); B5c density toggle UI `a6ab6e9` (#25); B6 Group E admin booking tests `d40e099` (#26); B7 closing runbooks + final docs `febadf0` (#27). Plus the docs-checkpoint `8de7541` (PR #23) which captured M2 mid-flight state on main. **Milestone-to-main merged 2026-05-07 as `7a87f28` via PR [#28](https://github.com/bulletbiter99/air-action-sports/pull/28)** (merge-commit strategy preserves per-batch SHAs); migration `0021_feature_flags.sql` applied to remote D1 same day. **Test count: +255 unit tests across +16 new files** (216 M1 baseline → **471 across 70 files**), locking 6 gated paths in `scripts/test-gate-mapping.json`: `pricing.js` 98.84%, `stripe.js` 93.93%, `webhooks.js` 91.17%, `waivers.js` 93.61%, `waiverLookup.js` 100% (NEW gate B4a/4b), `admin/bookings.js` 71.11% (NEW gate B6 — promoted from `uncovered`). **Six new shared admin primitives ready for M3+ reuse**: `src/components/admin/FilterBar.jsx` (B1), `worker/lib/auditLog.js writeAudit()` (B2), dual-target `money.js` + `email.js` helpers (B3a/3b, client + worker mirror with identical test suites), relocated `worker/lib/waiverLookup.js findExistingValidWaiver()` (B4a/4b — closes audit §08 #7 cross-route smell, function body byte-identical), `worker/lib/featureFlags.js` (B5a — 4-state model: off/on/user_opt_in/role_scoped, graceful table-missing handling). **Feature-flag end-to-end** (B5a/5b/5c): migration `0021_feature_flags.sql` + admin route `GET /api/admin/feature-flags` + `PUT /:key/override` + `src/admin/useFeatureFlag.js` hook with module-level cache + density toggle UI in `/admin/settings`. **Audit Group E admin booking characterization tests** (B6, audit IDs E47-E53): manual cash/comp/card branches, public/admin pricing parity (locks the 2dd831f fix — fee on subtotal+tax), waiver auto-link, refund Idempotency-Key header, refund-rejects-cash. **Closing runbooks** at `docs/runbooks/`: `m2-rollback.md` (full + partial rollback recipes including migration 0021 reverse procedure), `m2-deploy.md` (milestone → main playbook with operator-applies-remote step for migration 0021 + post-merge SHA fill-in step), `m2-baseline-coverage.txt` (captured `npm run test:coverage` for regression detection — replaces M1 baseline as the new floor). **Operator-applies-remote action queued post-milestone-merge**: `CLOUDFLARE_API_TOKEN=$TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote` to apply `0021_feature_flags.sql`. Until applied, `featureFlags.js` returns `false`/`[]` gracefully on missing tables; density toggle UI is hidden (gated by `flag.exists` from `listFlags`). **Conventions established**: dual-target test pattern (`tests/unit/utils/<helper>.test.js` imports both client + worker variants of helpers), reusable `tests/helpers/adminSession.js` (cookie minting + user-row binding) used by 7 admin route tests in B5b + 8 admin booking tests in B6, CSS density tokens via `src/styles/tokens.css` (`:root` block at default + `[data-density="compact"]` override; zero pixel diff at default verified via dev-server `getComputedStyle` probe). **Critical do-not-touch handled in M2**: B4a/4b moved `findExistingValidWaiver` from `worker/routes/webhooks.js` to `worker/lib/waiverLookup.js`. The function body is **byte-identical** to the original; only its location changed. Group D's 25 characterization tests pass identically. The cross-route import smell from audit §08 #7 is fully closed. B5b adds one route mount line to `worker/index.js` alongside the existing 17 admin mounts; the DNT-listed functions in worker/index.js (`serveUpload`, `rewriteEventOg`, `scheduled`, `withSecurityHeaders`) are untouched. **Detailed batch-by-batch state in [CLAUDE.md](CLAUDE.md)'s "Milestone 2" section** — read that first when resuming any related work. **Deferred to post-M2 (still in `scripts/test-gate-mapping.json uncovered`)**: audit Groups F (auth — F54-F64), G (worker-level — G65-G70), H (cron — H71-H76). The lint config gap (audit pain-point #8) was closed in M3 batch 0 (`eslint.config.js` flat config landed; lint blocking in CI). |
 | **Milestone 3 — Customers Schema + Persona-Tailored AdminDashboard (✓ closed 2026-05-07; final main commit `87da972` via PR [#53](https://github.com/bulletbiter99/air-action-sports/pull/53))** | Largest schema migration in the engagement. Long-lived branch `milestone/3-customers` shipped **13 batches B0-B12** via per-batch rolling brings-up (each batch went live on main soon after merging to milestone, not held until close). **Per-batch squash SHAs (milestone) + main commits**: B0 `3afbb4c` (#30); B1 `aee3791` (#31); B2 `0cfd436` (#32); B3 `0e06b85` (#33); B4 `a3bfcc5` (#34); B5 `a4870f6` (#36) main `7be634e` (#37); B6 `4c2e87f` (#38) main `33b8a37` (#39); B7 `b4bece9` (#40) main `37ad942` (#41); B8a `765f792` (#42) main `09606f9` (#43); B8b `203e640` (#44) main `2221ac4` (#45); B9 `d3891c5` (#46) main `5415324` (#47); B10 `1afb594` (#48) main `ab1bb6d` (#49); B11 `c7e5d33` (#50) main `9b7b00b` (#51); B12 `08b59de` (#52) main `87da972` (#53). **What shipped**: customers entity (table + 3 supporting tables — customer_tags, customer_segments, gdpr_deletions); migration 0022 (additive customers schema) + 0023 (NOT NULL customer_id via column-rename pattern, table-rebuild rejected by D1's FK enforcement during DROP) + 0024 (`customers_entity` flag) + 0025 (`new_admin_dashboard` flag); persona-tailored AdminDashboard (3 personas owner/manager/staff, 4 widgets RevenueSummary/CronHealth/TodayEvents/RecentBookings) flag-gated by `new_admin_dashboard`; customers admin UI at `/admin/customers` + `/admin/customers/:id` (list + detail + merge modal + GDPR right-to-erasure delete); 03:00 UTC nightly cron sweep refreshing system tags (vip / frequent / lapsed / new); Group F auth characterization tests (audit F54-F64). **Test count: 471 → 617 across 80 files** (+146 across +10 files). **Six new gated paths**: `customers.js`, `password.js`, `auth.js`, `vendorToken.js`, `admin/customers.js`, `customerTags.js`. **5 D1 migrations applied to remote**: 0021 (M2) + 0022/0023/0024/0025 (M3). **Three feature flags live** at M3 close: `density_compact` (M2 user_opt_in), `customers_entity` (role_scoped owner), `new_admin_dashboard` (role_scoped owner). **Three D1 quirks discovered + carried forward** in `docs/runbooks/m3-deploy.md`: (1) BEGIN/COMMIT keywords rejected by wrangler keyword-scan (incl. in SQL comments); (2) NOT NULL via table-rebuild fails on D1 FK enforcement during DROP — use SQLite 3.35+ column-rename pattern; (3) `wrangler --remote --json --file` emits UI characters before JSON payload — strip everything before the first `[` or `{` when parsing programmatically. Detailed batch-by-batch state in [CLAUDE.md](CLAUDE.md)'s "Milestone 3" section. Closing runbooks: `docs/runbooks/m3-{baseline-coverage.txt,deploy.md,rollback.md}` plus `docs/decisions.md` D01-D03 (Phase 2 sequencing A+B+C+incremental; audit §08 §1 closed; lint blocking via D03). |
-| **Milestone 4 — Bookings + Detail Workspace + Visual Regression (in progress; B0-B3b shipped 2026-05-07)** | Long-lived branch `milestone/4-bookings-ia-completion` (off `main` at `87da972`). Sub-branches use flat `m4-batch-N-slug` naming (same workaround as M1/M2/M3). **Shipped through B3b**: B0 reality audit + decisions D04-D07 reconciliation (main commit `fca7e2b`, PR [#56](https://github.com/bulletbiter99/air-action-sports/pull/56)); B1a Group G worker-level tests + workerEnvFixture (`44908cf`, PR [#58](https://github.com/bulletbiter99/air-action-sports/pull/58), +57 tests); B1b visual regression suite + CI gating + label-driven baseline capture workflow (`e72cd97`, PR [#60](https://github.com/bulletbiter99/air-action-sports/pull/60), 7 baselines committed); B2a saved-views D1 substrate + migration 0026 + hook rewrite (`d92cb3b`, PR [#62](https://github.com/bulletbiter99/air-action-sports/pull/62), +27 net tests, also added `networkidle` fix to fix home.png flake); B2b /admin/bookings list page + rich filter API + bulk actions + CSV export (`e2dbc6c`, PR [#64](https://github.com/bulletbiter99/air-action-sports/pull/64), +29 tests); B3a backend for detail view + external refund + PII masking + capabilities stub + migration 0027 (`961d12a`, PR [#66](https://github.com/bulletbiter99/air-action-sports/pull/66), +26 tests); B3b /admin/bookings/:id detail workspace + Stripe + external refund modals (`955ffbb`, PR [#68](https://github.com/bulletbiter99/air-action-sports/pull/68), pure frontend). **Test count: 617/80 → 756/90** (+139 across +10 files). **2 D1 migrations applied to remote in M4**: 0026 (saved_views) + 0027 (bookings_refund_external columns + `refund_recorded_external` template seed). **Decisions D04-D09 captured**: D04 legacy AdminDashboard removed (B10/B12); D05 PII gated by `bookings.read.pii` (B3a server-side + B3b UX badge); D06 external refund always notifies (B3a); D07 refund_recorded_external template (B3a); D08 persona model `users.persona` column (B4a); D09 Roster/Scan/Rentals collapse under Today (B5). **3 new gated paths in M4**: `worker/index.js` (Group G surface — B1a), `worker/routes/admin/savedViews.js` (B2a), `worker/lib/capabilities.js` (B3a). **Capabilities stub** (`worker/lib/capabilities.js`) introduces 5 caps: `bookings.read.pii`, `bookings.email`, `bookings.export`, `bookings.refund`, `bookings.refund.external`. M5 will replace with DB-backed query. **Bookings workspace is feature-complete** as of B3b: list view at `/admin/bookings` with rich filters + bulk actions + CSV export; detail view at `/admin/bookings/:id` with customer card + activity log + PII masking + Stripe refund modal + external refund modal. **Remaining batches**: B3c (this docs hygiene batch), B4 (persona widget completion + `users.persona` column + `/api/admin/today/active` endpoint that B5/B6 also need), B5 (sidebar/IA reorg per [docs/m4-discovery/sidebar-ia-audit.md](docs/m4-discovery/sidebar-ia-audit.md)), B6 (walk-up speed wins), B7 (command palette ⌘K + migration 0028), B8/B9/B10 (operator-pending flag rollouts), B11 (Group G coverage hardening), B12 (closing — runbooks + `/admin/today` page + legacy AdminDashboardLegacy removal). Detailed batch-by-batch state in [CLAUDE.md](CLAUDE.md)'s "Milestone 4" section. |
+| **Milestone 4 — Bookings + Detail Workspace + New Admin Shell (in progress; B0-B7 shipped 2026-05-07)** | Long-lived branch `milestone/4-bookings-ia-completion` (off `main` at `87da972`, M3 close). Sub-branches use flat `m4-batch-N-slug` naming (same workaround as M1/M2/M3). **Shipped through B7**: B0 reality audit + D04-D07 captured (`fca7e2b`, PR [#56](https://github.com/bulletbiter99/air-action-sports/pull/56)); B1a Group G worker-level tests (`44908cf`, PR [#58](https://github.com/bulletbiter99/air-action-sports/pull/58), +57); B1b visual regression suite + CI gating (`e72cd97`, PR [#60](https://github.com/bulletbiter99/air-action-sports/pull/60), 7 baselines); B2a saved-views D1 + migration 0026 (`d92cb3b`, PR [#62](https://github.com/bulletbiter99/air-action-sports/pull/62), +27); B2b /admin/bookings list page + filter API + bulk + CSV (`e2dbc6c`, PR [#64](https://github.com/bulletbiter99/air-action-sports/pull/64), +29); B3a detail-view backend + external refund + PII masking + migration 0027 (`961d12a`, PR [#66](https://github.com/bulletbiter99/air-action-sports/pull/66), +26); B3b /admin/bookings/:id detail workspace + 2 refund modals (`955ffbb`, PR [#68](https://github.com/bulletbiter99/air-action-sports/pull/68)); B3c docs handoff refresh (`79f535d`, PR [#69](https://github.com/bulletbiter99/air-action-sports/pull/69) → main `661e19f`); **B4a migration 0028 users.persona column + role-based backfill** (PR [#71](https://github.com/bulletbiter99/air-action-sports/pull/71) → main `de0e05d` via PR [#72](https://github.com/bulletbiter99/air-action-sports/pull/72), +0 tests); **B4b foundation: /api/admin/today/active + useWidgetData cadence primitive + personaLayouts rewire** (PR [#73](https://github.com/bulletbiter99/air-action-sports/pull/73) → main `301f30e` via PR [#74](https://github.com/bulletbiter99/air-action-sports/pull/74), +52); **B4c BC widgets** (5 components: BookingCoordinatorKPIs / BookingsNeedingAction / TodayCheckIns / QuickActions / RecentFeedback; PR [#75](https://github.com/bulletbiter99/air-action-sports/pull/75) → main `5dc1a7e` via PR [#76](https://github.com/bulletbiter99/air-action-sports/pull/76), +2); **B4d Owner extension widgets + 2 endpoints + ?period=mtd** (UpcomingEventsReadiness / ActionQueue / RecentActivity + /dashboard/upcoming-readiness + /dashboard/action-queue + /analytics/overview MTD scoping; PR [#77](https://github.com/bulletbiter99/air-action-sports/pull/77) → main `971d42f` via PR [#78](https://github.com/bulletbiter99/air-action-sports/pull/78), +22); **B4e Marketing widgets + /analytics/funnel** (5 new MarketingKPIs / ConversionFunnel / UpcomingEventsFillRate / PromoCodePerformance / AssetLibraryShortcut + reused RecentFeedback; PR [#79](https://github.com/bulletbiter99/air-action-sports/pull/79) → main `2f1ea13` via PR [#80](https://github.com/bulletbiter99/air-action-sports/pull/80), +12); **B4f Bookkeeper widgets + tax/fee totals** (BookkeeperKPIs / RevenueTrend reusing BarChart / TaxFeeSummary / RefundActivity / Staff1099Thresholds + extended /analytics/overview totals; PR [#81](https://github.com/bulletbiter99/air-action-sports/pull/81) → main `73eb30b` via PR [#82](https://github.com/bulletbiter99/air-action-sports/pull/82), +5); **B5 sidebar IA reorg** (Surface 1: Home/Today-dynamic/Events/Bookings/Customers + collapsible Settings group with 10 sub-items; Roster/Scan/Rentals collapsed per D09; flag-gated by new_admin_dashboard; PR [#83](https://github.com/bulletbiter99/air-action-sports/pull/83) → main `69f3e83` via PR [#84](https://github.com/bulletbiter99/air-action-sports/pull/84), +24); **B6 walk-up speed wins** (CheckInBanner + CustomerTypeahead + Recall hint on /admin/new-booking; PR [#85](https://github.com/bulletbiter99/air-action-sports/pull/85) → main `1c0806b` via PR [#86](https://github.com/bulletbiter99/air-action-sports/pull/86), +27); **B7 Command Palette + migration 0029** (Cmd+K / Ctrl+K overlay, fuzzy match, derived from sidebarConfig; flag-gated by command_palette; PR [#87](https://github.com/bulletbiter99/air-action-sports/pull/87) → main `59aaa4d` via PR [#88](https://github.com/bulletbiter99/air-action-sports/pull/88), +18). **Cumulative test count: 617/80 → 918/100** (+301 across +20 files in M4). **4 D1 migrations applied to remote in M4**: 0026 (saved_views), 0027 (bookings_refund_external + email template seed), 0028 (users.persona column + role-based backfill), 0029 (command_palette flag). **9 decisions D01-D09** captured in `docs/decisions.md`. **9 new gated paths in M4**: `worker/index.js` (Group G — B1a), `worker/routes/admin/savedViews.js` (B2a), `worker/lib/capabilities.js` (B3a), `worker/routes/admin/dashboard.js` (B4b + B4d), `src/hooks/useWidgetData.js` (B4b), `src/admin/personaLayouts.js` (B4b), `worker/routes/admin/analytics.js` (B4d + B4e + B4f), `src/admin/walkUpHelpers.js` (B6), `src/admin/sidebarConfig.js` (B5), `src/admin/commandRegistry.js` (B7). **5 feature flags live** (`density_compact` M2 user_opt_in; `customers_entity` M3 owner-scoped off; `new_admin_dashboard` M3 owner-scoped off; `command_palette` M4 B7 off). **Persona dashboard feature-complete** with all 6 personas concrete (owner 7 widgets / generic_manager 3 / staff 2 / booking_coordinator 5 / marketing 6 / bookkeeper 5). **New admin shell stack flag-gated by `new_admin_dashboard`** (off on prod): persona dashboard + sidebar reorg + walk-up speed wins all migrate atomically when the flag flips. The Command Palette has its own `command_palette` flag (also off) — orthogonal rollout. **Bookings workspace** at /admin/bookings + /:id is permanently visible (no flag) since B3b. **Remaining batches**: B8/B9/B10 (operator-paced flag rollouts — `new_admin_dashboard` to `user_opt_in`/`on`, `customers_entity` to `on`, `command_palette` to `on`, legacy code removal); B11 (coverage hardening — likely admin visual regression baselines + edge cases); B12 (closing — runbooks + `/admin/today` page activation + legacy AdminDashboardLegacy + NAV_SECTIONS removal + flag-row deletion). Detailed batch-by-batch state in [CLAUDE.md](CLAUDE.md)'s "Milestone 4" section. |
 
 ## 11. What's left before go-live
 
@@ -509,12 +509,17 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **5 resolved feedback tickets** (4 smoke/dogfood from when the system shipped 2026-04-23/24, plus `fb_Tp9RIpHdKgWw` — Jesse's Rules of Engagement page request, shipped 2026-04-29). 0 open tickets.
 - **Cloudflare Workers Builds**: deploy command in dashboard is `npm run build && npx wrangler deploy` (must be both — see §13). Auto-deploys on `git push origin main`.
 - **Booking flow live**: `/booking` is the canonical Book Now path; Peek widget removed from `index.html`. Stripe still in **sandbox** mode — real-money cutover is the next pre-launch step.
-- **All migrations 0001–0027 applied to remote D1** (0021–0025 applied during M3 2026-05-07; 0026 saved_views + 0027 bookings_refund_external + email template seed applied during M4 2026-05-07).
+- **All migrations 0001–0029 applied to remote D1** (0021–0025 applied during M3 2026-05-07; 0026 saved_views + 0027 bookings_refund_external + email template seed + 0028 users.persona column + role-based backfill + 0029 command_palette flag all applied during M4 2026-05-07).
 - **2 customer rows on remote** (operator's own test bookings; backfill 2026-05-07 via M3 B4 idempotent script).
+- **4 admin user rows on remote** — all backfilled by 0028 to `persona='owner'` (mapping from `role='owner'`). Override via SQL `UPDATE users SET persona='<value>' WHERE id='<id>'` if you want to test a different persona view.
 - **Visual regression baselines**: 7 public surfaces captured under `tests/visual/__snapshots__/` (home / events listing / event detail / booking step 1 / booking step 2 / waiver error / booking confirmation) at 1440×900 desktop viewport. CI-gated at 1% maxDiffPixelRatio threshold via the `visual` job in `.github/workflows/ci.yml`. Baseline refresh is operator-driven via the `capture-baselines` PR label — see [docs/runbooks/visual-regression.md](docs/runbooks/visual-regression.md).
-- **Bookings workspace** live at `/admin/bookings` (list view with rich filters + bulk actions + CSV export — manager+ for action gates) and `/admin/bookings/:id` (detail view with customer card + activity log + PII masking per role + Stripe refund modal + external refund modal). Sidebar entry deferred to M4 B5; navigable via direct URL or via View button on /admin/bookings.
-- **Customers entity** live at `/admin/customers` (list with merge UI + GDPR delete; nested under Insights sidebar group when `customers_entity` flag is `role_scoped`/owner — current state).
-- **Persona-tailored AdminDashboard** flag-gated by `new_admin_dashboard` (currently `role_scoped`/owner). Owner sees Revenue + CronHealth + TodayEvents + RecentBookings widgets; legacy AdminDashboard renders for all other roles + when flag is off.
+- **Bookings workspace** live at `/admin/bookings` (list view with rich filters + bulk actions + CSV export — manager+ for action gates) and `/admin/bookings/:id` (detail view with customer card + activity log + PII masking per role + Stripe refund modal + external refund modal). Sidebar entry shipped in M4 B5 (when `new_admin_dashboard='on'`); pre-flag, navigable via direct URL or via View button on /admin/bookings.
+- **Customers entity** live at `/admin/customers` (list with merge UI + GDPR delete; sidebar entry promoted to top-level in M4 B5 when `new_admin_dashboard='on'`; gated by `customers_entity` flag — currently `off`).
+- **Persona-tailored AdminDashboard** flag-gated by `new_admin_dashboard` (currently `off` on prod). When on, all 6 personas have concrete widget sets — owner (7 widgets: Revenue MTD / ActionQueue / UpcomingEventsReadiness / TodayEvents / RecentBookings / RecentActivity / CronHealth); booking_coordinator (5: BookingCoordinatorKPIs / BookingsNeedingAction / TodayCheckIns / QuickActions / RecentFeedback); marketing (6: MarketingKPIs / ConversionFunnel / UpcomingEventsFillRate / PromoCodePerformance / RecentFeedback / AssetLibraryShortcut placeholder); bookkeeper (5: BookkeeperKPIs / RevenueTrend 90-day chart / TaxFeeSummary / RefundActivity / Staff1099Thresholds placeholder); generic_manager (3: M3 baseline TodayEvents/RecentBookings/CronHealth); staff (2: M3 baseline TodayEvents/RecentBookings).
+- **New admin shell** (persona dashboard + sidebar reorg + walk-up speed wins) all flag-gated by the same `new_admin_dashboard` flag — single flip migrates everything atomically. Sidebar shows Home / Today (dynamic, when activeEventToday) / Events / Bookings / Customers (when its flag on) + collapsible Settings group with 10 sub-items per `src/admin/sidebarConfig.js`. Roster/Scan/Rentals routes stay alive but hidden from sidebar per D09 (resurface in /admin/today when B12 ships that page). Walk-up speed wins in /admin/new-booking: CustomerTypeahead on email field + recall hint card + CheckInBanner at top of every admin page when an event runs today.
+- **Command Palette** (Cmd+K / Ctrl+K) gated by `command_palette` flag (currently `off`). Centered overlay with fuzzy-match commands derived from `sidebarConfig.js`. Opens from anywhere in the admin shell when flag on.
+- **3 new dashboard endpoints live** at /api/admin/dashboard: `/today/active` (B4b — used by useTodayActive shared subscription + CheckInBanner + dynamic Today nav item; returns `{ activeEventToday, eventId, checkInOpen }`; checkInOpen stubbed to false until time-string parsing ships in a future batch), `/upcoming-readiness` (B4d — top-3 upcoming events with capacity + waiver bars), `/action-queue` (B4d — 4 owner-triage counts: missing waivers / pending vendor countersigns / new feedback / refunds in last 7 days).
+- **`/api/admin/analytics/overview`** extended with `?period=mtd` (B4d) for current-month scoping AND `taxCents` + `feeCents` totals (B4f). Backward compatible — existing callers that omit `?period` still get lifetime totals; new `taxCents`/`feeCents` fields are additive. **`/api/admin/analytics/funnel?days=N`** added in B4e: 4-step Created→Paid→Waivers→Checked-in funnel for the trailing window.
 - **Stripe API version pin**: `2026-04-22.dahlia` via `Stripe-Version` header in `worker/lib/stripe.js stripeFetch()`. Applies to every outbound Stripe call. Updates require both a Stripe-dashboard rollover and a code change in lockstep.
 - **Waiver document live**: `wd_v4` (corporate-wide release of liability + 4-tier age policy + 365-day Claim Period). wd_v1 thru wd_v3 retired. Edit at `/admin/waivers` (owner only) — creates a new version, retires the previous; past signers stay pinned to whatever they signed.
 - **Custom domain live**: `https://airactionsport.com` is attached to the Worker (DNS via Cloudflare). `SITE_URL` env var, OG meta tags, and email links all use the custom domain. The `air-action-sports.bulletbiter99.workers.dev` fallback URL still resolves but is no longer canonical.
@@ -564,11 +569,11 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 3. Sanity checks:
    - `curl https://airactionsport.com/api/health` → `{"ok":true,...}`
    - `curl https://airactionsport.com/api/events` → returns 1 event
-   - `npm test` → **756 passing across 90 files** (vitest unit suite post-M4 B3b).
-   - `npm run lint` → 0 errors / 281 warnings (M3 B0 made lint blocking; the +8 warnings vs M3's 270 are JSX-usage false positives consistent with App.jsx's 50+ pre-existing — full fix is `eslint-plugin-react/jsx-uses-vars`, deferred to a hygiene batch).
-   - `npm run test:coverage` → compare gated paths against `docs/runbooks/m3-baseline-coverage.txt` (any drop > 1% on a gated file is a signal — investigate before continuing). M4 B3a-extended `worker/routes/admin/bookings.js` should now exceed 80%.
+   - `npm test` → **918 passing across 100 files** (vitest unit suite post-M4 B7).
+   - `npm run lint` → 0 errors / 293 warnings (M3 B0 made lint blocking; the +23 warnings vs M3's 270 are all JSX-usage false positives accumulated through M4's batches for internal helper components — `Stat`, `StatusPill`, `Link`, `ActionQueueStat`, `CapacityBar`, `PendingStat`, `NewSidebarNav`, `SidebarItem`, `SidebarGroup`, `CheckInBanner`, `CustomerTypeahead`, `CommandPalette`, `BarChart`. Same pattern as App.jsx's pre-existing 50+. Full fix is `eslint-plugin-react/jsx-uses-vars`, deferred).
+   - `npm run test:coverage` → compare gated paths against `docs/runbooks/m3-baseline-coverage.txt` (any drop > 1% on a gated file is a signal — investigate before continuing). M4 B3a-extended `worker/routes/admin/bookings.js` should exceed 80%; B4b/B4d-extended `worker/routes/admin/dashboard.js` should be ~95% (covered by 11 today-active + 8 upcoming-readiness + 6 action-queue tests).
 4. Confirm admin login works (use `/admin/forgot-password` if needed).
-5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-07 post-M4-B3b: the deploy triggered by `955ffbb` (B3b detail workspace + refund modals, PR [#68](https://github.com/bulletbiter99/air-action-sports/pull/68)). Earlier in the same session (M4 chronologically): `e2dbc6c` (B2b /admin/bookings list page), `d92cb3b` (B2a saved-views D1), `e72cd97` (B1b visual regression suite), `44908cf` (B1a Group G tests), `fca7e2b` (B0 reality audit + D04-D07 captured). M3 final close: `87da972` (PR [#53](https://github.com/bulletbiter99/air-action-sports/pull/53)). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
+5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-07 post-M4-B7: the deploy triggered by `59aaa4d` (B7 Command Palette + migration 0029, PR [#88](https://github.com/bulletbiter99/air-action-sports/pull/88)). M4 chronological tip: `1c0806b` B6 walk-up speed wins (PR #86) → `69f3e83` B5 sidebar IA reorg (PR #84) → `73eb30b` B4f Bookkeeper widgets (PR #82) → `971d42f` B4d Owner extension (PR #78) → `2f1ea13` B4e Marketing widgets (PR #80) → `5dc1a7e` B4c BC widgets (PR #76) → `301f30e` B4b foundation (PR #74) → `de0e05d` B4a migration 0028 (PR #72) → `661e19f` B3c docs refresh (PR #70). M3 final close: `87da972` (PR [#53](https://github.com/bulletbiter99/air-action-sports/pull/53)). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
 6. If touching anything in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) `gates`: run the listed test paths first to confirm baseline; after editing, re-run them. If a test reveals current behavior conflicting with audit-documented behavior, **stop and ask** — do not adapt the test to match the new code.
 7. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
 
@@ -584,8 +589,10 @@ two files in the project root first, in order:
 
   1. HANDOFF.md — full context on the stack, deployed state, every
      shipped phase (§10 — including Milestones 1, 2, and 3 all closed
-     2026-05-06/07 plus Milestone 4 in progress through B3b as of
-     2026-05-07), every API and frontend route, the §11 pre-launch
+     2026-05-06/07 plus Milestone 4 in progress through B7 as of
+     2026-05-07 — persona dashboard + sidebar IA + walk-up speed
+     wins + Cmd+K command palette all shipped, gated by feature
+     flags), every API and frontend route, the §11 pre-launch
      checklist + deferred list, the cover-image surface reference
      table in §12, and §13 known-issues.
   2. CLAUDE.md — entry-point rules: the do-not-touch list (mirrored
@@ -794,33 +801,54 @@ Current state — all shipped and live:
     docs/decisions.md captures the resolved audit open questions
     (D01 Phase 2 goal A+B+C+incremental; D02 §08 §1 closed; D03 audit
     pain-point #8 closed in M3 B0).
-  - **Milestone 4 — Bookings + Detail Workspace + Visual Regression
-    (in progress through B3b 2026-05-07):**
+  - **Milestone 4 — Bookings + Detail Workspace + New Admin Shell
+    (in progress through B7 2026-05-07):**
     Long-lived branch `milestone/4-bookings-ia-completion`. **Shipped
-    through B3b**: B0 reality audit + D04-D07 reconciliation (main
-    `fca7e2b`, PR #56); B1a Group G worker-level tests (`44908cf`, PR
-    #58, +57 tests); B1b visual regression suite + label-driven
-    baseline capture (`e72cd97`, PR #60, 7 baselines); B2a saved-views
-    D1 substrate + migration 0026 + hook rewrite (`d92cb3b`, PR #62,
-    +27 net tests, also fixed home.png networkidle flake); B2b
-    /admin/bookings list page + rich filter API + bulk + CSV export
-    (`e2dbc6c`, PR #64, +29 tests); B3a backend for detail view +
-    external refund + PII masking + capabilities stub + migration 0027
-    (`961d12a`, PR #66, +26 tests); B3b /admin/bookings/:id detail
-    workspace + Stripe + external refund modals (`955ffbb`, PR #68,
-    pure frontend). **Test count: 617/80 → 756/90.** Two D1 migrations
-    applied to remote in M4: 0026 (saved_views) + 0027
-    (bookings_refund_external + email template seed). Six new
-    decisions D04-D09 captured (legacy AdminDashboard removed; PII
-    gated by bookings.read.pii; external refund always notifies;
-    refund_recorded_external template; users.persona column for B4a;
-    Roster/Scan/Rentals collapse under Today for B5). **Bookings
-    workspace feature-complete** as of B3b. **Remaining**: B3c (this
-    docs hygiene batch), B4 (persona widget completion + users.persona
-    column + /api/admin/today/active), B5 (sidebar/IA reorg), B6
-    (walk-up speed wins), B7 (command palette + 0028), B8/B9/B10
-    (operator-pending flag rollouts), B11 (Group G coverage hardening),
-    B12 (closing — runbooks + /admin/today page + legacy removal).
+    through B7** (15 batches B0-B7 with B4 split a/b/c/d/e/f for
+    persona widgets):
+      B0  reality audit + D04-D07     fca7e2b (PR #56)
+      B1a Group G worker tests        44908cf (PR #58)  +57
+      B1b visual regression + CI      e72cd97 (PR #60)  7 baselines
+      B2a saved-views D1 + 0026       d92cb3b (PR #62)  +27
+      B2b /admin/bookings list        e2dbc6c (PR #64)  +29
+      B3a detail backend + 0027       961d12a (PR #66)  +26
+      B3b /admin/bookings/:id         955ffbb (PR #68)
+      B3c docs handoff refresh        79f535d (PR #69 → main 661e19f)
+      B4a migration 0028 users.persona  PR #71 → main de0e05d (PR #72)
+      B4b foundation + cadence + /today/active   PR #73 → main 301f30e (PR #74)  +52
+      B4c BC widgets (5 components)    PR #75 → main 5dc1a7e (PR #76)  +2
+      B4d Owner extension + 2 endpoints + ?period=mtd  PR #77 → main 971d42f (PR #78)  +22
+      B4e Marketing widgets + /analytics/funnel        PR #79 → main 2f1ea13 (PR #80)  +12
+      B4f Bookkeeper widgets + tax/fee totals          PR #81 → main 73eb30b (PR #82)  +5
+      B5  Sidebar IA reorg (Surface 1)                 PR #83 → main 69f3e83 (PR #84)  +24
+      B6  Walk-up speed wins (banner + typeahead + recall)  PR #85 → main 1c0806b (PR #86)  +27
+      B7  Command Palette (Cmd+K) + migration 0029     PR #87 → main 59aaa4d (PR #88)  +18
+    **Test count: 617/80 → 918/100** (+301 across +20 files in M4).
+    **4 D1 migrations applied to remote in M4**: 0026 (saved_views)
+    + 0027 (bookings_refund_external + email template seed) + 0028
+    (users.persona column + role-based backfill) + 0029 (command_palette
+    flag). All 0001-0029 are on production D1. **9 decisions D01-D09**
+    captured in docs/decisions.md.
+    **9 new gated paths in M4**: worker/index.js (Group G), savedViews.js
+    (B2a), capabilities.js (B3a), dashboard.js (B4b+B4d), useWidgetData.js
+    (B4b), personaLayouts.js (B4b), analytics.js (B4d-B4f),
+    walkUpHelpers.js (B6), sidebarConfig.js (B5), commandRegistry.js (B7).
+    **5 feature flags live**: density_compact (M2 user_opt_in),
+    customers_entity (M3 owner-scoped off), new_admin_dashboard (M3
+    owner-scoped off), command_palette (M4 B7 off). **All 6 personas
+    have concrete widget sets** (owner 7 / generic_manager 3 / staff 2
+    / booking_coordinator 5 / marketing 6 / bookkeeper 5).
+    **New admin shell** (persona dashboard + sidebar reorg + walk-up
+    speed wins) all flag-gated by `new_admin_dashboard` — single flip
+    migrates everything atomically. Command Palette has its own
+    `command_palette` flag — orthogonal rollout. Bookings workspace
+    (/admin/bookings + /:id) is permanently visible (no flag) since B3b.
+    **Remaining**: B8/B9/B10 (operator-paced flag rollouts —
+    `new_admin_dashboard` to user_opt_in/on, `customers_entity` to on,
+    `command_palette` to on, legacy code removal); B11 (coverage
+    hardening — likely admin visual regression baselines + edge cases);
+    B12 (closing — runbooks + /admin/today page activation + legacy
+    AdminDashboardLegacy + NAV_SECTIONS removal + flag-row deletion).
     Detailed batch-by-batch state in CLAUDE.md "Milestone 4" section.
     docs/m4-discovery/ holds B0's discovery docs (persona-dashboard-
     audit, sidebar-ia-audit, m3-invariants-check,
@@ -839,14 +867,19 @@ Cloudflare Workers Builds deploy command (in dashboard): `npm run build &&
 npx wrangler deploy`. Do NOT change to plain `npx wrangler deploy` (see
 §13 gotcha).
 
-Most recent deploy as of 2026-05-07 post-M4-B3b:
-  triggered by `955ffbb` (M4 B3b detail workspace + refund modals,
-  PR #68; CI green). M4 chronological tip-of-iceberg: `e2dbc6c` (B2b
-  /admin/bookings list page), `d92cb3b` (B2a saved-views D1 + 0026
-  applied), `e72cd97` (B1b visual regression suite + CI gating + 7
-  baselines), `44908cf` (B1a Group G worker-level tests), `fca7e2b`
-  (B0 reality audit + D04-D07 captured). Plus B3a `961d12a` (backend
-  for detail view + external refund + PII masking + 0027 applied).
+Most recent deploy as of 2026-05-07 post-M4-B7:
+  triggered by `59aaa4d` (M4 B7 Command Palette + migration 0029,
+  PR #88; CI green). M4 chronological tip-of-iceberg (most recent
+  first): `1c0806b` (B6 walk-up speed wins, PR #86) → `69f3e83`
+  (B5 sidebar IA reorg, PR #84) → `73eb30b` (B4f Bookkeeper widgets
+  + tax/fee totals on /overview, PR #82) → `2f1ea13` (B4e Marketing
+  widgets + /analytics/funnel endpoint, PR #80) → `971d42f` (B4d Owner
+  extension + 2 new dashboard endpoints + ?period=mtd on /overview,
+  PR #78) → `5dc1a7e` (B4c BC widgets, PR #76) → `301f30e` (B4b
+  foundation: /api/admin/today/active + useWidgetData cadence
+  primitive + personaLayouts rewire, PR #74) → `de0e05d` (B4a
+  migration 0028 users.persona, PR #72) → `661e19f` (B3c docs
+  refresh, PR #70) → `955ffbb` (B3b detail workspace, PR #68).
   M3 final close: `87da972` (PR #53). All M3 + M4 batches are on main
   as second-parent commits via per-batch rolling brings-up — `git log
   --first-parent main` shows just the merge commits; `git log main`
@@ -892,29 +925,46 @@ Operation Nightfall (first live event) was 2026-05-09. Today: <update>.
 After you've read the docs, give me:
   1. A one-paragraph status summary of where things actually stand
      (verify against `curl https://airactionsport.com/api/health` and
-     `/api/events`, plus run `npm test` locally — should be **756
-     passing across 90 files on `main`** as of M4 B3b 2026-05-07).
+     `/api/events`, plus run `npm test` locally — should be **918
+     passing across 100 files on `main`** as of M4 B7 2026-05-07).
   2. A ranked top-3 of what I should work on next, with rough effort
      estimates and why-now. Candidate pools, in priority order:
        a) §11 pre-launch operational checklist (DMARC/DKIM, Cloudflare
           Always-Use-HTTPS, Stripe sandbox→live, Operation Nightfall
           content seed, second-admin invite, comp-ticket dry run).
-       b) M4 B4 — persona dashboard widget completion. Per the M4
-          plan in CLAUDE.md, this adds the `users.persona` column
-          (D08), completes Owner / BC / Marketing / Bookkeeper widget
-          sets, ships the refresh-cadence primitive (5min/30s/10s),
-          and builds `/api/admin/today/active` (B5/B6 also depend
-          on this endpoint).
-       c) M4 B5 — sidebar / IA reorganization per
-          docs/m4-discovery/sidebar-ia-audit.md (depends on B4's
-          today/active endpoint for the dynamic Today nav item).
-       d) Audit Group H (cron tests H71-H76) still `uncovered` per
+       b) **M4 B8/B9/B10 — operator-paced flag rollouts.** The "new
+          admin shell" (persona dashboard + sidebar reorg + walk-up
+          speed wins) is feature-complete and shipped, gated by
+          `new_admin_dashboard='off'`. Decide rollout cadence:
+            - B8: flip `new_admin_dashboard` to `user_opt_in` (owner
+              can self-enable via /admin/settings; verify with own
+              account before broader rollout).
+            - B9: flip `customers_entity` to `on` globally (M3
+              customers UI becomes visible to all admins).
+            - B10: flip `new_admin_dashboard` to `on` globally; remove
+              legacy AdminDashboardLegacy + NAV_SECTIONS code; drop
+              flag rows from D1.
+            - Plus: flip `command_palette` to `on` (orthogonal — can
+              ship in any of B8/B9/B10).
+          These are SQL UPDATE decisions you make directly; no new
+          code beyond removal cleanup in B10.
+       c) M4 B11 — coverage hardening. Likely add admin visual
+          regression baselines (the persona dashboard + new sidebar
+          aren't in the visual regression suite today — B5 audit
+          noted 4 admin pages would need baselines). Plus any
+          edge-case backfill on uncovered surfaces.
+       d) M4 B12 — closing batch. Runbooks (m4-baseline-coverage,
+          m4-deploy, m4-rollback), `/admin/today` page activation
+          (which resurfaces the dynamic Today nav item from B5 +
+          Roster/Scan/Rentals as sub-actions), legacy code removal
+          (AdminDashboardLegacy + NAV_SECTIONS), flag-row deletion.
+       e) Audit Group H (cron tests H71-H76) still `uncovered` per
           scripts/test-gate-mapping.json — Group G outer dispatch
           shipped in M4 B1a; H is deferred to M5 since cron is
           operationally critical.
   3. Any drift between HANDOFF.md / CLAUDE.md and the actual live
      state (stale counts, new feedback tickets, undeployed code,
-     unapplied migrations, vitest count not 756, coverage diff vs
+     unapplied migrations, vitest count not 918, coverage diff vs
      docs/runbooks/m3-baseline-coverage.txt — current floor; M4
      paths exceeded the floor).
   4. Open feedback queue (pull via /api/admin/feedback or D1).
@@ -932,51 +982,81 @@ Most likely next pickups (roughly priority order):
   - Invite a second admin.
   - Comp-ticket dry run.
 
-  **M4 in progress 2026-05-07 — B0-B3b shipped, B4 next:**
+  **M4 in progress 2026-05-07 — B0-B7 shipped, B8/B9/B10 (operator-paced flag rollouts) next:**
   Long-lived branch `milestone/4-bookings-ia-completion`. Sub-branches
   use flat `m4-batch-N-slug` naming (git ref-collision workaround
   per M1/M2/M3). Per-batch rolling brings-up to main (the M3 pattern
-  proved out). 756 unit tests across 90 files. **7 D1 migrations
+  proved out). **918 unit tests across 100 files.** **9 D1 migrations
   applied via M3+M4** (0021 M2, 0022-0025 M3, 0026 saved_views B2a,
-  0027 bookings_refund_external + email template seed B3a). 3 feature
-  flags live: density_compact (M2), customers_entity (M3 role_scoped
-  owner), new_admin_dashboard (M3 role_scoped owner). 9 decisions
-  captured (D01-D09 in docs/decisions.md). 19 gated paths in
-  scripts/test-gate-mapping.json. **Bookings workspace feature-complete**:
-  /admin/bookings list (B2b) + /admin/bookings/:id detail with
-  Stripe + external refund modals (B3a backend + B3b frontend) +
-  PII masking per D05 + always-notify per D06+D07.
+  0027 bookings_refund_external B3a, 0028 users.persona B4a, 0029
+  command_palette B7). **5 feature flags live**: density_compact
+  (M2 user_opt_in), customers_entity (M3 owner-scoped off),
+  new_admin_dashboard (M3 owner-scoped off), command_palette (M4 B7
+  off). 9 decisions captured (D01-D09 in docs/decisions.md). 28
+  gated paths in scripts/test-gate-mapping.json (M3's 12 + M4's 9
+  new + 7 carryover). **Bookings workspace feature-complete** since
+  B3b. **New admin shell feature-complete** since B7 — persona
+  dashboard (all 6 personas with concrete widget sets) + sidebar
+  reorg + walk-up speed wins (CheckInBanner + CustomerTypeahead +
+  Recall) + Cmd+K Command Palette. Everything gated; flips on
+  flag rollout (B8/B9/B10).
 
   Sanity recipe (any new session):
-    git checkout milestone/4-bookings-ia-completion  # or main
-    git pull origin milestone/4-bookings-ia-completion
+    git checkout main  # or milestone/4-bookings-ia-completion
+    git pull origin main
     npm install
-    npm test         # confirm 756/756 across 90 files
-    npm run lint     # confirm 0 errors / 281 warnings (+8 vs M3
-                     # baseline — JSX-usage false positives; full
-                     # fix is eslint-plugin-react install, deferred)
+    npm test         # confirm 918/918 across 100 files
+    npm run lint     # confirm 0 errors / 293 warnings (+23 vs M3
+                     # baseline — all JSX-usage false positives for
+                     # internal helper components added through M4;
+                     # full fix is eslint-plugin-react install, deferred)
+    npm run build    # clean build, ~250ms
+    curl https://airactionsport.com/api/health
+                     # → {"ok":true,"ts":<recent>}
 
-  Read CLAUDE.md "Milestone 4" section for the full B0-B3b inventory
-  + remaining batch outline (B3c docs / B4 persona widgets / B5
-  sidebar IA / B6 walk-up speed wins / B7 command palette / B8/B9/B10
-  operator-pending flag rollouts / B11 G coverage hardening / B12
-  closing). Read the "Carry-forward: D1 quirks" subsection for the
-  three quirks (BEGIN/COMMIT rejected, FK enforcement on table rebuild,
-  wrangler stdout JSON-parse) discovered in M3 and applicable to any
-  future migration.
+  Read CLAUDE.md "Milestone 4" section for the full B0-B7 inventory
+  + remaining batch outline (B8/B9/B10 operator-paced flag rollouts /
+  B11 coverage hardening / B12 closing). Read the "Carry-forward:
+  D1 quirks" subsection for the three quirks (BEGIN/COMMIT rejected,
+  FK enforcement on table rebuild, wrangler stdout JSON-parse)
+  discovered in M3 and applicable to any future migration.
 
-  **For M4 B4 (persona widget completion + users.persona column):**
-  - Sub-branch `m4-batch-4a-persona-model-migration` (or similar) off
-    `milestone/4-bookings-ia-completion`. Will need migration 0028 for
-    the `users.persona` column per D08. The M4 prompt's B4 spec maps
-    Owner / Booking Coordinator / Marketing / Bookkeeper widgets.
-  - Refresh-cadence primitive (5min default / 30s on event day / 10s
-    during active check-in window) — gated by /api/admin/today/active
-    which B4 also builds.
-  - Read docs/m4-discovery/persona-dashboard-audit.md for the gap
-    table per Tier 1 persona before scoping.
-  - Likely needs a/b/c sub-splits per the 10-file cap (~22 widgets
-    + 4 endpoints + shared primitive across the 4 personas).
+  **For M4 B8/B9/B10 (operator-paced flag rollouts):**
+  These are SQL UPDATE decisions, not code changes. The flag rollout
+  staging strategy I'd recommend:
+
+  Step 1 (B8 — verify with self):
+    UPDATE feature_flags SET state='user_opt_in',
+      updated_at=strftime('%s','now')*1000
+      WHERE key='new_admin_dashboard';
+    -- Then visit /admin/settings and toggle on for own account.
+    -- Verify: persona dashboard renders, sidebar reorg looks right,
+    --   walk-up typeahead works on /admin/new-booking, CheckInBanner
+    --   appears when an event is today, Cmd+K opens palette.
+    -- Roll back if anything looks wrong:
+    UPDATE feature_flags SET state='off' WHERE key='new_admin_dashboard';
+
+  Step 2 (B9 — expose customers UI globally):
+    UPDATE feature_flags SET state='on',
+      updated_at=strftime('%s','now')*1000
+      WHERE key='customers_entity';
+    -- Customers nav item appears in sidebar for all admins.
+    -- /admin/customers list + detail + merge + GDPR delete are live.
+
+  Step 3 (B10 — flip new dashboard on for everyone, remove legacy):
+    UPDATE feature_flags SET state='on'
+      WHERE key='new_admin_dashboard';
+    UPDATE feature_flags SET state='on'
+      WHERE key='command_palette';
+    -- After 1-2 days of stable production with the new shell:
+    -- (a) Open a new sub-batch m4-batch-10-cleanup
+    -- (b) Delete src/admin/AdminDashboardLegacy.jsx + the legacy
+    --     NAV_SECTIONS array in AdminLayout.jsx
+    -- (c) Drop the now-unused dispatcher in AdminDashboard.jsx
+    -- (d) DELETE FROM feature_flags WHERE key IN
+    --     ('new_admin_dashboard', 'customers_entity', 'command_palette');
+    -- (e) Remove useFeatureFlag calls for these 3 flags throughout
+    --     the codebase (they're consts now).
 
   Group G (worker-level, G65-G70) shipped in M4 B1a. Group H (cron
   inner sweeps, H71-H76) still `uncovered` per
