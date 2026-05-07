@@ -119,17 +119,14 @@ export async function findOrCreateCustomerForBooking(db, args) {
  *   - refund_count: count where status='refunded'
  *   - first_booking_at / last_booking_at: min/max created_at
  *
- * No-op (returns silently) when customerId is null/undefined/empty — the
- * webhook + admin paths pass through unconditionally and rely on this
- * guard for legacy bookings with NULL customer_id.
+ * Post-B6 (migration 0023): bookings.customer_id and attendees.customer_id
+ * are NOT NULL. Callers MUST pass a non-empty customer id.
  *
  * @param {D1Database} db
- * @param {string|null|undefined} cid
+ * @param {string} cid - non-empty customer id
  * @returns {Promise<void>}
  */
 export async function recomputeCustomerDenormalizedFields(db, cid) {
-    if (!cid) return;
-
     const result = await db.prepare(
         `SELECT status, total_cents, player_count, created_at
          FROM bookings WHERE customer_id = ?`,

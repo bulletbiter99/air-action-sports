@@ -241,17 +241,21 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
     const methodTag = METHOD_TAG[paymentMethod] || '';
     const combinedNotes = [methodTag, body.notes?.trim()].filter(Boolean).join(' ');
 
-    // M3 B5 dual-write: resolve customer_id from buyer email/name. Returns
-    // null when email is missing/malformed; booking + attendees stay
-    // unlinked (NULL customer_id) until B4 backfill or a future correction.
-    // Card branch defers the recompute to the webhook (since LTV only
-    // counts paid bookings); other branches recompute after attendees insert.
+    // M3 B6: bookings.customer_id is NOT NULL. Resolve customer_id from buyer
+    // email/name and reject the booking if the email is malformed (returning
+    // null from findOrCreateCustomerForBooking would otherwise cascade into
+    // a constraint violation on the bookings INSERT). Card branch defers the
+    // recompute to the webhook (LTV only counts paid bookings); other
+    // branches recompute after attendees insert.
     const resolvedCustomerId = await findOrCreateCustomerForBooking(c.env.DB, {
         email: buyer.email,
         name: buyer.fullName,
         phone: buyer.phone,
         actorUserId: user.id,
     });
+    if (!resolvedCustomerId) {
+        return c.json({ error: 'Buyer email format is invalid' }, 400);
+    }
 
     // ─── Card branch: pending row + Stripe Checkout link, webhook completes ───
     if (paymentMethod === 'card') {
@@ -398,8 +402,8 @@ adminBookings.post('/manual', requireRole('owner', 'manager'), async (c) => {
         now,
     ).run();
 
-    // M3 B5 dual-write: refresh denormalized aggregates. No-op when
-    // resolvedCustomerId is null (legacy / malformed-email bookings).
+    // M3 B6: refresh denormalized aggregates. resolvedCustomerId is
+    // guaranteed non-null here (early return above on malformed email).
     await recomputeCustomerDenormalizedFields(c.env.DB, resolvedCustomerId);
 
     return c.json({ bookingId: id, totalCents: total, status, paymentMethod });
@@ -457,9 +461,9 @@ adminBookings.post('/:id/refund', requireRole('owner', 'manager'), async (c) => 
          VALUES (?, 'booking.refunded', 'booking', ?, ?, ?)`
     ).bind(user.id, id, JSON.stringify({ stripe_refund_id: refund?.id, reason, amount_cents: booking.total_cents }), now).run();
 
-    // M3 B5 dual-write: refresh denormalized aggregates so refund_count
-    // increments and lifetime_value_cents drops to reflect the refund.
-    // No-op for legacy bookings without customer_id (pre-B5 / pre-backfill).
+    // M3 B6: refresh denormalized aggregates so refund_count increments
+    // and lifetime_value_cents drops to reflect the refund. Post-B6
+    // booking.customer_id is NOT NULL — guaranteed non-empty here.
     await recomputeCustomerDenormalizedFields(c.env.DB, booking.customer_id);
 
     return c.json({ refund: { id: refund?.id, amountCents: booking.total_cents, status: refund?.status } });

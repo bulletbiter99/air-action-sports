@@ -94,18 +94,25 @@ async function handleCheckoutCompleted(db, session) {
     const pendingAttendees = safeJson(bookingRow.pending_attendees_json, []);
     const lineItems = safeJson(bookingRow.line_items_json, []);
 
-    // M3 B5 dual-write: resolve customer_id from buyer email/name. Returns
-    // null when the email is missing or malformed; the booking + attendees
-    // stay unlinked (NULL customer_id) until B4's backfill or a future
-    // correction. The webhook is idempotent so re-firing for the same
-    // session.id short-circuits at the bookingRow.status === 'paid' check
-    // above before we get here.
+    // M3 B6: resolve customer_id from buyer email/name. Post-B6
+    // bookings.customer_id is NOT NULL, so findOrCreateCustomerForBooking
+    // returning null would cascade into a constraint violation on the
+    // UPDATE bookings below. In practice this can't happen via the public
+    // checkout (Stripe validates email format upstream) or admin manual
+    // (the manual handler now rejects malformed email at the API boundary).
+    // If it ever does, the UPDATE fails, the webhook returns 500, and
+    // Stripe retries — letting the operator notice via Stripe's
+    // delivery-failure dashboard. Better to fail loudly than silently
+    // corrupt state.
     const resolvedCustomerId = await findOrCreateCustomerForBooking(db, {
         email: bookingRow.email,
         name: bookingRow.full_name,
         phone: bookingRow.phone,
         actorUserId: null,
     });
+    if (!resolvedCustomerId) {
+        console.error(`Webhook: booking ${bookingRow.id} has malformed email '${bookingRow.email}'; dual-write will fail NOT NULL constraint`);
+    }
 
     // Flip booking to paid (now also sets customer_id from dual-write resolution)
     await db.prepare(
@@ -196,8 +203,9 @@ async function handleCheckoutCompleted(db, session) {
         now,
     ).run();
 
-    // M3 B5 dual-write: refresh denormalized aggregates (LTV, totals,
-    // first/last_booking_at). No-op when resolvedCustomerId is null.
+    // M3 B6: refresh denormalized aggregates (LTV, totals,
+    // first/last_booking_at). resolvedCustomerId is non-null in the
+    // happy path; the malformed-email log above warns if not.
     await recomputeCustomerDenormalizedFields(db, resolvedCustomerId);
 
     console.log(`Booking ${bookingRow.id} marked paid (${pendingAttendees.length} attendees)`);
