@@ -21,16 +21,27 @@ describe('PERSONA_LAYOUTS registry', () => {
         expect(keys).toContain('staff');
     });
 
-    it('owner / generic_manager / staff have concrete widget arrays', () => {
+    it('owner / generic_manager / staff / booking_coordinator have concrete widget arrays', () => {
         expect(Array.isArray(PERSONA_LAYOUTS.owner)).toBe(true);
         expect(Array.isArray(PERSONA_LAYOUTS.generic_manager)).toBe(true);
         expect(Array.isArray(PERSONA_LAYOUTS.staff)).toBe(true);
+        // M4 B4c — booking_coordinator promoted from alias to concrete set
+        expect(Array.isArray(PERSONA_LAYOUTS.booking_coordinator)).toBe(true);
     });
 
-    it('booking_coordinator / marketing / bookkeeper are alias-only (null) until B4c-B4f', () => {
-        expect(PERSONA_LAYOUTS.booking_coordinator).toBeNull();
+    it('marketing / bookkeeper are alias-only (null) until B4e/B4f', () => {
         expect(PERSONA_LAYOUTS.marketing).toBeNull();
         expect(PERSONA_LAYOUTS.bookkeeper).toBeNull();
+    });
+
+    it('booking_coordinator widget set ships the 5 BC widgets in BC-spec order', () => {
+        expect(PERSONA_LAYOUTS.booking_coordinator).toEqual([
+            'BookingCoordinatorKPIs',
+            'BookingsNeedingAction',
+            'TodayCheckIns',
+            'QuickActions',
+            'RecentFeedback',
+        ]);
     });
 });
 
@@ -74,9 +85,16 @@ describe('resolveLayout', () => {
         expect(layout).toBe(PERSONA_LAYOUTS.staff);
     });
 
-    it('persona=booking_coordinator (alias-only) falls back to role=manager → generic_manager set', () => {
+    it('persona=booking_coordinator returns the dedicated BC widget set (M4 B4c)', () => {
         const layout = resolveLayout({ persona: 'booking_coordinator', role: 'manager' });
-        expect(layout).toBe(PERSONA_LAYOUTS.generic_manager);
+        expect(layout).toBe(PERSONA_LAYOUTS.booking_coordinator);
+    });
+
+    it('persona=booking_coordinator with role=staff still returns the BC widget set (persona wins over role)', () => {
+        // BC persona is decoupled from role per D08; even if a staff-role
+        // user is set to BC persona, they get the BC widgets.
+        const layout = resolveLayout({ persona: 'booking_coordinator', role: 'staff' });
+        expect(layout).toBe(PERSONA_LAYOUTS.booking_coordinator);
     });
 
     it('persona=marketing (alias-only) with role=manager falls back to generic_manager set', () => {
