@@ -406,3 +406,28 @@ B9 / B10 have lighter dependencies. B8 / B11 gate on B6's NOT NULL.
 - A test fails after a behavior-preserving refactor (investigate, don't "fix" the test)
 - Coverage on any of the six gated files drops from M2 baseline (per `docs/runbooks/m3-pre-flight-coverage.txt`)
 - Any production-data anomaly during local backfill testing
+
+#### Local D1 setup (added in M3 batch 1)
+
+For testing M3's schema migrations and backfill against synthetic fixtures before any remote D1 changes. Reproducible from a single shell command.
+
+```bash
+# Apply all migrations + seed staging fixtures (idempotent — safe to re-run)
+bash scripts/setup-local-d1.sh
+
+# Boot the worker against local D1
+npx wrangler dev --local
+
+# Inspect manually
+npx wrangler d1 execute --local air-action-sports-db --command="SELECT COUNT(*) FROM bookings"
+# Expect: 50
+
+# Tear down for a clean slate
+bash scripts/teardown-local-d1.sh
+```
+
+**Fixture inventory:** 5 events (past×2, current×1, future×2 with varied complexity), 50 bookings (35 paid / 5 refunded / 5 abandoned / 3 comp / 2 walk-up), 10 staff/users (mix of W-2 / 1099), 3 vendors, 30 days of synthetic audit_log entries. Email distribution covers B4's normalization scenarios — 8 Gmail dot-variants of one person, 4 plus-aliases of another, 2 non-Gmail variants that must NOT collapse, plus 1 malformed and 1 NULL email edge case.
+
+**Seeded users have invalid `password_hash` values (`seed:do_not_login`)** — they cannot authenticate. To exercise admin auth flows locally, use the regular `/admin/forgot-password` flow on a real account or create a fresh seeded user in a one-off SQL command.
+
+**Wrangler stores the local D1 file at `.wrangler/state/v3/d1/`** (gitignored). The teardown script removes that directory.
