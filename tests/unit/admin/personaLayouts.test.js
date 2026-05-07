@@ -43,6 +43,18 @@ describe('PERSONA_LAYOUTS registry', () => {
             'RecentFeedback',
         ]);
     });
+
+    it('owner widget set ships the 7-widget M4 B4d order', () => {
+        expect(PERSONA_LAYOUTS.owner).toEqual([
+            'RevenueSummary',
+            'ActionQueue',
+            'UpcomingEventsReadiness',
+            'TodayEvents',
+            'RecentBookings',
+            'RecentActivity',
+            'CronHealth',
+        ]);
+    });
 });
 
 describe('roleDerivedDefault', () => {

@@ -6,11 +6,33 @@ adminAnalytics.use('*', requireAuth);
 
 // GET /api/admin/analytics/overview
 // Top-line metrics across all time OR constrained to an event via ?event_id=
+//
+// M4 B4d: ?period=mtd filters bookings to the current month
+// (paid_at >= month_start_ms, computed in UTC). Default 'lifetime'
+// preserves the pre-B4d behavior — RevenueSummary widget passes
+// ?period=mtd; legacy callers (none modified) continue to see lifetime
+// numbers. attendees / checkedIn / waiversSigned stay all-time even in
+// MTD mode (they're not time-scoped concepts; they reflect cumulative
+// state of paid/comp bookings).
 adminAnalytics.get('/overview', async (c) => {
     const url = new URL(c.req.url);
     const eventId = url.searchParams.get('event_id');
-    const where = eventId ? `WHERE event_id = ?` : '';
-    const binds = eventId ? [eventId] : [];
+    const period = url.searchParams.get('period') || 'lifetime';
+
+    if (!['lifetime', 'mtd'].includes(period)) {
+        return c.json({ error: "period must be 'lifetime' or 'mtd'" }, 400);
+    }
+
+    // Compute MTD start (1st of current UTC month at midnight, in ms).
+    const monthStartMs = period === 'mtd'
+        ? Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
+        : null;
+
+    const whereClauses = [];
+    const binds = [];
+    if (eventId) { whereClauses.push('event_id = ?'); binds.push(eventId); }
+    if (monthStartMs !== null) { whereClauses.push('paid_at >= ?'); binds.push(monthStartMs); }
+    const where = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
     const byStatus = await c.env.DB.prepare(
         `SELECT status, COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS gross_cents
@@ -23,15 +45,21 @@ adminAnalytics.get('/overview', async (c) => {
         status[row.status] = { count: row.n, grossCents: row.gross_cents };
     }
 
-    // Attendee counts across paid/comp
+    // Attendee counts across paid/comp — in MTD mode, also scope to bookings
+    // paid this month so the count reflects the same time window.
+    const attClauses = [`b.status IN ('paid', 'comp')`];
+    const attBinds = [];
+    if (eventId) { attClauses.push('b.event_id = ?'); attBinds.push(eventId); }
+    if (monthStartMs !== null) { attClauses.push('b.paid_at >= ?'); attBinds.push(monthStartMs); }
+
     const attendeeRow = await c.env.DB.prepare(
         `SELECT COUNT(*) AS n,
                 COUNT(CASE WHEN a.checked_in_at IS NOT NULL THEN 1 END) AS checked_in,
                 COUNT(CASE WHEN a.waiver_id IS NOT NULL THEN 1 END) AS waivers_signed
          FROM attendees a
          JOIN bookings b ON b.id = a.booking_id
-         WHERE b.status IN ('paid', 'comp')${eventId ? ' AND b.event_id = ?' : ''}`
-    ).bind(...binds).first();
+         WHERE ${attClauses.join(' AND ')}`
+    ).bind(...attBinds).first();
 
     // Revenue — paid only (comp is $0)
     const paidGross = status.paid?.grossCents || 0;
