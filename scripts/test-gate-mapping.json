@@ -287,6 +287,18 @@
       "tests": [
         "tests/unit/admin/sidebarConfig.test.js"
       ]
+    },
+    "src/admin/walkUpHelpers.js": {
+      "tier": "high",
+      "covers": [
+        "pickRecallableBookings (filter customer history to most recent N paid/comp; tolerates camelCase + snake_case timestamp keys)",
+        "formatBookingHint (one-line recall summary for AdminNewBooking)",
+        "formatRelativeAge (just now / minutes / hours / days / weeks / months / years)"
+      ],
+      "audit_group": "(M4 B6 walk-up booking speed wins)",
+      "tests": [
+        "tests/unit/admin/walkUpHelpers.test.js"
+      ]
     }
   },
   "uncovered": {
