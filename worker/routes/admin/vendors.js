@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
 import { randomId } from '../../lib/ids.js';
 import { clientIp } from '../../lib/rateLimit.js';
+import { isValidEmail } from '../../lib/email.js';
 
 const adminVendors = new Hono();
 adminVendors.use('*', requireAuth);
@@ -215,7 +216,7 @@ adminVendors.post('/:id/contacts', requireRole('owner', 'manager'), async (c) =>
     const name = String(body.name || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
     if (!name) return c.json({ error: 'name required' }, 400);
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.json({ error: 'valid email required' }, 400);
+    if (!isValidEmail(email)) return c.json({ error: 'valid email required' }, 400);
     if (name.length > 200 || email.length > 200) return c.json({ error: 'field too long' }, 400);
 
     const vendor = await c.env.DB.prepare('SELECT id FROM vendors WHERE id = ? AND deleted_at IS NULL').bind(vendor_id).first();
@@ -261,7 +262,7 @@ adminVendors.put('/contacts/:id', requireRole('owner', 'manager'), async (c) => 
     if (!existing) return c.json({ error: 'Not found' }, 404);
 
     const newEmail = body.email !== undefined ? String(body.email).trim().toLowerCase() : existing.email;
-    if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+    if (!isValidEmail(newEmail)) {
         return c.json({ error: 'valid email required' }, 400);
     }
     const isPrimary = body.isPrimary !== undefined ? (body.isPrimary ? 1 : 0) : existing.is_primary;
