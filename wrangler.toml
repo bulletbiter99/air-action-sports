@@ -24,7 +24,9 @@ bucket_name = "air-action-sports-uploads"
 [triggers]
 # Every 15min — sweeps both 24hr and 1hr reminder windows.
 # 1hr window (45-75min) needs sub-hourly cadence to avoid misses.
-crons = ["*/15 * * * *"]
+# 03:00 UTC nightly — refreshes customer_tags (tag_type='system') from
+# each customer's denormalized booking aggregates. M3 batch 10.
+crons = ["*/15 * * * *", "0 3 * * *"]
 
 [vars]
 SITE_URL = "https://airactionsport.com"
