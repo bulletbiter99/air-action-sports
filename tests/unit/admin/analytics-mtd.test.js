@@ -153,7 +153,7 @@ describe('GET /api/admin/analytics/overview — ?period filter', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
         env.DB.__on(/FROM bookings[\s\S]*?GROUP BY status/, {
-            results: [{ status: 'paid', n: 3, gross_cents: 30000 }],
+            results: [{ status: 'paid', n: 3, gross_cents: 30000, tax_cents: 0, fee_cents: 0 }],
         }, 'all');
         env.DB.__on(/FROM attendees a/, { n: 3, checked_in: 1, waivers_signed: 2 }, 'first');
 
@@ -175,5 +175,96 @@ describe('GET /api/admin/analytics/overview — ?period filter', () => {
         expect(json.totals).toHaveProperty('attendees');
         expect(json.totals).toHaveProperty('checkedIn');
         expect(json.totals).toHaveProperty('waiversSigned');
+        // M4 B4f — tax + fee totals added to the response
+        expect(json.totals).toHaveProperty('taxCents');
+        expect(json.totals).toHaveProperty('feeCents');
+    });
+});
+
+describe('GET /api/admin/analytics/overview — tax + fee totals (M4 B4f)', () => {
+    it('aggregates taxCents + feeCents from paid + comp byStatus rows', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        env.DB.__on(/FROM bookings[\s\S]*?GROUP BY status/, {
+            results: [
+                { status: 'paid', n: 10, gross_cents: 100000, tax_cents: 8500, fee_cents: 2900 },
+                { status: 'comp', n: 2, gross_cents: 0, tax_cents: 0, fee_cents: 0 },
+                { status: 'refunded', n: 1, gross_cents: 5000, tax_cents: 425, fee_cents: 145 },
+            ],
+        }, 'all');
+        env.DB.__on(/FROM attendees a/, { n: 12, checked_in: 0, waivers_signed: 8 }, 'first');
+
+        const res = await worker.fetch(
+            makeReq(PATH, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        // taxCents = paid.tax_cents + comp.tax_cents (refunded excluded)
+        expect(json.totals.taxCents).toBe(8500);
+        expect(json.totals.feeCents).toBe(2900);
+    });
+
+    it('returns taxCents=0 + feeCents=0 when no paid/comp bookings exist', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        env.DB.__on(/FROM bookings[\s\S]*?GROUP BY status/, {
+            results: [{ status: 'pending', n: 3, gross_cents: 0, tax_cents: 0, fee_cents: 0 }],
+        }, 'all');
+        env.DB.__on(/FROM attendees a/, { n: 0, checked_in: 0, waivers_signed: 0 }, 'first');
+
+        const res = await worker.fetch(
+            makeReq(PATH, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        const json = await res.json();
+        expect(json.totals.taxCents).toBe(0);
+        expect(json.totals.feeCents).toBe(0);
+    });
+
+    it('byStatus rows include taxCents + feeCents per status (extended shape)', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        env.DB.__on(/FROM bookings[\s\S]*?GROUP BY status/, {
+            results: [{ status: 'paid', n: 5, gross_cents: 50000, tax_cents: 4250, fee_cents: 1450 }],
+        }, 'all');
+        env.DB.__on(/FROM attendees a/, { n: 5, checked_in: 0, waivers_signed: 0 }, 'first');
+
+        const res = await worker.fetch(
+            makeReq(PATH, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        const json = await res.json();
+        expect(json.byStatus.paid).toMatchObject({
+            count: 5,
+            grossCents: 50000,
+            taxCents: 4250,
+            feeCents: 1450,
+        });
+    });
+
+    it('?period=mtd response also includes taxCents + feeCents totals', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        env.DB.__on(/FROM bookings\s+WHERE[\s\S]+?GROUP BY status/, {
+            results: [{ status: 'paid', n: 3, gross_cents: 30000, tax_cents: 2550, fee_cents: 870 }],
+        }, 'all');
+        env.DB.__on(/FROM attendees a/, { n: 3, checked_in: 0, waivers_signed: 0 }, 'first');
+
+        const res = await worker.fetch(
+            makeReq(`${PATH}?period=mtd`, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        const json = await res.json();
+        expect(json.totals.taxCents).toBe(2550);
+        expect(json.totals.feeCents).toBe(870);
     });
 });

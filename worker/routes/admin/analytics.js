@@ -34,15 +34,27 @@ adminAnalytics.get('/overview', async (c) => {
     if (monthStartMs !== null) { whereClauses.push('paid_at >= ?'); binds.push(monthStartMs); }
     const where = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
+    // M4 B4f: extend the byStatus aggregation with tax_cents + fee_cents
+    // SUMs so the Bookkeeper persona's TaxFeeSummary widget can read them
+    // off the same response. Existing callers ignore unfamiliar fields.
     const byStatus = await c.env.DB.prepare(
-        `SELECT status, COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS gross_cents
+        `SELECT status,
+                COUNT(*) AS n,
+                COALESCE(SUM(total_cents), 0) AS gross_cents,
+                COALESCE(SUM(tax_cents), 0) AS tax_cents,
+                COALESCE(SUM(fee_cents), 0) AS fee_cents
          FROM bookings ${where}
          GROUP BY status`
     ).bind(...binds).all();
 
     const status = {};
     for (const row of (byStatus.results || [])) {
-        status[row.status] = { count: row.n, grossCents: row.gross_cents };
+        status[row.status] = {
+            count: row.n,
+            grossCents: row.gross_cents,
+            taxCents: row.tax_cents,
+            feeCents: row.fee_cents,
+        };
     }
 
     // Attendee counts across paid/comp — in MTD mode, also scope to bookings
@@ -70,6 +82,14 @@ adminAnalytics.get('/overview', async (c) => {
     const refundedCount = status.refunded?.count || 0;
     const totalBookings = Object.values(status).reduce((s, v) => s + v.count, 0);
 
+    // M4 B4f: tax + fees collected across paid/comp bookings for the
+    // current scope (event_id and/or period filters apply via the byStatus
+    // WHERE). Used by the Bookkeeper persona's TaxFeeSummary widget.
+    const paidTax = status.paid?.taxCents || 0;
+    const compTax = status.comp?.taxCents || 0;
+    const paidFee = status.paid?.feeCents || 0;
+    const compFee = status.comp?.feeCents || 0;
+
     return c.json({
         byStatus: status,
         totals: {
@@ -78,6 +98,8 @@ adminAnalytics.get('/overview', async (c) => {
             netRevenueCents,
             grossRevenueCents: paidGross,
             refundedCents: refundedGross,
+            taxCents: paidTax + compTax,
+            feeCents: paidFee + compFee,
             avgOrderCents: paidCount > 0 ? Math.round(paidGross / paidCount) : 0,
             refundRate: paidCount > 0 ? refundedCount / paidCount : 0,
             attendees: attendeeRow?.n || 0,

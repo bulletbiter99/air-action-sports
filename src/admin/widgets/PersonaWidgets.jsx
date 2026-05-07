@@ -23,6 +23,7 @@
 import { Link } from 'react-router-dom';
 import { formatMoney } from '../../utils/money.js';
 import { useWidgetData, useTodayActive } from '../../hooks/useWidgetData.js';
+import { BarChart } from '../charts.jsx';
 
 // ────────────────────────────────────────────────────────────────────
 // RevenueSummary — net / gross / refunded scoped to current month
@@ -818,6 +819,178 @@ export function AssetLibraryShortcut() {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// M4 B4f — Bookkeeper persona widgets
+// ────────────────────────────────────────────────────────────────────
+
+// BookkeeperKPIs — 4-stat MTD KPI grid for the Bookkeeper persona's
+// at-a-glance view: Revenue / Refunds / Net / Payout status. Payout
+// status is a degraded "Pending · M6" placeholder (Stripe Connect
+// integration is M6 territory). Reuses /analytics/overview?period=mtd
+// (B4d shipped) for the financial KPIs.
+export function BookkeeperKPIs() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/analytics/overview?period=mtd',
+        { tier: 'static' },
+    );
+    const totals = data?.totals;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--bookkeeper-kpis">
+            <h2>Books (this month)</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!totals && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {totals && (
+                <div className="admin-persona-widget__stats">
+                    <Stat label="Gross revenue" value={formatMoney(totals.grossRevenueCents)} highlight />
+                    <Stat label="Refunds" value={formatMoney(totals.refundedCents)} />
+                    <Stat label="Net" value={formatMoney(totals.netRevenueCents)} />
+                    <PendingStat label="Stripe payout" hint="M6" />
+                </div>
+            )}
+        </section>
+    );
+}
+
+// RevenueTrend — 90-day daily revenue bar chart. Reuses /sales-series
+// (existing endpoint) and the BarChart SVG primitive (src/admin/charts.jsx).
+// No external chart-library deps. Shows the last 90 days of paid-bookings
+// gross revenue so the Bookkeeper can spot revenue dips/spikes.
+export function RevenueTrend() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/analytics/sales-series?days=90',
+        { tier: 'static' },
+    );
+    const series = data?.series;
+
+    const chartData = series
+        ? series.map((d) => ({
+            label: d.date ? d.date.slice(5) : '',  // "MM-DD" for compactness
+            value: d.grossCents || 0,
+        }))
+        : null;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--revenue-trend">
+            <h2>Revenue trend (90d)</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!chartData && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {chartData && chartData.length === 0 && (
+                <p className="admin-persona-widget__empty">No revenue in the trailing 90 days.</p>
+            )}
+            {chartData && chartData.length > 0 && (
+                <div className="admin-persona-widget__chart-container">
+                    <BarChart
+                        data={chartData}
+                        height={140}
+                        formatValue={(v) => formatMoney(v)}
+                    />
+                </div>
+            )}
+        </section>
+    );
+}
+
+// TaxFeeSummary — 2-stat tile showing tax collected + fees collected
+// MTD. Reuses the same /overview?period=mtd endpoint as BookkeeperKPIs
+// (B4f extended /overview to include taxCents + feeCents totals; data
+// comes from the same fetch via Cloudflare edge cache).
+export function TaxFeeSummary() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/analytics/overview?period=mtd',
+        { tier: 'static' },
+    );
+    const totals = data?.totals;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--tax-fee">
+            <h2>Tax + fees (this month)</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!totals && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {totals && (
+                <div className="admin-persona-widget__stats">
+                    <Stat label="Tax collected" value={formatMoney(totals.taxCents)} />
+                    <Stat label="Fees collected" value={formatMoney(totals.feeCents)} />
+                </div>
+            )}
+        </section>
+    );
+}
+
+// RefundActivity — list of recent refund activity (5 most recent paid
+// bookings with refunded_at set). Reuses /api/admin/bookings with the
+// existing has_refund=true filter from B2b. Each row links to the
+// booking detail view (B3b shipped).
+export function RefundActivity() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/bookings?has_refund=true&status=paid&limit=5',
+        { tier: 'live' },
+    );
+    const bookings = data ? (data.bookings || []) : null;
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--refund-activity">
+            <h2>Recent refunds</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!bookings && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {bookings && bookings.length === 0 && (
+                <p className="admin-persona-widget__empty">No recent refunds.</p>
+            )}
+            {bookings && bookings.length > 0 && (
+                <table className="admin-persona-widget__table">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th className="admin-persona-widget__num">Refund</th>
+                            <th>When</th>
+                            <th />
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {bookings.map((b) => (
+                            <tr key={b.id}>
+                                <td>{b.fullName || b.email || <em>—</em>}</td>
+                                <td className="admin-persona-widget__num">{formatMoney(b.totalCents)}</td>
+                                <td>{formatRelative(b.refundedAt || b.refunded_at || b.createdAt)}</td>
+                                <td className="admin-persona-widget__num">
+                                    <Link to={`/admin/bookings/${encodeURIComponent(b.id)}`}>Open →</Link>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+            <Link to="/admin/bookings?has_refund=true" className="admin-persona-widget__link">
+                View all refunds →
+            </Link>
+        </section>
+    );
+}
+
+// Staff1099Thresholds — static "Coming in M5" placeholder. No
+// per-staff payment table exists today; staff are users in the users
+// table but earnings are not tracked at the per-staff level. Once M5
+// ships staff payment tracking, this becomes a real widget showing
+// who is approaching the $600 1099 threshold for the year.
+export function Staff1099Thresholds() {
+    return (
+        <section className="admin-persona-widget admin-persona-widget--1099">
+            <h2>Staff 1099 thresholds</h2>
+            <div className="admin-persona-widget__pending-tile">
+                <div className="admin-persona-widget__pending-tile-label">
+                    1099 tracking
+                </div>
+                <div className="admin-persona-widget__pending">
+                    Coming in M5
+                </div>
+                <p className="admin-persona-widget__muted">
+                    Per-staff payment tracking and threshold alerts launching with the staff payments module.
+                </p>
+            </div>
+        </section>
+    );
+}
+
+// ────────────────────────────────────────────────────────────────────
 // Shared small components
 // ────────────────────────────────────────────────────────────────────
 
@@ -901,4 +1074,10 @@ export const WIDGETS = {
     UpcomingEventsFillRate,
     PromoCodePerformance,
     AssetLibraryShortcut,
+    // M4 B4f — Bookkeeper persona widgets
+    BookkeeperKPIs,
+    RevenueTrend,
+    TaxFeeSummary,
+    RefundActivity,
+    Staff1099Thresholds,
 };

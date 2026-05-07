@@ -572,3 +572,30 @@
     font-size: 0.85rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
+
+/* === M4 B4f — Bookkeeper widgets === */
+
+/* RevenueTrend — chart container */
+.admin-persona-widget__chart-container {
+    margin-top: 0.4rem;
+    /* Constrain BarChart width inside the widget; SVG is responsive
+     * via preserveAspectRatio. */
+    width: 100%;
+    overflow-x: auto;
+}
+
+[data-density='compact'] .admin-persona-widget__chart-container {
+    margin-top: 0.25rem;
+}
+
+/* RefundActivity — refund amounts get a subtle red-orange tint to
+ * distinguish from booking totals (refunds are money out, not in). */
+.admin-persona-widget--refund-activity .admin-persona-widget__table tbody td.admin-persona-widget__num {
+    color: rgba(255, 158, 158, 0.95);
+}
+
+/* Tax + fees stat tiles — slightly muted to indicate they're informational
+ * (not the primary financial KPI; that's BookkeeperKPIs). */
+.admin-persona-widget--tax-fee .admin-persona-widget__stat-value {
+    font-size: 1rem;
+}
