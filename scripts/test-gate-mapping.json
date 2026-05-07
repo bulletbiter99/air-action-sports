@@ -154,6 +154,18 @@
       "tests": [
         "tests/unit/auth/vendor-token.test.js"
       ]
+    },
+    "worker/routes/admin/customers.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/customers",
+        "GET /api/admin/customers/:id",
+        "POST /api/admin/customers/merge"
+      ],
+      "audit_group": "(M3 B8a customers admin route)",
+      "tests": [
+        "tests/unit/admin/customers-route.test.js"
+      ]
     }
   },
   "uncovered": {
