@@ -237,9 +237,9 @@ Plus the **lint config gap** (audit pain-point #8 — eslint.config.js missing) 
 2. Run the smoke suite once against production: `npm run test:e2e` — should be 6/7 passing (#79 skipped without `E2E_TEST_EVENT_SLUG`).
 3. Optional: tighten #79 by exporting `E2E_TEST_EVENT_SLUG=operation-nightfall` and re-running.
 
-### Milestone 2 — Shared Primitives + Cross-Route Fix (✓ all batches merged on milestone branch 2026-05-07; ready to merge to main)
+### Milestone 2 — Shared Primitives + Cross-Route Fix (✓ closed 2026-05-07; merged to main as `7a87f28` via PR [#28](https://github.com/bulletbiter99/air-action-sports/pull/28))
 
-**Status: closed on milestone branch.** The long-lived branch `milestone-2-shared-primitives` carries 11 squashed batch SHAs ready for the milestone-to-main merge per [docs/runbooks/m2-deploy.md](docs/runbooks/m2-deploy.md). Sub-branches used flat `m2-batch-N-slug` naming (the M2 prompt's `milestone/2-shared-primitives/batch-N` form was rejected — git ref path collision; same workaround as M1).
+**Status: shipped.** The long-lived branch `milestone-2-shared-primitives` carried 11 squashed batch SHAs and was merged to `main` via merge commit `7a87f28` per [docs/runbooks/m2-deploy.md](docs/runbooks/m2-deploy.md). Migration `0021_feature_flags.sql` applied to remote D1 same day; density toggle visible + functional at `/admin/settings`. Sub-branches used flat `m2-batch-N-slug` naming (the M2 prompt's `milestone/2-shared-primitives/batch-N` form was rejected — git ref path collision; same workaround as M1).
 
 The milestone shipped **+255 vitest unit tests across +16 new files** (216 M1 baseline → 471), six new gated paths in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json), six shared admin primitives ready for M3+ reuse, the closure of the cross-route smell from audit §08 #7, and the feature-flag substrate end-to-end (lib + admin route + density toggle UI).
 
@@ -252,7 +252,7 @@ The milestone shipped **+255 vitest unit tests across +16 new files** (216 M1 ba
 - **No remote D1 migration apply from Claude.** Migration `0021_feature_flags.sql` ships in repo only; operator applies via `npx wrangler d1 migrations apply --remote` after milestone merges to main (see [m2-deploy.md](docs/runbooks/m2-deploy.md)).
 - Stop-and-ask if a do-not-touch file appears to need editing or a test reveals current behavior conflicting with audit-documented behavior.
 
-**Final batch table (all 11 merged on milestone; milestone → main merge SHA TBD post-merge per [m2-deploy.md](docs/runbooks/m2-deploy.md)):**
+**Final batch table (all 11 merged on milestone; milestone → main merged 2026-05-07 as `7a87f28` via PR [#28](https://github.com/bulletbiter99/air-action-sports/pull/28)):**
 
 | Batch | What it ships | Squash on milestone | PR |
 |---|---|---|---|
@@ -266,8 +266,8 @@ The milestone shipped **+255 vitest unit tests across +16 new files** (216 M1 ba
 | **B5b** Feature-flag admin route + client hook (5 files) | `worker/routes/admin/featureFlags.js` (GET list / PUT override), worker/index.js mount, `src/admin/useFeatureFlag.js`, `tests/helpers/adminSession.js`, 7 route tests | `95983f4` | [#24](https://github.com/bulletbiter99/air-action-sports/pull/24) |
 | **B5c** Design tokens + density toggle UI (6 files) | `src/styles/tokens.css` (new), `src/styles/admin.css` (refactor — zero pixel diff target verified), AdminLayout.jsx (data-density attr), AdminSettings.jsx (toggle UI), useFeatureFlag.js extended (exists + setFeatureFlagOverride), 3 helper tests | `a6ab6e9` | [#25](https://github.com/bulletbiter99/air-action-sports/pull/25) |
 | **B6** Group E admin booking characterization tests (9 files) | `tests/helpers/adminBookingFixture.js` (new) + 7 audit tests (E47-E53) for `worker/routes/admin/bookings.js` (manual cash/comp/card branches, pricing parity, auto-link, refund Idempotency-Key, refund-rejects-cash) + gate map promotion | `d40e099` | [#26](https://github.com/bulletbiter99/air-action-sports/pull/26) |
-| **B7** Closing: rollback + deploy + baseline coverage runbooks + final docs (5 files) | `docs/runbooks/m2-{rollback,deploy,baseline-coverage}.{md,txt}`, CLAUDE.md + HANDOFF.md M2 closed-state update | `<TBD-after-this-batch>` | `<TBD>` |
-| **milestone → main** | merge commit per [m2-deploy.md](docs/runbooks/m2-deploy.md) (preserves per-batch SHAs) | `<TBD-after-milestone-merge>` | `<TBD>` |
+| **B7** Closing: rollback + deploy + baseline coverage runbooks + final docs (5 files) | `docs/runbooks/m2-{rollback,deploy,baseline-coverage}.{md,txt}`, CLAUDE.md + HANDOFF.md M2 closed-state update | `febadf0` | [#27](https://github.com/bulletbiter99/air-action-sports/pull/27) |
+| **milestone → main** | merge commit per [m2-deploy.md](docs/runbooks/m2-deploy.md) (preserves per-batch SHAs) | `7a87f28` | [#28](https://github.com/bulletbiter99/air-action-sports/pull/28) |
 
 **Final test count:** 471 unit tests across 70 files (216 M1 baseline + 255 new across M2 batches 1–6) + 7 Playwright smoke tests scaffolded across 3 files (M1) = **478 tests across 73 files**.
 
