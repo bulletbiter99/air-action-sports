@@ -10,6 +10,7 @@ import {
     loadSidebarExpand,
     saveSidebarExpand,
 } from './sidebarConfig.js';
+import CheckInBanner from './CheckInBanner.jsx';
 import '../styles/admin.css';
 
 // Sidebar grouped by operational rhythm: setup → event-day → review → admin.
@@ -67,6 +68,9 @@ function AdminShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const { enabled: compactDensity } = useFeatureFlag('density_compact');
+  // M4 B6 — CheckInBanner gates on the same flag as the dashboard +
+  // sidebar reorg. Single flip migrates everything together.
+  const { enabled: newAdminDashboard } = useFeatureFlag('new_admin_dashboard');
 
   useEffect(() => { setDrawerOpen(false); }, [loc.pathname]);
 
@@ -87,7 +91,10 @@ function AdminShell() {
       <MobileTopbar onOpen={() => setDrawerOpen(true)} />
       {drawerOpen && <div className="admin-drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
       <Sidebar drawerOpen={drawerOpen} onClose={() => setDrawerOpen(false)} onOpenFeedback={() => setFeedbackOpen(true)} />
-      <main className="admin-main"><Outlet /></main>
+      <main className="admin-main">
+        {newAdminDashboard && <CheckInBanner />}
+        <Outlet />
+      </main>
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} defaultEmail={user?.email || ''} />
     </div>
   );
