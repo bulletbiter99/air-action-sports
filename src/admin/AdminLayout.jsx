@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AdminProvider, useAdmin } from './AdminContext';
 import FeedbackModal from '../components/FeedbackModal';
@@ -103,6 +103,22 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
   const { isAuthenticated } = useAdmin();
   const [badges, setBadges] = useState({ newFeedback: 0 });
   const loc = useLocation();
+  const { enabled: customersEnabled } = useFeatureFlag('customers_entity');
+
+  // Derive the actual nav sections by injecting the Customers entry under
+  // Insights when the customers_entity flag is on. The flag ships off
+  // (M3 B8a migration 0024); the owner flips it via /admin/settings when
+  // ready to expose the customers UI.
+  const sections = useMemo(() => {
+    if (!customersEnabled) return NAV_SECTIONS;
+    return NAV_SECTIONS.map((section) => {
+      if (section.label !== 'Insights') return section;
+      return {
+        ...section,
+        items: [{ to: '/admin/customers', label: 'Customers' }, ...section.items],
+      };
+    });
+  }, [customersEnabled]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -128,7 +144,7 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
         <span style={logoSub}>Admin</span>
       </div>
       <nav className="admin-sidebar-nav" aria-label="Admin navigation">
-        {NAV_SECTIONS.map((section, sIdx) => (
+        {sections.map((section, sIdx) => (
           <div key={sIdx} className="admin-sidebar-section">
             {section.label && (
               <div className="admin-sidebar-section-label">{section.label}</div>

@@ -353,7 +353,7 @@ Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branch
 - `worker/routes/waivers.js` (public waiver sign) — DNT
 - `worker/lib/stripe.js` — M6 territory; coverage already 93.93%
 
-**Status (as of 2026-05-07, post-B8a):**
+**Status (as of 2026-05-07, post-B8b):**
 
 | Batch | What it ships | Status | Squash on milestone |
 |---|---|---|---|
@@ -365,14 +365,14 @@ Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branch
 | **B5** Dual-write code paths (6 files) | `worker/lib/customers.js` (NEW — `findOrCreateCustomerForBooking` + `recomputeCustomerDenormalizedFields`); `worker/lib/ids.js` adds `customerId()` generator; `worker/routes/webhooks.js` + `worker/routes/admin/bookings.js` wired (resolve customer_id pre-INSERT/UPDATE; recompute aggregates post-attendees + post-refund); `tests/unit/lib/customers.test.js` 11 new tests; `scripts/test-gate-mapping.json` adds `customers.js` gate. NO edits to `worker/routes/bookings.js` or `worker/lib/stripe.js` (M6 territory). | ✓ merged | `a4870f6` ([#36](https://github.com/bulletbiter99/air-action-sports/pull/36)) |
 | **B6** Migration C — NOT NULL + remove fallback (7 files) | `migrations/0023_customers_not_null.sql` (column-rename approach via SQLite 3.35+ `ALTER TABLE ADD COLUMN / DROP COLUMN / RENAME COLUMN` — table-level rebuild was rejected by D1's FK enforcement during `DROP TABLE`); `worker/lib/customers.js` drops `if (!cid) return;` guard; `worker/routes/admin/bookings.js` adds email-format 400 guard; `worker/routes/webhooks.js` cleanup; `scripts/backfill-customers.js` drops SQL `BEGIN`/`COMMIT` (D1 rejects them) + JSON-parse fix for wrangler stdout UI chars; `tests/unit/admin/manual-rejects-malformed-email.test.js` (NEW); `tests/unit/lib/customers.test.js` removes B5 null-no-op test. **Migration applied to remote D1 2026-05-07 ✓** (per the user's accelerated path: skipped 7-day window since dataset is tiny — 2 bookings, 0 malformed-email rows). | ✓ merged | `4c2e87f` ([#38](https://github.com/bulletbiter99/air-action-sports/pull/38)) |
 | **B7** Group F — auth characterization tests (6 files) | 11 audit-prescribed tests (F54-F64) + 2 extra defensive cases for `verifyVendorToken`. `tests/unit/auth/{password,auth,vendor-token}.test.js`; gate map promotes `worker/lib/{password,auth,vendorToken}.js` from `uncovered` to `gates`. Purely additive. | ✓ merged | `b4bece9` ([#40](https://github.com/bulletbiter99/air-action-sports/pull/40)) |
-| **B8a** Customers admin route + flag migration (7 files) | `worker/routes/admin/customers.js` (NEW — GET list, GET :id detail, POST merge with manager+ role); `worker/index.js` mounts route at `/api/admin/customers`; `migrations/0024_customers_entity_flag.sql` (NEW — flag `customers_entity` state=`off`); `tests/unit/admin/customers-route.test.js` (NEW — 11 tests covering pagination/search/archived filter/detail 404/merge happy-path/self-merge refuse/already-archived refuse/staff 403); gate map adds `worker/routes/admin/customers.js`. **Migration 0024 applied to remote 2026-05-07 ✓** (flag stays `off` until owner flips). | pending | — |
-| **B8b** Customers UI: list / detail / merge pages (~7 files) | `AdminCustomers.jsx` list + `AdminCustomerDetail.jsx` detail + merge modal. Sidebar entry under Insights gated by `useFeatureFlag('customers_entity')`. App.jsx route registration. Reuses M2 `<FilterBar>` for search/archived filter. | pending | — |
+| **B8a** Customers admin route + flag migration (7 files) | `worker/routes/admin/customers.js` (NEW — GET list, GET :id detail, POST merge with manager+ role); `worker/index.js` mounts route at `/api/admin/customers`; `migrations/0024_customers_entity_flag.sql` (NEW — flag `customers_entity` state=`off`); `tests/unit/admin/customers-route.test.js` (NEW — 11 tests covering pagination/search/archived filter/detail 404/merge happy-path/self-merge refuse/already-archived refuse/staff 403); gate map adds `worker/routes/admin/customers.js`. **Migration 0024 applied to remote 2026-05-07 ✓** (flag stays `off` until owner flips). | ✓ merged | `765f792` ([#42](https://github.com/bulletbiter99/air-action-sports/pull/42)) |
+| **B8b** Customers UI: list / detail / merge pages (7 files) | `src/admin/AdminCustomers.jsx` (list with FilterBar — search by email/name, archived enum filter active/archived/all, paginated table); `src/admin/AdminCustomerDetail.jsx` (detail with contact card, aggregates, comm prefs, notes, tags, bookings table, merge modal — type-ahead search for primary, debounced /api/admin/customers?q query, on submit POST /merge then redirect to primary); `src/admin/AdminCustomers.css` (page styling with density-aware table padding); `src/App.jsx` registers `/admin/customers` + `/admin/customers/:id` routes; `src/admin/AdminLayout.jsx` injects "Customers" sidebar entry under Insights, gated by `useFeatureFlag('customers_entity')` (flag is `off` in production so the entry is hidden by default; pages render a "feature not enabled" placeholder if visited directly). Both pages use M2 `formatMoney` for LTV/totals. **`npm run build` clean.** | pending | — |
 | **B9** Persona-tailored AdminDashboard (~10 files) | New `AdminDashboard.jsx` (persona shell) + widgets + `personaLayouts.js` + `new_admin_dashboard` flag | pending | — |
 | **B10** System tag refresh cron (2 files) | `worker/index.js` scheduled() addition for nightly tag-refresh sweep at 03:00 UTC | pending | — |
 | **B11** GDPR deletion workflow (~4 files) | `POST /api/admin/customers/:id/gdpr-delete` + UI modal + tests | pending | — |
 | **B12** Closing: rollback + deploy + baseline coverage runbooks + final docs (~5 files) | `docs/runbooks/m3-{rollback,deploy,baseline-coverage}.{md,txt}`; CLAUDE.md/HANDOFF.md M3 closed-state | pending | — |
 
-**Cumulative on milestone branch (after B8a):** 600 unit tests across 79 files (471 M2 baseline + 129 new across B0-B8a — 62 B2 customerEmail + 31 B4 backfill + 11 B5 customers + 1 B6 admin email-format + 13 B7 auth + 11 B8a customers route).
+**Cumulative on milestone branch (after B8b):** 600 unit tests across 79 files (B8b is purely client-side React + CSS + route registration + sidebar wiring + docs — no test additions since the existing customers-route tests from B8a already cover the API surface the UI talks to).
 
 **Critical dependency chain (the migration cadence):**
 
@@ -397,7 +397,7 @@ B7 (Group F tests) is the only batch independent of the chain. B9/B10 have light
 1. `git checkout milestone/3-customers && git pull origin milestone/3-customers`
 2. `npm install`
 3. `npm test` — confirm **600/600** passing across 79 files
-4. Read this section + the next pending batch's row in the table above (B8b is next — customers UI; backend route + flag now live, just needs the React pages + sidebar wiring)
+4. Read this section + the next pending batch's row in the table above (B9 is next — persona-tailored AdminDashboard with `new_admin_dashboard` flag; old AdminDashboard preserved as fallback)
 5. Post the batch's plan; wait for "proceed"; create sub-branch `m3-batch-N-slug`; execute; PR; merge — repeat through B12
 
 For local-D1 work (B5+, B6's migration, B8 schema):
