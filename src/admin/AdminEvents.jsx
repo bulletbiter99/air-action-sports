@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import { formatMoney } from '../utils/money.js';
 
 // "6:30 AM" | "18:30" → "HH:MM" (24h) for <input type="time">. Returns '' if unparseable.
 function to24h(s) {
@@ -33,7 +34,8 @@ function splitRange(s) {
   return [parts[0] || '', parts[1] || ''];
 }
 // Money: cents ↔ dollar-string for text inputs. Keep empty string when input is cleared.
-const centsToDollars = (c) => (c === '' || c == null ? '' : (Number(c) / 100).toFixed(2));
+// Uses formatMoney with currency='' + emptyFor='' for input-field round-trip.
+const centsToDollars = (c) => formatMoney(c, { currency: '', emptyFor: '' });
 const dollarsToCents = (s) => {
   if (s === '' || s == null) return 0;
   const n = Number(String(s).replace(/[^0-9.\-]/g, ''));
@@ -140,7 +142,7 @@ export default function AdminEvents() {
                   <td style={{ ...td, fontSize: 12 }}>{e.location || '—'}</td>
                   <td style={td}>{(e.ticketTypes || []).length}</td>
                   <td style={td}>{e.attendeesCount || 0}</td>
-                  <td style={td}>${((e.grossCents || 0) / 100).toFixed(2)}</td>
+                  <td style={td}>{formatMoney(e.grossCents)}</td>
                   <td style={td}>
                     {e.past ? <span style={{ color: 'var(--olive-light)', fontSize: 12 }}>Past</span>
                       : e.published ? <span style={{ color: '#2ecc71', fontSize: 12 }}>Published</span>
@@ -719,7 +721,7 @@ function TicketTypesEditor({ eventId, ticketTypes, onReload, canEdit }) {
               {!t.active && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--olive-light)' }}>(inactive)</span>}
             </div>
             <div style={{ fontSize: 11, color: 'var(--olive-light)' }}>
-              ${(t.priceCents / 100).toFixed(2)} · {t.sold || 0}/{t.capacity ?? '∞'} sold
+              {formatMoney(t.priceCents)} · {t.sold || 0}/{t.capacity ?? '∞'} sold
               {t.maxPerOrder ? ` · max ${t.maxPerOrder}/order` : ''}
             </div>
           </div>
