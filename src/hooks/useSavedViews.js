@@ -1,94 +1,175 @@
-// useSavedViews — localStorage-backed CRUD for saved filter views.
+// useSavedViews — D1-backed CRUD for per-user saved filter views (M4 B2a).
 //
-// API:
-//   const { views, saveView, deleteView, renameView } = useSavedViews(page);
+// API (unchanged from M2 except added `loading`):
+//   const { views, saveView, deleteView, renameView, loading } = useSavedViews(page);
 //
-// where `page` is a string namespace (e.g. 'adminFeedback'). Storage key is
-// `aas:savedViews:<page>`. A view is `{ name: string, filters: object }`.
+// where `page` is a string namespace (e.g. 'adminFeedback'). A view is
+// `{ id, name, filters, sort, createdAt, updatedAt, pageKey }`.
 //
-// In M2 this is per-user, ephemeral (device-local). M4 batch 3 swaps the
-// storage backend to D1 so views sync across devices; the public API
-// surface here will stay stable so consumers don't change.
+// Storage: D1 via /api/admin/saved-views (migration 0026_saved_views.sql).
+// Migrated from M2's localStorage backing so views sync across devices.
+// The public hook surface is preserved so existing callers (FilterBar in
+// src/components/admin/FilterBar.jsx) need no changes — they just see
+// `views` populate asynchronously instead of synchronously on first render.
 //
-// Pure helpers (loadViews, saveViews) accept an injectable storage so
-// tests can pass a fake localStorage. The hook uses the real
-// window.localStorage by default.
+// NEW return field `loading: boolean` — true during the initial fetch and
+// during in-flight mutations. Callers that didn't read it before (FilterBar,
+// AdminFeedback, AdminCustomers) ignore it; callers that want a spinner can
+// adopt it.
+//
+// Pure async helpers (apiList, apiCreate, apiUpdate, apiDelete) are
+// exported for testing without React rendering — vitest's node environment
+// has no DOM. The hook is a thin wrapper around them.
 
 import { useState, useCallback, useEffect } from 'react';
 
-const PREFIX = 'aas:savedViews:';
+// ────────────────────────────────────────────────────────────────────
+// Pure async helpers (exported for testing)
+// ────────────────────────────────────────────────────────────────────
 
-function defaultStorage() {
-    return typeof window !== 'undefined' ? window.localStorage : null;
-}
-
-export function loadViews(page, storage = defaultStorage()) {
-    if (!storage || !page) return [];
+/**
+ * Fetch all saved views for the calling user + page.
+ * Returns [] on any error (network, 4xx, 5xx, JSON parse).
+ *
+ * @param {string} page
+ * @returns {Promise<Array<{ id, pageKey, name, filters, sort, createdAt, updatedAt }>>}
+ */
+export async function apiList(page) {
+    if (!page) return [];
     try {
-        const raw = storage.getItem(PREFIX + page);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
+        const res = await fetch(
+            `/api/admin/saved-views?page=${encodeURIComponent(page)}`,
+            { credentials: 'include', cache: 'no-store' },
+        );
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data?.views) ? data.views : [];
     } catch {
         return [];
     }
 }
 
-export function saveViews(page, views, storage = defaultStorage()) {
-    if (!storage || !page) return;
+/**
+ * Create or update a view by (user, page, name). Returns the upserted view
+ * (with id, createdAt, updatedAt) on success, or null on any error.
+ *
+ * @param {string} page
+ * @param {string} name
+ * @param {object} filters
+ * @returns {Promise<object|null>}
+ */
+export async function apiCreate(page, name, filters) {
+    if (!page || !name) return null;
     try {
-        storage.setItem(PREFIX + page, JSON.stringify(views));
+        const res = await fetch('/api/admin/saved-views', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pageKey: page, name, filters }),
+        });
+        if (!res.ok) return null;
+        return await res.json();
     } catch {
-        // Quota errors / private-browsing — silently ignore. The next read
-        // will return the previous state, which is acceptable for views.
+        return null;
     }
 }
 
-export function useSavedViews(page) {
-    const [views, setViews] = useState(() => loadViews(page));
+/**
+ * Rename a view by id. Returns true on success.
+ *
+ * @param {string} id
+ * @param {string} newName
+ * @returns {Promise<boolean>}
+ */
+export async function apiUpdate(id, newName) {
+    if (!id || !newName) return false;
+    try {
+        const res = await fetch(`/api/admin/saved-views/${encodeURIComponent(id)}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName }),
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
 
-    useEffect(() => {
-        setViews(loadViews(page));
+/**
+ * Delete a view by id. Returns true on success.
+ *
+ * @param {string} id
+ * @returns {Promise<boolean>}
+ */
+export async function apiDelete(id) {
+    if (!id) return false;
+    try {
+        const res = await fetch(`/api/admin/saved-views/${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            credentials: 'include',
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────
+// React hook
+// ────────────────────────────────────────────────────────────────────
+
+export function useSavedViews(page) {
+    const [views, setViews] = useState([]);
+    const [loading, setLoading] = useState(Boolean(page));
+
+    const refetch = useCallback(async () => {
+        if (!page) {
+            setViews([]);
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        const fresh = await apiList(page);
+        setViews(fresh);
+        setLoading(false);
     }, [page]);
 
+    useEffect(() => {
+        refetch();
+    }, [refetch]);
+
     const saveView = useCallback(
-        (name, filters) => {
+        async (name, filters) => {
             if (!page || !name) return;
-            setViews((prev) => {
-                const filtered = prev.filter((v) => v.name !== name);
-                const next = [...filtered, { name, filters }];
-                saveViews(page, next);
-                return next;
-            });
+            await apiCreate(page, name, filters);
+            await refetch();
         },
-        [page],
+        [page, refetch],
     );
 
     const deleteView = useCallback(
-        (name) => {
+        async (name) => {
             if (!page || !name) return;
-            setViews((prev) => {
-                const next = prev.filter((v) => v.name !== name);
-                saveViews(page, next);
-                return next;
-            });
+            // Hook API takes name (M2-compatible). Resolve to id from current views.
+            const target = views.find((v) => v.name === name);
+            if (!target) return;
+            await apiDelete(target.id);
+            await refetch();
         },
-        [page],
+        [page, views, refetch],
     );
 
     const renameView = useCallback(
-        (oldName, newName) => {
+        async (oldName, newName) => {
             if (!page || !oldName || !newName) return;
-            setViews((prev) => {
-                const next = prev.map((v) =>
-                    v.name === oldName ? { ...v, name: newName } : v,
-                );
-                saveViews(page, next);
-                return next;
-            });
+            const target = views.find((v) => v.name === oldName);
+            if (!target) return;
+            await apiUpdate(target.id, newName);
+            await refetch();
         },
-        [page],
+        [page, views, refetch],
     );
 
-    return { views, saveView, deleteView, renameView };
+    return { views, saveView, deleteView, renameView, loading };
 }

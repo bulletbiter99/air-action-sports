@@ -1,18 +1,21 @@
 // Tests for FilterBar's pure logic helpers (getActiveChips,
 // filterAvailableFilters). The component itself is thin JSX over these
-// helpers and the useSavedViews hook (whose pure helpers are tested
-// alongside).
+// helpers and the useSavedViews hook.
 //
 // Why pure-helper tests instead of component-render tests: keeps M2
 // dependency-light (no @testing-library/react / jsdom). The component's
 // JSX is small enough to verify by eye + via AdminFeedback integration.
+//
+// M4 B2a removed the `useSavedViews pure helpers` describe block from this
+// file when the hook migrated from localStorage to a D1-backed API. The
+// new helpers (apiList / apiCreate / apiUpdate / apiDelete) are tested in
+// tests/unit/hooks/useSavedViews.test.js.
 
 import { describe, it, expect } from 'vitest';
 import {
     getActiveChips,
     filterAvailableFilters,
 } from '../../../src/components/admin/FilterBar.jsx';
-import { loadViews, saveViews } from '../../../src/hooks/useSavedViews.js';
 
 const SCHEMA = [
     {
@@ -138,84 +141,5 @@ describe('filterAvailableFilters', () => {
         expect(types).toContain('enum');
         expect(types).toContain('bool');
         expect(types).toContain('range');
-    });
-});
-
-describe('useSavedViews pure helpers', () => {
-    function makeFakeStorage(initial = {}) {
-        const store = { ...initial };
-        return {
-            getItem: (k) => (k in store ? store[k] : null),
-            setItem: (k, v) => {
-                store[k] = String(v);
-            },
-            removeItem: (k) => {
-                delete store[k];
-            },
-            __raw: () => ({ ...store }),
-        };
-    }
-
-    it('loadViews returns [] when key is missing', () => {
-        const storage = makeFakeStorage();
-        expect(loadViews('adminFeedback', storage)).toEqual([]);
-    });
-
-    it('loadViews parses a JSON array', () => {
-        const storage = makeFakeStorage({
-            'aas:savedViews:adminFeedback': JSON.stringify([
-                { name: 'Open bugs', filters: { status: 'new', type: 'bug' } },
-            ]),
-        });
-        const result = loadViews('adminFeedback', storage);
-        expect(result).toHaveLength(1);
-        expect(result[0].name).toBe('Open bugs');
-    });
-
-    it('loadViews returns [] on malformed JSON', () => {
-        const storage = makeFakeStorage({
-            'aas:savedViews:adminFeedback': '{not json',
-        });
-        expect(loadViews('adminFeedback', storage)).toEqual([]);
-    });
-
-    it('loadViews returns [] when stored value is not an array', () => {
-        const storage = makeFakeStorage({
-            'aas:savedViews:adminFeedback': JSON.stringify({ not: 'array' }),
-        });
-        expect(loadViews('adminFeedback', storage)).toEqual([]);
-    });
-
-    it('saveViews writes the JSON-serialized array under the prefixed key', () => {
-        const storage = makeFakeStorage();
-        const views = [{ name: 'X', filters: { status: 'new' } }];
-        saveViews('adminFeedback', views, storage);
-        const raw = storage.__raw()['aas:savedViews:adminFeedback'];
-        expect(JSON.parse(raw)).toEqual(views);
-    });
-
-    it('saveViews + loadViews round-trip', () => {
-        const storage = makeFakeStorage();
-        const views = [
-            { name: 'Open bugs', filters: { status: 'new', type: 'bug' } },
-            { name: 'My triaged', filters: { status: 'triaged' } },
-        ];
-        saveViews('adminFeedback', views, storage);
-        expect(loadViews('adminFeedback', storage)).toEqual(views);
-    });
-
-    it('namespaces by page so two pages do not collide', () => {
-        const storage = makeFakeStorage();
-        saveViews('adminFeedback', [{ name: 'A', filters: {} }], storage);
-        saveViews('adminBookings', [{ name: 'B', filters: {} }], storage);
-        expect(loadViews('adminFeedback', storage)[0].name).toBe('A');
-        expect(loadViews('adminBookings', storage)[0].name).toBe('B');
-    });
-
-    it('handles missing page (returns []) and missing storage (no-op)', () => {
-        expect(loadViews('', makeFakeStorage())).toEqual([]);
-        expect(loadViews('adminFeedback', null)).toEqual([]);
-        // saveViews with null storage should be a no-op (not throw)
-        expect(() => saveViews('adminFeedback', [], null)).not.toThrow();
     });
 });
