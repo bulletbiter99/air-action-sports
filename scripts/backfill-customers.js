@@ -280,7 +280,7 @@ function execWrangler(flags, sqlOrFile, isFile = false) {
     // (e.g. "├ Checking if file needs uploading", "🌀 Uploading…")
     // to stdout BEFORE the JSON payload, even with --json. Slice off
     // everything before the first `[` or `{` so JSON.parse succeeds.
-    const jsonStart = result.search(/[\[\{]/);
+    const jsonStart = result.search(/[[{]/);
     const jsonText = jsonStart >= 0 ? result.slice(jsonStart) : result;
     return JSON.parse(jsonText);
 }
