@@ -1,0 +1,100 @@
+# Capture or refresh Playwright visual-regression baselines for a PR.
+#
+# Trigger: PR is labeled `capture-baselines` (no other labels trigger this).
+# What it does:
+#   1. Checks out the PR head branch
+#   2. Runs `npm run test:visual:update` — writes pixel-stable baselines
+#      under tests/visual/__snapshots__/ from inside the SAME CI runner
+#      that will compare future PRs (avoids local-vs-CI rendering drift)
+#   3. Commits the baselines back to the PR head as github-actions[bot]
+#   4. Removes the `capture-baselines` label so re-running needs an
+#      explicit re-label
+#
+# Use this:
+#   - On the visual-regression-suite-introducing PR (M4 B1b) — first-ever capture
+#   - When a UI change is intentional and the visual job is failing — re-label
+#     to refresh baselines, then visual job will pass with new baselines
+#
+# See docs/runbooks/visual-regression.md for the full operator workflow.
+
+name: Capture Visual Baselines
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Cancel an in-flight capture run when the same PR gets a new push or label
+# (avoids two captures racing the same baselines).
+concurrency:
+  group: capture-baselines-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    if: github.event.label.name == 'capture-baselines'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Need full history so the bot's commit can push cleanly without
+          # rejection on shallow-clone hash mismatch.
+          fetch-depth: 0
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        run: npx playwright install chromium
+
+      - name: Capture baselines
+        run: npm run test:visual:update
+
+      - name: Commit baselines
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/visual/
+          if git diff --cached --quiet; then
+            echo "No baseline changes to commit (snapshots already match captured pixels)."
+          else
+            git commit -m "chore(visual): capture baselines [bot]"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
+
+      - name: Remove the capture-baselines label
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              name: 'capture-baselines',
+            }).catch((err) => {
+              // Label may already be removed (concurrent run). Don't fail
+              // the workflow on this — the capture itself is what matters.
+              console.log('Label removal skipped:', err.message);
+            });
