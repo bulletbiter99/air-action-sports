@@ -43,10 +43,9 @@
       "tier": "critical",
       "covers": [
         "POST /api/webhooks/stripe",
-        "handleCheckoutCompleted",
-        "findExistingValidWaiver"
+        "handleCheckoutCompleted"
       ],
-      "audit_groups": ["B", "D"],
+      "audit_group": "B",
       "tests": [
         "tests/unit/webhook/idempotency-already-paid.test.js",
         "tests/unit/webhook/unknown-event-type.test.js",
@@ -56,7 +55,14 @@
         "tests/unit/webhook/audit-log-emission.test.js",
         "tests/unit/webhook/email-send-confirmation.test.js",
         "tests/unit/webhook/email-send-admin-notify.test.js",
-        "tests/unit/webhook/waiver-auto-link-on-paid.test.js",
+        "tests/unit/webhook/waiver-auto-link-on-paid.test.js"
+      ]
+    },
+    "worker/lib/waiverLookup.js": {
+      "tier": "critical",
+      "covers": ["findExistingValidWaiver"],
+      "audit_group": "D",
+      "tests": [
         "tests/unit/auto-link/null-inputs-return-null.test.js",
         "tests/unit/auto-link/match-by-email-and-name.test.js",
         "tests/unit/auto-link/case-insensitive-email.test.js",
