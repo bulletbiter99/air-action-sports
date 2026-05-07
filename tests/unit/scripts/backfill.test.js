@@ -301,10 +301,15 @@ describe('buildBackfillPlan', () => {
 });
 
 describe('planToSql', () => {
-    it('wraps output in BEGIN TRANSACTION; / COMMIT;', () => {
+    it('emits a sequence of statements without SQL transaction wrapping (D1 remote rejects BEGIN/COMMIT)', () => {
+        // M3 B6 fix-up: D1's wrangler execute path forbids SQL `BEGIN
+        // TRANSACTION` / `COMMIT` and directs callers to db.batch().
+        // Local SQLite accepts them, which masked the issue during B4
+        // development. Idempotency is provided by the per-statement
+        // semantics + email_normalized UNIQUE INDEX (see planToSql jsdoc).
         const sql = planToSql({ newCustomers: [], updatedCustomers: [], bookingLinks: [], skippedBookings: [] });
-        expect(sql).toContain('BEGIN TRANSACTION;');
-        expect(sql).toContain('COMMIT;');
+        expect(sql).not.toContain('BEGIN TRANSACTION');
+        expect(sql).not.toContain('COMMIT');
     });
 
     it('emits a customer.created audit row for each new customer', () => {

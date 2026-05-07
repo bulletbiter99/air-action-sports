@@ -207,12 +207,24 @@ export function buildBackfillPlan({ bookings, existingCustomers, idGen = makeCus
 }
 
 /**
- * Renders a backfill plan to a single SQL transaction.
+ * Renders a backfill plan to a sequence of SQL statements.
+ *
+ * Note (M3 B6 fix-up): originally wrapped in `BEGIN TRANSACTION;` /
+ * `COMMIT;` for atomicity, but Cloudflare D1's wrangler execute path
+ * rejects those statements at runtime ("please use the
+ * state.storage.transaction() API"). Local SQLite via wrangler dev
+ * accepts them, which masked the issue during B4 development. Statements
+ * now run sequentially. Idempotency holds because:
+ *   - INSERT INTO customers is keyed on email_normalized via UNIQUE
+ *     INDEX WHERE archived_at IS NULL — re-running detects existing
+ *     rows in readExistingCustomers and routes them to UPDATE instead.
+ *   - UPDATE bookings/attendees SET customer_id = ? WHERE id = ? is
+ *     a no-op when re-applied with the same target.
+ *   - audit_log INSERTs would duplicate on re-run, but the source
+ *     filter `source: 'backfill'` makes them easy to recognize.
  */
 export function planToSql(plan, { now = Date.now() } = {}) {
     const lines = [];
-
-    lines.push('BEGIN TRANSACTION;');
 
     // Insert new customers + emit customer.created audit rows
     for (const c of plan.newCustomers) {
@@ -252,7 +264,6 @@ export function planToSql(plan, { now = Date.now() } = {}) {
         );
     }
 
-    lines.push('COMMIT;');
     return lines.join('\n') + '\n';
 }
 
@@ -265,7 +276,13 @@ function execWrangler(flags, sqlOrFile, isFile = false) {
         ? `npx wrangler d1 execute ${DB} ${flags} --json --file ${sqlOrFile}`
         : `npx wrangler d1 execute ${DB} ${flags} --json --command ${JSON.stringify(sqlOrFile)}`;
     const result = execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
-    return JSON.parse(result);
+    // Wrangler --remote --file emits upload-progress UI characters
+    // (e.g. "├ Checking if file needs uploading", "🌀 Uploading…")
+    // to stdout BEFORE the JSON payload, even with --json. Slice off
+    // everything before the first `[` or `{` so JSON.parse succeeds.
+    const jsonStart = result.search(/[[{]/);
+    const jsonText = jsonStart >= 0 ? result.slice(jsonStart) : result;
+    return JSON.parse(jsonText);
 }
 
 function readBookings(flags, limit = null) {
