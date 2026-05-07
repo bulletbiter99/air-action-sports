@@ -1,0 +1,59 @@
+M3 closing-state coverage baseline (2026-05-07)
+================================================
+Snapshot of `npm run test:coverage` after B12 closing.
+Future regressions on these files should be investigated before merging.
+
+Test count: 617 unit tests across 80 files.
+M2 baseline (closing): 471 / 70.
+
+Critical / High gated paths post-M3 (matches scripts/test-gate-mapping.json):
+
+worker/lib/                       Lines    Branch   Funcs    Uncov-line-ranges
+  auditLog.js                     100      82.6     100      28, 65-66, 76
+  auth.js                         100      85.71    100      13, 37
+  customerEmail.js                100      100      100      —
+  customerTags.js                 99.2     87.5     100      125
+  customers.js                    100      74.07    100      ...89, 134, 144, 147
+  featureFlags.js                 100      94.23    100      28, 122, 161
+  formatters.js                   9.3      33.33    25       4-36, 39-57, 60-85
+  password.js                     100      94.11    100      54
+  pricing.js                      98.84    90.66    75       188-189
+  stripe.js                       93.93    89.47    85.71    27-32, 70-71
+  vendorToken.js                  100      87.5     100      37, 39, 66
+  waiverLookup.js                 100      100      100      —
+
+worker/routes/                    Lines    Branch   Funcs
+  waivers.js                      93.61    71.9     100
+  webhooks.js                     91.37    77.77    100
+
+worker/routes/admin/              Lines    Branch   Funcs
+  customers.js                    97.79    73.33    100      ...84-185, 187-188
+
+Notes
+-----
+- formatters.js coverage stays low because it's exercised indirectly by
+  webhook + waivers tests; no dedicated unit tests prescribed by the audit.
+  Promote to dedicated coverage in M4+ if it becomes a refactor target.
+- pricing.js 75% functions because exported helpers like `centsToDollars`
+  (M1 era) live alongside the calculateQuote core; helpers covered by
+  Group A pricing tests but not all branches exercised.
+- The new gates landed in M3:
+    waiverLookup.js                  (M2 B4a/4b — 100%)
+    admin/bookings.js                (M2 B6 — 71.11%)
+    customers.js (worker/lib)        (M3 B5 — 100%)
+    password.js                      (M3 B7 — 100%)
+    auth.js                          (M3 B7 — 100%)
+    vendorToken.js                   (M3 B7 — 100%)
+    admin/customers.js               (M3 B8a — 97.79%)
+    customerTags.js                  (M3 B10 — 99.2%)
+
+Audit groups still uncovered post-M3 (see scripts/test-gate-mapping.json#uncovered):
+  - Group G — worker-level (G65-G70): worker/index.js serveUpload, rewriteEventOg.
+  - Group H — cron (H71-H76): worker/index.js scheduled handler outer loop +
+    runReminderSweep / runAbandonPendingSweep / runVendorSweep.
+  - worker/lib/emailSender.js (the 9 named senders) — covered indirectly via
+    webhook tests; no dedicated unit tests.
+  - worker/lib/formatters.js — see note above.
+
+Capture command:
+  npm run test:coverage 2>&1 | grep -E "^\s*(All files|<file>)"

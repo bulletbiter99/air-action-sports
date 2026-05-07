@@ -353,7 +353,7 @@ Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branch
 - `worker/routes/waivers.js` (public waiver sign) — DNT
 - `worker/lib/stripe.js` — M6 territory; coverage already 93.93%
 
-**Status (as of 2026-05-07, post-B11):**
+**Status (as of 2026-05-07, post-B12 — M3 CLOSED):**
 
 | Batch | What it ships | Status | Squash on milestone |
 |---|---|---|---|
@@ -370,9 +370,18 @@ Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branch
 | **B9** Persona-tailored AdminDashboard (8 files) | `migrations/0025_new_admin_dashboard_flag.sql` (flag `new_admin_dashboard`, state=`off`); `src/admin/personaLayouts.js` (NEW — role→widget-key list config + `resolveLayout(user)` + `personaLabel(role)` helpers, owner=`[RevenueSummary, CronHealth, TodayEvents, RecentBookings]`, manager=`[TodayEvents, RecentBookings, CronHealth]`, staff=`[TodayEvents, RecentBookings]`); `src/admin/AdminDashboardPersona.jsx` (NEW — persona shell that resolves layout per `user.role` and renders widgets via the WIDGETS registry; preserves the +New Booking CTA from legacy for manager+); `src/admin/widgets/PersonaWidgets.jsx` (NEW — RevenueSummary/CronHealth/TodayEvents/RecentBookings, each self-contained data fetcher hitting existing /api/admin/analytics + /events + /bookings endpoints); `src/admin/widgets/PersonaWidgets.css`; `src/admin/AdminDashboard.jsx` (EDIT — adds flag-gated dispatcher at the top; legacy code path renamed to `AdminDashboardLegacy()` and falls through unchanged when flag is off; persona shell lazy-loaded so legacy bundle doesn't grow). **`npm run build` clean.** | pending | — |
 | **B10** System tag refresh cron (7 files) | `worker/lib/customerTags.js` (NEW — `computeSystemTags(customer, now)` pure helper + `runCustomerTagsSweep(env)` I/O wrapper using `db.batch()` for atomic clear+reinsert; 4 system tags v1: `vip` LTV>$500, `frequent` ≥5 bookings, `lapsed` no booking 180+ days, `new` first booking ≤30 days); `worker/index.js` scheduled() branches on `event.cron === '0 3 * * *'` to dispatch tag sweep vs the existing 15-min reminder/abandon/vendor sweeps; `wrangler.toml` adds `"0 3 * * *"` to `triggers.crons`; `tests/unit/lib/customer-tags.test.js` (NEW — 12 tests covering each tag threshold + multi-tag combinations + zero-customer + sweep summary shape); gate map adds `worker/lib/customerTags.js`. Test count 600 → 612. **The new cron registers automatically on Workers Builds redeploy** — no operator step needed. | pending | — |
 | **B11** GDPR deletion workflow (4 files) | `worker/routes/admin/customers.js` (edit) — adds `POST /:id/gdpr-delete` (owner only); soft-archives with `archived_reason='gdpr_delete'`, redacts email/name/phone/notes/notes_sensitive, deletes customer_tags, writes `gdpr_deletions` audit row + `customer.gdpr_deleted` audit_log entry. `tests/unit/admin/customers-route.test.js` (edit) — 5 new tests (happy path verifies redact + archive + tags-delete + gdpr_deletions row + audit; 409 on already-archived; 404 unknown; 403 manager; 400 invalid requestedVia). `src/admin/AdminCustomerDetail.jsx` (edit) — owner-only GDPR delete button below the merge button; `<GdprDeleteModal>` requires typing the customer's email-or-id to confirm; submits `{ requestedVia, reason }` and reloads the page on success. CLAUDE.md/HANDOFF.md updates. Test count 612 → 617. | pending | — |
-| **B12** Closing: rollback + deploy + baseline coverage runbooks + final docs (~5 files) | `docs/runbooks/m3-{rollback,deploy,baseline-coverage}.{md,txt}`; CLAUDE.md/HANDOFF.md M3 closed-state | pending | — |
+| **B12** Closing: runbooks + final docs (5 files) | `docs/runbooks/m3-baseline-coverage.txt` (NEW — full coverage snapshot post-M3 close, 617/80, gated paths inventory); `docs/runbooks/m3-deploy.md` (NEW — captures the actual deploy sequence used 2026-05-07: per-batch rolling brings-up, operator-driven remote D1 ops including the 4 migrations + 1 backfill, the three D1 quirks discovered mid-milestone — BEGIN/COMMIT rejection, FK enforcement on table rebuild, wrangler stdout JSON-parse fix); `docs/runbooks/m3-rollback.md` (NEW — 6-level decision tree from instant flag flip to full schema rollback, recipes for each B-batch, GDPR mis-fire recovery procedure); CLAUDE.md/HANDOFF.md M3 closed-state. | pending | — |
 
-**Cumulative on milestone branch (after B11):** 617 unit tests across 80 files (B8b/B9 added 0 tests; B10 added 12 tests for `customerTags.js`; B11 added 5 tests for the GDPR delete endpoint).
+**Cumulative on milestone branch (after B12 — M3 closed):** 617 unit tests across 80 files (B8b/B9 added 0 tests; B10 added 12 tests for `customerTags.js`; B11 added 5 tests for the GDPR delete endpoint; B12 is docs-only, no test changes).
+
+**M3 closed state — what shipped end-to-end:**
+- 4 D1 migrations applied to remote: 0022 (customers schema), 0023 (NOT NULL on customer_id), 0024 (`customers_entity` flag), 0025 (`new_admin_dashboard` flag).
+- B4 backfill ran on remote: 2 customers created, 2 bookings + 4 attendees linked.
+- 6 new gated paths in `scripts/test-gate-mapping.json`: `customers.js` (lib), `password.js`, `auth.js`, `vendorToken.js`, `admin/customers.js`, `customerTags.js`.
+- 2 new feature flags shipped, both `state='off'` by default; flippable via SQL UPDATE per `docs/runbooks/m3-deploy.md`.
+- Persona-tailored AdminDashboard with legacy preserved as fallback.
+- Customers admin UI (list/detail/merge/GDPR-delete).
+- Nightly system-tag cron (03:00 UTC) refreshing `vip` / `frequent` / `lapsed` / `new` per customer.
 
 **Critical dependency chain (the migration cadence):**
 
@@ -397,7 +406,7 @@ B7 (Group F tests) is the only batch independent of the chain. B9/B10 have light
 1. `git checkout milestone/3-customers && git pull origin milestone/3-customers`
 2. `npm install`
 3. `npm test` — confirm **617/617** passing across 80 files
-4. Read this section + the next pending batch's row in the table above (B12 is next — closing runbooks + final M3 docs; M3 closes here)
+4. M3 is **closed**. The next milestone (M4 / Phase 2 next stage per `docs/decisions.md` D01) starts with IA reorganization. Read `docs/runbooks/m3-baseline-coverage.txt` + `docs/runbooks/m3-deploy.md` + `docs/runbooks/m3-rollback.md` for the closed-state reference if any post-M3 incident requires a rollback.
 5. Post the batch's plan; wait for "proceed"; create sub-branch `m3-batch-N-slug`; execute; PR; merge — repeat through B12
 
 For local-D1 work (B5+, B6's migration, B8 schema):
