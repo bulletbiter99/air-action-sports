@@ -41,6 +41,7 @@ import portalAuth from './routes/portal/auth.js';
 import portalMe from './routes/portal/me.js';
 import adminCertifications from './routes/admin/certifications.js';
 import adminEventStaffing from './routes/admin/eventStaffing.js';
+import adminLaborEntries from './routes/admin/laborEntries.js';
 
 const app = new Hono();
 
@@ -132,6 +133,7 @@ app.route('/api/portal/auth', portalAuth);
 app.route('/api/portal', portalMe);
 app.route('/api/admin/certifications', adminCertifications);
 app.route('/api/admin/event-staffing', adminEventStaffing);
+app.route('/api/admin/labor-entries', adminLaborEntries);
 
 app.onError((err, c) => {
     console.error('API error', err);
