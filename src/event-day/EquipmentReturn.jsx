@@ -1,5 +1,8 @@
 // M5 Batch 14 — Equipment return scaffolding.
-// Reuses /api/admin/rentals scanner pattern.
+// R14: switched from the admin rentals routes (silent 401 under the
+// portal cookie used in event-day mode) to the new
+// /api/event-day/equipment-return endpoints, which are gated by
+// requireEventDayAuth and locked to the active event server-side.
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -13,23 +16,42 @@ export default function EquipmentReturn() {
 
     async function lookup() {
         setStatus(null);
-        const res = await fetch(`/api/admin/rentals/lookup/${encodeURIComponent(token)}`, { credentials: 'include' });
+        const res = await fetch('/api/event-day/equipment-return/lookup', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ qrToken: token }),
+        });
         if (res.ok) setItem(await res.json());
-        else setStatus({ kind: 'err', text: 'Not found' });
+        else {
+            const data = await res.json().catch(() => ({}));
+            setStatus({ kind: 'err', text: data.error === 'wrong_event' ? 'Wrong event' : 'Not found' });
+        }
     }
 
     async function complete() {
         if (!item?.assignment?.id) return;
-        const res = await fetch(`/api/admin/rentals/assignments/${item.assignment.id}/return`, {
-            method: 'POST', credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ condition, notes }),
-        });
+        const res = await fetch(
+            `/api/event-day/equipment-return/${encodeURIComponent(item.assignment.id)}/complete`,
+            {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ condition, notes }),
+            },
+        );
         if (res.ok) {
-            setStatus({ kind: 'ok', text: 'Equipment returned' });
+            const data = await res.json().catch(() => ({}));
+            setStatus({
+                kind: 'ok',
+                text: data.requiresChargeReview
+                    ? 'Returned — flagged for damage-charge review'
+                    : 'Equipment returned',
+            });
             setItem(null); setToken(''); setNotes(''); setCondition('good');
         } else {
-            setStatus({ kind: 'err', text: 'Return failed' });
+            const data = await res.json().catch(() => ({}));
+            setStatus({ kind: 'err', text: data.error === 'already_returned' ? 'Already returned' : 'Return failed' });
         }
     }
 
@@ -50,7 +72,7 @@ export default function EquipmentReturn() {
             {item?.assignment && (
                 <div style={card}>
                     <h2 style={h2}>{item.item?.name || 'Item'}</h2>
-                    <p style={{ color: '#bbb' }}>Assigned to: {item.assignment.attendee_name || '—'}</p>
+                    <p style={{ color: '#bbb' }}>Assigned to: {item.attendee?.fullName || '—'}</p>
 
                     <label style={lbl}>Condition on return
                         <select value={condition} onChange={(e) => setCondition(e.target.value)} style={input}>
