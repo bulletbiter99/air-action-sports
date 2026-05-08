@@ -441,9 +441,11 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 - Coverage on any of the 12 gated files drops from M3 closing baseline (per [docs/runbooks/m3-baseline-coverage.txt](docs/runbooks/m3-baseline-coverage.txt))
 - Any production-data anomaly during local backfill testing
 
-### Milestone 5 — Staff Management + Event-Day Mode (✓ CLOSED 2026-05-08 via rework)
+### Milestone 5 — Staff Management + Event-Day Mode (✓ CODE COMPLETE 2026-05-08; awaits deploy)
 
-**Long-lived branch:** `milestone/5-staff-event-day` (off `main` at `7594d9a`, M4 close). **Status: closed via 16-batch rework after the prior session declared a premature close.** Verify-m5 reports **15/15 batches complete · 95/95 individual checks pass** on the milestone branch. Ready to merge to `main`.
+**Long-lived branch:** `milestone/5-staff-event-day` (off `main` at `7594d9a`, M4 close). **Status: 16-batch rework complete; all 16 PRs (#122-#140) merged to milestone branch.** Verify-m5 reports **15/15 batches complete · 95/95 individual checks pass** on the milestone branch. **Production still runs M4** until the milestone-to-main merge + 14 D1 migrations + auto-redeploy.
+
+**Deploy state:** main is at `7594d9a` (M4 close). The 14 M5 migrations (0030-0043) are NOT yet applied to remote D1. The next session executes Phases 2-6 of the M5 deploy sequence per [docs/m5-deploy-prompt.md](docs/m5-deploy-prompt.md).
 
 **Backstory:** the prior M5 session shipped 20 PRs (#101-#120) and declared the milestone closed, but a subsequent audit revealed substantial scope gaps: 21+ files spec'd in the M5 prompt that were never created, 3 cron sweeps not wired into `worker/index.js`, 8+ email templates not seeded, 4 broken UI states (Schedule tab "coming soon", IncidentReport posting to a non-existent endpoint, EventChecklist fake-mock state, EquipmentReturn damage-charge stub doing nothing), 5+ migrations not written, and B17 (AdminUsersLegacy decommission) skipped entirely. The rework session executed [docs/runbooks/m5-rework-plan.md](docs/runbooks/m5-rework-plan.md) batch by batch, with the [scripts/verify-m5-completeness.js](scripts/verify-m5-completeness.js) gate enforcing completeness on every PR.
 

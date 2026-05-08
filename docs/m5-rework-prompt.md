@@ -1,6 +1,14 @@
-# M5 Rework — fresh session prompt
+# M5 Rework — fresh session prompt (HISTORICAL — rework complete 2026-05-08)
 
-**Copy the block below into a fresh Claude Code session.** It hands the new session everything it needs to complete the M5 rework with no scope cuts.
+> **STATUS: SUPERSEDED.** This prompt drove the M5 rework through R0-R18. All 16 rework PRs (#122-#140) merged to `milestone/5-staff-event-day` on 2026-05-08. Verify-m5 reports 15/15 batches complete · 95/95 checks pass.
+>
+> **For new sessions doing the deploy (Phases 2-6 of the M5 close sequence):** use [m5-deploy-prompt.md](m5-deploy-prompt.md) instead. This file is preserved as a historical artifact of the rework process.
+>
+> **For new sessions doing post-M5 work** (after deploy completes): use the generic resumption prompt at the bottom of HANDOFF.md.
+
+---
+
+The block below is the original rework prompt; preserved for reference.
 
 ---
 
