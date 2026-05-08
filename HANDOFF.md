@@ -4,88 +4,41 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — finish M5 deploy (2026-05-08)
+## ✓ M5 deployed (2026-05-08)
 
-**Where things are:** all 16 M5 rework PRs are merged to `milestone/5-staff-event-day`. **`main` still runs M4** at SHA `7594d9a`. Production has not yet seen any M5 code; the 14 D1 migrations are not applied to remote.
+**Production runs M5.** `main` at `82fc839` (PR [#142](https://github.com/bulletbiter99/air-action-sports/pull/142) milestone merge + PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) hotfix); all 14 M5 D1 migrations (0030-0043) applied to remote D1; latest Workers deployment `fb1d535b-d6ca-4cd0-ae98-c49601b27ab8` at 2026-05-08T22:50 UTC.
 
-**The next session's job:** finish Phases 2-6 of the M5 deploy sequence. Use [docs/m5-deploy-prompt.md](docs/m5-deploy-prompt.md) as the copy-paste prompt for the new session — it embeds this checklist and the safety rails for the irreversible production steps.
+**Deploy sequence outcome:**
 
-**Phase 1 ✓ complete (this session):** all 8 final rework PRs merged to milestone/5:
-- #133 R11 (1099 thresholds) → merged
-- #134 R12 (event-day foundations) → merged (resolved JSON gate-map conflict)
-- #135 R13 (check-in full) → merged
-- #136 R14 (event-day routes) → merged (resolved worker/index.js conflict)
-- #137 R15 (checklists persistence) → merged (resolved worker/index.js conflict)
-- #138 R16 (charges completion) → merged (resolved worker/index.js + EquipmentReturn.jsx conflict)
-- #139 R17 (decommission AdminUsersLegacy) → merged
-- #140 R18 (final docs) → merged
-
-**Phases remaining (Phases 2-6) — the next session's punch list:**
-
-| Phase | What | Reversibility |
+| Phase | What | Outcome |
 |---|---|---|
-| 2 | Fresh-checkout milestone/5; verify `npm test`, `npm run lint`, `npm run build`, `node scripts/verify-m5-completeness.js` all green | Read-only |
-| 3 | Open milestone/5 → main PR; merge after CI green | Reversible (revert merge) |
-| 4 | **Apply 14 D1 migrations to remote** (0030-0043) — IRREVERSIBLE | **NOT reversible — schema forward-only** |
-| 5 | Verify Workers Builds auto-redeploy succeeded after main push | Read-only |
-| 6 | Smoke-test production: `/api/health`, `/admin/users` → 302 to `/admin/staff`, `/event` shell loads | Read-only |
+| 2 | Verify milestone/5 — 1538/146 tests, 0 lint errors, build clean, verify-m5 95/95 | ✓ |
+| 3 | PR [#142](https://github.com/bulletbiter99/air-action-sports/pull/142) milestone/5 → main | ✓ merged as `1e74c15` |
+| 4 | Apply 14 D1 migrations to remote — **first attempt failed at 0033** (`NOT NULL constraint failed: email_templates.created_at`) | ⚠ required hotfix |
+| 4a | Hotfix PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) — added `id` + `created_at` to email_templates seed migrations 0033/0039/0040/0041/0043 (11 rows total) | ✓ merged as `82fc839` |
+| 4b | Re-run `wrangler d1 migrations apply --remote` after hotfix — all 14 applied (0030-0043) | ✓ |
+| 5 | Verify Workers Builds redeploy — `fb1d535b...` at 22:50 UTC matches hotfix merge | ✓ |
+| 6 | HTTP smoke 9/9 routes return 200; M5 schema tables verified on remote D1; 11 `tpl_*` email_templates seeded | ✓ |
 
-**Verified milestone/5 state at handoff** (run `git checkout milestone/5-staff-event-day && git pull` to confirm):
-- **Tests: 1538 passed across 146 files** ✓
-- **Lint: 0 errors / 391 warnings** ✓
-- **Build: clean (~250ms)** ✓
-- **Verify-m5: 15/15 batches complete · 95/95 checks pass** ✓
-- **Open PRs against milestone/5-staff-event-day:** 0 ✓ (all 16 rework PRs merged)
-- **Production state:** `main` at `7594d9a` (M4 close); none of M5's 14 migrations applied to remote D1 yet
+**Live now (delta vs M4 close):** Staff portal (magic-link auth + `/portal/me` self-service); event-day kiosk shell at `/event` (high-contrast palette, 64px tap targets); AdminStaff suite (list/detail/cert editor); AdminEventStaffing (staffing + RSVP); AdminBookingChargeQueue (damage-charge fast-path); AdminStaff1099Thresholds (bookkeeper rollup); 9 event-day routes; 3 new cron sweeps registered on the 03:00 UTC trigger (cert expiration / event-staffing reminder + auto-decline / tax-year auto-lock — first run tomorrow); 11 new email templates; AdminUsers DELETED (R17); `/admin/users` → `/admin/staff` redirect.
 
-(Pre-rework baseline was 1122/114; +416 tests / +32 files net across the 16-batch rework.)
+**Recommended operator post-deploy manual smoke** (in a browser):
+1. Login to `/admin` (any owner-tier user)
+2. `/admin/users` → confirms 302 redirect to `/admin/staff`
+3. `/admin/staff`, `/admin/booking-charges`, `/admin/staff/1099-thresholds` → pages render with empty states (no staff exist yet)
+4. `/event` → kiosk shell loads (high-contrast, 64px tap targets)
+5. Optional: invite a second admin via `/admin/staff` to dogfood the staff portal magic-link flow
 
-**All 16 rework PRs merged** to `milestone/5-staff-event-day` (PRs #122-#140):
+**Pending operational items** (not code; not blocking M5 close):
+- Stripe sandbox → live cutover (M6 territory: `/admin/booking-charges/pay/:token` link landing 404s pre-M6; admin uses "Mark Paid" modal for Venmo/cash/check)
+- DMARC + Resend DKIM/SPF DNS (confirmation emails may land in spam)
+- Cloudflare Always-Use-HTTPS toggle
+- Operation Nightfall content seed (cover images, custom questions, email-template review)
+- Comp-ticket dry run before first live event
 
-| Batch | PR | Verify | Highlights |
-|---|---|---|---|
-| R0a | [#122](https://github.com/bulletbiter99/air-action-sports/pull/122) | partial | AdminPageHeader + EmptyState shared primitives + 4 admin pages |
-| R0b | [#123](https://github.com/bulletbiter99/air-action-sports/pull/123) | partial | 7 mid-size admin pages |
-| R0c | [#124](https://github.com/bulletbiter99/air-action-sports/pull/124) | **R0 8/8** | 5 largest admin pages — closes R0 fully |
-| R4 | [#125](https://github.com/bulletbiter99/air-action-sports/pull/125) | **5/5** | combined route.test split into 6 files |
-| R5 | [#126](https://github.com/bulletbiter99/air-action-sports/pull/126) | **5/5** | 4 staff document route tests |
-| R6 | [#127](https://github.com/bulletbiter99/air-action-sports/pull/127) | **2/2** | requireAuth portal-cookie 403 distinction |
-| R8 | [#128](https://github.com/bulletbiter99/air-action-sports/pull/128) | **8/8** | worker/lib/certifications.js + AdminStaffCertEditor + cron + 3 templates (mig 0039) |
-| R9 | [#129](https://github.com/bulletbiter99/air-action-sports/pull/129) | **8/8** | AdminEventStaffing.jsx + worker/lib/eventStaffing.js + 2 crons + 2 templates (mig 0040) |
-| R10 | [#130](https://github.com/bulletbiter99/air-action-sports/pull/130) | **4/4** | Schedule tab activated + worker/lib/laborEntries.js |
-| R11 | [#133](https://github.com/bulletbiter99/air-action-sports/pull/133) | **6/6** | AdminStaff1099Thresholds + worker/lib/thresholds1099.js + auto-lock cron (March 1+) + w9_reminder template (mig 0041) |
-| R12 | [#134](https://github.com/bulletbiter99/air-action-sports/pull/134) | **6/6** | EventDayContext extracted + event-day.css + worker/lib/eventDaySession.js + worker/routes/event-day/session.js |
-| R13 | [#135](https://github.com/bulletbiter99/air-action-sports/pull/135) | **9/9** | AttendeeDetail + WalkUpBooking + CameraPermissionExplainer + offlineQueue + checkin/walkup routes |
-| R14 | [#136](https://github.com/bulletbiter99/air-action-sports/pull/136) | **7/7** | incidents.js + roster.js + equipment-return.js routes (**fixes IncidentReport 404 production bug**) + JSX endpoint switches |
-| R15 | [#137](https://github.com/bulletbiter99/air-action-sports/pull/137) | **9/9** | event_checklists schema (mig 0042 + 3 default templates) + checklists/hq routes + auto-instantiate hook + **EventChecklist rewired from fake mock to D1-persisted** |
-| R16 | [#138](https://github.com/bulletbiter99/air-action-sports/pull/138) | **12/12** | AdminBookingChargeQueue + 2 routes + worker/lib/bookingCharges.js + 3 charge templates + booking_confirmation baseline (mig 0043) + damage-charge UI replaces "B16 will create" tooltip |
-| R17 | [#139](https://github.com/bulletbiter99/air-action-sports/pull/139) | **3/3** | DELETED AdminUsers.jsx + /admin/users → /admin/staff redirect (`<Navigate replace>`) |
-| R18 | [#140](https://github.com/bulletbiter99/air-action-sports/pull/140) | **3/3** | CLAUDE.md + HANDOFF.md M5 close-state + m5-baseline-coverage refresh |
+The full M5 milestone reference (rework batch table #122-#143, gated paths, carry-forward facts, stop-and-ask conditions) lives in **`CLAUDE.md` Milestone 5 section**. Closing runbooks at [docs/runbooks/m5-baseline-coverage.txt](docs/runbooks/m5-baseline-coverage.txt), [docs/runbooks/m5-deploy.md](docs/runbooks/m5-deploy.md), [docs/runbooks/m5-rollback.md](docs/runbooks/m5-rollback.md).
 
-### Operator action items (run after milestone merges to main, in order)
-
-**1. Apply 5 D1 migrations to remote** — none yet applied; queued for milestone close:
-
-```bash
-CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
-```
-
-This applies in ascending order: **0039** (cert_expiration templates), **0040** (event_staff_invite + reminder templates), **0041** (w9_reminder template), **0042** (event_checklists schema + 3 default templates), **0043** (3 charge templates + booking_confirmation baseline). Plus the 9 prior-session migrations 0030-0038 if not already applied (check with `npx wrangler d1 migrations list air-action-sports-db --remote`).
-
-**2. Workers Builds auto-redeploys** on `git push origin main` after milestone merges. The redeploy automatically registers the **3 new cron sweeps** that join the existing 03:00 UTC trigger:
-- `runCertExpirationSweep` (R8) — 60d/30d/7d cert renewal warnings
-- `runEventStaffingReminderSweep` + `runEventStaffingAutoDeclineSweep` (R9) — pre-event reminders + auto-decline overdue invites
-- `runTaxYearAutoLockSweep` (R11) — March 1+ auto-lock + w9_reminder dispatch
-
-**3. Smoke-test post-deploy:**
-- `curl https://airactionsport.com/api/health` → `{"ok":true,...}`
-- Visit `/admin/users` → verify 302 to `/admin/staff` (R17 redirect).
-- Visit `/event` → confirm event-day shell loads (high-contrast palette, 64px tap targets — R12 CSS).
-- (If a live event is upcoming) verify event creation auto-instantiates checklists at `/event/checklist`.
-
-**4. (Optional, post-launch) Stripe Checkout integration for damage-charge payment links** — R16 ships the email + link generator; the `/admin/booking-charges/pay/:token` landing page is **M6 territory**. Until M6, customers receive emails with the link, but it 404s on click — admin uses the queue's "Mark Paid" modal for Venmo / cash / check payments.
-
-### Lessons captured during rework (durable; apply to future milestones)
+### Lessons captured during M5 (durable; apply to future milestones)
 
 1. **Verify-m5 cron-sweep regex** requires `const NAME = ` in `worker/index.js`. Imported sweeps need a top-level alias: `import { sweep as _sweep } from './lib/...'; const sweep = _sweep;`
 2. **Verify-m5 tab-active regex** uses `/s` flag and spans the whole file. A helper named `ComingSoon` further down in the same file false-positives even after the JSX changes. Rename the helper.
@@ -93,8 +46,7 @@ This applies in ascending order: **0039** (cert_expiration templates), **0040** 
 4. **`useMemo` inside JSX after an early return** violates rules-of-hooks. Move to component top, or pass module-level const directly.
 5. **`requireAuth` extension** must preserve F57 (no-cookie 401). The new portal-cookie-only 403 branch only fires when `aas_session` is genuinely absent.
 6. **Per-batch verify-m5 + plan-mode-first prevented scope creep.** Each rework PR included the verify-script's batch output verbatim in the PR body. The rework prompt's gate ("If the script doesn't pass, the rework batch isn't done") was the single load-bearing constraint that made the rework actually finish.
-
-The full M5 milestone reference (gated paths, carry-forward facts, stop-and-ask conditions) lives in **`CLAUDE.md` Milestone 5 section**.
+7. **Production `email_templates.id` is `TEXT PRIMARY KEY` and `created_at` is `INTEGER NOT NULL` — both required.** Local D1 fixture has a permissive schema, so migrations seeding `email_templates` rows pass tests but fail on remote apply if they omit these columns. **For any future migration that seeds `email_templates`, include `id='tpl_<slug>'` and `created_at=updated_at`** — match the dominant existing-row id convention (`tpl_event_reminder_24h`, `tpl_user_invite`). Surfaced during M5 Phase 4 deploy 2026-05-08; required hotfix PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) to add the missing columns to migrations 0033/0039/0040/0041/0043.
 
 ---
 

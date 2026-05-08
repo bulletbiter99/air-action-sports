@@ -2,9 +2,7 @@
 
 > **STATUS: SUPERSEDED.** This prompt drove the M5 rework through R0-R18. All 16 rework PRs (#122-#140) merged to `milestone/5-staff-event-day` on 2026-05-08. Verify-m5 reports 15/15 batches complete · 95/95 checks pass.
 >
-> **For new sessions doing the deploy (Phases 2-6 of the M5 close sequence):** use [m5-deploy-prompt.md](m5-deploy-prompt.md) instead. This file is preserved as a historical artifact of the rework process.
->
-> **For new sessions doing post-M5 work** (after deploy completes): use the generic resumption prompt at the bottom of HANDOFF.md.
+> **M5 deployed 2026-05-08.** Both this rework prompt and [m5-deploy-prompt.md](m5-deploy-prompt.md) are now historical. For new sessions doing post-M5 work: use the generic resumption prompt at the bottom of HANDOFF.md.
 
 ---
 
