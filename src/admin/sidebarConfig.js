@@ -48,7 +48,7 @@ export const SIDEBAR = [
             { type: 'item', to: '/admin/settings', label: 'Overview' },
             { type: 'item', to: '/admin/settings/taxes-fees', label: 'Taxes' },
             { type: 'item', to: '/admin/settings/email-templates', label: 'Email' },
-            { type: 'item', to: '/admin/users', label: 'Team' },
+            { type: 'item', to: '/admin/staff', label: 'Team' },
             { type: 'item', to: '/admin/audit-log', label: 'Audit' },
             { type: 'item', to: '/admin/waivers', label: 'Waivers' },
             { type: 'item', to: '/admin/vendors', label: 'Vendors' },

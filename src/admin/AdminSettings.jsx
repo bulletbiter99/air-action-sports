@@ -25,7 +25,7 @@ const CARDS = [
     role: 'owner',
   },
   {
-    to: '/admin/users',
+    to: '/admin/staff',
     title: 'Team',
     desc: 'Invite admins, manage roles (staff / manager / owner), revoke access. Owner only.',
     role: 'manager',

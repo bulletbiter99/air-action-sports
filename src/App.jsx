@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import ScrollToTop from './components/ScrollToTop';
@@ -44,7 +44,6 @@ const AdminRentalAssignments = lazy(() => import('./admin/AdminRentalAssignments
 const AdminEvents = lazy(() => import('./admin/AdminEvents'));
 const AdminPromoCodes = lazy(() => import('./admin/AdminPromoCodes'));
 const AdminAnalytics = lazy(() => import('./admin/AdminAnalytics'));
-const AdminUsers = lazy(() => import('./admin/AdminUsers'));
 const AdminAcceptInvite = lazy(() => import('./admin/AdminAcceptInvite'));
 const AdminAuditLog = lazy(() => import('./admin/AdminAuditLog'));
 const AdminSettings = lazy(() => import('./admin/AdminSettings'));
@@ -153,7 +152,9 @@ export default function App() {
             <Route path="events" element={<AdminEvents />} />
             <Route path="promo-codes" element={<AdminPromoCodes />} />
             <Route path="analytics" element={<AdminAnalytics />} />
-            <Route path="users" element={<AdminUsers />} />
+            {/* M5 R17: legacy /admin/users decommissioned. Staff management
+                lives at /admin/staff (M5 B4+). Bookmarked URLs redirect. */}
+            <Route path="users" element={<Navigate to="/admin/staff" replace />} />
             <Route path="accept-invite" element={<AdminAcceptInvite />} />
             <Route path="audit-log" element={<AdminAuditLog />} />
             <Route path="vendors" element={<AdminVendors />} />
