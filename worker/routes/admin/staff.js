@@ -23,6 +23,8 @@ import { requireAuth } from '../../lib/auth.js';
 import { requireCapability, listCapabilities } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { decryptSafely } from '../../lib/personEncryption.js';
+import { mintInviteToken } from '../../lib/portalSession.js';
+import { sendStaffPortalInvite } from '../../lib/emailSender.js';
 
 const adminStaff = new Hono();
 
@@ -369,6 +371,62 @@ adminStaff.post('/:id/archive', requireCapability('staff.archive'), async (c) =>
     });
 
     return c.json({ ok: true });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// POST /api/admin/staff/:id/invite — mint magic link + send invite
+// ────────────────────────────────────────────────────────────────────
+adminStaff.post('/:id/invite', requireCapability('staff.invite'), async (c) => {
+    const personId = c.req.param('id');
+    const person = await c.env.DB.prepare(
+        'SELECT id, full_name, email, archived_at FROM persons WHERE id = ?'
+    ).bind(personId).first();
+    if (!person) return c.json({ error: 'Not found' }, 404);
+    if (person.archived_at) return c.json({ error: 'Person archived' }, 409);
+    if (!person.email) return c.json({ error: 'Person has no email on file' }, 400);
+
+    const { token, tokenHash } = await mintInviteToken();
+    const sessionId = `ps_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+    const now = Date.now();
+    const expiresAt = now + 24 * 60 * 60 * 1000; // 24h
+
+    const user = c.get('user');
+
+    await c.env.DB.prepare(
+        `INSERT INTO portal_sessions (id, person_id, token_hash, token_version, expires_at, created_by_user_id, created_at)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`
+    ).bind(sessionId, personId, tokenHash, expiresAt, user.id, now).run();
+
+    const siteUrl = c.env.SITE_URL || 'https://airactionsport.com';
+    const magicLink = `${siteUrl}/portal/auth/consume?token=${token}`;
+
+    // Best-effort email; don't fail the invite mint if Resend errors.
+    let emailResult;
+    try {
+        emailResult = await sendStaffPortalInvite(c.env, {
+            person,
+            inviterName: user.display_name,
+            magicLink,
+            expiresAt: new Date(expiresAt),
+        });
+    } catch (err) {
+        emailResult = { error: err?.message || 'send_failed' };
+    }
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'portal.invite.sent',
+        targetType: 'person',
+        targetId: personId,
+        meta: { sessionId, emailSkipped: emailResult?.skipped, emailError: emailResult?.error },
+    });
+
+    // For local-D1 testing: include the magic link in the response when
+    // the email returned a "skipped" reason. Operators running the dry
+    // run on a fresh D1 see the link directly. In production with Resend
+    // configured, the response just confirms the send.
+    const debugLink = (emailResult?.skipped || emailResult?.error) ? magicLink : undefined;
+    return c.json({ ok: true, sessionId, ...(debugLink ? { debugLink } : {}) });
 });
 
 export default adminStaff;
