@@ -89,11 +89,11 @@ export default function AdminStaffDetail() {
                 {activeTab === 'profile' && <ProfileTab person={p} canEdit={hasRole?.('manager')} onSaved={load} />}
                 {activeTab === 'roles' && <RolesTab personId={p.id} roles={data.roles} canAssign={hasRole?.('manager')} onChanged={load} />}
                 {activeTab === 'notes' && <NotesTab personId={p.id} person={p} canEdit={hasRole?.('manager')} onSaved={load} />}
-                {activeTab === 'documents' && <ComingSoon batch="Batch 5" feature="Document acknowledgments" />}
-                {activeTab === 'access' && <ComingSoon batch="Batch 6" feature="Portal session log" />}
-                {activeTab === 'issues' && <ComingSoon batch="Batch 14" feature="Incident log" />}
+                {activeTab === 'documents' && <TabPlaceholder batch="Batch 5" feature="Document acknowledgments" />}
+                {activeTab === 'access' && <TabPlaceholder batch="Batch 6" feature="Portal session log" />}
+                {activeTab === 'issues' && <TabPlaceholder batch="Batch 14" feature="Incident log" />}
                 {activeTab === 'certifications' && <CertificationsTab personId={p.id} canEdit={hasRole?.('manager')} />}
-                {activeTab === 'schedule' && <ComingSoon batch="Batch 10" feature="Schedule & Pay" />}
+                {activeTab === 'schedule' && <ScheduleTab personId={p.id} canEdit={hasRole?.('manager')} canMarkPaid={hasRole?.('owner')} />}
             </div>
         </div>
     );
@@ -342,7 +342,184 @@ function CertificationsTab({ personId, canEdit }) {
     );
 }
 
-function ComingSoon({ batch, feature }) {
+function ScheduleTab({ personId, canEdit, canMarkPaid }) {
+    const [entries, setEntries] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showAdd, setShowAdd] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [form, setForm] = useState({
+        workedAt: '', source: 'manual_entry', payKind: 'w2_hourly',
+        amountDollars: '', hours: '', notes: '',
+    });
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/admin/labor-entries?person_id=${personId}`, { credentials: 'include' });
+            if (res.ok) setEntries((await res.json()).entries || []);
+        } finally { setLoading(false); }
+    }, [personId]);
+
+    useEffect(() => { load(); }, [load]);
+
+    async function submitEntry() {
+        if (!form.workedAt || !form.payKind || !form.amountDollars) return;
+        setSubmitting(true);
+        try {
+            const amountCents = Math.round(parseFloat(form.amountDollars) * 100);
+            const body = {
+                personId,
+                workedAt: new Date(form.workedAt).getTime(),
+                source: form.source,
+                payKind: form.payKind,
+                amountCents,
+                hours: form.hours ? parseFloat(form.hours) : null,
+                notes: form.notes || null,
+            };
+            const res = await fetch('/api/admin/labor-entries', {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (res.ok) {
+                setShowAdd(false);
+                setForm({ workedAt: '', source: 'manual_entry', payKind: 'w2_hourly', amountDollars: '', hours: '', notes: '' });
+                load();
+            } else {
+                const d = await res.json().catch(() => ({}));
+                alert(d.error || 'Save failed');
+            }
+        } finally { setSubmitting(false); }
+    }
+
+    async function approve(id) {
+        const res = await fetch(`/api/admin/labor-entries/${id}/approve`, { method: 'POST', credentials: 'include' });
+        if (res.ok) load();
+    }
+    async function markPaid(id) {
+        const ref = window.prompt('Payment reference (venmo, check #, etc.)?');
+        if (ref == null) return;
+        const res = await fetch(`/api/admin/labor-entries/${id}/mark-paid`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentReference: ref }),
+        });
+        if (res.ok) load();
+    }
+    async function dispute(id) {
+        const note = window.prompt('Dispute note (optional):') || '';
+        const res = await fetch(`/api/admin/labor-entries/${id}/dispute`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note }),
+        });
+        if (res.ok) load();
+    }
+    async function resolve(id) {
+        const note = window.prompt('Resolution note:') || '';
+        const res = await fetch(`/api/admin/labor-entries/${id}/resolve`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note }),
+        });
+        if (res.ok) load();
+    }
+
+    const fmtDate = (ms) => ms ? new Date(ms).toLocaleDateString() : '—';
+    const fmtMoney = (cents) => cents == null ? '—' : `$${(cents / 100).toFixed(2)}`;
+
+    function statusOf(e) {
+        if (e.rejected_at) return { key: 'rejected', label: 'Rejected', color: 'var(--color-danger)' };
+        if (e.disputed_at && !e.resolved_at) return { key: 'disputed', label: 'Disputed', color: 'var(--color-warning)' };
+        if (e.paid_at) return { key: 'paid', label: 'Paid', color: 'var(--color-success)' };
+        if (e.approved_at) return { key: 'approved', label: 'Approved', color: 'var(--color-info)' };
+        if (e.approval_required && !e.approved_at) return { key: 'pending', label: 'Pending approval', color: 'var(--color-warning)' };
+        return { key: 'recorded', label: 'Recorded', color: 'var(--color-text-muted)' };
+    }
+
+    return (
+        <div style={section}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={h2}>Schedule &amp; Pay</h2>
+                {canEdit && (
+                    <button type="button" onClick={() => setShowAdd((v) => !v)} style={primaryBtn}>
+                        {showAdd ? 'Cancel' : '+ Manual entry'}
+                    </button>
+                )}
+            </div>
+
+            {showAdd && (
+                <div style={{ marginTop: 16, padding: 16, background: 'var(--color-bg-sunken)', border: '1px solid var(--color-border)' }}>
+                    <label style={lbl}>Worked at <input type="date" value={form.workedAt} onChange={(e) => setForm({ ...form, workedAt: e.target.value })} style={input} /></label>
+                    <label style={lbl}>Source <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} style={input}>
+                        <option value="manual_entry">Manual entry</option>
+                        <option value="event_completion">Event completion</option>
+                        <option value="adjustment">Adjustment</option>
+                    </select></label>
+                    <label style={lbl}>Pay kind <select value={form.payKind} onChange={(e) => setForm({ ...form, payKind: e.target.value })} style={input}>
+                        <option value="w2_hourly">W2 hourly</option>
+                        <option value="1099_hourly">1099 hourly</option>
+                        <option value="1099_per_event">1099 per event</option>
+                        <option value="volunteer">Volunteer</option>
+                        <option value="comp">Comp</option>
+                    </select></label>
+                    <label style={lbl}>Hours (optional) <input type="number" step="0.25" value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value })} style={input} /></label>
+                    <label style={lbl}>Amount (USD) <input type="number" step="0.01" value={form.amountDollars} onChange={(e) => setForm({ ...form, amountDollars: e.target.value })} style={input} /></label>
+                    <label style={lbl}>Notes <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} style={input} /></label>
+                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: '4px 0 8px' }}>
+                        Manual entries above $200 require approval before they can be marked paid (HR self-approval cap).
+                    </p>
+                    <button type="button" onClick={submitEntry} disabled={!form.workedAt || !form.payKind || !form.amountDollars || submitting} style={primaryBtn}>
+                        {submitting ? 'Saving…' : 'Save entry'}
+                    </button>
+                </div>
+            )}
+
+            <div style={{ marginTop: 16 }}>
+                {loading && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
+                {!loading && entries.length === 0 && <p style={{ color: 'var(--olive-light)', fontStyle: 'italic' }}>No labor entries on file.</p>}
+                {!loading && entries.length > 0 && (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 8 }}>
+                        <thead>
+                            <tr>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--color-border-strong)', color: 'var(--color-accent)', fontSize: 11, textTransform: 'uppercase' }}>Worked</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--color-border-strong)', color: 'var(--color-accent)', fontSize: 11, textTransform: 'uppercase' }}>Source</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--color-border-strong)', color: 'var(--color-accent)', fontSize: 11, textTransform: 'uppercase' }}>Pay kind</th>
+                                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid var(--color-border-strong)', color: 'var(--color-accent)', fontSize: 11, textTransform: 'uppercase' }}>Amount</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--color-border-strong)', color: 'var(--color-accent)', fontSize: 11, textTransform: 'uppercase' }}>Status</th>
+                                <th style={{ padding: '6px 8px', borderBottom: '1px solid var(--color-border-strong)' }}></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {entries.map((e) => {
+                                const s = statusOf(e);
+                                return (
+                                    <tr key={e.id} style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                                        <td style={{ padding: '6px 8px' }}>{fmtDate(e.worked_at)}</td>
+                                        <td style={{ padding: '6px 8px', fontSize: 11, color: 'var(--color-text-muted)' }}>{e.source}</td>
+                                        <td style={{ padding: '6px 8px', fontSize: 11 }}>{e.pay_kind}</td>
+                                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtMoney(e.amount_cents)}</td>
+                                        <td style={{ padding: '6px 8px' }}>
+                                            <span style={{ ...statusBase, background: 'transparent', color: s.color, border: `1px solid ${s.color}` }}>{s.label}</span>
+                                        </td>
+                                        <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                            {canEdit && s.key === 'pending' && <button onClick={() => approve(e.id)} style={{ ...primaryBtn, padding: '4px 10px', fontSize: 11 }}>Approve</button>}
+                                            {canMarkPaid && (s.key === 'approved' || s.key === 'recorded') && <button onClick={() => markPaid(e.id)} style={{ ...primaryBtn, padding: '4px 10px', fontSize: 11, marginLeft: 4 }}>Mark paid</button>}
+                                            {s.key !== 'disputed' && s.key !== 'rejected' && <button onClick={() => dispute(e.id)} style={{ padding: '4px 10px', fontSize: 11, marginLeft: 4, background: 'transparent', border: '1px solid var(--color-border-strong)', color: 'var(--color-text-muted)', cursor: 'pointer' }}>Dispute</button>}
+                                            {canEdit && s.key === 'disputed' && <button onClick={() => resolve(e.id)} style={{ ...primaryBtn, padding: '4px 10px', fontSize: 11, marginLeft: 4 }}>Resolve</button>}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function TabPlaceholder({ batch, feature }) {
     return (
         <div style={section}>
             <p style={{ color: 'var(--olive-light)', fontStyle: 'italic' }}>
