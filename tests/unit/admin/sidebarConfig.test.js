@@ -13,7 +13,7 @@ import {
 } from '../../../src/admin/sidebarConfig.js';
 
 describe('SIDEBAR config', () => {
-    it('starts with Home, then Today (dynamic), then Events / Bookings / Customers (flag-gated)', () => {
+    it('starts with Home, then Today (dynamic), then Events / Bookings / Customers', () => {
         expect(SIDEBAR[0]).toMatchObject({ type: 'item', to: '/admin', label: 'Home', end: true });
         expect(SIDEBAR[1]).toMatchObject({ type: 'item', to: '/admin/today', label: 'Today', dynamic: 'todayActive' });
         expect(SIDEBAR[2]).toMatchObject({ type: 'item', to: '/admin/events', label: 'Events' });
@@ -22,8 +22,10 @@ describe('SIDEBAR config', () => {
             type: 'item',
             to: '/admin/customers',
             label: 'Customers',
-            requiresFlag: 'customers_entity',
         });
+        // M4 B12b: Customers no longer carries `requiresFlag` —
+        // customers_entity flag was deleted after the rollout.
+        expect(SIDEBAR[4].requiresFlag).toBeUndefined();
     });
 
     it('has a separator between top-level items and the Settings group', () => {
@@ -75,10 +77,9 @@ describe('SIDEBAR config', () => {
 });
 
 describe('getVisibleItems', () => {
-    it('returns the full config when all predicates pass (today active + flag on)', () => {
+    it('returns the full config when all predicates pass (today active)', () => {
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: true, eventId: 'evt_1', checkInOpen: false },
-            flags: { customers_entity: true },
         });
         // 5 items + 1 separator + 1 group = 7
         expect(visible).toHaveLength(7);
@@ -89,48 +90,46 @@ describe('getVisibleItems', () => {
     it('hides Today when activeEventToday is false', () => {
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: false, eventId: null, checkInOpen: false },
-            flags: { customers_entity: true },
         });
         expect(visible.find((e) => e.label === 'Today')).toBeUndefined();
-        // Other items still visible
+        // Other items still visible (post-B12b: Customers no longer flag-gated)
         expect(visible.find((e) => e.label === 'Home')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Customers')).toBeDefined();
     });
 
     it('hides Today when todayState is null (initial load before /today/active resolves)', () => {
         const visible = getVisibleItems(SIDEBAR, {
             todayState: null,
-            flags: { customers_entity: true },
         });
         expect(visible.find((e) => e.label === 'Today')).toBeUndefined();
     });
 
-    it('hides Customers when customers_entity flag is false', () => {
-        const visible = getVisibleItems(SIDEBAR, {
-            todayState: { activeEventToday: true },
-            flags: { customers_entity: false },
-        });
-        expect(visible.find((e) => e.label === 'Customers')).toBeUndefined();
+    it('requiresFlag filter logic stays in place for forward-compat (no item uses it post-B12b)', () => {
+        // Synthetic config exercises the requiresFlag branch since SIDEBAR
+        // itself has no requiresFlag items as of B12b.
+        const cfg = [
+            { type: 'item', to: '/x', label: 'X', requiresFlag: 'experimental' },
+            { type: 'item', to: '/y', label: 'Y' },
+        ];
+        const onlyY = getVisibleItems(cfg, { flags: { experimental: false } });
+        expect(onlyY.find((e) => e.label === 'X')).toBeUndefined();
+        expect(onlyY.find((e) => e.label === 'Y')).toBeDefined();
+
+        const both = getVisibleItems(cfg, { flags: { experimental: true } });
+        expect(both.find((e) => e.label === 'X')).toBeDefined();
+        expect(both.find((e) => e.label === 'Y')).toBeDefined();
     });
 
-    it('hides Customers when flag key is missing entirely (defensive default)', () => {
-        const visible = getVisibleItems(SIDEBAR, {
-            todayState: { activeEventToday: true },
-            flags: {},
-        });
-        expect(visible.find((e) => e.label === 'Customers')).toBeUndefined();
-    });
-
-    it('combined: today inactive + customers off → Today and Customers hidden, others visible', () => {
+    it('combined: today inactive → Today hidden, others visible', () => {
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: false },
-            flags: { customers_entity: false },
         });
         const labels = visible.filter((e) => e.type === 'item').map((i) => i.label);
         expect(labels).toContain('Home');
         expect(labels).toContain('Events');
         expect(labels).toContain('Bookings');
+        expect(labels).toContain('Customers');
         expect(labels).not.toContain('Today');
-        expect(labels).not.toContain('Customers');
     });
 
     it('separators always pass through unchanged', () => {
@@ -165,9 +164,10 @@ describe('getVisibleItems', () => {
 
     it('handles missing ctx (defaults to no today state, no flags)', () => {
         const visible = getVisibleItems(SIDEBAR);
-        // Today + Customers should both be hidden (defaults are falsy)
+        // Today should be hidden (default is falsy); Customers is no
+        // longer flag-gated post-B12b so it's always visible.
         expect(visible.find((e) => e.label === 'Today')).toBeUndefined();
-        expect(visible.find((e) => e.label === 'Customers')).toBeUndefined();
+        expect(visible.find((e) => e.label === 'Customers')).toBeDefined();
         // Others present
         expect(visible.find((e) => e.label === 'Home')).toBeDefined();
         expect(visible.find((e) => e.label === 'Events')).toBeDefined();

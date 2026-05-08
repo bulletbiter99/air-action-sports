@@ -35,20 +35,15 @@ function AdminShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const { enabled: compactDensity } = useFeatureFlag('density_compact');
-  // M4 B7 — Command palette has its own flag so it can roll out
-  // independently of the new admin shell. Cmd+K listener + modal
-  // mount only when on. (Flag is at state='on' globally as of B8;
-  // useFeatureFlag call retained until B12b cleanup batch.)
-  const { enabled: cmdkEnabled } = useFeatureFlag('command_palette');
   const [cmdkOpen, setCmdkOpen] = useState(false);
 
   useEffect(() => { setDrawerOpen(false); }, [loc.pathname]);
 
-  // M4 B7 — global Cmd+K / Ctrl+K opens the command palette. Ignored
-  // when the flag is off. preventDefault wins the race against
-  // browser bindings (Firefox uses Cmd+K for quick search).
+  // Global Cmd+K / Ctrl+K opens the command palette. preventDefault
+  // wins the race against browser bindings (Firefox uses Cmd+K for
+  // quick search). M4 B12b removed the command_palette flag gate;
+  // listener is now always installed.
   useEffect(() => {
-    if (!cmdkEnabled) return undefined;
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
@@ -57,7 +52,7 @@ function AdminShell() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [cmdkEnabled]);
+  }, []);
 
   if (!showChrome) {
     return (
@@ -81,7 +76,7 @@ function AdminShell() {
         <Outlet />
       </main>
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} defaultEmail={user?.email || ''} />
-      {cmdkEnabled && <CommandPalette open={cmdkOpen} onClose={() => setCmdkOpen(false)} />}
+      <CommandPalette open={cmdkOpen} onClose={() => setCmdkOpen(false)} />
     </div>
   );
 }
@@ -103,7 +98,6 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
   const { isAuthenticated } = useAdmin();
   const [badges, setBadges] = useState({ newFeedback: 0 });
   const loc = useLocation();
-  const { enabled: customersEnabled } = useFeatureFlag('customers_entity');
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -131,7 +125,6 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
       <nav className="admin-sidebar-nav" aria-label="Admin navigation">
         <NewSidebarNav
           badges={badges}
-          customersEnabled={customersEnabled}
           onClose={onClose}
         />
       </nav>
@@ -142,19 +135,14 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
 
 // M4 B5 — new sidebar implementation rendering the SIDEBAR config from
 // sidebarConfig.js. Filters items via getVisibleItems based on the
-// today-active state (from useTodayActive) and customers_entity flag.
-// Settings group expand/collapse persists in localStorage.
-function NewSidebarNav({ badges, customersEnabled, onClose }) {
+// today-active state (from useTodayActive). Settings group expand /
+// collapse persists in localStorage. M4 B12b removed the customers_entity
+// flag plumbing (no sidebar item uses requiresFlag anymore).
+function NewSidebarNav({ badges, onClose }) {
   const todayState = useTodayActive();
-  // Inline `flags` inside useMemo so ESLint's exhaustive-deps rule can
-  // see the dependency through customersEnabled (the actual source of
-  // truth) rather than through a destructured object literal.
   const visibleEntries = useMemo(
-    () => getVisibleItems(SIDEBAR, {
-      todayState,
-      flags: { customers_entity: customersEnabled },
-    }),
-    [todayState, customersEnabled],
+    () => getVisibleItems(SIDEBAR, { todayState }),
+    [todayState],
   );
 
   return (

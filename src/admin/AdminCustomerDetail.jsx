@@ -13,7 +13,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { useFeatureFlag } from './useFeatureFlag.js';
 import { useAdmin } from './AdminContext';
 import { formatMoney } from '../utils/money.js';
 import './AdminCustomers.css';
@@ -21,7 +20,6 @@ import './AdminCustomers.css';
 export default function AdminCustomerDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { enabled: flagEnabled, loading: flagLoading } = useFeatureFlag('customers_entity');
     const { hasRole } = useAdmin();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -30,7 +28,7 @@ export default function AdminCustomerDetail() {
     const [gdprOpen, setGdprOpen] = useState(false);
 
     const reload = useCallback(async () => {
-        if (!flagEnabled || !id) return;
+        if (!id) return;
         setLoading(true);
         setErr(null);
         try {
@@ -51,21 +49,10 @@ export default function AdminCustomerDetail() {
         } finally {
             setLoading(false);
         }
-    }, [flagEnabled, id]);
+    }, [id]);
 
     useEffect(() => { reload(); }, [reload]);
 
-    if (flagLoading) {
-        return <div className="admin-customers"><p className="admin-customers__loading">Loading…</p></div>;
-    }
-    if (!flagEnabled) {
-        return (
-            <div className="admin-customers admin-customers--disabled">
-                <h1>Customer detail</h1>
-                <p>Feature not enabled. Flip <code>customers_entity</code> from Settings → Feature flags.</p>
-            </div>
-        );
-    }
     if (loading) {
         return <div className="admin-customers"><p className="admin-customers__loading">Loading customer…</p></div>;
     }

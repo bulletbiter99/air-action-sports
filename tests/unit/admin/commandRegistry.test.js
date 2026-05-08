@@ -45,13 +45,16 @@ describe('commandsFromSidebar', () => {
         expect(commands.find((c) => c.label === 'Today')).toBeUndefined();
     });
 
-    it('hides Customers when customers_entity flag is off', () => {
+    // M4 B12b removed `requiresFlag: 'customers_entity'` from the
+    // Customers sidebar item. The flag-filter mechanism still exists in
+    // `getVisibleItems` for forward-compat, but no SIDEBAR item exercises
+    // it today. Customers is now always present in the command list.
+    it('Customers is always present (no longer flag-gated post-B12b)', () => {
         const commands = commandsFromSidebar(SIDEBAR, {
             todayState: { activeEventToday: true },
             flags: { customers_entity: false },
         });
-        expect(commands.find((c) => c.label === 'Customers')).toBeUndefined();
-        // Other top-level still present
+        expect(commands.find((c) => c.label === 'Customers')).toBeDefined();
         expect(commands.find((c) => c.label === 'Home')).toBeDefined();
     });
 
@@ -104,11 +107,12 @@ describe('commandsFromSidebar', () => {
         expect(commandsFromSidebar(undefined, {})).toEqual([]);
     });
 
-    it('handles missing ctx (defaults to no today, no flags)', () => {
+    it('handles missing ctx (defaults to no today state)', () => {
         const commands = commandsFromSidebar(SIDEBAR);
-        // Today + Customers should be hidden
+        // Today should be hidden (no todayState); Customers is always
+        // present post-B12b (no longer flag-gated).
         expect(commands.find((c) => c.label === 'Today')).toBeUndefined();
-        expect(commands.find((c) => c.label === 'Customers')).toBeUndefined();
+        expect(commands.find((c) => c.label === 'Customers')).toBeDefined();
         // Others present
         expect(commands.find((c) => c.label === 'Home')).toBeDefined();
     });
