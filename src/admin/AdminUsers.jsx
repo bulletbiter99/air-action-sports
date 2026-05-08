@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
 
 const ROLES = ['staff', 'manager', 'owner'];
 
@@ -58,17 +60,31 @@ export default function AdminUsers() {
 
   const pending = invites.filter((i) => i.status === 'pending');
   const recent = invites.filter((i) => i.status !== 'pending').slice(0, 10);
+  const activeUsers = users.filter((u) => u.active);
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={h1}>Team</h1>
-        {hasRole('owner') && <button onClick={() => setShowInvite(true)} style={primaryBtn}>+ Invite User</button>}
-      </div>
+    <div style={pageWrap}>
+      <AdminPageHeader
+        title="Team"
+        description="Admin user accounts and pending invitations. Owner role required to invite, change roles, or revoke access."
+        breadcrumb={[{ label: 'Settings', to: '/admin/settings' }, { label: 'Team' }]}
+        primaryAction={hasRole('owner') && (
+          <button onClick={() => setShowInvite(true)} style={primaryBtn}>+ Invite User</button>
+        )}
+      />
 
       <section style={tableBox}>
-        <h2 style={h2}>Active admins ({users.filter((u) => u.active).length})</h2>
-        {loadingList && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
+        <h2 style={h2}>Active admins ({activeUsers.length})</h2>
+        {loadingList && (
+          <EmptyState variant="loading" title="Loading users…" compact />
+        )}
+        {!loadingList && users.length === 0 && (
+          <EmptyState
+            title="No admin accounts yet"
+            description="Invite at least one Owner to get started."
+            compact
+          />
+        )}
         {users.length > 0 && (
           <div className="admin-table-wrap"><table style={table}>
             <thead>
@@ -86,7 +102,7 @@ export default function AdminUsers() {
                 <tr key={u.id} style={tr}>
                   <td style={td}>
                     <strong>{u.displayName}</strong>
-                    {me?.id === u.id && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--orange)' }}>(you)</span>}
+                    {me?.id === u.id && <span style={youBadge}>(you)</span>}
                   </td>
                   <td style={td}>{u.email}</td>
                   <td style={td}>
@@ -104,13 +120,13 @@ export default function AdminUsers() {
                       <RolePill role={u.role} />
                     )}
                   </td>
-                  <td style={{ ...td, fontSize: 12 }}>
-                    {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : <span style={{ color: 'var(--olive-light)' }}>never</span>}
+                  <td style={tdSmall}>
+                    {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : <span style={mutedText}>never</span>}
                   </td>
                   <td style={td}>
                     {u.active
-                      ? <span style={{ color: '#2ecc71', fontSize: 12 }}>Active</span>
-                      : <span style={{ color: 'var(--olive-light)', fontSize: 12 }}>Disabled</span>}
+                      ? <span style={statusActive}>Active</span>
+                      : <span style={statusInactive}>Disabled</span>}
                   </td>
                   <td style={td}>
                     {hasRole('owner') && me?.id !== u.id && (
@@ -146,10 +162,8 @@ export default function AdminUsers() {
                 <tr key={i.token} style={tr}>
                   <td style={td}>{i.email}</td>
                   <td style={td}><RolePill role={i.role} /></td>
-                  <td style={{ ...td, fontSize: 12 }}>{i.inviterName || '—'}</td>
-                  <td style={{ ...td, fontSize: 11, color: 'var(--olive-light)' }}>
-                    {new Date(i.expiresAt).toLocaleDateString()}
-                  </td>
+                  <td style={tdSmall}>{i.inviterName || '—'}</td>
+                  <td style={tdSmaller}>{new Date(i.expiresAt).toLocaleDateString()}</td>
                   <td style={td}>
                     {hasRole('owner') && (
                       <>
@@ -160,7 +174,7 @@ export default function AdminUsers() {
                           }}
                           style={subtleBtn}
                         >Copy Link</button>
-                        <button onClick={() => revokeInvite(i.token)} style={{ ...subtleBtn, marginLeft: 6 }}>Revoke</button>
+                        <button onClick={() => revokeInvite(i.token)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Revoke</button>
                       </>
                     )}
                   </td>
@@ -181,17 +195,12 @@ export default function AdminUsers() {
             <tbody>
               {recent.map((i) => (
                 <tr key={i.token} style={tr}>
-                  <td style={{ ...td, fontSize: 12 }}>{i.email}</td>
+                  <td style={tdSmall}>{i.email}</td>
                   <td style={td}><RolePill role={i.role} /></td>
                   <td style={td}>
-                    <span style={{
-                      fontSize: 11,
-                      color: i.status === 'accepted' ? '#2ecc71'
-                           : i.status === 'revoked' ? '#e74c3c'
-                           : 'var(--olive-light)',
-                    }}>{i.status}</span>
+                    <InviteStatusPill status={i.status} />
                   </td>
-                  <td style={{ ...td, fontSize: 11, color: 'var(--olive-light)' }}>
+                  <td style={tdSmaller}>
                     {new Date(i.consumedAt || i.revokedAt || i.expiresAt).toLocaleString()}
                   </td>
                 </tr>
@@ -209,18 +218,36 @@ export default function AdminUsers() {
 }
 
 function RolePill({ role }) {
+  // Domain-specific role colors stay raw — owner is brand-orange,
+  // manager is purple to differentiate, staff is muted.
   const palette = {
-    owner: { bg: 'rgba(212,84,26,0.15)', fg: 'var(--orange)' },
+    owner: { bg: 'rgba(212,84,26,0.15)', fg: 'var(--color-accent)' },
     manager: { bg: 'rgba(155,89,182,0.15)', fg: '#c39bda' },
-    staff: { bg: 'rgba(200,184,154,0.08)', fg: 'var(--tan-light)' },
+    staff: { bg: 'rgba(200,184,154,0.08)', fg: 'var(--color-text-muted)' },
   };
   const c = palette[role] || palette.staff;
   return (
     <span style={{
-      display: 'inline-block', padding: '2px 8px', fontSize: 10, fontWeight: 800,
-      letterSpacing: 1.5, textTransform: 'uppercase', background: c.bg, color: c.fg,
+      display: 'inline-block',
+      padding: 'var(--space-4) var(--space-8)',
+      fontSize: 'var(--font-size-xs)',
+      fontWeight: 'var(--font-weight-extrabold)',
+      letterSpacing: 'var(--letter-spacing-wide)',
+      textTransform: 'uppercase',
+      background: c.bg,
+      color: c.fg,
       border: `1px solid ${c.fg}40`,
     }}>{role}</span>
+  );
+}
+
+function InviteStatusPill({ status }) {
+  const color =
+    status === 'accepted' ? 'var(--color-success)' :
+    status === 'revoked' ? 'var(--color-danger)' :
+    'var(--color-text-muted)';
+  return (
+    <span style={{ fontSize: 'var(--font-size-sm)', color }}>{status}</span>
   );
 }
 
@@ -243,7 +270,6 @@ function InviteForm({ onClose, onSent }) {
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
       setResult(data);
-      // give the user a moment to copy the link if email fails
     } else {
       setErr(data.error || 'Invite failed');
     }
@@ -252,8 +278,8 @@ function InviteForm({ onClose, onSent }) {
   return (
     <div style={modalBg} onClick={onClose}>
       <div style={modal} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, color: 'var(--cream)', fontSize: 14, letterSpacing: 1.5, textTransform: 'uppercase' }}>Invite team member</h3>
+        <div style={modalHeader}>
+          <h3 style={modalTitle}>Invite team member</h3>
           <button onClick={onClose} style={subtleBtn}>Close</button>
         </div>
 
@@ -269,24 +295,22 @@ function InviteForm({ onClose, onSent }) {
                 <option value="owner">Owner — full access including team + settings</option>
               </select>
             </Field>
-            {err && <div style={{ color: '#e74c3c', fontSize: 12, margin: '8px 0' }}>{err}</div>}
-            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            {err && <div style={errorText}>{err}</div>}
+            <div style={modalActions}>
               <button type="submit" disabled={sending} style={primaryBtn}>{sending ? 'Sending…' : 'Send Invite'}</button>
               <button type="button" onClick={onClose} style={subtleBtn}>Cancel</button>
             </div>
           </form>
         ) : (
           <div>
-            <p style={{ color: '#2ecc71', fontSize: 13 }}>✓ Invite sent to <strong>{email}</strong>.</p>
-            <p style={{ color: 'var(--olive-light)', fontSize: 12, marginBottom: 12 }}>
-              If email delivery fails, share this link directly:
-            </p>
+            <p style={successText}>✓ Invite sent to <strong>{email}</strong>.</p>
+            <p style={modalHint}>If email delivery fails, share this link directly:</p>
             <input
               type="text" readOnly value={result.acceptLink}
               onFocus={(e) => e.target.select()}
-              style={{ ...input, fontFamily: 'monospace', fontSize: 11 }}
+              style={{ ...input, fontFamily: 'monospace', fontSize: 'var(--font-size-sm)' }}
             />
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            <div style={modalActions}>
               <button
                 onClick={() => navigator.clipboard.writeText(result.acceptLink).then(() => alert('Copied'))}
                 style={primaryBtn}
@@ -302,23 +326,144 @@ function InviteForm({ onClose, onSent }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: 'block', marginBottom: 10 }}>
-      <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 700, marginBottom: 4 }}>{label}</div>
+    <label style={fieldLabel}>
+      <div style={fieldLabelText}>{label}</div>
       {children}
     </label>
   );
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
-const h2 = { fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2, color: 'var(--orange)', margin: '0 0 12px' };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
-const roleSelect = { ...input, width: 'auto', padding: '4px 8px', fontSize: 12 };
-const tableBox = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem', marginBottom: 20 };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '10px 12px', color: 'var(--cream)' };
-const primaryBtn = { padding: '10px 18px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
-const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
-const modal = { background: 'var(--mid)', border: '1px solid var(--color-border-strong)', padding: '1.5rem', width: '100%', maxWidth: 520, borderRadius: 4 };
+const pageWrap = { maxWidth: 1200, margin: '0 auto', padding: 'var(--space-32)' };
+const h2 = {
+  fontSize: 'var(--font-size-base)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  textTransform: 'uppercase',
+  letterSpacing: 'var(--letter-spacing-wider)',
+  color: 'var(--color-accent)',
+  margin: '0 0 var(--space-12)',
+};
+const input = {
+  padding: 'var(--space-8) var(--space-12)',
+  background: 'var(--color-bg-page)',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-base)',
+  fontFamily: 'inherit',
+  width: '100%',
+  boxSizing: 'border-box',
+};
+const roleSelect = {
+  ...input,
+  width: 'auto',
+  padding: 'var(--space-4) var(--space-8)',
+  fontSize: 'var(--font-size-sm)',
+};
+const tableBox = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-24)',
+  marginBottom: 'var(--space-24)',
+};
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+  textAlign: 'left',
+  padding: 'var(--space-8) var(--space-12)',
+  borderBottom: '1px solid var(--color-border-strong)',
+  color: 'var(--color-accent)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = { padding: 'var(--space-8) var(--space-12)', color: 'var(--color-text)' };
+const tdSmall = { ...td, fontSize: 'var(--font-size-sm)' };
+const tdSmaller = { ...td, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' };
+const youBadge = {
+  marginLeft: 'var(--space-4)',
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-accent)',
+};
+const statusActive = { color: 'var(--color-success)', fontSize: 'var(--font-size-sm)' };
+const statusInactive = { color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' };
+const mutedText = { color: 'var(--color-text-muted)' };
+const primaryBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'var(--color-accent)',
+  color: 'var(--color-accent-on-accent)',
+  border: 'none',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const subtleBtn = {
+  padding: 'var(--space-4) var(--space-12)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const modalBg = {
+  position: 'fixed',
+  inset: 0,
+  background: 'var(--color-overlay-strong)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1000,
+  padding: 'var(--space-16)',
+};
+const modal = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border-strong)',
+  padding: 'var(--space-24)',
+  width: '100%',
+  maxWidth: 520,
+  borderRadius: 'var(--radius-md)',
+};
+const modalHeader = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 'var(--space-16)',
+};
+const modalTitle = {
+  margin: 0,
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-md)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const modalActions = {
+  display: 'flex',
+  gap: 'var(--space-8)',
+  marginTop: 'var(--space-16)',
+};
+const modalHint = {
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  marginBottom: 'var(--space-12)',
+};
+const successText = {
+  color: 'var(--color-success)',
+  fontSize: 'var(--font-size-base)',
+};
+const errorText = {
+  color: 'var(--color-danger)',
+  fontSize: 'var(--font-size-sm)',
+  margin: 'var(--space-8) 0',
+};
+const fieldLabel = { display: 'block', marginBottom: 'var(--space-12)' };
+const fieldLabelText = {
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent)',
+  fontWeight: 'var(--font-weight-bold)',
+  marginBottom: 'var(--space-4)',
+};
