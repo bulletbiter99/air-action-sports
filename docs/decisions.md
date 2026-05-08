@@ -4,6 +4,35 @@ Closes audit open questions and operator-decision-pending placeholders as they'r
 
 ---
 
+## 2026-05-08 — D10: Roster / Scan / Rentals restored to standing nav as capability-gated items (M5 B0)
+
+**Source:** M5 milestone prompt, Batch 0 spec — sidebar restoration directive. Reverses D09 partially.
+
+**Resolution:** M5 Batch 0 sub-batch `0-sidebar` adds Rentals / Roster / Scan back to the top-level sidebar (between Customers and the Settings separator) with declarative `capability` fields:
+
+```js
+{ to: '/admin/rentals', label: 'Rentals', capability: 'rentals.read' }
+{ to: '/admin/roster',  label: 'Roster',  capability: 'roster.read'  }
+{ to: '/admin/scan',    label: 'Scan',    capability: 'scan.use'     }
+```
+
+`getVisibleItems` filters these by the calling user's capabilities. Until M5 Batch 2 ships the DB-backed capability system, capability checks fall through to a stub (`userHasCapabilityStub` in `sidebarConfig.js`) that maps capability → minimum legacy role:
+- `rentals.read` → manager (managing the rental pool)
+- `roster.read` → staff (any admin viewing a roster)
+- `scan.use` → staff (any admin scanning at check-in)
+
+**What stays from D09:** the `/admin/today` page continues to surface Rentals/Roster/Scan as quick-action tiles when an event is live. That use case (event-day rapid access) is unchanged. D10 adds back the standing-time use case (between events) that D09 removed by mistake.
+
+**Why partial reversal:** D09 collapsed these under Today on the assumption their only use was event-day. In practice, the Booking Coordinator persona reaches for Roster outside event days (post-event reconciliation, pre-event readiness checks); the Equipment Manager persona reaches for Rentals between events for inventory management. Hiding them entirely except on event days adds friction.
+
+**Sequencing:**
+- M5 B0 0-sidebar: declarative capability fields + role-based stub gating
+- M5 B2: replace stub with DB-backed `userHasCapability(env, userId, key)` from the formalized capability system
+
+**Status:** ✓ resolved — implementation lands in M5 Batch 0 sub-batch 0-sidebar.
+
+---
+
 ## 2026-05-07 — D09: Roster / Scan / Rentals collapse under Today (M4 B5)
 
 **Source:** Operator confirmation in M4 Batch 0 review (PR [#55](https://github.com/bulletbiter99/air-action-sports/pull/55)). Recommendation surfaced in [docs/m4-discovery/sidebar-ia-audit.md](m4-discovery/sidebar-ia-audit.md).

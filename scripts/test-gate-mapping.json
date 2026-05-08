@@ -279,11 +279,12 @@
     "src/admin/sidebarConfig.js": {
       "tier": "high",
       "covers": [
-        "SIDEBAR registry (Surface 1 IA per docs/m4-discovery/sidebar-ia-audit.md — Home / Today / Events / Bookings / Customers / Settings group with 10 sub-items)",
-        "getVisibleItems (filters by dynamic todayActive + requiresFlag predicates)",
+        "SIDEBAR registry (Surface 1 IA per docs/m4-discovery/sidebar-ia-audit.md — Home / Today / Events / Bookings / Customers / Rentals / Roster / Scan / Settings group with 10 sub-items; Rentals/Roster/Scan restored to standing nav per M5 B0 D10)",
+        "getVisibleItems (filters by dynamic todayActive + requiresFlag + capability predicates)",
+        "userHasCapabilityStub (M5 B0 stub mapping capability → minimum legacy role; M5 B2 swaps to DB-backed check)",
         "loadSidebarExpand / saveSidebarExpand (localStorage helpers for Settings group expand state; namespaced aas:admin:sidebar:expand:*)"
       ],
-      "audit_group": "(M4 B5 sidebar IA reorganization)",
+      "audit_group": "(M4 B5 sidebar IA reorganization; M5 B0 D10 capability-gated standing nav)",
       "tests": [
         "tests/unit/admin/sidebarConfig.test.js"
       ]
