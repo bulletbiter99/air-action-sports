@@ -1,4 +1,9 @@
 // M5 Batch 14 — Event-day roster lookup (Surface 5).
+// R14: switched from the admin route (/api/admin/events/:id/roster
+// — silent 401 under the portal cookie used in event-day mode) to
+// the new /api/event-day/roster, which is gated by requireEventDayAuth
+// and locked to the active event server-side. Server-side ?q= filter
+// replaces the previous client-side substring filter.
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -12,21 +17,29 @@ export default function RosterLookup() {
 
     useEffect(() => {
         if (!activeEvent?.id) return;
-        setLoading(true);
-        fetch(`/api/admin/events/${activeEvent.id}/roster`, { credentials: 'include' })
-            .then((r) => r.ok ? r.json() : null)
-            .then((data) => {
-                if (data) setRoster(data.attendees || []);
-                setLoading(false);
-            })
-            .catch(() => setLoading(false));
-    }, [activeEvent]);
+        const controller = new AbortController();
+        const debounce = setTimeout(() => {
+            setLoading(true);
+            const url = search.trim()
+                ? `/api/event-day/roster?q=${encodeURIComponent(search.trim())}`
+                : '/api/event-day/roster';
+            fetch(url, { credentials: 'include', signal: controller.signal })
+                .then((r) => (r.ok ? r.json() : null))
+                .then((data) => {
+                    if (data) setRoster(data.attendees || []);
+                })
+                .catch(() => { /* abort or network */ })
+                .finally(() => setLoading(false));
+        }, 250);
+        return () => {
+            clearTimeout(debounce);
+            controller.abort();
+        };
+    }, [activeEvent, search]);
 
-    const filtered = roster.filter((a) => {
-        if (!search) return true;
-        const q = search.toLowerCase();
-        return (a.fullName || '').toLowerCase().includes(q) || (a.email || '').toLowerCase().includes(q);
-    });
+    // Server-side filter handles substring match; no client-side
+    // filtering needed. Keep the variable name for the render path.
+    const filtered = roster;
 
     return (
         <div>
