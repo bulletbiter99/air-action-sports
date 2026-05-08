@@ -124,7 +124,7 @@ export default function AdminSettings() {
 const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: '0 0 0.5rem' };
 const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 };
 const card = {
-  background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem',
+  background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem',
   textDecoration: 'none', color: 'var(--cream)', display: 'block', transition: 'border 0.2s',
 };
 const cardTitle = { fontSize: 16, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--cream)', marginBottom: 8 };
@@ -133,7 +133,7 @@ const cardCta = { fontSize: 11, fontWeight: 800, letterSpacing: 2, color: 'var(-
 
 const densitySection = {
   background: 'var(--mid)',
-  border: '1px solid rgba(200,184,154,0.1)',
+  border: '1px solid var(--color-border)',
   padding: '1.25rem 1.5rem',
   marginBottom: 24,
   display: 'flex',
