@@ -6,8 +6,9 @@
 --   {{magicLink}}        — full URL https://airactionsport.com/portal/auth/consume?token=...
 --   {{expiresAt}}        — formatted expiry (24h from mint by default)
 
-INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VALUES
-  ('staff_portal_invite',
+INSERT INTO email_templates (id, slug, subject, body_html, body_text, updated_at, created_at) VALUES
+  ('tpl_staff_portal_invite',
+   'staff_portal_invite',
    'You have been invited to the Air Action Sports staff portal',
    '<p>Hi {{personName}},</p>' ||
    '<p>{{inviterName}} has invited you to access the Air Action Sports staff portal. ' ||
@@ -24,4 +25,5 @@ INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VA
    'This link expires {{expiresAt}}. Clicking it once signs you in to the portal — no password needed.' || char(10) || char(10) ||
    'If you were not expecting this invitation, you can ignore this email.' || char(10) || char(10) ||
    '— The Air Action Sports team',
+   strftime('%s','now') * 1000,
    strftime('%s','now') * 1000);
