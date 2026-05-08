@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
 import { formatEvent, formatTicketType } from '../../lib/formatters.js';
 import { eventId as newEventId, ticketTypeId as newTicketTypeId, slugify } from '../../lib/ids.js';
+import { instantiateChecklists } from '../../lib/eventChecklists.js';
 
 const adminEvents = new Hono();
 adminEvents.use('*', requireAuth);
@@ -377,6 +378,16 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         `INSERT INTO ticket_types (id, event_id, name, description, price_cents, capacity, sold, min_per_order, max_per_order, sort_order, active, created_at, updated_at)
          VALUES (?, ?, 'General Admission', NULL, ?, ?, 0, 1, ?, 0, 1, ?, ?)`
     ).bind(defaultTtId, id, vals.base_price_cents, vals.total_slots, vals.total_slots, now, now).run();
+
+    // M5 R15: auto-instantiate event_checklists from active templates.
+    // Failure is non-fatal — the event is still created. Operator can
+    // re-run by editing the event_checklists table (helper is idempotent
+    // via the UNIQUE(event_id, slug) constraint), or via a future
+    // /admin/checklists CRUD page. Kept inside the create-event handler
+    // so any future template refresh applies on the next event create.
+    await instantiateChecklists(c.env, id).catch((err) => {
+        console.error('checklist instantiate failed for event', id, err?.message);
+    });
 
     await c.env.DB.prepare(
         `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
