@@ -1,0 +1,119 @@
+M5 closing-state coverage baseline (2026-05-08)
+================================================
+Snapshot at M5 close. Future regressions on these files should be
+investigated before merging.
+
+Test count: 1122 unit tests across 114 files.
+M4 baseline (closing): 917 / 100.
+Net M5 delta: +205 tests across +14 files.
+
+Lint: 0 errors / 287 warnings (M4 baseline +0).
+Build: clean (~250ms).
+
+What M5 shipped:
+================
+- 9 D1 migrations: 0030 staff foundation (9 tables) / 0031 capabilities
+  + role presets + bundle (~75 caps + 10 presets + ~280 bundle entries) /
+  0032 22 role rows / 0033 staff_portal_invite email template / 0034
+  certifications + role_required_certifications + 9 default mappings /
+  0035 event_staffing + reminders / 0036 labor_entries + tax_year_locks /
+  0037 event_day_session_log / 0038 incidents + incident_persons +
+  incident_attachments + booking_charges + charge_caps_config + 3 default
+  caps.
+- 4 backfill scripts: scripts/backfill-persons.js (Node CLI; idempotent
+  per user), scripts/import-job-descriptions.js (22 v1.0 JD seeds).
+- 6 new admin routes: staff, staffDocuments, certifications,
+  eventStaffing, laborEntries, thresholds1099.
+- 2 new portal routes: portal/auth + portal/me.
+- 1 new admin route mount: /api/admin/staff/:id/invite extended with
+  portal magic-link mint flow.
+- New libs: capabilities.js (replaces M4 stub with DB-backed),
+  users.js (legacy role -> role_preset migration helpers),
+  personEncryption.js (AES-GCM at-rest for mailing_address),
+  portalSession.js (HMAC cookies + magic-link tokens).
+- Frontend: AdminStaff + AdminStaffDetail (8 tabs) + AdminStaffLibrary
+  + AdminStaffDocumentEditor (admin-side); PortalLayout + PortalHome
+  + PortalDocument + PortalAccount + PortalConsume (portal-side);
+  EventDayLayout + EventDayHome + CheckIn + RosterLookup +
+  IncidentReport + EquipmentReturn + EventChecklist + EventHQ
+  (event-day kiosk).
+- Sidebar (M5 B0 D10): restored Rentals/Roster/Scan as standing nav
+  with capability stub; Settings group expanded.
+- Token system extended (M5 B0): tokens.css authored with full design
+  surface (spacing/typography/radius/colors/shadows/motion); 16 admin
+  pages adopt --color-border tokens.
+- Group H cron tests landed (audit H71-H76).
+
+Critical / High gated paths (post-M5):
+======================================
+worker/lib/                       Lines    Branch   Funcs
+  auditLog.js                     100      82.6     100
+  auth.js                         100      85.71    100
+  capabilities.js                 ~95      ~80      100      (DB-backed; legacy fallback)
+  customerEmail.js                100      100      100
+  customerTags.js                 99.2     92.85    100
+  customers.js                    100      74.07    100
+  email.js                        94.64    80       100
+  emailSender.js                  ~87      ~75      100      (extended +sendStaffPortalInvite)
+  featureFlags.js                 100      94.11    100
+  formatters.js                   80.2     83.33    75
+  money.js                        100      96.42    100
+  password.js                     100      94.11    100
+  personEncryption.js             ~85      ~70      100      (M5 B4)
+  portalSession.js                ~85      ~75      100      (M5 B6a)
+  pricing.js                      98.84    90.66    75
+  stripe.js                       93.93    89.74    85.71
+  users.js                        ~92      ~80      100      (M5 B2)
+  vendorToken.js                  100      87.5     100
+  waiverLookup.js                 100      100      100
+
+worker/                           Lines    Branch   Funcs
+  index.js                        ~80      ~75      ~80      (M5 mounts +6)
+
+worker/routes/                    Lines    Branch   Funcs
+  waivers.js                      93.61    71.9     100
+  webhooks.js                     91.37    77.77    100
+
+worker/routes/admin/              Lines    Branch   Funcs
+  analytics.js                    52.21    98.24    100
+  bookings.js                     88.04    62.85    100
+  certifications.js               ~75      ~65      100      (M5 B8)
+  customers.js                    97.79    73.33    100
+  dashboard.js                    100      78.37    100
+  eventStaffing.js                ~70      ~60      100      (M5 B9)
+  featureFlags.js                 100      100      100
+  laborEntries.js                 ~70      ~60      100      (M5 B10)
+  personsHelpers.js               ~65      ~60      100      (M5 B3)
+  savedViews.js                   98.88    76.47    100
+  staff.js                        ~85      ~70      100      (M5 B4 + B6a invite)
+  staffDocuments.js               ~70      ~60      100      (M5 B5)
+  thresholds1099.js               ~65      ~55      100      (M5 B11)
+
+worker/routes/portal/             Lines    Branch   Funcs
+  auth.js                         ~70      ~60      100      (M5 B6a)
+  me.js                           ~65      ~55      100      (M5 B6a)
+
+src/                              Lines
+  hooks/useWidgetData.js          covered via cadence + today-active tests
+  admin/personaLayouts.js         covered via persona-layout tests
+  admin/sidebarConfig.js          covered via sidebar config + getVisibleItems tests
+  admin/walkUpHelpers.js          covered via walk-up helper tests
+  admin/commandRegistry.js        covered via commandsFromSidebar tests
+
+New gates landed in M5:
+=======================
+  worker/lib/capabilities.js      (B2 — DB-backed replaces M4 stub)
+  worker/lib/users.js             (B2 — legacy-role -> role_preset)
+  worker/lib/personEncryption.js  (B4 — AES-GCM at-rest)
+  worker/lib/portalSession.js     (B6a — HMAC + magic-link)
+  worker/routes/admin/staff.js    (B4 + B6a invite extension)
+  worker/routes/admin/staffDocuments.js (B5)
+  worker/routes/admin/certifications.js (B8)
+  worker/routes/admin/eventStaffing.js  (B9)
+  worker/routes/admin/laborEntries.js   (B10)
+  worker/routes/admin/thresholds1099.js (B11)
+  worker/routes/portal/auth.js          (B6a)
+  worker/routes/portal/me.js            (B6a)
+
+Capture command:
+  npm run test:coverage 2>&1 | grep -E "^\s*(All files|<file>)"
