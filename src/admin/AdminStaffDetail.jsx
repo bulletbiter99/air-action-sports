@@ -13,6 +13,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminStaffCertEditor from './AdminStaffCertEditor.jsx';
 
 const TABS = [
     { key: 'profile',        label: 'Profile' },
@@ -280,11 +281,6 @@ function CertificationsTab({ personId, canEdit }) {
     const [certs, setCerts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAdd, setShowAdd] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-    const [form, setForm] = useState({
-        kind: '', displayName: '', certificateNumber: '', issuingAuthority: '',
-        issuedAt: '', expiresAt: '', notes: '',
-    });
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -295,31 +291,6 @@ function CertificationsTab({ personId, canEdit }) {
     }, [personId]);
 
     useEffect(() => { load(); }, [load]);
-
-    async function submit() {
-        setSubmitting(true);
-        try {
-            const res = await fetch('/api/admin/certifications', {
-                method: 'POST', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    personId,
-                    kind: form.kind,
-                    displayName: form.displayName,
-                    certificateNumber: form.certificateNumber || null,
-                    issuingAuthority: form.issuingAuthority || null,
-                    issuedAt: form.issuedAt ? new Date(form.issuedAt).getTime() : null,
-                    expiresAt: form.expiresAt ? new Date(form.expiresAt).getTime() : null,
-                    notes: form.notes || null,
-                }),
-            });
-            if (res.ok) {
-                setShowAdd(false);
-                setForm({ kind: '', displayName: '', certificateNumber: '', issuingAuthority: '', issuedAt: '', expiresAt: '', notes: '' });
-                load();
-            }
-        } finally { setSubmitting(false); }
-    }
 
     return (
         <div style={section}>
@@ -333,18 +304,12 @@ function CertificationsTab({ personId, canEdit }) {
             </div>
 
             {showAdd && (
-                <div style={{ marginTop: 16, padding: 16, background: 'var(--color-bg-sunken)', border: '1px solid var(--color-border)' }}>
-                    <label style={lbl}>Kind <input type="text" value={form.kind} onChange={(e) => setForm({...form, kind: e.target.value})} placeholder="cpr / first_aid / emt_basic / aas_marshal" style={input} /></label>
-                    <label style={lbl}>Display name <input type="text" value={form.displayName} onChange={(e) => setForm({...form, displayName: e.target.value})} placeholder="CPR/AED — American Heart Association" style={input} /></label>
-                    <label style={lbl}>Certificate number <input type="text" value={form.certificateNumber} onChange={(e) => setForm({...form, certificateNumber: e.target.value})} style={input} /></label>
-                    <label style={lbl}>Issuing authority <input type="text" value={form.issuingAuthority} onChange={(e) => setForm({...form, issuingAuthority: e.target.value})} style={input} /></label>
-                    <label style={lbl}>Issued at <input type="date" value={form.issuedAt} onChange={(e) => setForm({...form, issuedAt: e.target.value})} style={input} /></label>
-                    <label style={lbl}>Expires at <input type="date" value={form.expiresAt} onChange={(e) => setForm({...form, expiresAt: e.target.value})} style={input} /></label>
-                    <label style={lbl}>Notes <textarea value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} rows={2} style={input} /></label>
-                    <button type="button" onClick={submit} disabled={!form.kind || !form.displayName || submitting} style={primaryBtn}>
-                        {submitting ? 'Saving…' : 'Save'}
-                    </button>
-                </div>
+                <AdminStaffCertEditor
+                    personId={personId}
+                    mode="add"
+                    onSaved={() => { setShowAdd(false); load(); }}
+                    onCancel={() => setShowAdd(false)}
+                />
             )}
 
             <div style={{ marginTop: 16 }}>
