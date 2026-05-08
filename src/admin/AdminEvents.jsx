@@ -1,7 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import { formatMoney } from '../utils/money.js';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
+import FilterBar from '../components/admin/FilterBar.jsx';
 
 // "6:30 AM" | "18:30" → "HH:MM" (24h) for <input type="time">. Returns '' if unparseable.
 function to24h(s) {
@@ -33,8 +36,6 @@ function splitRange(s) {
   const parts = String(s).split(/\s*[–-]\s*/);
   return [parts[0] || '', parts[1] || ''];
 }
-// Money: cents ↔ dollar-string for text inputs. Keep empty string when input is cleared.
-// Uses formatMoney with currency='' + emptyFor='' for input-field round-trip.
 const centsToDollars = (c) => formatMoney(c, { currency: '', emptyFor: '' });
 const dollarsToCents = (s) => {
   if (s === '' || s == null) return 0;
@@ -43,13 +44,24 @@ const dollarsToCents = (s) => {
   return Math.round(n * 100);
 };
 
+const STATUS_OPTIONS = [
+  { value: 'published', label: 'Published' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'past', label: 'Past' },
+];
+
+const FILTER_SCHEMA = [
+  { key: 'status', label: 'Status', type: 'enum', options: STATUS_OPTIONS },
+];
+
 export default function AdminEvents() {
   const { isAuthenticated, loading, hasRole } = useAdmin();
   const navigate = useNavigate();
 
   const [events, setEvents] = useState([]);
+  const [filters, setFilters] = useState({ status: '', q: '' });
   const [loadingList, setLoadingList] = useState(false);
-  const [editingId, setEditingId] = useState(null); // null | 'new' | eventId
+  const [editingId, setEditingId] = useState(null);
   const [duplicating, setDuplicating] = useState(null);
 
   useEffect(() => {
@@ -101,23 +113,61 @@ export default function AdminEvents() {
     }
   };
 
+  const filtered = useMemo(() => {
+    const q = filters.q.trim().toLowerCase();
+    return events.filter((e) => {
+      if (filters.status === 'published' && !e.published) return false;
+      if (filters.status === 'draft' && (e.published || e.past)) return false;
+      if (filters.status === 'past' && !e.past) return false;
+      if (q) {
+        const hay = `${e.title} ${e.location || ''} ${e.slug || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [events, filters.status, filters.q]);
+
   if (loading || !isAuthenticated) return null;
 
+  const isFiltered = Boolean(filters.status || filters.q);
+
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={h1}>Events</h1>
-        {hasRole('manager') && (
+    <div style={pageWrap}>
+      <AdminPageHeader
+        title="Events"
+        description="Public-facing airsoft / paintball events. Edit details, manage ticket types, set images, publish or unpublish."
+        breadcrumb={[{ label: 'Events' }]}
+        primaryAction={hasRole('manager') && (
           <button onClick={() => setEditingId('new')} style={primaryBtn}>+ New Event</button>
         )}
-      </div>
+      />
+
+      <FilterBar
+        schema={FILTER_SCHEMA}
+        value={filters}
+        onChange={setFilters}
+        searchValue={filters.q}
+        onSearchChange={(q) => setFilters((f) => ({ ...f, q }))}
+        searchPlaceholder="Search title, location, slug…"
+        resultCount={filtered.length}
+        savedViewsKey="adminEvents"
+      />
 
       <section style={tableBox}>
-        {loadingList && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
-        {!loadingList && events.length === 0 && (
-          <p style={{ color: 'var(--olive-light)' }}>No events yet. Create one to get started.</p>
+        {loadingList && <EmptyState variant="loading" title="Loading events…" compact />}
+        {!loadingList && filtered.length === 0 && (
+          <EmptyState
+            isFiltered={isFiltered}
+            title={isFiltered ? 'No events match these filters' : 'No events yet'}
+            description={isFiltered
+              ? 'Try clearing a filter or expanding the search.'
+              : 'Create your first event to get started.'}
+            action={hasRole('manager') && !isFiltered && (
+              <button onClick={() => setEditingId('new')} style={primaryBtn}>+ New Event</button>
+            )}
+          />
         )}
-        {events.length > 0 && (
+        {!loadingList && filtered.length > 0 && (
           <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
@@ -132,31 +182,31 @@ export default function AdminEvents() {
               </tr>
             </thead>
             <tbody>
-              {events.map((e) => (
+              {filtered.map((e) => (
                 <tr key={e.id} style={tr}>
                   <td style={td}>
                     <strong>{e.title}</strong>
-                    <div style={{ fontSize: 10, color: 'var(--olive-light)', fontFamily: 'monospace' }}>{e.id}</div>
+                    <div style={subRowMono}>{e.id}</div>
                   </td>
                   <td style={td}>{e.displayDate || e.dateIso?.slice(0, 10)}</td>
-                  <td style={{ ...td, fontSize: 12 }}>{e.location || '—'}</td>
+                  <td style={tdSmall}>{e.location || '—'}</td>
                   <td style={td}>{(e.ticketTypes || []).length}</td>
                   <td style={td}>{e.attendeesCount || 0}</td>
                   <td style={td}>{formatMoney(e.grossCents)}</td>
                   <td style={td}>
-                    {e.past ? <span style={{ color: 'var(--olive-light)', fontSize: 12 }}>Past</span>
-                      : e.published ? <span style={{ color: '#2ecc71', fontSize: 12 }}>Published</span>
-                      : <span style={{ color: '#f39c12', fontSize: 12 }}>Draft</span>}
+                    {e.past ? <span style={statusPast}>Past</span>
+                      : e.published ? <span style={statusPublished}>Published</span>
+                      : <span style={statusDraft}>Draft</span>}
                   </td>
                   <td style={td}>
                     <button onClick={() => setEditingId(e.id)} style={subtleBtn}>Edit</button>
                     {hasRole('manager') && (
-                      <button onClick={() => duplicate(e.id)} disabled={duplicating === e.id} style={{ ...subtleBtn, marginLeft: 6 }}>
+                      <button onClick={() => duplicate(e.id)} disabled={duplicating === e.id} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>
                         {duplicating === e.id ? '…' : 'Duplicate'}
                       </button>
                     )}
                     {hasRole('owner') && (
-                      <button onClick={() => del(e.id)} style={{ ...subtleBtn, marginLeft: 6 }}>Delete</button>
+                      <button onClick={() => del(e.id)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Delete</button>
                     )}
                   </td>
                 </tr>
@@ -230,7 +280,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
 
   const saveEvent = async (e) => {
     e?.preventDefault();
-    if (savingEvent) return; // double-click / double-Enter guard
+    if (savingEvent) return;
     setSavingEvent(true); setErr('');
     try {
       const url = isNew ? '/api/admin/events' : `/api/admin/events/${currentEventId}`;
@@ -242,9 +292,8 @@ function EventEditor({ eventId, onClose, onSaved }) {
       });
       if (res.ok) {
         const data = await res.json();
-        if (isNew) setCurrentEventId(data.event.id); // allow adding ticket types afterward
+        if (isNew) setCurrentEventId(data.event.id);
         onSaved();
-        if (isNew) { /* stay in editor so they can add ticket types */ }
       } else {
         const d = await res.json().catch(() => ({}));
         setErr(d.error || 'Save failed');
@@ -258,7 +307,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
     return (
       <div style={modalBg} onClick={onClose}>
         <div style={modal} onClick={(e) => e.stopPropagation()}>
-          <p style={{ color: 'var(--olive-light)' }}>Loading…</p>
+          <EmptyState variant="loading" title="Loading event…" compact />
         </div>
       </div>
     );
@@ -267,8 +316,8 @@ function EventEditor({ eventId, onClose, onSaved }) {
   return (
     <div style={modalBg} onClick={onClose}>
       <div style={modal} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, color: 'var(--cream)', fontSize: 14, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+        <div style={modalHeader}>
+          <h3 style={modalTitle}>
             {isNew ? 'New event' : `Edit: ${form.title}`}
           </h3>
           <button type="button" onClick={onClose} aria-label="Close" style={closeX}>×</button>
@@ -286,7 +335,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
             <textarea rows={2} value={form.shortDescription} onChange={(e) => updateField('shortDescription', e.target.value)} style={{ ...input, resize: 'vertical' }} />
           </Field>
           <div style={sectionLabel}>Event images</div>
-          <p style={{ fontSize: 11, color: 'var(--olive-light)', margin: '0 0 12px', lineHeight: 1.5 }}>
+          <p style={imageHint}>
             Each surface uses a different aspect ratio. Upload a ratio-correct image per surface for the best look.
             Anything left blank falls back to <strong>Cover (universal fallback)</strong>, so you can ship with one image and refine later.
           </p>
@@ -399,7 +448,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
               <input required type="number" value={form.totalSlots} onChange={(e) => updateField('totalSlots', Number(e.target.value))} style={input} />
             </Field>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--olive-light)', marginBottom: 8 }}>
+          <div style={smallHint}>
             Taxes &amp; fees are managed globally in <strong>Settings → Taxes &amp; Fees</strong> and applied to every event automatically.
           </div>
 
@@ -422,24 +471,24 @@ function EventEditor({ eventId, onClose, onSaved }) {
           />
 
           <div style={sectionLabel}>Publishing</div>
-          <div style={{ display: 'flex', gap: 16, color: 'var(--tan-light)', fontSize: 13, flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={publishRow}>
+            <label style={inlineCheckLabel}>
               <input type="checkbox" checked={form.published} onChange={(e) => updateField('published', e.target.checked)} />
               Published (visible to customers)
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label style={inlineCheckLabel}>
               <input type="checkbox" checked={form.featured} onChange={(e) => updateField('featured', e.target.checked)} />
               Featured (homepage countdown / TickerBar headliner)
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label style={inlineCheckLabel}>
               <input type="checkbox" checked={form.past} onChange={(e) => updateField('past', e.target.checked)} />
               Past
             </label>
           </div>
 
-          {err && <div style={{ color: '#e74c3c', fontSize: 12, margin: '12px 0' }}>{err}</div>}
+          {err && <div style={errorText}>{err}</div>}
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 20, position: 'sticky', bottom: 0, padding: '12px 0', background: 'var(--mid)' }}>
+          <div style={stickyFooter}>
             <button type="submit" disabled={savingEvent} style={primaryBtn}>
               {savingEvent ? 'Saving…' : (isNew ? 'Create event' : 'Save changes')}
             </button>
@@ -448,7 +497,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
 
         {currentEventId && (
           <>
-            <div style={{ ...sectionLabel, marginTop: 32 }}>Ticket types</div>
+            <div style={{ ...sectionLabel, marginTop: 'var(--space-32)' }}>Ticket types</div>
             <TicketTypesEditor eventId={currentEventId} ticketTypes={ticketTypes} onReload={async () => {
               const r = await fetch(`/api/admin/events/${currentEventId}/detail`, { credentials: 'include', cache: 'no-store' });
               if (r.ok) { const d = await r.json(); setTicketTypes(d.ticketTypes || []); onSaved(); }
@@ -462,7 +511,6 @@ function EventEditor({ eventId, onClose, onSaved }) {
 
 function MoneyInput({ value, onChange, required, placeholder }) {
   const [text, setText] = useState(centsToDollars(value));
-  // Keep local text in sync when caller resets the value (e.g. on load).
   useEffect(() => {
     const incoming = centsToDollars(value);
     if (dollarsToCents(text) !== Number(value || 0)) setText(incoming);
@@ -470,7 +518,7 @@ function MoneyInput({ value, onChange, required, placeholder }) {
   }, [value]);
   return (
     <div style={{ position: 'relative' }}>
-      <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--olive-light)', fontSize: 13, pointerEvents: 'none' }}>$</span>
+      <span style={moneySign}>$</span>
       <input
         required={required}
         type="number"
@@ -502,9 +550,9 @@ function TimeRangeInput({ value, onChange }) {
     else onChange(s || e);
   };
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 6, alignItems: 'center' }}>
+    <div style={timeRangeWrap}>
       <input type="time" value={start} onChange={(e) => commit(e.target.value, end)} style={input} aria-label="Start" />
-      <span style={{ color: 'var(--olive-light)', fontSize: 12 }}>—</span>
+      <span style={timeRangeSep}>—</span>
       <input type="time" value={end} onChange={(e) => commit(start, e.target.value)} style={input} aria-label="End" />
     </div>
   );
@@ -518,9 +566,9 @@ function AddonEditor({ addons, onChange }) {
   const remove = (i) => onChange(addons.filter((_, idx) => idx !== i));
   return (
     <div>
-      {addons.length === 0 && <p style={{ color: 'var(--olive-light)', fontSize: 12, margin: '6px 0' }}>No add-ons.</p>}
+      {addons.length === 0 && <p style={emptyHint}>No add-ons.</p>}
       {addons.map((a, i) => (
-        <div key={i} className="admin-row-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
+        <div key={i} className="admin-row-grid" style={addonRow}>
           <input placeholder="sku" value={a.sku || ''} onChange={(e) => update(i, 'sku', e.target.value)} style={input} />
           <input placeholder="name" value={a.name || ''} onChange={(e) => update(i, 'name', e.target.value)} style={input} />
           <MoneyInput placeholder="$0.00" value={a.price_cents ?? 0} onChange={(v) => update(i, 'price_cents', v)} />
@@ -536,12 +584,6 @@ function AddonEditor({ addons, onChange }) {
   );
 }
 
-// One image picker per surface. Shows the picker label + ideal aspect ratio
-// + recommended pixel dimensions, plus a preview cropped to that exact ratio
-// so the admin sees what customers will see on that surface. When `fallback`
-// is provided and `value` is empty, the fallback is previewed in muted form
-// so admins can confirm the universal-cover image is sensible for this
-// surface before deciding whether to upload an override.
 function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChange, fallback }) {
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState(null);
@@ -570,20 +612,20 @@ function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChang
   const previewHeight = Math.round(PREVIEW_WIDTH / ratio);
 
   return (
-    <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(200,184,154,0.08)', padding: '12px 14px', marginBottom: 12 }}>
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: 12, color: 'var(--cream)', fontWeight: 700, letterSpacing: 0.5 }}>{label}</div>
-        <div style={{ fontSize: 11, color: 'var(--olive-light)', marginTop: 2 }}>
-          {ratioHint} · <span style={{ color: 'var(--tan-light)' }}>{recommended}</span>
+    <div style={imagePicker}>
+      <div style={{ marginBottom: 'var(--space-8)' }}>
+        <div style={imagePickerLabel}>{label}</div>
+        <div style={imagePickerHint}>
+          {ratioHint} · <span style={{ color: 'var(--color-text-muted)' }}>{recommended}</span>
         </div>
       </div>
       <input
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Paste a URL or upload an image →"
-        style={{ ...input, marginBottom: 8 }}
+        style={{ ...input, marginBottom: 'var(--space-8)' }}
       />
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={imagePickerActions}>
         <label style={{ ...qSubtle, display: 'inline-block', cursor: uploading ? 'wait' : 'pointer' }}>
           {uploading ? 'Uploading…' : '↑ Upload image'}
           <input
@@ -597,11 +639,11 @@ function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChang
         {value && (
           <button type="button" onClick={() => onChange('')} style={qSubtle}>Clear</button>
         )}
-        <span style={{ fontSize: 11, color: 'var(--olive-light)' }}>Max 5 MB · JPEG / PNG / WebP / GIF</span>
+        <span style={imagePickerHint}>Max 5 MB · JPEG / PNG / WebP / GIF</span>
       </div>
-      {err && <div style={{ color: '#e74c3c', fontSize: 12, marginTop: 6 }}>{err}</div>}
+      {err && <div style={errorText}>{err}</div>}
       {previewSrc && (
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 'var(--space-8)' }}>
           <div
             style={{
               width: PREVIEW_WIDTH,
@@ -610,13 +652,13 @@ function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChang
               backgroundImage: `url("${previewSrc}")`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              border: '1px solid rgba(200,184,154,0.25)',
+              border: '1px solid var(--color-border-strong)',
               opacity: usingFallback ? 0.55 : 1,
               filter: usingFallback ? 'grayscale(20%)' : 'none',
             }}
             aria-label={`${label} preview cropped to ${ratioHint.split('·')[0].trim()}`}
           />
-          <div style={{ fontSize: 10, color: 'var(--olive-light)', marginTop: 4 }}>
+          <div style={previewCaption}>
             {usingFallback
               ? 'Showing fallback (Cover) cropped to this surface — upload a dedicated image to fix any awkward crops.'
               : `Cropped preview at ${ratioHint.split('·')[0].trim()}`}
@@ -640,18 +682,18 @@ function CustomQuestionsEditor({ questions, onChange }) {
   return (
     <div>
       {questions.length === 0 && (
-        <p style={{ color: 'var(--olive-light)', fontSize: 12, margin: '6px 0' }}>
+        <p style={emptyHint}>
           No custom questions. Add one below to collect per-attendee info (team name, shirt size, dietary notes, etc.).
         </p>
       )}
       {questions.map((q, i) => (
-        <div key={i} style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(200,184,154,0.08)', padding: '10px 12px', marginBottom: 8 }}>
-          <div className="admin-row-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr auto auto', gap: 6, alignItems: 'center' }}>
+        <div key={i} style={qBox}>
+          <div className="admin-row-grid" style={qGrid}>
             <input
               placeholder="key (snake_case)"
               value={q.key || ''}
               onChange={(e) => update(i, { key: e.target.value.toLowerCase().replace(/[^a-z0-9_]+/g, '_') })}
-              style={{ ...qInput, fontFamily: 'monospace', fontSize: 11 }}
+              style={{ ...qInput, fontFamily: 'monospace', fontSize: 'var(--font-size-xs)' }}
             />
             <input
               placeholder="Label shown to player"
@@ -669,19 +711,19 @@ function CustomQuestionsEditor({ questions, onChange }) {
               <option value="select">Select</option>
               <option value="checkbox">Checkbox</option>
             </select>
-            <label style={{ color: 'var(--tan-light)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <label style={qReqLabel}>
               <input type="checkbox" checked={!!q.required} onChange={(e) => update(i, { required: e.target.checked })} />
               req
             </label>
             <button type="button" onClick={() => remove(i)} style={qSubtle}>×</button>
           </div>
           {q.type === 'select' && (
-            <div style={{ marginTop: 6 }}>
+            <div style={{ marginTop: 'var(--space-4)' }}>
               <input
                 placeholder="Options, comma-separated (e.g. Small, Medium, Large)"
                 value={(q.options || []).join(', ')}
                 onChange={(e) => update(i, { options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
-                style={{ ...qInput, width: '100%', fontSize: 12 }}
+                style={{ ...qInput, width: '100%', fontSize: 'var(--font-size-sm)' }}
               />
             </div>
           )}
@@ -692,11 +734,8 @@ function CustomQuestionsEditor({ questions, onChange }) {
   );
 }
 
-const qInput = { padding: '8px 10px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 12, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
-const qSubtle = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
-
 function TicketTypesEditor({ eventId, ticketTypes, onReload, canEdit }) {
-  const [editingTt, setEditingTt] = useState(null); // null | 'new' | ticketType
+  const [editingTt, setEditingTt] = useState(null);
 
   const del = async (id) => {
     if (!window.confirm('Delete this ticket type? If it has sales, it will be deactivated instead.')) return;
@@ -712,15 +751,15 @@ function TicketTypesEditor({ eventId, ticketTypes, onReload, canEdit }) {
 
   return (
     <div>
-      {ticketTypes.length === 0 && <p style={{ color: 'var(--olive-light)', fontSize: 13 }}>No ticket types yet. Add one below.</p>}
+      {ticketTypes.length === 0 && <p style={emptyHint}>No ticket types yet. Add one below.</p>}
       {ticketTypes.map((t) => (
-        <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(200,184,154,0.08)' }}>
+        <div key={t.id} style={ttRow}>
           <div>
-            <div style={{ color: 'var(--cream)' }}>
+            <div style={{ color: 'var(--color-text)' }}>
               <strong>{t.name}</strong>
-              {!t.active && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--olive-light)' }}>(inactive)</span>}
+              {!t.active && <span style={ttInactive}>(inactive)</span>}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--olive-light)' }}>
+            <div style={ttMeta}>
               {formatMoney(t.priceCents)} · {t.sold || 0}/{t.capacity ?? '∞'} sold
               {t.maxPerOrder ? ` · max ${t.maxPerOrder}/order` : ''}
             </div>
@@ -728,13 +767,13 @@ function TicketTypesEditor({ eventId, ticketTypes, onReload, canEdit }) {
           {canEdit && (
             <div>
               <button type="button" onClick={() => setEditingTt(t)} style={subtleBtn}>Edit</button>
-              <button type="button" onClick={() => del(t.id)} style={{ ...subtleBtn, marginLeft: 6 }}>Delete</button>
+              <button type="button" onClick={() => del(t.id)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Delete</button>
             </div>
           )}
         </div>
       ))}
       {canEdit && (
-        <button type="button" onClick={() => setEditingTt('new')} style={{ ...subtleBtn, marginTop: 10 }}>+ Add ticket type</button>
+        <button type="button" onClick={() => setEditingTt('new')} style={{ ...subtleBtn, marginTop: 'var(--space-8)' }}>+ Add ticket type</button>
       )}
       {editingTt && (
         <TicketTypeForm
@@ -784,8 +823,8 @@ function TicketTypeForm({ eventId, ticketType, onClose, onSaved }) {
   return (
     <div style={modalBg} onClick={onClose}>
       <form style={nestedModal} onClick={(e) => e.stopPropagation()} onSubmit={save}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h4 style={{ margin: 0, color: 'var(--cream)', fontSize: 13, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+        <div style={modalHeader}>
+          <h4 style={modalTitleSmall}>
             {isNew ? 'New ticket type' : 'Edit ticket type'}
           </h4>
           <button type="button" onClick={onClose} style={subtleBtn}>Close</button>
@@ -807,14 +846,14 @@ function TicketTypeForm({ eventId, ticketType, onClose, onSaved }) {
         <div style={twoCol}>
           <Field label="Sort order"><input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })} style={input} /></Field>
           <Field label="">
-            <label style={{ color: 'var(--tan-light)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, paddingTop: 22 }}>
+            <label style={ttActiveLabel}>
               <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
               Active
             </label>
           </Field>
         </div>
-        {err && <div style={{ color: '#e74c3c', fontSize: 12, margin: '8px 0' }}>{err}</div>}
-        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+        {err && <div style={errorText}>{err}</div>}
+        <div style={modalActions}>
           <button type="submit" disabled={saving} style={primaryBtn}>{saving ? 'Saving…' : (isNew ? 'Create' : 'Save')}</button>
           <button type="button" onClick={onClose} style={subtleBtn}>Cancel</button>
         </div>
@@ -825,25 +864,304 @@ function TicketTypeForm({ eventId, ticketType, onClose, onSaved }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: 'block', marginBottom: 10 }}>
-      <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 700, marginBottom: 4 }}>{label || '\u00A0'}</div>
+    <label style={fieldLabel}>
+      <div style={fieldLabelText}>{label || ' '}</div>
       {children}
     </label>
   );
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
-const tableBox = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem' };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '10px 12px', color: 'var(--cream)', verticalAlign: 'top' };
-const primaryBtn = { padding: '10px 18px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
-const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
-const modal = { background: 'var(--mid)', border: '1px solid var(--color-border-strong)', padding: '1.5rem', width: '100%', maxWidth: 720, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
+const pageWrap = { maxWidth: 1200, margin: '0 auto', padding: 'var(--space-32)' };
+const input = {
+  padding: 'var(--space-8) var(--space-12)',
+  background: 'var(--color-bg-page)',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-base)',
+  fontFamily: 'inherit',
+  width: '100%',
+  boxSizing: 'border-box',
+};
+const moneySign = {
+  position: 'absolute',
+  left: 'var(--space-8)',
+  top: '50%',
+  transform: 'translateY(-50%)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-base)',
+  pointerEvents: 'none',
+};
+const tableBox = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-24)',
+  marginTop: 'var(--space-16)',
+};
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+  textAlign: 'left',
+  padding: 'var(--space-8) var(--space-12)',
+  borderBottom: '1px solid var(--color-border-strong)',
+  color: 'var(--color-accent)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = { padding: 'var(--space-8) var(--space-12)', color: 'var(--color-text)', verticalAlign: 'top' };
+const tdSmall = { ...td, fontSize: 'var(--font-size-sm)' };
+const subRowMono = {
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-muted)',
+  fontFamily: 'monospace',
+};
+const statusPast = { color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' };
+const statusPublished = { color: 'var(--color-success)', fontSize: 'var(--font-size-sm)' };
+const statusDraft = { color: 'var(--color-warning)', fontSize: 'var(--font-size-sm)' };
+const primaryBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'var(--color-accent)',
+  color: 'var(--color-accent-on-accent)',
+  border: 'none',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const subtleBtn = {
+  padding: 'var(--space-4) var(--space-12)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const modalBg = {
+  position: 'fixed',
+  inset: 0,
+  background: 'var(--color-overlay-strong)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1000,
+  padding: 'var(--space-16)',
+};
+const modal = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border-strong)',
+  padding: 'var(--space-24)',
+  width: '100%',
+  maxWidth: 720,
+  borderRadius: 'var(--radius-md)',
+  maxHeight: '92vh',
+  overflowY: 'auto',
+};
 const nestedModal = { ...modal, maxWidth: 520 };
-const closeX = { width: 32, height: 32, border: '1px solid rgba(200,184,154,0.25)', background: 'transparent', color: 'var(--tan-light)', fontSize: 22, lineHeight: 1, cursor: 'pointer', borderRadius: 4, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const sectionLabel = { fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 800, margin: '20px 0 10px', borderTop: '1px solid rgba(200,184,154,0.12)', paddingTop: 16 };
-const twoCol = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 };
+const modalHeader = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 'var(--space-16)',
+};
+const modalTitle = {
+  margin: 0,
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-md)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const modalTitleSmall = {
+  margin: 0,
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-base)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const modalActions = { display: 'flex', gap: 'var(--space-8)', marginTop: 'var(--space-12)' };
+const closeX = {
+  width: 32,
+  height: 32,
+  border: '1px solid var(--color-border-strong)',
+  background: 'transparent',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-xl)',
+  lineHeight: 1,
+  cursor: 'pointer',
+  borderRadius: 'var(--radius-md)',
+  padding: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+const sectionLabel = {
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wider)',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  margin: 'var(--space-24) 0 var(--space-8)',
+  borderTop: '1px solid var(--color-border)',
+  paddingTop: 'var(--space-16)',
+};
+const twoCol = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-8)' };
+const fieldLabel = { display: 'block', marginBottom: 'var(--space-8)' };
+const fieldLabelText = {
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent)',
+  fontWeight: 'var(--font-weight-bold)',
+  marginBottom: 'var(--space-4)',
+};
+const errorText = {
+  color: 'var(--color-danger)',
+  fontSize: 'var(--font-size-sm)',
+  margin: 'var(--space-8) 0',
+};
+const imageHint = {
+  fontSize: 'var(--font-size-sm)',
+  color: 'var(--color-text-muted)',
+  margin: '0 0 var(--space-12)',
+  lineHeight: 'var(--line-height-normal)',
+};
+const imagePicker = {
+  background: 'var(--color-bg-sunken)',
+  border: '1px solid var(--color-border-subtle)',
+  padding: 'var(--space-12) var(--space-16)',
+  marginBottom: 'var(--space-12)',
+};
+const imagePickerLabel = {
+  fontSize: 'var(--font-size-sm)',
+  color: 'var(--color-text)',
+  fontWeight: 'var(--font-weight-bold)',
+};
+const imagePickerHint = {
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-muted)',
+  marginTop: 'var(--space-4)',
+};
+const imagePickerActions = {
+  display: 'flex',
+  gap: 'var(--space-8)',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+};
+const previewCaption = {
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-muted)',
+  marginTop: 'var(--space-4)',
+};
+const smallHint = {
+  fontSize: 'var(--font-size-sm)',
+  color: 'var(--color-text-muted)',
+  marginBottom: 'var(--space-8)',
+};
+const publishRow = {
+  display: 'flex',
+  gap: 'var(--space-16)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-base)',
+  flexWrap: 'wrap',
+};
+const inlineCheckLabel = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-4)',
+};
+const stickyFooter = {
+  display: 'flex',
+  gap: 'var(--space-8)',
+  marginTop: 'var(--space-16)',
+  position: 'sticky',
+  bottom: 0,
+  padding: 'var(--space-8) 0',
+  background: 'var(--color-bg-elevated)',
+};
+const timeRangeWrap = {
+  display: 'grid',
+  gridTemplateColumns: '1fr auto 1fr',
+  gap: 'var(--space-4)',
+  alignItems: 'center',
+};
+const timeRangeSep = {
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+};
+const emptyHint = {
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  margin: 'var(--space-4) 0',
+};
+const addonRow = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 2fr 1fr 1fr auto',
+  gap: 'var(--space-4)',
+  marginBottom: 'var(--space-4)',
+};
+const qInput = {
+  padding: 'var(--space-4) var(--space-8)',
+  background: 'var(--color-bg-page)',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-sm)',
+  fontFamily: 'inherit',
+  width: '100%',
+  boxSizing: 'border-box',
+};
+const qSubtle = {
+  padding: 'var(--space-4) var(--space-12)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const qBox = {
+  background: 'var(--color-bg-sunken)',
+  border: '1px solid var(--color-border-subtle)',
+  padding: 'var(--space-8) var(--space-12)',
+  marginBottom: 'var(--space-8)',
+};
+const qGrid = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 2fr 1fr auto auto',
+  gap: 'var(--space-4)',
+  alignItems: 'center',
+};
+const qReqLabel = {
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-xs)',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-4)',
+};
+const ttRow = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: 'var(--space-8) 0',
+  borderBottom: '1px solid var(--color-border-subtle)',
+};
+const ttInactive = {
+  marginLeft: 'var(--space-4)',
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-muted)',
+};
+const ttMeta = {
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-muted)',
+};
+const ttActiveLabel = {
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-4)',
+  paddingTop: 22,
+};
