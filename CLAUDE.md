@@ -441,7 +441,7 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 - Coverage on any of the 12 gated files drops from M3 closing baseline (per [docs/runbooks/m3-baseline-coverage.txt](docs/runbooks/m3-baseline-coverage.txt))
 - Any production-data anomaly during local backfill testing
 
-### Milestone 5 — Staff Management + Event-Day Mode (PARTIAL — REWORK IN PROGRESS, 8 of 15 batches done)
+### Milestone 5 — Staff Management + Event-Day Mode (PARTIAL — REWORK IN PROGRESS, NOT closed; 8 of 15 batches done)
 
 **Status (2026-05-08 PM):** `milestone/5-staff-event-day` (off `main` at `7594d9a`, M4 close). The prior session shipped 20 PRs (#101-#120) and declared the milestone closed prematurely. A subsequent audit captured the gaps in [docs/runbooks/m5-rework-plan.md](docs/runbooks/m5-rework-plan.md); the rework session has now landed **8 of 15 rework batches** (PRs #122-#130). 7 batches remain.
 
