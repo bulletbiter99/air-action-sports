@@ -14,44 +14,10 @@ import CheckInBanner from './CheckInBanner.jsx';
 import CommandPalette from './CommandPalette.jsx';
 import '../styles/admin.css';
 
-// Sidebar grouped by operational rhythm: setup → event-day → review → admin.
-// "New Booking" intentionally absent — it's an action verb, exposed as a primary
-// CTA on the Dashboard header instead. Team + Audit live under Settings.
-const NAV_SECTIONS = [
-  {
-    items: [
-      { to: '/admin', label: 'Dashboard', end: true },
-    ],
-  },
-  {
-    label: 'Event Setup',
-    items: [
-      { to: '/admin/events', label: 'Events' },
-      { to: '/admin/promo-codes', label: 'Promos' },
-      { to: '/admin/vendors', label: 'Vendors' },
-    ],
-  },
-  {
-    label: 'Event Day',
-    items: [
-      { to: '/admin/roster', label: 'Roster' },
-      { to: '/admin/scan', label: 'Scan' },
-      { to: '/admin/rentals', label: 'Rentals' },
-    ],
-  },
-  {
-    label: 'Insights',
-    items: [
-      { to: '/admin/analytics', label: 'Analytics' },
-      { to: '/admin/feedback', label: 'Feedback', badgeKey: 'newFeedback' },
-    ],
-  },
-  {
-    items: [
-      { to: '/admin/settings', label: 'Settings' },
-    ],
-  },
-];
+// M4 B12a — legacy NAV_SECTIONS array + flag-gated dispatcher removed.
+// The new sidebar (src/admin/sidebarConfig.js, shipped M4 B5) is now the
+// sole production path. The new_admin_dashboard flag has been at state='on'
+// since M4 B9; the legacy branch was unreachable.
 
 export default function AdminLayout() {
   return (
@@ -69,12 +35,10 @@ function AdminShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const { enabled: compactDensity } = useFeatureFlag('density_compact');
-  // M4 B6 — CheckInBanner gates on the same flag as the dashboard +
-  // sidebar reorg. Single flip migrates everything together.
-  const { enabled: newAdminDashboard } = useFeatureFlag('new_admin_dashboard');
   // M4 B7 — Command palette has its own flag so it can roll out
   // independently of the new admin shell. Cmd+K listener + modal
-  // mount only when on.
+  // mount only when on. (Flag is at state='on' globally as of B8;
+  // useFeatureFlag call retained until B12b cleanup batch.)
   const { enabled: cmdkEnabled } = useFeatureFlag('command_palette');
   const [cmdkOpen, setCmdkOpen] = useState(false);
 
@@ -113,7 +77,7 @@ function AdminShell() {
       {drawerOpen && <div className="admin-drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
       <Sidebar drawerOpen={drawerOpen} onClose={() => setDrawerOpen(false)} onOpenFeedback={() => setFeedbackOpen(true)} />
       <main className="admin-main">
-        {newAdminDashboard && <CheckInBanner />}
+        <CheckInBanner />
         <Outlet />
       </main>
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} defaultEmail={user?.email || ''} />
@@ -140,25 +104,6 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
   const [badges, setBadges] = useState({ newFeedback: 0 });
   const loc = useLocation();
   const { enabled: customersEnabled } = useFeatureFlag('customers_entity');
-  // M4 B5 — flag-gated sidebar reorg. When new_admin_dashboard is on,
-  // render the new Surface 1 IA from sidebarConfig.js. Otherwise fall
-  // through to the legacy NAV_SECTIONS (current behavior).
-  const { enabled: newAdminDashboard } = useFeatureFlag('new_admin_dashboard');
-
-  // Derive the actual nav sections by injecting the Customers entry under
-  // Insights when the customers_entity flag is on. The flag ships off
-  // (M3 B8a migration 0024); the owner flips it via /admin/settings when
-  // ready to expose the customers UI.
-  const sections = useMemo(() => {
-    if (!customersEnabled) return NAV_SECTIONS;
-    return NAV_SECTIONS.map((section) => {
-      if (section.label !== 'Insights') return section;
-      return {
-        ...section,
-        items: [{ to: '/admin/customers', label: 'Customers' }, ...section.items],
-      };
-    });
-  }, [customersEnabled]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -184,42 +129,11 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
         <span style={logoSub}>Admin</span>
       </div>
       <nav className="admin-sidebar-nav" aria-label="Admin navigation">
-        {newAdminDashboard ? (
-          <NewSidebarNav
-            badges={badges}
-            customersEnabled={customersEnabled}
-            onClose={onClose}
-          />
-        ) : (
-          sections.map((section, sIdx) => (
-            <div key={sIdx} className="admin-sidebar-section">
-              {section.label && (
-                <div className="admin-sidebar-section-label">{section.label}</div>
-              )}
-              {section.items.map((item) => {
-                const count = item.badgeKey ? badges[item.badgeKey] : 0;
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.end}
-                    onClick={onClose}
-                    style={({ isActive }) => ({
-                      ...navLink,
-                      color: isActive ? 'var(--orange)' : 'var(--tan-light)',
-                      background: isActive ? 'rgba(215,108,33,0.08)' : 'transparent',
-                      borderLeft: isActive ? '3px solid var(--orange)' : '3px solid transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    })}
-                  >
-                    <span>{item.label}</span>
-                    {count > 0 && <span style={navBadge}>{count}</span>}
-                  </NavLink>
-                );
-              })}
-            </div>
-          ))
-        )}
+        <NewSidebarNav
+          badges={badges}
+          customersEnabled={customersEnabled}
+          onClose={onClose}
+        />
       </nav>
       <ProfileMenu onOpenFeedback={onOpenFeedback} />
     </aside>
