@@ -1,8 +1,14 @@
-# M5 Deploy — fresh session prompt
+# M5 Deploy — fresh session prompt (HISTORICAL — M5 deployed 2026-05-08)
 
-**Copy the block below into a fresh Claude Code session.** It hands the new session everything it needs to finish the M5 deploy sequence (Phases 2-6) without re-deriving context.
+> **STATUS: HISTORICAL.** This prompt drove the M5 deploy through Phases 2-6 in a fresh session on 2026-05-08. Production now runs M5 at `main` SHA `82fc839`; all 14 M5 D1 migrations (0030-0043) applied to remote; latest Workers deployment `fb1d535b-d6ca-4cd0-ae98-c49601b27ab8` at 2026-05-08T22:50 UTC.
+>
+> **Phase 4 surfaced an email_templates schema gap** — the initial migration apply failed at `0033` with `NOT NULL constraint failed: email_templates.created_at` because the M5 seed migrations omitted required `id` + `created_at` columns. Hotfix PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) added them to migrations 0033/0039/0040/0041/0043; re-apply landed all 14 cleanly. The durable lesson is captured as Lesson #7 in HANDOFF.md and CLAUDE.md M5 section.
+>
+> **For new sessions doing post-M5 work**: use the generic resumption prompt at the bottom of HANDOFF.md.
 
-The previous session completed Phase 1 (merged all 16 rework PRs to `milestone/5-staff-event-day`). The remaining phases include irreversible production steps (14 D1 migrations applied to remote, milestone-to-main merge that auto-triggers Workers Builds redeploy). A fresh-context session is the right place to do them.
+---
+
+The block below is the original deploy prompt; preserved for reference.
 
 ---
 

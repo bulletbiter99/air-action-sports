@@ -441,11 +441,11 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 - Coverage on any of the 12 gated files drops from M3 closing baseline (per [docs/runbooks/m3-baseline-coverage.txt](docs/runbooks/m3-baseline-coverage.txt))
 - Any production-data anomaly during local backfill testing
 
-### Milestone 5 — Staff Management + Event-Day Mode (✓ CODE COMPLETE 2026-05-08; awaits deploy)
+### Milestone 5 — Staff Management + Event-Day Mode (✓ CLOSED + DEPLOYED 2026-05-08)
 
-**Long-lived branch:** `milestone/5-staff-event-day` (off `main` at `7594d9a`, M4 close). **Status: 16-batch rework complete; all 16 PRs (#122-#140) merged to milestone branch.** Verify-m5 reports **15/15 batches complete · 95/95 individual checks pass** on the milestone branch. **Production still runs M4** until the milestone-to-main merge + 14 D1 migrations + auto-redeploy.
+**Long-lived branch:** `milestone/5-staff-event-day` (off `main` at `7594d9a`, M4 close). **Status: ✓ CLOSED + DEPLOYED.** All 16 rework PRs (#122-#140) merged to milestone branch + milestone merged to main as `1e74c15` (PR [#142](https://github.com/bulletbiter99/air-action-sports/pull/142)) on 2026-05-08. Hotfix PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) merged as `82fc839` to fix email_templates seed migrations (see Lesson #7 below). Verify-m5 reports **15/15 batches complete · 95/95 individual checks pass**.
 
-**Deploy state:** main is at `7594d9a` (M4 close). The 14 M5 migrations (0030-0043) are NOT yet applied to remote D1. The next session executes Phases 2-6 of the M5 deploy sequence per [docs/m5-deploy-prompt.md](docs/m5-deploy-prompt.md).
+**Deploy state:** Production runs M5. `main` at `82fc839`. All 14 M5 migrations (0030-0043) applied to remote D1 on 2026-05-08. Latest Workers deployment `fb1d535b-d6ca-4cd0-ae98-c49601b27ab8` at 2026-05-08T22:50 UTC. See [HANDOFF.md §M5 deployed](HANDOFF.md) for the deploy outcome table + post-deploy smoke list.
 
 **Backstory:** the prior M5 session shipped 20 PRs (#101-#120) and declared the milestone closed, but a subsequent audit revealed substantial scope gaps: 21+ files spec'd in the M5 prompt that were never created, 3 cron sweeps not wired into `worker/index.js`, 8+ email templates not seeded, 4 broken UI states (Schedule tab "coming soon", IncidentReport posting to a non-existent endpoint, EventChecklist fake-mock state, EquipmentReturn damage-charge stub doing nothing), 5+ migrations not written, and B17 (AdminUsersLegacy decommission) skipped entirely. The rework session executed [docs/runbooks/m5-rework-plan.md](docs/runbooks/m5-rework-plan.md) batch by batch, with the [scripts/verify-m5-completeness.js](scripts/verify-m5-completeness.js) gate enforcing completeness on every PR.
 
@@ -479,12 +479,8 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 
 (The exact post-merge counts will be confirmed when the milestone branch reaches main; the numbers above are the verified per-batch deltas at time of R18 close. Each rework PR's verification gate is independently green.)
 
-**Operator-applies-remote backlog at milestone close** (run after milestone merges to main, in order):
-- **Migration 0039** — 3 cert expiration email templates (cert_expiration_60d / 30d / 7d). Required before `runCertExpirationSweep` first run.
-- **Migration 0040** — 2 event staffing templates (event_staff_invite, event_staff_reminder). Required before `runEventStaffingReminderSweep` first run.
-- **Migration 0041** — `w9_reminder` template. Required before `runTaxYearAutoLockSweep` first run on March 1.
-- **Migration 0042** — `event_checklists` schema (4 tables) + 3 default templates seeded (pre_event_safety_brief, medic_station_setup, marshal_signin). Required before next event creation (otherwise `instantiateChecklists` `.catch`-skips the empty templates).
-- **Migration 0043** — 3 charge email templates (additional_charge_notice / _paid / _waived) + INSERT OR IGNORE for booking_confirmation baseline. Required before first damage-charge created.
+**Operator-applies-remote backlog** (✓ all applied 2026-05-08):
+- **Migrations 0030-0043** — all 14 M5 migrations applied to remote D1 in order during Phase 4 of the deploy. Initial apply failed at **0033** (`NOT NULL constraint failed: email_templates.created_at`); resolved by hotfix PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) which added `id` + `created_at` to the 5 email_templates seed migrations (0033/0039/0040/0041/0043 — 11 rows total). Re-apply after hotfix landed all 14 cleanly. Per the d1_migrations table: `0030_staff_foundation` through `0043_charge_templates` all tracked applied.
 
 **Workers Builds redeploy** (post-merge) automatically registers the **3 new cron sweeps** that join the existing 03:00 UTC trigger:
 - `runCertExpirationSweep` (R8) — 60d/30d/7d cert renewal warnings to staff
@@ -509,6 +505,8 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 5. **`requireAuth` extension** must preserve F57 (no-cookie 401). The new portal-cookie-only 403 branch only fires when `aas_session` is genuinely absent (parseCookieHeader returns falsy). Garbled admin cookie + portal cookie still goes through admin path → 401.
 
 6. **Per-batch verify-m5 + plan-mode-first prevented scope creep.** Each rework PR included the verify-script's specific batch output in the PR body proving the batch's gaps closed. The rework prompt's gate ("If the script doesn't pass, the rework batch isn't done") was the single load-bearing constraint that made the rework actually finish.
+
+7. **Production `email_templates.id` is `TEXT PRIMARY KEY` and `created_at` is `INTEGER NOT NULL` — both required.** Local D1 fixture has a more permissive schema, so migrations seeding `email_templates` rows pass unit tests but fail on remote apply if they omit these columns. **For any future migration that seeds `email_templates`, include `id='tpl_<slug>'` and `created_at=updated_at`** — match the dominant existing-row id convention (`tpl_event_reminder_24h`, `tpl_user_invite`). Surfaced during M5 Phase 4 deploy 2026-05-08 when migration 0033 hard-failed mid-apply with `NOT NULL constraint failed: email_templates.created_at`; required hotfix PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) which added the missing columns to migrations 0033/0039/0040/0041/0043 (11 rows total). The hotfix-then-reapply pattern (operator-driven) is the safe recovery path for any future migration-NOT-NULL-mismatch failure.
 
 **M5-specific carry-forward facts** (durable artifacts for future milestones):
 
@@ -535,7 +533,7 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 4. `npm run lint` — confirm 0 errors
 5. `npm run build` — confirm clean
 6. `node scripts/verify-m5-completeness.js` — should exit 0 (15/15)
-7. **M5 is CLOSED.** See `docs/runbooks/m5-{baseline-coverage.txt,deploy.md,rollback.md}` for the post-M5 reference.
+7. **M5 is CLOSED + DEPLOYED 2026-05-08.** Production at `82fc839`; all 14 migrations applied to remote; latest Workers deployment `fb1d535b...`. See `docs/runbooks/m5-{baseline-coverage.txt,deploy.md,rollback.md}` for the post-M5 reference. The deploy story (including the Phase 4 hotfix) is captured in HANDOFF.md §M5 deployed.
 
 ---
 
