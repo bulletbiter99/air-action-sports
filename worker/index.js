@@ -59,6 +59,9 @@ import adminThresholds from './routes/admin/thresholds1099.js';
 import eventDaySessions from './routes/event-day/session.js';
 import eventDayCheckin from './routes/event-day/checkin.js';
 import eventDayWalkup from './routes/event-day/walkup.js';
+import eventDayIncidents from './routes/event-day/incidents.js';
+import eventDayRoster from './routes/event-day/roster.js';
+import eventDayEquipmentReturn from './routes/event-day/equipment-return.js';
 
 const app = new Hono();
 
@@ -155,6 +158,9 @@ app.route('/api/admin/1099-thresholds', adminThresholds);
 app.route('/api/event-day/sessions', eventDaySessions);
 app.route('/api/event-day/checkin', eventDayCheckin);
 app.route('/api/event-day/walkup', eventDayWalkup);
+app.route('/api/event-day/incidents', eventDayIncidents);
+app.route('/api/event-day/roster', eventDayRoster);
+app.route('/api/event-day/equipment-return', eventDayEquipmentReturn);
 
 app.onError((err, c) => {
     console.error('API error', err);
