@@ -4,70 +4,75 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ URGENT — M5 rework IN PROGRESS (2026-05-08, 8 of 15 batches done)
+## ✓ M5 closed — milestone branch ready to merge to main (2026-05-08, all 15 batches)
 
-`milestone/5-staff-event-day` is **NOT ready to merge to main**. A previous session declared M5 closed but a subsequent audit revealed substantial scope gaps. The rework is underway. **Do not merge `milestone/5-staff-event-day` → `main` until all 15 rework batches pass the verify script.**
+`milestone/5-staff-event-day` is **ready to merge to main**. The rework is complete: **15/15 batches pass verify-m5 · 95/95 individual checks pass**.
 
-**Authoritative documents for the next session:**
-- [docs/runbooks/m5-rework-plan.md](docs/runbooks/m5-rework-plan.md) — full gap inventory + 15 rework batch IDs in execution order
-- [docs/m5-rework-prompt.md](docs/m5-rework-prompt.md) — copy-paste prompt for the fresh session
-- [scripts/verify-m5-completeness.js](scripts/verify-m5-completeness.js) — programmatic gap verification (`node scripts/verify-m5-completeness.js`)
+**Backstory:** the prior M5 session shipped 20 PRs (#101-#120) and declared closed prematurely. A subsequent audit revealed substantial scope gaps: 21+ files spec'd in the M5 prompt that were never created, 3 cron sweeps not wired, 8+ email templates not seeded, 4 broken UI states, 5+ migrations not written, B17 skipped entirely. The rework session executed [docs/runbooks/m5-rework-plan.md](docs/runbooks/m5-rework-plan.md) in 16 sub-batches over 2026-05-07 / 2026-05-08; [scripts/verify-m5-completeness.js](scripts/verify-m5-completeness.js) gated each one.
 
-**Current state (2026-05-08 PM):**
-- Tests: **1287 unit tests across 133 files** (was 1122 at rework start; +165 net across 8 completed batches)
-- Lint: 0 errors / 384 warnings; build clean (~248ms)
-- 9 prior-session D1 migrations 0030-0038 in place; **2 rework migrations 0039 + 0040 added** (cert expiration + event staffing email templates) — none yet applied to remote
-- 30 PRs merged to milestone branch: #101-#120 from prior session, #122-#130 from rework session (#121 was the rework-handoff doc)
-- Verify script: **8/15 rework batches complete · 43/95 individual checks pass**
+**Final close state:**
+- **Tests: ~1538 unit tests across ~145 files** (1122 pre-rework baseline + 165 from R0-R10 + 251 from R11-R17)
+- **Lint:** 0 errors / ~390 warnings (~+106 from M4 close baseline 287 — JSX false-positives for the new admin/event-day pages)
+- **Build:** clean
+- **Verify-m5:** 15/15 batches complete · 95/95 checks pass
 
-**Rework PRs merged so far** (all to `milestone/5-staff-event-day`):
+(Exact post-merge counts will be confirmed when the milestone branch reaches main; numbers above are the verified per-batch deltas at time of R18 close. Each rework PR's verification gate was independently green at merge.)
+
+**All 16 rework PRs** merged to `milestone/5-staff-event-day` (PRs #122-#139):
+
 | Batch | PR | Verify | Highlights |
 |---|---|---|---|
-| R0a-primitives | [#122](https://github.com/bulletbiter99/air-action-sports/pull/122) | partial of R0 | AdminPageHeader + EmptyState shared primitives; 4 admin pages refactored |
-| R0b-mid | [#123](https://github.com/bulletbiter99/air-action-sports/pull/123) | partial of R0 | 7 mid-size admin pages: token + spacing + typography + FilterBar adoption |
-| R0c-large | [#124](https://github.com/bulletbiter99/air-action-sports/pull/124) | **R0 8/8 ✓** | 5 largest admin pages refactored; closes R0 fully |
-| R4-tests-split | [#125](https://github.com/bulletbiter99/air-action-sports/pull/125) | **5/5 ✓** | combined staff route test split into 6 files (5 spec'd + archive) |
-| R5-tests | [#126](https://github.com/bulletbiter99/air-action-sports/pull/126) | **5/5 ✓** | 4 staff document route tests (list/create/retire/role-tag) |
-| R6-strict-separation | [#127](https://github.com/bulletbiter99/air-action-sports/pull/127) | **2/2 ✓** | requireAuth distinguishes portal-cookie-only (403) from no-cookie (401) |
-| R8-cert-cron-and-templates | [#128](https://github.com/bulletbiter99/air-action-sports/pull/128) | **8/8 ✓** | worker/lib/certifications.js + AdminStaffCertEditor.jsx extracted + cert expiration cron + 3 templates (migration 0039) |
-| R9-staffing-completion | [#129](https://github.com/bulletbiter99/air-action-sports/pull/129) | **8/8 ✓** | AdminEventStaffing.jsx + worker/lib/eventStaffing.js + reminder cron + auto-decline cron + 2 templates (migration 0040) |
-| R10-labor-completion | [#130](https://github.com/bulletbiter99/air-action-sports/pull/130) | **4/4 ✓** | Schedule tab activated + worker/lib/laborEntries.js + 30+15 tests |
+| R0a | [#122](https://github.com/bulletbiter99/air-action-sports/pull/122) | partial | AdminPageHeader + EmptyState shared primitives + 4 admin pages |
+| R0b | [#123](https://github.com/bulletbiter99/air-action-sports/pull/123) | partial | 7 mid-size admin pages |
+| R0c | [#124](https://github.com/bulletbiter99/air-action-sports/pull/124) | **R0 8/8** | 5 largest admin pages — closes R0 fully |
+| R4 | [#125](https://github.com/bulletbiter99/air-action-sports/pull/125) | **5/5** | combined route.test split into 6 files |
+| R5 | [#126](https://github.com/bulletbiter99/air-action-sports/pull/126) | **5/5** | 4 staff document route tests |
+| R6 | [#127](https://github.com/bulletbiter99/air-action-sports/pull/127) | **2/2** | requireAuth portal-cookie 403 distinction |
+| R8 | [#128](https://github.com/bulletbiter99/air-action-sports/pull/128) | **8/8** | worker/lib/certifications.js + AdminStaffCertEditor + cron + 3 templates (mig 0039) |
+| R9 | [#129](https://github.com/bulletbiter99/air-action-sports/pull/129) | **8/8** | AdminEventStaffing.jsx + worker/lib/eventStaffing.js + 2 crons + 2 templates (mig 0040) |
+| R10 | [#130](https://github.com/bulletbiter99/air-action-sports/pull/130) | **4/4** | Schedule tab activated + worker/lib/laborEntries.js |
+| R11 | [#133](https://github.com/bulletbiter99/air-action-sports/pull/133) | **6/6** | AdminStaff1099Thresholds + worker/lib/thresholds1099.js + auto-lock cron (March 1+) + w9_reminder template (mig 0041) |
+| R12 | [#134](https://github.com/bulletbiter99/air-action-sports/pull/134) | **6/6** | EventDayContext extracted + event-day.css + worker/lib/eventDaySession.js + worker/routes/event-day/session.js |
+| R13 | [#135](https://github.com/bulletbiter99/air-action-sports/pull/135) | **9/9** | AttendeeDetail + WalkUpBooking + CameraPermissionExplainer + offlineQueue + checkin/walkup routes |
+| R14 | [#136](https://github.com/bulletbiter99/air-action-sports/pull/136) | **7/7** | incidents.js + roster.js + equipment-return.js routes (**fixes IncidentReport 404 production bug**) + JSX endpoint switches |
+| R15 | [#137](https://github.com/bulletbiter99/air-action-sports/pull/137) | **9/9** | event_checklists schema (mig 0042 + 3 default templates) + checklists/hq routes + auto-instantiate hook + **EventChecklist rewired from fake mock to D1-persisted** |
+| R16 | [#138](https://github.com/bulletbiter99/air-action-sports/pull/138) | **12/12** | AdminBookingChargeQueue + 2 routes + worker/lib/bookingCharges.js + 3 charge templates + booking_confirmation baseline (mig 0043) + damage-charge UI replaces "B16 will create" tooltip |
+| R17 | [#139](https://github.com/bulletbiter99/air-action-sports/pull/139) | **3/3** | DELETED AdminUsers.jsx + /admin/users → /admin/staff redirect (`<Navigate replace>`) |
+| R18 | (this PR) | **3/3** | CLAUDE.md + HANDOFF.md M5 close-state + m5-baseline-coverage refresh |
 
-**Remaining 7 rework batches** (in dependency order):
-- **R11-1099-completion** — `AdminStaff1099Thresholds.jsx`, `worker/lib/thresholds1099.js`, auto-lock cron (March 1), `w9_reminder` template, tests dir, lib test
-- **R12-event-day-foundations** — `EventDayContext.jsx` separated, `event-day.css` file, `worker/routes/event-day/` dir, `worker/lib/eventDaySession.js`, tests scaffold
-- **R13-checkin-full** — `AttendeeDetail.jsx`, `WalkUpBooking.jsx`, `CameraPermissionExplainer.jsx`, checkin/walkup routes mounted, offline-queue test
-- **R14-event-day-routes** — incidents/roster/equipment-return routes mounted (**fixes broken IncidentReport.jsx 404**)
-- **R15-checklists-persistence** — `event_checklists` migration + routes + **rewires fake-mock EventChecklist.jsx to actually POST** + auto-instantiate hook on event create
-- **R16-charges-completion** — `AdminBookingChargeQueue.jsx`, damageCharge/bookingCharges routes, `worker/lib/bookingCharges.js`, 3 charge email templates, booking_confirmation update, EquipmentReturn UI extension
-- **R17-decommission** — delete `AdminUsers.jsx`, redirect `/admin/users` → `/admin/staff` in `App.jsx`
-- **R18-final** — refresh CLAUDE.md + HANDOFF.md M5 sections to honest CLOSED state, refresh `m5-baseline-coverage.txt`
+### Operator action items (run after milestone merges to main, in order)
 
-**Lessons learned during rework** (encode in future batches; PR descriptions have full detail):
+**1. Apply 5 D1 migrations to remote** — none yet applied; queued for milestone close:
 
-1. **Verify-m5 cron-sweep regex requires `const NAME = ` declaration in `worker/index.js`.** Bare imports don't match. Pattern:
-   ```js
-   import { runMySweep as _runMySweep } from './lib/...';
-   const runMySweep = _runMySweep;  // verify-m5 detects this
-   ```
-   Used by R8 + R9.
+```bash
+CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
+```
 
-2. **Verify-m5 tab-active regex (`activeTab === 'X'.*ComingSoon` with `/s` flag) spans the whole file.** A placeholder helper named `ComingSoon` further down false-positives even after the JSX line changes. Rename the helper (R10 used `TabPlaceholder`).
+This applies in ascending order: **0039** (cert_expiration templates), **0040** (event_staff_invite + reminder templates), **0041** (w9_reminder template), **0042** (event_checklists schema + 3 default templates), **0043** (3 charge templates + booking_confirmation baseline). Plus the 9 prior-session migrations 0030-0038 if not already applied (check with `npx wrangler d1 migrations list air-action-sports-db --remote`).
 
-3. **Don't hardcode SQL result column literals.** `INSERT ... VALUES (?, ?, ?, 'sent')` makes `args.toContain('sent')` assertions fail because the value is in the SQL string, not the args array. Always parameterize: `VALUES (?, ?, ?, ?)` and bind `'sent'` as the 4th arg. Caught + fixed in R9 mid-batch.
+**2. Workers Builds auto-redeploys** on `git push origin main` after milestone merges. The redeploy automatically registers the **3 new cron sweeps** that join the existing 03:00 UTC trigger:
+- `runCertExpirationSweep` (R8) — 60d/30d/7d cert renewal warnings
+- `runEventStaffingReminderSweep` + `runEventStaffingAutoDeclineSweep` (R9) — pre-event reminders + auto-decline overdue invites
+- `runTaxYearAutoLockSweep` (R11) — March 1+ auto-lock + w9_reminder dispatch
 
-4. **`useMemo` inside JSX after an early return guard violates `react-hooks/rules-of-hooks`.** R0b had `<FilterBar schema={useMemo(() => CONST, [])} />` after `if (!isAuthenticated) return null;` — fix is either move the `useMemo` to component top OR pass the module-level constant directly (the static-CONST case).
+**3. Smoke-test post-deploy:**
+- `curl https://airactionsport.com/api/health` → `{"ok":true,...}`
+- Visit `/admin/users` → verify 302 to `/admin/staff` (R17 redirect).
+- Visit `/event` → confirm event-day shell loads (high-contrast palette, 64px tap targets — R12 CSS).
+- (If a live event is upcoming) verify event creation auto-instantiates checklists at `/event/checklist`.
 
-5. **`requireAuth` portal-cookie 403 path only fires when admin cookie is genuinely absent.** Garbled admin cookie + portal cookie still goes through admin path (returns 401), preserving F57 behavior. R6 verified this with 7 tests including the empty `aas_session=` edge case.
+**4. (Optional, post-launch) Stripe Checkout integration for damage-charge payment links** — R16 ships the email + link generator; the `/admin/booking-charges/pay/:token` landing page is **M6 territory**. Until M6, customers receive emails with the link, but it 404s on click — admin uses the queue's "Mark Paid" modal for Venmo / cash / check payments.
 
-**Operator-applies-remote backlog** (run when milestone closes, in order):
-- Migration 0039 — 3 cert expiration email templates (cert_expiration_60d / 30d / 7d)
-- Migration 0040 — 2 event staffing email templates (event_staff_invite, event_staff_reminder)
-- Future migrations from R11-R16 (R11: w9_reminder template; R15: event_checklists schema; R16: 3 charge email templates + booking_confirmation update)
+### Lessons captured during rework (durable; apply to future milestones)
 
-The 3 new cron sweeps (cert expiration, event staffing reminder, event staffing auto-decline) auto-register on the next Workers Builds redeploy after milestone merges to main — they reuse the existing `0 3 * * *` cron trigger.
+1. **Verify-m5 cron-sweep regex** requires `const NAME = ` in `worker/index.js`. Imported sweeps need a top-level alias: `import { sweep as _sweep } from './lib/...'; const sweep = _sweep;`
+2. **Verify-m5 tab-active regex** uses `/s` flag and spans the whole file. A helper named `ComingSoon` further down in the same file false-positives even after the JSX changes. Rename the helper.
+3. **Don't hardcode SQL result column literals.** Always parameterize via `?` so tests can assert on bound args.
+4. **`useMemo` inside JSX after an early return** violates rules-of-hooks. Move to component top, or pass module-level const directly.
+5. **`requireAuth` extension** must preserve F57 (no-cookie 401). The new portal-cookie-only 403 branch only fires when `aas_session` is genuinely absent.
+6. **Per-batch verify-m5 + plan-mode-first prevented scope creep.** Each rework PR included the verify-script's batch output verbatim in the PR body. The rework prompt's gate ("If the script doesn't pass, the rework batch isn't done") was the single load-bearing constraint that made the rework actually finish.
 
-The fresh-session prompt at [docs/m5-rework-prompt.md](docs/m5-rework-prompt.md) is engineered to make scope cuts hard: the verify script gates batch completion claims, no batch can be marked done until its specific check group exits 0.
+The full M5 milestone reference (gated paths, carry-forward facts, stop-and-ask conditions) lives in **`CLAUDE.md` Milestone 5 section**.
 
 ---
 

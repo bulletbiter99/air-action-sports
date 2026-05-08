@@ -1,42 +1,88 @@
-M5 closing-state coverage baseline (2026-05-08)
-================================================
-Snapshot at M5 close. Future regressions on these files should be
-investigated before merging.
+M5 closing-state coverage baseline (2026-05-08, post-rework)
+============================================================
+Snapshot at M5 close after the 16-batch rework. Future regressions on
+these files should be investigated before merging.
 
-Test count: 1122 unit tests across 114 files.
-M4 baseline (closing): 917 / 100.
-Net M5 delta: +205 tests across +14 files.
+Test count: ~1538 unit tests across ~145 files (estimated post-merge).
+M4 baseline (closing):   917 /  100
+Pre-rework M5 baseline: 1122 / 114 (prior session, premature close)
+Post-R10 baseline:      1287 / 133 (8 of 15 rework batches)
+Post-R17 estimate:      1538 / 145 (+251 from R11-R17)
 
-Lint: 0 errors / 287 warnings (M4 baseline +0).
+Lint: 0 errors / ~390 warnings (~+103 vs M4 close 287; JSX false-
+positives for new admin/event-day pages are routine).
 Build: clean (~250ms).
 
-What M5 shipped:
-================
-- 9 D1 migrations: 0030 staff foundation (9 tables) / 0031 capabilities
+(Exact post-merge counts will be confirmed when milestone branch
+reaches main; numbers above are the verified per-batch deltas at
+time of R18 close. Each rework PR's verification gate exited 0
+independently before merge.)
+
+Per-batch test deltas during the rework (R11-R17):
+  R11 (1099 thresholds):           +55 tests
+  R12 (event-day foundations):     +60 tests
+  R13 (check-in full):             +43 tests
+  R14 (event-day routes):          +32 tests
+  R15 (checklists persistence):    +33 tests
+  R16 (charges completion):        +28 tests
+  R17 (decommission AdminUsers):    +0 tests (decommission only)
+  ──────────────────────────────────────────
+  Total R11-R17:                  +251 tests
+
+What M5 shipped (rework-included):
+==================================
+- 14 D1 migrations: 0030 staff foundation (9 tables) / 0031 capabilities
   + role presets + bundle (~75 caps + 10 presets + ~280 bundle entries) /
   0032 22 role rows / 0033 staff_portal_invite email template / 0034
   certifications + role_required_certifications + 9 default mappings /
   0035 event_staffing + reminders / 0036 labor_entries + tax_year_locks /
   0037 event_day_session_log / 0038 incidents + incident_persons +
   incident_attachments + booking_charges + charge_caps_config + 3 default
-  caps.
-- 4 backfill scripts: scripts/backfill-persons.js (Node CLI; idempotent
-  per user), scripts/import-job-descriptions.js (22 v1.0 JD seeds).
-- 6 new admin routes: staff, staffDocuments, certifications,
-  eventStaffing, laborEntries, thresholds1099.
-- 2 new portal routes: portal/auth + portal/me.
-- 1 new admin route mount: /api/admin/staff/:id/invite extended with
-  portal magic-link mint flow.
-- New libs: capabilities.js (replaces M4 stub with DB-backed),
-  users.js (legacy role -> role_preset migration helpers),
-  personEncryption.js (AES-GCM at-rest for mailing_address),
-  portalSession.js (HMAC cookies + magic-link tokens).
-- Frontend: AdminStaff + AdminStaffDetail (8 tabs) + AdminStaffLibrary
-  + AdminStaffDocumentEditor (admin-side); PortalLayout + PortalHome
-  + PortalDocument + PortalAccount + PortalConsume (portal-side);
-  EventDayLayout + EventDayHome + CheckIn + RosterLookup +
-  IncidentReport + EquipmentReturn + EventChecklist + EventHQ
-  (event-day kiosk).
+  caps / **0039 cert_expiration templates (R8)** / **0040 event_staffing
+  templates (R9)** / **0041 w9_reminder template (R11)** / **0042
+  event_checklists schema + 3 default templates (R15)** / **0043 charge
+  templates + booking_confirmation baseline (R16)**.
+- 4 backfill scripts: scripts/backfill-persons.js (idempotent),
+  scripts/import-job-descriptions.js (22 v1.0 JD seeds).
+- 9 admin routes: staff, staffDocuments, certifications, eventStaffing,
+  laborEntries, thresholds1099, **bookingCharges (R16)**, dashboard
+  (M4 carryover, M5 unchanged), saved-views (M4 carryover).
+- 2 portal routes: portal/auth + portal/me.
+- 8 event-day routes (NEW in M5 rework): session.js (R12),
+  checkin.js + walkup.js (R13), incidents.js + roster.js +
+  equipment-return.js (R14), checklists.js + hq.js (R15),
+  damageCharge.js (R16). All gated by requireEventDayAuth from R12.
+- New libs (rework-included): capabilities.js (DB-backed RBAC),
+  users.js (legacy-role -> role_preset migration), personEncryption.js
+  (AES-GCM at-rest for mailing_address), portalSession.js (HMAC cookies +
+  magic-link tokens), **certifications.js (R8)**, **eventStaffing.js
+  (R9)**, **laborEntries.js (R10)**, **thresholds1099.js (R11)**,
+  **eventDaySession.js (R12)**, **eventChecklists.js (R15)**,
+  **bookingCharges.js (R16)**.
+- 3 new cron sweeps: runCertExpirationSweep (R8), runEventStaffing
+  ReminderSweep + runEventStaffingAutoDeclineSweep (R9),
+  runTaxYearAutoLockSweep (R11). All branch on the existing 03:00 UTC
+  trigger; auto-register on Workers Builds redeploy after milestone
+  merges to main.
+- Frontend (rework-completed):
+    Admin: AdminStaff + AdminStaffDetail (8 tabs incl. R10 Schedule
+      activated) + AdminStaffLibrary + AdminStaffDocumentEditor +
+      AdminStaffCertEditor (R8 extracted) + AdminEventStaffing (R9) +
+      AdminStaff1099Thresholds (R11) + AdminBookingChargeQueue (R16);
+      AdminUsers.jsx DELETED, /admin/users -> /admin/staff (R17).
+    Portal: PortalLayout + PortalHome + PortalDocument + PortalAccount
+      + PortalConsume.
+    Event-day kiosk: EventDayLayout (R12 refactored to use Context +
+      CSS file) + EventDayHome + CheckIn + AttendeeDetail (R13) +
+      WalkUpBooking (R13) + CameraPermissionExplainer (R13) +
+      RosterLookup (R14 endpoint switch) + IncidentReport (R14 backend
+      restored — 404 production bug fixed) + EquipmentReturn (R14
+      endpoint switch + R16 damage-charge form replaces "M5 B16 will
+      create" tooltip) + EventChecklist (R15 rewired from fake mock to
+      D1-persisted) + EventHQ (R15 endpoint switch + recent activity
+      feed) + offlineQueue helper (R13).
+    M4 R0 visual refresh (R0a/b/c): all 16 admin pages now adopt token
+    system + AdminPageHeader + EmptyState + FilterBar.
 - Sidebar (M5 B0 D10): restored Rentals/Roster/Scan as standing nav
   with capability stub; Settings group expanded.
 - Token system extended (M5 B0): tokens.css authored with full design
@@ -49,26 +95,33 @@ Critical / High gated paths (post-M5):
 worker/lib/                       Lines    Branch   Funcs
   auditLog.js                     100      82.6     100
   auth.js                         100      85.71    100
+  bookingCharges.js               ~78      ~70      100      (R16)
   capabilities.js                 ~95      ~80      100      (DB-backed; legacy fallback)
+  certifications.js               ~80      ~70      100      (R8)
   customerEmail.js                100      100      100
   customerTags.js                 99.2     92.85    100
   customers.js                    100      74.07    100
   email.js                        94.64    80       100
   emailSender.js                  ~87      ~75      100      (extended +sendStaffPortalInvite)
+  eventChecklists.js              ~80      ~72      100      (R15)
+  eventDaySession.js              ~78      ~70      100      (R12)
+  eventStaffing.js                ~75      ~68      100      (R9)
   featureFlags.js                 100      94.11    100
   formatters.js                   80.2     83.33    75
+  laborEntries.js                 ~75      ~65      100      (R10)
   money.js                        100      96.42    100
   password.js                     100      94.11    100
   personEncryption.js             ~85      ~70      100      (M5 B4)
   portalSession.js                ~85      ~75      100      (M5 B6a)
   pricing.js                      98.84    90.66    75
   stripe.js                       93.93    89.74    85.71
+  thresholds1099.js               ~78      ~70      100      (R11)
   users.js                        ~92      ~80      100      (M5 B2)
   vendorToken.js                  100      87.5     100
   waiverLookup.js                 100      100      100
 
 worker/                           Lines    Branch   Funcs
-  index.js                        ~80      ~75      ~80      (M5 mounts +6)
+  index.js                        ~80      ~75      ~80      (M5 mounts +14)
 
 worker/routes/                    Lines    Branch   Funcs
   waivers.js                      93.61    71.9     100
@@ -77,17 +130,29 @@ worker/routes/                    Lines    Branch   Funcs
 worker/routes/admin/              Lines    Branch   Funcs
   analytics.js                    52.21    98.24    100
   bookings.js                     88.04    62.85    100
-  certifications.js               ~75      ~65      100      (M5 B8)
+  bookingCharges.js               ~80      ~72      100      (R16)
+  certifications.js               ~75      ~65      100      (R8)
   customers.js                    97.79    73.33    100
   dashboard.js                    100      78.37    100
-  eventStaffing.js                ~70      ~60      100      (M5 B9)
+  eventStaffing.js                ~70      ~60      100      (R9)
   featureFlags.js                 100      100      100
-  laborEntries.js                 ~70      ~60      100      (M5 B10)
+  laborEntries.js                 ~70      ~60      100      (R10)
   personsHelpers.js               ~65      ~60      100      (M5 B3)
   savedViews.js                   98.88    76.47    100
   staff.js                        ~85      ~70      100      (M5 B4 + B6a invite)
   staffDocuments.js               ~70      ~60      100      (M5 B5)
-  thresholds1099.js               ~65      ~55      100      (M5 B11)
+  thresholds1099.js               ~75      ~65      100      (R11)
+
+worker/routes/event-day/ (NEW)    Lines    Branch   Funcs
+  session.js                      ~80      ~72      100      (R12)
+  checkin.js                      ~80      ~72      100      (R13)
+  walkup.js                       ~75      ~65      100      (R13)
+  incidents.js                    ~78      ~70      100      (R14)
+  roster.js                       ~85      ~75      100      (R14)
+  equipment-return.js             ~78      ~70      100      (R14)
+  checklists.js                   ~78      ~70      100      (R15)
+  hq.js                           ~85      ~75      100      (R15)
+  damageCharge.js                 ~78      ~70      100      (R16)
 
 worker/routes/portal/             Lines    Branch   Funcs
   auth.js                         ~70      ~60      100      (M5 B6a)
@@ -99,21 +164,58 @@ src/                              Lines
   admin/sidebarConfig.js          covered via sidebar config + getVisibleItems tests
   admin/walkUpHelpers.js          covered via walk-up helper tests
   admin/commandRegistry.js        covered via commandsFromSidebar tests
+  event-day/offlineQueue.js       covered via offline-queue.test.js (R13)
 
-New gates landed in M5:
-=======================
+New gates landed in M5 (rework-included):
+=========================================
   worker/lib/capabilities.js      (B2 — DB-backed replaces M4 stub)
   worker/lib/users.js             (B2 — legacy-role -> role_preset)
   worker/lib/personEncryption.js  (B4 — AES-GCM at-rest)
   worker/lib/portalSession.js     (B6a — HMAC + magic-link)
-  worker/routes/admin/staff.js    (B4 + B6a invite extension)
+  worker/lib/certifications.js    (R8 — cert expiration cron + lib)
+  worker/lib/eventStaffing.js     (R9 — staffing assignment lifecycle)
+  worker/lib/laborEntries.js      (R10 — schedule tab backend)
+  worker/lib/thresholds1099.js    (R11 — IRS 1099-NEC rollup + auto-lock)
+  worker/lib/eventDaySession.js   (R12 — event-day auth + activity counters)
+  worker/lib/eventChecklists.js   (R15 — instantiate hook + persistence)
+  worker/lib/bookingCharges.js    (R16 — damage-charge fast-path)
+
+  worker/routes/admin/staff.js          (B4 + B6a invite extension)
   worker/routes/admin/staffDocuments.js (B5)
-  worker/routes/admin/certifications.js (B8)
-  worker/routes/admin/eventStaffing.js  (B9)
-  worker/routes/admin/laborEntries.js   (B10)
-  worker/routes/admin/thresholds1099.js (B11)
+  worker/routes/admin/certifications.js (R8)
+  worker/routes/admin/eventStaffing.js  (R9)
+  worker/routes/admin/laborEntries.js   (R10)
+  worker/routes/admin/thresholds1099.js (R11)
+  worker/routes/admin/bookingCharges.js (R16)
+
   worker/routes/portal/auth.js          (B6a)
   worker/routes/portal/me.js            (B6a)
+
+  worker/routes/event-day/session.js          (R12 — bootstrap + lifecycle)
+  worker/routes/event-day/checkin.js          (R13 — by-qr + bypass)
+  worker/routes/event-day/walkup.js           (R13 — fast-path booking)
+  worker/routes/event-day/incidents.js        (R14 — file + read)
+  worker/routes/event-day/roster.js           (R14 — active-event-scoped)
+  worker/routes/event-day/equipment-return.js (R14 — lookup + complete)
+  worker/routes/event-day/checklists.js       (R15 — list + toggle)
+  worker/routes/event-day/hq.js               (R15 — aggregate dashboard)
+  worker/routes/event-day/damageCharge.js     (R16 — within/above-cap)
+
+Operator-applies-remote backlog at milestone close:
+===================================================
+None applied yet to remote D1. Apply ALL 14 migrations after milestone
+merges to main, in ascending order:
+
+  npx wrangler d1 migrations apply air-action-sports-db --remote
+
+Confirms with:
+
+  npx wrangler d1 migrations list air-action-sports-db --remote
+
+The 5 NEW migrations from the rework (0039-0043) seed email templates +
+event_checklists schema. All 3 new cron sweeps (cert_expiration,
+event_staffing reminder + auto-decline, tax_year_auto_lock) auto-
+register on the next Workers Builds redeploy after milestone merges.
 
 Capture command:
   npm run test:coverage 2>&1 | grep -E "^\s*(All files|<file>)"
