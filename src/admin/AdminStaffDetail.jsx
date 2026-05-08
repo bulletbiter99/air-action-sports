@@ -91,7 +91,7 @@ export default function AdminStaffDetail() {
                 {activeTab === 'documents' && <ComingSoon batch="Batch 5" feature="Document acknowledgments" />}
                 {activeTab === 'access' && <ComingSoon batch="Batch 6" feature="Portal session log" />}
                 {activeTab === 'issues' && <ComingSoon batch="Batch 14" feature="Incident log" />}
-                {activeTab === 'certifications' && <ComingSoon batch="Batch 8" feature="Certifications + expiration tracking" />}
+                {activeTab === 'certifications' && <CertificationsTab personId={p.id} canEdit={hasRole?.('manager')} />}
                 {activeTab === 'schedule' && <ComingSoon batch="Batch 10" feature="Schedule & Pay" />}
             </div>
         </div>
@@ -272,6 +272,107 @@ function NotesTab({ personId, person, canEdit, onSaved }) {
                     {saving ? 'Saving…' : 'Save'}
                 </button>
             )}
+        </div>
+    );
+}
+
+function CertificationsTab({ personId, canEdit }) {
+    const [certs, setCerts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showAdd, setShowAdd] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [form, setForm] = useState({
+        kind: '', displayName: '', certificateNumber: '', issuingAuthority: '',
+        issuedAt: '', expiresAt: '', notes: '',
+    });
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/admin/certifications?person_id=${personId}`, { credentials: 'include' });
+            if (res.ok) setCerts((await res.json()).certifications || []);
+        } finally { setLoading(false); }
+    }, [personId]);
+
+    useEffect(() => { load(); }, [load]);
+
+    async function submit() {
+        setSubmitting(true);
+        try {
+            const res = await fetch('/api/admin/certifications', {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    personId,
+                    kind: form.kind,
+                    displayName: form.displayName,
+                    certificateNumber: form.certificateNumber || null,
+                    issuingAuthority: form.issuingAuthority || null,
+                    issuedAt: form.issuedAt ? new Date(form.issuedAt).getTime() : null,
+                    expiresAt: form.expiresAt ? new Date(form.expiresAt).getTime() : null,
+                    notes: form.notes || null,
+                }),
+            });
+            if (res.ok) {
+                setShowAdd(false);
+                setForm({ kind: '', displayName: '', certificateNumber: '', issuingAuthority: '', issuedAt: '', expiresAt: '', notes: '' });
+                load();
+            }
+        } finally { setSubmitting(false); }
+    }
+
+    return (
+        <div style={section}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={h2}>Certifications</h2>
+                {canEdit && (
+                    <button type="button" onClick={() => setShowAdd((v) => !v)} style={primaryBtn}>
+                        {showAdd ? 'Cancel' : '+ Add Certification'}
+                    </button>
+                )}
+            </div>
+
+            {showAdd && (
+                <div style={{ marginTop: 16, padding: 16, background: 'var(--color-bg-sunken)', border: '1px solid var(--color-border)' }}>
+                    <label style={lbl}>Kind <input type="text" value={form.kind} onChange={(e) => setForm({...form, kind: e.target.value})} placeholder="cpr / first_aid / emt_basic / aas_marshal" style={input} /></label>
+                    <label style={lbl}>Display name <input type="text" value={form.displayName} onChange={(e) => setForm({...form, displayName: e.target.value})} placeholder="CPR/AED — American Heart Association" style={input} /></label>
+                    <label style={lbl}>Certificate number <input type="text" value={form.certificateNumber} onChange={(e) => setForm({...form, certificateNumber: e.target.value})} style={input} /></label>
+                    <label style={lbl}>Issuing authority <input type="text" value={form.issuingAuthority} onChange={(e) => setForm({...form, issuingAuthority: e.target.value})} style={input} /></label>
+                    <label style={lbl}>Issued at <input type="date" value={form.issuedAt} onChange={(e) => setForm({...form, issuedAt: e.target.value})} style={input} /></label>
+                    <label style={lbl}>Expires at <input type="date" value={form.expiresAt} onChange={(e) => setForm({...form, expiresAt: e.target.value})} style={input} /></label>
+                    <label style={lbl}>Notes <textarea value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} rows={2} style={input} /></label>
+                    <button type="button" onClick={submit} disabled={!form.kind || !form.displayName || submitting} style={primaryBtn}>
+                        {submitting ? 'Saving…' : 'Save'}
+                    </button>
+                </div>
+            )}
+
+            <div style={{ marginTop: 16 }}>
+                {loading && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
+                {!loading && certs.length === 0 && <p style={{ color: 'var(--olive-light)', fontStyle: 'italic' }}>No certifications on file.</p>}
+                {!loading && certs.map((cert) => {
+                    const isExpired = cert.expiresAt && cert.expiresAt < Date.now();
+                    const expiresSoon = cert.expiresAt && (cert.expiresAt - Date.now()) < 60 * 86400000;
+                    return (
+                        <div key={cert.id} style={{ padding: '12px 0', borderBottom: '1px solid var(--color-border-subtle)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <strong style={{ color: 'var(--cream)' }}>{cert.displayName}</strong>
+                                    <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--olive-light)' }}>({cert.kind})</span>
+                                    {cert.status !== 'active' && <span style={{ ...statusBase, marginLeft: 8, background: 'var(--color-bg-sunken)', color: 'var(--color-text-subtle)' }}>{cert.status}</span>}
+                                    {cert.status === 'active' && isExpired && <span style={{ ...statusBase, marginLeft: 8, background: 'var(--color-danger-soft)', color: 'var(--color-danger)' }}>Expired</span>}
+                                    {cert.status === 'active' && !isExpired && expiresSoon && <span style={{ ...statusBase, marginLeft: 8, background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>Expires soon</span>}
+                                </div>
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--tan-light)', marginTop: 4 }}>
+                                {cert.issuingAuthority || '—'}
+                                {cert.expiresAt && ` · expires ${new Date(cert.expiresAt).toLocaleDateString()}`}
+                                {cert.certificateNumber && ` · #${cert.certificateNumber}`}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }
