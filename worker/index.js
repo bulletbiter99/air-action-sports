@@ -10,12 +10,14 @@ import {
     runEventStaffingReminderSweep as _runEventStaffingReminderSweep,
     runEventStaffingAutoDeclineSweep as _runEventStaffingAutoDeclineSweep,
 } from './lib/eventStaffing.js';
+import { runTaxYearAutoLockSweep as _runTaxYearAutoLockSweep } from './lib/thresholds1099.js';
 // Top-level const aliases so the verify-m5 cron-sweep check (regex:
 // `const NAME = ...`) detects the sweeps are wired up here. The actual
-// implementations live in worker/lib/{certifications,eventStaffing}.js.
+// implementations live in worker/lib/{certifications,eventStaffing,thresholds1099}.js.
 const runCertExpirationSweep = _runCertExpirationSweep;
 const runEventStaffingReminderSweep = _runEventStaffingReminderSweep;
 const runEventStaffingAutoDeclineSweep = _runEventStaffingAutoDeclineSweep;
+const runTaxYearAutoLockSweep = _runTaxYearAutoLockSweep;
 
 import events from './routes/events.js';
 import bookings from './routes/bookings.js';
@@ -601,7 +603,7 @@ export default {
             // Every other cron (today: just '*/15 * * * *') runs the
             // existing three-way reminder sweep.
             if (cron === '0 3 * * *') {
-                const [tags, certs, staffReminders, staffAutoDecline] = await Promise.all([
+                const [tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock] = await Promise.all([
                     runCustomerTagsSweep(env).catch((err) => {
                         console.error('customer-tags sweep failed', err);
                         return { error: err?.message };
@@ -618,8 +620,12 @@ export default {
                         console.error('event-staffing auto-decline sweep failed', err);
                         return { error: err?.message };
                     }),
+                    runTaxYearAutoLockSweep(env).catch((err) => {
+                        console.error('tax-year auto-lock sweep failed', err);
+                        return { error: err?.message };
+                    }),
                 ]);
-                summary = { tags, certs, staffReminders, staffAutoDecline };
+                summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock };
             } else {
                 const [r, a, v] = await Promise.all([
                     runReminderSweep(env),

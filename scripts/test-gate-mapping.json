@@ -328,6 +328,22 @@
         "tests/unit/admin/commandRegistry.test.js"
       ]
     },
+    "worker/lib/thresholds1099.js": {
+      "tier": "high",
+      "covers": [
+        "IRS_1099_THRESHOLD_CENTS (60000 = $600.00 — IRS 1099-NEC reporting threshold)",
+        "requires1099 / previousTaxYear / shouldAutoLockToday — pure helpers exposed for testability + UI use",
+        "formatIrs1099Csv / formatGenericCsv — pure CSV formatters used by the /export endpoint and the bookkeeper rollup",
+        "aggregate1099TotalsForYear (env, taxYear) — I/O wrapper that powers GET /api/admin/1099-thresholds and GET /export",
+        "getYearLock / lockTaxYear — I/O wrappers used by GET / and POST /lock-year + the auto-lock cron sweep",
+        "runTaxYearAutoLockSweep — nightly cron wired into worker/index.js 03:00 UTC dispatch; auto-locks the previous tax year on March 1+ and sends w9_reminder to threshold-meeting recipients with missing legal_name/EIN"
+      ],
+      "audit_group": "(M5 R11 1099 thresholds completion)",
+      "tests": [
+        "tests/unit/lib/thresholds1099.test.js",
+        "tests/unit/admin/thresholds1099/route.test.js"
+      ]
+    },
     "worker/lib/eventDaySession.js": {
       "tier": "high",
       "covers": [
