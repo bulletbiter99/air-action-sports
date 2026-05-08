@@ -147,7 +147,7 @@ function VendorRow({ vendor, expanded, onToggle, onEdit, onDelete, hasRole, onRe
             </tr>
             {expanded && (
                 <tr>
-                    <td colSpan={5} style={{ padding: 0, background: 'var(--dark)', borderBottom: '1px solid rgba(200,184,154,0.1)' }}>
+                    <td colSpan={5} style={{ padding: 0, background: 'var(--dark)', borderBottom: '1px solid var(--color-border)' }}>
                         <ContactsDrawer
                             vendor={vendor}
                             contacts={contacts}
@@ -311,8 +311,8 @@ function coiChipStatus(isoDate) {
 }
 
 const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
-const tableBox = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem' };
+const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
+const tableBox = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem' };
 const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
 const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
 const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
@@ -321,6 +321,6 @@ const primaryBtn = { padding: '10px 18px', background: 'var(--orange)', color: '
 const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer', textDecoration: 'none', display: 'inline-block' };
 const linkBtn = { padding: 0, background: 'transparent', border: 'none', color: 'var(--cream)', fontSize: 13, fontWeight: 700, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' };
 const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
-const modal = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.2)', padding: '1.5rem', width: '100%', maxWidth: 560, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
+const modal = { background: 'var(--mid)', border: '1px solid var(--color-border-strong)', padding: '1.5rem', width: '100%', maxWidth: 560, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
 const coiChipBase = { display: 'inline-block', padding: '3px 8px', fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 2 };
 const primaryChip = { display: 'inline-block', padding: '2px 6px', fontSize: 9, fontWeight: 800, letterSpacing: 1, color: 'var(--orange)', border: '1px solid var(--orange)', borderRadius: 2, marginRight: 6 };
