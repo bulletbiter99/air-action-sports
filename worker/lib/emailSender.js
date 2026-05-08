@@ -341,3 +341,31 @@ export async function sendFeedbackResolutionNotice(env, { feedback }) {
         ],
     });
 }
+
+// M5 Batch 6 — staff portal invite email (Surface 4a part 4).
+// Variables: personName, inviterName, magicLink, expiresAt
+export async function sendStaffPortalInvite(env, { person, inviterName, magicLink, expiresAt }) {
+    if (!person?.email) return { skipped: 'no_recipient_email' };
+    const template = await loadTemplate(env.DB, 'staff_portal_invite');
+    if (!template) return { skipped: 'template_missing' };
+    const vars = {
+        personName: person.full_name || person.email || 'there',
+        inviterName: inviterName || 'Your AAS admin',
+        magicLink,
+        expiresAt: expiresAt instanceof Date ? expiresAt.toUTCString() : String(expiresAt),
+    };
+    const rendered = renderTemplate(template, vars);
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: person.email,
+        replyTo: env.REPLY_TO_EMAIL,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: 'staff_portal_invite' },
+            { name: 'person_id', value: person.id },
+        ],
+    });
+}

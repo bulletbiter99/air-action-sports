@@ -37,6 +37,8 @@ import adminSavedViews from './routes/admin/savedViews.js';
 import adminDashboard from './routes/admin/dashboard.js';
 import adminStaff from './routes/admin/staff.js';
 import adminStaffDocuments from './routes/admin/staffDocuments.js';
+import portalAuth from './routes/portal/auth.js';
+import portalMe from './routes/portal/me.js';
 
 const app = new Hono();
 
@@ -124,6 +126,8 @@ app.route('/api/admin/saved-views', adminSavedViews);
 app.route('/api/admin', adminDashboard);
 app.route('/api/admin/staff', adminStaff);
 app.route('/api/admin/staff-documents', adminStaffDocuments);
+app.route('/api/portal/auth', portalAuth);
+app.route('/api/portal', portalMe);
 
 app.onError((err, c) => {
     console.error('API error', err);
