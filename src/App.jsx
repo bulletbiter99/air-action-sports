@@ -74,6 +74,12 @@ const PortalConsume = lazy(() => import('./portal/PortalConsume'));
 // Event-day mode (M5 Batches 12-15)
 const EventDayLayout = lazy(() => import('./event-day/EventDayLayout'));
 const EventDayHome = lazy(() => import('./event-day/EventDayHome'));
+const EventDayCheckIn = lazy(() => import('./event-day/CheckIn'));
+const EventDayRoster = lazy(() => import('./event-day/RosterLookup'));
+const EventDayIncident = lazy(() => import('./event-day/IncidentReport'));
+const EventDayEquipment = lazy(() => import('./event-day/EquipmentReturn'));
+const EventDayChecklist = lazy(() => import('./event-day/EventChecklist'));
+const EventDayHQ = lazy(() => import('./event-day/EventHQ'));
 
 export default function App() {
   return (
@@ -108,6 +114,12 @@ export default function App() {
           <Route path="portal/auth/consume" element={<PortalConsume />} />
           <Route path="event" element={<EventDayLayout />}>
             <Route index element={<EventDayHome />} />
+            <Route path="check-in" element={<EventDayCheckIn />} />
+            <Route path="roster" element={<EventDayRoster />} />
+            <Route path="incident" element={<EventDayIncident />} />
+            <Route path="equipment-return" element={<EventDayEquipment />} />
+            <Route path="checklist" element={<EventDayChecklist />} />
+            <Route path="hq" element={<EventDayHQ />} />
           </Route>
           <Route path="portal" element={<PortalLayout />}>
             <Route index element={<PortalHome />} />
