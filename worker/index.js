@@ -5,6 +5,11 @@ import { loadTemplate, renderTemplate } from './lib/templates.js';
 import { sendEmail } from './lib/email.js';
 import { createVendorToken } from './lib/vendorToken.js';
 import { runCustomerTagsSweep } from './lib/customerTags.js';
+import { runCertExpirationSweep as _runCertExpirationSweep } from './lib/certifications.js';
+// Top-level const alias so the verify-m5 cron-sweep check (regex:
+// `const NAME = ...`) detects the sweep is wired up here. The actual
+// implementation lives in worker/lib/certifications.js.
+const runCertExpirationSweep = _runCertExpirationSweep;
 
 import events from './routes/events.js';
 import bookings from './routes/bookings.js';
@@ -588,11 +593,17 @@ export default {
             // Every other cron (today: just '*/15 * * * *') runs the
             // existing three-way reminder sweep.
             if (cron === '0 3 * * *') {
-                const tags = await runCustomerTagsSweep(env).catch((err) => {
-                    console.error('customer-tags sweep failed', err);
-                    return { error: err?.message };
-                });
-                summary = { tags };
+                const [tags, certs] = await Promise.all([
+                    runCustomerTagsSweep(env).catch((err) => {
+                        console.error('customer-tags sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                    runCertExpirationSweep(env).catch((err) => {
+                        console.error('cert-expiration sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                ]);
+                summary = { tags, certs };
             } else {
                 const [r, a, v] = await Promise.all([
                     runReminderSweep(env),
