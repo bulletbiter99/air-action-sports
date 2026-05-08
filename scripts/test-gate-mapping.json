@@ -131,12 +131,28 @@
     "worker/lib/capabilities.js": {
       "tier": "high",
       "covers": [
-        "hasCapability(user, capability)",
-        "userCapabilities(user)"
+        "listCapabilities(env, userId) — async DB-backed; joins role_preset_capabilities + user_capability_overrides; legacy fallback when role_preset_key NULL or M5 tables missing",
+        "userHasCapability(env, userId, key) — async DB check with dependency-chain walk via capabilities.requires_capability_key",
+        "hasCapability(user, key) — sync; checks user.capabilities array first, falls back to legacy role mapping",
+        "requireCapability(key) — Hono middleware factory; lazy-loads capabilities onto user; 401/403 with requiresCapability hint",
+        "userCapabilities(user) — sync; backward-compat alias for the M4 stub's import surface"
       ],
-      "audit_group": "(M4 B3a — capability stub for the M3-era 3-role hierarchy; M5 will formalize)",
+      "audit_group": "(M5 B2 DB-backed RBAC replacing M4 stub)",
       "tests": [
+        "tests/unit/lib/capabilities.test.js",
         "tests/unit/admin/bookings/detail-view.test.js"
+      ]
+    },
+    "worker/lib/users.js": {
+      "tier": "high",
+      "covers": [
+        "legacyRoleToRolePreset(role) — pure mapping owner->event_director, manager->booking_coordinator, staff->staff_legacy",
+        "migrateUserToRolePreset(env, userId) — idempotent; assigns role_preset_key based on legacy role",
+        "migrateAllUsersToRolePresets(env) — bulk migration with breakdown summary"
+      ],
+      "audit_group": "(M5 B2 role-preset migration helpers)",
+      "tests": [
+        "tests/unit/lib/users.test.js"
       ]
     },
     "worker/lib/customers.js": {
