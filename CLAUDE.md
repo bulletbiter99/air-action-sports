@@ -441,6 +441,74 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 - Coverage on any of the 12 gated files drops from M3 closing baseline (per [docs/runbooks/m3-baseline-coverage.txt](docs/runbooks/m3-baseline-coverage.txt))
 - Any production-data anomaly during local backfill testing
 
+### Milestone 5 — Staff Management + Event-Day Mode (PARTIAL — REWORK IN PROGRESS, NOT closed)
+
+**Status (2026-05-08):** `milestone/5-staff-event-day` (off `main` at `7594d9a`, M4 close) shipped 20 PRs (#101-#120) but a previous session declared the milestone closed prematurely. A subsequent audit revealed substantial scope gaps: 21+ files specified in the M5 prompt that were never created; 3 cron sweeps not added to `worker/index.js`; 8+ email templates not seeded; 4 broken UI states; B17 (decommission AdminUsersLegacy + /admin/users redirect) skipped entirely; B0 visual refresh dropped 5 of 7 prompt-listed structural items per page.
+
+**Authoritative gap inventory + 15 rework batch IDs in execution order:** [docs/runbooks/m5-rework-plan.md](docs/runbooks/m5-rework-plan.md).
+
+**Fresh-session prompt to drive the rework:** [docs/m5-rework-prompt.md](docs/m5-rework-prompt.md). The new session must read it before any code change.
+
+**Programmatic gap verification:** `node scripts/verify-m5-completeness.js`. The script exits 0 only when all rework batches are complete. **It is the gate** for declaring the milestone closed. As of 2026-05-08, the script reports **0/15 batches complete, 1/95 individual checks pass** — that's the rework starting state.
+
+**DO NOT MERGE `milestone/5-staff-event-day` → `main`** until:
+- `node scripts/verify-m5-completeness.js` exits 0 (all rework batches complete)
+- `npm test` passes
+- `npm run lint` shows 0 errors
+- `npm run build` clean
+- Visual regression suite green
+- This section is updated to "✓ CLOSED" with the actual close date
+
+**What IS in place** (substrate that's correctly implemented):
+
+- **9 D1 migrations 0030-0038** (NOT yet applied to remote): staff foundation tables; capabilities + role presets + bundle; 22 role rows; staff_portal_invite email template; certifications + role_required_certifications + 9 default mappings; event_staffing + reminders; labor_entries + tax_year_locks; event_day_session_log; incidents + booking_charges + charge_caps_config + 3 default caps.
+- **4 backend libs**: `worker/lib/capabilities.js` (DB-backed RBAC replacing M4 stub), `worker/lib/users.js` (legacy-role -> role_preset migration helpers), `worker/lib/personEncryption.js` (AES-GCM at-rest), `worker/lib/portalSession.js` (HMAC cookies + magic-link tokens).
+- **6 admin routes**: staff, staffDocuments, certifications, eventStaffing, laborEntries, thresholds1099.
+- **2 portal routes**: portal/auth + portal/me.
+- **Frontend (with gaps)**: AdminStaff list + 8-tab Detail (5 tabs are stubs); AdminStaffLibrary + AdminStaffDocumentEditor; PortalLayout + Home + Document + Account + Consume; EventDayLayout + Home (kiosk shell); minimal CheckIn/Roster/IncidentReport/EquipmentReturn/EventChecklist/EventHQ stubs.
+- **Sidebar (B0 partial)**: Rentals/Roster/Scan restored as standing nav with capability stub; D10 added to decisions register.
+- **Token system extension**: tokens.css authored with full design surface (spacing/typography/radius/colors/shadows/motion); 16 admin pages adopt `var(--color-border)` + `var(--color-border-strong)`.
+- **Group H cron tests** (audit H71-H76): 6 test files locking outer dispatch + 4 inner sweep behaviors.
+- **2 backfill scripts**: `scripts/backfill-persons.js` (idempotent), `scripts/import-job-descriptions.js` (idempotent; produces 22 v1.0 JD seeds).
+
+**What's MISSING** (the rework closes these — full breakdown in m5-rework-plan.md):
+
+- **B0 structural items** (5 of 7 prompt-listed scope items per page): typography hierarchy NOT applied; FilterBar adoption NOT done on Events/Rentals/Roster/RentalAssignments; header pattern NOT unified; list-row consistent density NOT applied; empty-state consistent treatment NOT applied.
+- **B4 test split**: prompt called for 5 separate test files; shipped as 1 combined file.
+- **B5 staff document tests**: directory does not exist.
+- **B6 strict /admin vs /portal cookie 403**: portal users get 401 instead of explicit 403.
+- **B8 cert expiration cron**: not added to worker/index.js. Email templates not seeded. AdminStaffCertEditor.jsx separate file does not exist (modal inlined). worker/lib/certifications.js does not exist.
+- **B9 event staffing**: AdminEventStaffing.jsx does not exist. worker/lib/eventStaffing.js does not exist. Reminder cron sweep not added. Email templates not seeded.
+- **B10 Schedule tab**: still renders "coming soon" stub. worker/lib/laborEntries.js does not exist.
+- **B11 1099 thresholds**: AdminStaff1099Thresholds.jsx UI page does not exist. worker/lib/thresholds1099.js does not exist. w9_reminder template not seeded. Auto-lock cron not added.
+- **B12 event-day foundations**: EventDayContext.jsx separate file does not exist. event-day.css does not exist. worker/routes/event-day/ directory does not exist (the kiosk has no backend routes). worker/lib/eventDaySession.js does not exist.
+- **B13 check-in workflow**: AttendeeDetail / WalkUpBooking / CameraPermissionExplainer components do not exist. Backend checkin + walkup routes do not exist.
+- **B14 event-day routes**: incidents / roster / equipment-return backend routes do not exist. **IncidentReport.jsx is broken** — it POSTs to a non-existent endpoint.
+- **B15 checklists**: persistence layer does not exist. EventChecklist.jsx is fake mock state. event_checklists migration does not exist. Auto-instantiate hook on event creation does not exist.
+- **B16 damage charge**: UI does nothing. AdminBookingChargeQueue.jsx does not exist. Backend routes do not exist. worker/lib/bookingCharges.js does not exist. 3 email templates not seeded. booking_confirmation template not updated.
+- **B17 decommission AdminUsersLegacy**: SKIPPED ENTIRELY. AdminUsers.jsx still in place; no /admin/users redirect to /admin/staff.
+- **B18 docs**: CLAUDE.md and HANDOFF.md were not updated with M5 milestone section by the prior session. (This update is the first M5 section; it documents PARTIAL state.)
+
+**Operating rules for the rework session** (mandatory; mirrored from m5-rework-prompt.md):
+
+1. **No scope cuts.** Every file listed under "Gaps" in m5-rework-plan.md MUST be created with substantive content.
+2. **No "deferred" language.** Each rework PR must enumerate every file added.
+3. **No combining test files** unless the M5 prompt's source file list says so.
+4. **No frontend pointing at non-existent backend.**
+5. **No mock-state for persistable data.**
+6. **Run `verify-m5-completeness.js --batch=R<id>` before claiming any batch complete.** Include verify output in the PR description.
+7. **Run tests + lint + build per sub-batch.** All three green before opening PR.
+8. **Plan-mode-first per rework batch.**
+9. **Rework batches in dependency order**: R0-structural -> R4-tests-split -> R5-tests -> R6-strict -> R8-cron -> R9-cmpl -> R10-cmpl -> R11-cmpl -> R12-found -> R13-full -> R14-routes -> R15-cklst -> R16-cmpl -> R17-decom -> R18-final.
+
+**Stop-and-ask conditions for the rework session:**
+- A do-not-touch file needs modification beyond the rework's scope
+- A test reveals current behavior conflicting with audit-documented behavior
+- The original M5 prompt's spec for a batch conflicts with the rework plan (rework plan wins; flag the conflict)
+- A NEW gap is discovered not listed in the rework plan (add to rework plan via PR before fixing)
+
+---
+
 ### Milestone 4 — Bookings + Detail Workspace + New Admin Shell (✓ CLOSED 2026-05-07)
 
 Long-lived branch: `milestone/4-bookings-ia-completion` (off `main` at `87da972`, M3 close). Sub-branches use **flat `m4-batch-N-slug` naming** — same git ref-collision workaround M1/M2/M3 used. Per-batch rolling brings-up to main (every batch goes live on main soon after milestone-merge, not held until close).
