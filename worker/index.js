@@ -6,10 +6,16 @@ import { sendEmail } from './lib/email.js';
 import { createVendorToken } from './lib/vendorToken.js';
 import { runCustomerTagsSweep } from './lib/customerTags.js';
 import { runCertExpirationSweep as _runCertExpirationSweep } from './lib/certifications.js';
-// Top-level const alias so the verify-m5 cron-sweep check (regex:
-// `const NAME = ...`) detects the sweep is wired up here. The actual
-// implementation lives in worker/lib/certifications.js.
+import {
+    runEventStaffingReminderSweep as _runEventStaffingReminderSweep,
+    runEventStaffingAutoDeclineSweep as _runEventStaffingAutoDeclineSweep,
+} from './lib/eventStaffing.js';
+// Top-level const aliases so the verify-m5 cron-sweep check (regex:
+// `const NAME = ...`) detects the sweeps are wired up here. The actual
+// implementations live in worker/lib/{certifications,eventStaffing}.js.
 const runCertExpirationSweep = _runCertExpirationSweep;
+const runEventStaffingReminderSweep = _runEventStaffingReminderSweep;
+const runEventStaffingAutoDeclineSweep = _runEventStaffingAutoDeclineSweep;
 
 import events from './routes/events.js';
 import bookings from './routes/bookings.js';
@@ -593,7 +599,7 @@ export default {
             // Every other cron (today: just '*/15 * * * *') runs the
             // existing three-way reminder sweep.
             if (cron === '0 3 * * *') {
-                const [tags, certs] = await Promise.all([
+                const [tags, certs, staffReminders, staffAutoDecline] = await Promise.all([
                     runCustomerTagsSweep(env).catch((err) => {
                         console.error('customer-tags sweep failed', err);
                         return { error: err?.message };
@@ -602,8 +608,16 @@ export default {
                         console.error('cert-expiration sweep failed', err);
                         return { error: err?.message };
                     }),
+                    runEventStaffingReminderSweep(env).catch((err) => {
+                        console.error('event-staffing reminder sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                    runEventStaffingAutoDeclineSweep(env).catch((err) => {
+                        console.error('event-staffing auto-decline sweep failed', err);
+                        return { error: err?.message };
+                    }),
                 ]);
-                summary = { tags, certs };
+                summary = { tags, certs, staffReminders, staffAutoDecline };
             } else {
                 const [r, a, v] = await Promise.all([
                     runReminderSweep(env),
