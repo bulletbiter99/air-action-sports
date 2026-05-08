@@ -289,7 +289,7 @@ function FeedbackDetail({ feedback, canDelete, canEditStatus, onClose, onUpdated
                 <img
                   src={feedback.attachmentUrl}
                   alt="Submitted screenshot"
-                  style={{ maxWidth: '100%', maxHeight: 320, border: '1px solid rgba(200,184,154,0.2)', borderRadius: 3 }}
+                  style={{ maxWidth: '100%', maxHeight: 320, border: '1px solid var(--color-border-strong)', borderRadius: 3 }}
                 />
               </a>
             ) : (
@@ -420,7 +420,7 @@ function NotifyPreviewModal({ recipient, loading, preview, err, sending, onCance
                 width: '100%',
                 height: 360,
                 background: '#fff',
-                border: '1px solid rgba(200,184,154,0.2)',
+                border: '1px solid var(--color-border-strong)',
                 borderRadius: 3,
               }}
             />
@@ -501,22 +501,22 @@ const plusBtn = {
   padding: 0, flexShrink: 0,
 };
 const statsGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 };
-const statCard = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.1rem', textAlign: 'left', color: 'inherit', fontFamily: 'inherit' };
-const tableBox = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem' };
+const statCard = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.1rem', textAlign: 'left', color: 'inherit', fontFamily: 'inherit' };
+const tableBox = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem' };
 const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
 const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
 const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
 const td = { padding: '10px 12px', color: 'var(--cream)', verticalAlign: 'top' };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
+const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
 const primaryBtn = { padding: '10px 18px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
 const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
 const secondaryBtn = { padding: '10px 18px', background: 'transparent', border: '1px solid var(--olive-light)', color: 'var(--cream)', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
 const dangerBtn = { padding: '10px 18px', background: 'transparent', border: '1px solid rgba(231,76,60,0.4)', color: '#e74c3c', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
 const secondaryLink = { padding: '10px 18px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' };
 const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
-const modal = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.2)', padding: '1.5rem', width: '100%', maxWidth: 640, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
+const modal = { background: 'var(--mid)', border: '1px solid var(--color-border-strong)', padding: '1.5rem', width: '100%', maxWidth: 640, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
 const closeX = { width: 32, height: 32, border: '1px solid rgba(200,184,154,0.25)', background: 'transparent', color: 'var(--tan-light)', fontSize: 22, lineHeight: 1, cursor: 'pointer', borderRadius: 4, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const descriptionBox = { background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.1)', padding: 14, borderRadius: 3, color: 'var(--cream)', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
+const descriptionBox = { background: 'var(--dark)', border: '1px solid var(--color-border)', padding: 14, borderRadius: 3, color: 'var(--cream)', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
 const metaGrid = { display: 'flex', flexDirection: 'column', gap: 4 };
 const metaRow = { display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, padding: '6px 0', borderBottom: '1px solid rgba(200,184,154,0.05)' };
 const metaRowLabel = { fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--olive-light)', fontWeight: 700 };

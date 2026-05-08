@@ -236,11 +236,11 @@ function Stat({ label, value, sub }) {
 }
 
 const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: '0 0 1.5rem' };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', minWidth: 200 };
+const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', minWidth: 200 };
 const csvBtn = { padding: '10px 18px', background: 'var(--olive)', border: '1px solid var(--olive-light)', color: 'var(--cream)', fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' };
 const statsGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 };
-const statCard = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.25rem' };
-const tableBox = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem' };
+const statCard = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.25rem' };
+const tableBox = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem' };
 const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
 const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
 const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
@@ -250,7 +250,7 @@ const checkInBtn = {
   fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer',
 };
 const undoBtn = {
-  marginLeft: 8, padding: '2px 8px', background: 'transparent', border: '1px solid rgba(200,184,154,0.2)',
+  marginLeft: 8, padding: '2px 8px', background: 'transparent', border: '1px solid var(--color-border-strong)',
   color: 'var(--olive-light)', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer',
 };
 const sendBtn = {
