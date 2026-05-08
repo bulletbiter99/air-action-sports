@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import { useFeatureFlag, setFeatureFlagOverride } from './useFeatureFlag';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
 
 const CARDS = [
   {
@@ -67,11 +69,11 @@ export default function AdminSettings() {
   };
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem' }}>
-      <h1 style={h1}>Settings</h1>
-      <p style={{ color: 'var(--olive-light)', fontSize: 13, marginBottom: 24 }}>
-        Configuration for booking, pricing, and transactional messaging.
-      </p>
+    <div style={page}>
+      <AdminPageHeader
+        title="Settings"
+        description="Configuration for booking, pricing, and transactional messaging."
+      />
 
       {densityExists && (
         <div style={densitySection}>
@@ -115,55 +117,91 @@ export default function AdminSettings() {
       </div>
 
       {visible.length === 0 && (
-        <p style={{ color: 'var(--olive-light)' }}>No settings available for your role.</p>
+        <EmptyState
+          title="No settings available"
+          description="No settings are visible at your current role. Contact an Owner if you need access."
+        />
       )}
     </div>
   );
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: '0 0 0.5rem' };
-const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 };
-const card = {
-  background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem',
-  textDecoration: 'none', color: 'var(--cream)', display: 'block', transition: 'border 0.2s',
+const page = { maxWidth: 1000, margin: '0 auto', padding: 'var(--space-32)' };
+const grid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+  gap: 'var(--space-16)',
 };
-const cardTitle = { fontSize: 16, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--cream)', marginBottom: 8 };
-const cardDesc = { fontSize: 13, color: 'var(--tan-light)', lineHeight: 1.5, marginBottom: 12 };
-const cardCta = { fontSize: 11, fontWeight: 800, letterSpacing: 2, color: 'var(--orange)', textTransform: 'uppercase' };
+const card = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-24)',
+  textDecoration: 'none',
+  color: 'var(--color-text)',
+  display: 'block',
+  transition: 'border var(--duration-base) var(--easing-standard)',
+};
+const cardTitle = {
+  fontSize: 'var(--font-size-lg)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  color: 'var(--color-text)',
+  marginBottom: 'var(--space-8)',
+};
+const cardDesc = {
+  fontSize: 'var(--font-size-base)',
+  color: 'var(--color-text-muted)',
+  lineHeight: 'var(--line-height-relaxed)',
+  marginBottom: 'var(--space-12)',
+};
+const cardCta = {
+  fontSize: 'var(--font-size-xs)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-widest)',
+  color: 'var(--color-accent)',
+  textTransform: 'uppercase',
+};
 
 const densitySection = {
-  background: 'var(--mid)',
+  background: 'var(--color-bg-elevated)',
   border: '1px solid var(--color-border)',
-  padding: '1.25rem 1.5rem',
-  marginBottom: 24,
+  padding: 'var(--space-16) var(--space-24)',
+  marginBottom: 'var(--space-24)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: 24,
+  gap: 'var(--space-24)',
   flexWrap: 'wrap',
 };
-const densityHeader = { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 };
-const densityLabel = { fontSize: 14, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--cream)' };
-const densityHint = { fontSize: 12, color: 'var(--olive-light)' };
+const densityHeader = { display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 0 };
+const densityLabel = {
+  fontSize: 'var(--font-size-md)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  color: 'var(--color-text)',
+};
+const densityHint = { fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' };
 const densityControl = {
   display: 'inline-flex',
-  border: '1px solid rgba(200,184,154,0.15)',
-  borderRadius: 4,
+  border: '1px solid var(--color-border-strong)',
+  borderRadius: 'var(--radius-md)',
   overflow: 'hidden',
 };
 const densityButton = {
   background: 'transparent',
-  color: 'var(--tan-light)',
+  color: 'var(--color-text-muted)',
   border: 0,
-  padding: '8px 16px',
-  fontSize: 12,
-  fontWeight: 700,
-  letterSpacing: 1,
+  padding: 'var(--space-8) var(--space-16)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-bold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
   textTransform: 'uppercase',
   cursor: 'pointer',
-  transition: 'background 0.15s, color 0.15s',
+  transition: 'background var(--duration-fast) var(--easing-standard), color var(--duration-fast) var(--easing-standard)',
 };
 const densityButtonActive = {
-  background: 'var(--orange)',
-  color: 'var(--dark)',
+  background: 'var(--color-accent)',
+  color: 'var(--color-text-inverse)',
 };

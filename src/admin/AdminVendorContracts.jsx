@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
 
 // Versioned contract document manager. Mirrors the pattern of waiver
 // hardening (migration 0011): immutable rows, new version retires previous.
@@ -37,24 +39,34 @@ export default function AdminVendorContracts() {
     if (loading || !isAuthenticated) return null;
 
     return (
-        <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                <h1 style={h1}>Vendor Contract Documents</h1>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <Link to="/admin/vendor-packages" style={subtleBtn}>Packages</Link>
-                    {hasRole('owner') && <button onClick={() => setCreating(true)} style={primaryBtn}>+ New version</button>}
-                </div>
-            </div>
-
-            <p style={{ color: 'var(--olive-light)', fontSize: 12, marginBottom: 16 }}>
-                Each signed contract snapshots the exact body text it was signed against. Creating a new version retires the previous one.
-                Past signers remain pinned to whichever version they signed.
-            </p>
+        <div style={pageWrap}>
+            <AdminPageHeader
+                title="Vendor Contract Documents"
+                description="Each signed contract snapshots the exact body text it was signed against. Creating a new version retires the previous one. Past signers remain pinned to whichever version they signed."
+                breadcrumb={[
+                    { label: 'Settings', to: '/admin/settings' },
+                    { label: 'Vendor Contracts' },
+                ]}
+                secondaryActions={<Link to="/admin/vendor-packages" style={subtleBtn}>Packages</Link>}
+                primaryAction={hasRole('owner') && (
+                    <button onClick={() => setCreating(true)} style={primaryBtn}>+ New version</button>
+                )}
+            />
 
             <div style={tableBox}>
-                {loadingList && <p style={{ color: 'var(--olive-light)', fontSize: 12 }}>Loading…</p>}
-                {!loadingList && rows.length === 0 && <p style={{ color: 'var(--olive-light)', fontSize: 12 }}>No contracts yet. Create one to enable contract signing on vendor packages.</p>}
-                {rows.length > 0 && (
+                {loadingList && (
+                    <EmptyState variant="loading" title="Loading contracts…" />
+                )}
+                {!loadingList && rows.length === 0 && (
+                    <EmptyState
+                        title="No contracts yet"
+                        description="Create one to enable contract signing on vendor packages."
+                        action={hasRole('owner') && (
+                            <button onClick={() => setCreating(true)} style={primaryBtn}>+ New version</button>
+                        )}
+                    />
+                )}
+                {!loadingList && rows.length > 0 && (
                     <table style={table}>
                         <thead>
                             <tr>
@@ -73,14 +85,14 @@ export default function AdminVendorContracts() {
                                     <td style={td}>{r.title}</td>
                                     <td style={td}>
                                         {r.retiredAt
-                                            ? <span style={{ color: '#888', fontSize: 11 }}>retired {new Date(r.retiredAt).toLocaleDateString()}</span>
-                                            : <span style={{ color: '#78c493', fontWeight: 800, fontSize: 11 }}>LIVE</span>}
+                                            ? <span style={retiredPill}>retired {new Date(r.retiredAt).toLocaleDateString()}</span>
+                                            : <span style={livePill}>LIVE</span>}
                                     </td>
                                     <td style={td}>{new Date(r.effectiveFrom).toLocaleString()}</td>
-                                    <td style={{ ...td, fontFamily: 'monospace', fontSize: 11 }}>{r.bodySha256.slice(0, 12)}…</td>
-                                    <td style={{ ...td, textAlign: 'right' }}>
+                                    <td style={tdMonospace}>{r.bodySha256.slice(0, 12)}…</td>
+                                    <td style={tdActions}>
                                         <button onClick={() => setViewing(r)} style={subtleBtn}>View</button>
-                                        {!r.retiredAt && hasRole('owner') && <button onClick={() => retire(r)} style={{ ...subtleBtn, marginLeft: 6 }}>Retire</button>}
+                                        {!r.retiredAt && hasRole('owner') && <button onClick={() => retire(r)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Retire</button>}
                                     </td>
                                 </tr>
                             ))}
@@ -116,20 +128,20 @@ function ContractModal({ onClose, onSaved }) {
     return (
         <div style={modalBg} onClick={onClose}>
             <form onClick={(e) => e.stopPropagation()} onSubmit={submit} style={{ ...modal, maxWidth: 820 }}>
-                <h2 style={{ ...h1, fontSize: 20, marginBottom: 14 }}>New Contract Version</h2>
+                <h2 style={modalTitle}>New Contract Version</h2>
                 <Field label="Title *">
                     <input value={title} onChange={(e) => setTitle(e.target.value)} required style={input} />
                 </Field>
                 <Field label="Body HTML *">
                     <textarea value={bodyHtml} onChange={(e) => setBodyHtml(e.target.value)} required rows={18}
                         placeholder="<h3>Vendor Operating Agreement</h3><p>This agreement…</p>"
-                        style={{ ...input, minHeight: 360, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }} />
+                        style={{ ...input, minHeight: 360, fontFamily: 'monospace', fontSize: 'var(--font-size-sm)', resize: 'vertical' }} />
                 </Field>
-                <p style={{ color: 'var(--olive-light)', fontSize: 11, margin: '4px 0 12px' }}>
+                <p style={modalHint}>
                     This text becomes immutable once saved. The previous live version will be retired at the same instant this one becomes effective.
                 </p>
-                {err && <div style={{ color: '#e74c3c', fontSize: 12, margin: '8px 0' }}>{err}</div>}
-                <div style={{ display: 'flex', gap: 8 }}>
+                {err && <div style={errorText}>{err}</div>}
+                <div style={modalActions}>
                     <button type="submit" disabled={saving} style={primaryBtn}>{saving ? 'Saving…' : 'Create version'}</button>
                     <button type="button" onClick={onClose} style={subtleBtn}>Cancel</button>
                 </div>
@@ -142,11 +154,11 @@ function ViewModal({ contract, onClose }) {
     return (
         <div style={modalBg} onClick={onClose}>
             <div onClick={(e) => e.stopPropagation()} style={{ ...modal, maxWidth: 820 }}>
-                <h2 style={{ ...h1, fontSize: 20, marginBottom: 6 }}>v{contract.version} — {contract.title}</h2>
-                <p style={{ color: 'var(--olive-light)', fontSize: 11, fontFamily: 'monospace', marginBottom: 16 }}>{contract.bodySha256}</p>
-                <div style={{ background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.15)', padding: 16, maxHeight: 420, overflowY: 'auto' }}
+                <h2 style={modalTitle}>v{contract.version} — {contract.title}</h2>
+                <p style={modalSha}>{contract.bodySha256}</p>
+                <div style={contractBody}
                     dangerouslySetInnerHTML={{ __html: contract.bodyHtml }} />
-                <div style={{ marginTop: 16 }}>
+                <div style={modalActions}>
                     <button onClick={onClose} style={subtleBtn}>Close</button>
                 </div>
             </div>
@@ -156,21 +168,138 @@ function ViewModal({ contract, onClose }) {
 
 function Field({ label, children }) {
     return (
-        <label style={{ display: 'block', marginBottom: 10 }}>
-            <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 700, marginBottom: 4 }}>{label}</div>
+        <label style={fieldLabel}>
+            <div style={fieldLabelText}>{label}</div>
             {children}
         </label>
     );
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
-const tableBox = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem' };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '10px 12px', color: 'var(--cream)', verticalAlign: 'top' };
-const primaryBtn = { padding: '10px 18px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer', textDecoration: 'none', display: 'inline-block' };
-const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
-const modal = { background: 'var(--mid)', border: '1px solid var(--color-border-strong)', padding: '1.5rem', width: '100%', maxWidth: 560, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
+const pageWrap = { maxWidth: 1000, margin: '0 auto', padding: 'var(--space-32)' };
+const input = {
+    padding: 'var(--space-8) var(--space-12)',
+    background: 'var(--color-bg-page)',
+    border: '1px solid var(--color-border-strong)',
+    color: 'var(--color-text)',
+    fontSize: 'var(--font-size-base)',
+    fontFamily: 'inherit',
+    width: '100%',
+    boxSizing: 'border-box',
+};
+const tableBox = {
+    background: 'var(--color-bg-elevated)',
+    border: '1px solid var(--color-border)',
+    padding: 'var(--space-24)',
+};
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+    textAlign: 'left',
+    padding: 'var(--space-8) var(--space-12)',
+    borderBottom: '1px solid var(--color-border-strong)',
+    color: 'var(--color-accent)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-extrabold)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = {
+    padding: 'var(--space-8) var(--space-12)',
+    color: 'var(--color-text)',
+    verticalAlign: 'top',
+};
+const tdMonospace = { ...td, fontFamily: 'monospace', fontSize: 'var(--font-size-sm)' };
+const tdActions = { ...td, textAlign: 'right' };
+const livePill = {
+    color: 'var(--color-success)',
+    fontWeight: 'var(--font-weight-extrabold)',
+    fontSize: 'var(--font-size-sm)',
+};
+const retiredPill = {
+    color: 'var(--color-text-subtle)',
+    fontSize: 'var(--font-size-sm)',
+};
+const primaryBtn = {
+    padding: 'var(--space-8) var(--space-16)',
+    background: 'var(--color-accent)',
+    color: 'var(--color-accent-on-accent)',
+    border: 'none',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-extrabold)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+};
+const subtleBtn = {
+    padding: 'var(--space-4) var(--space-12)',
+    background: 'transparent',
+    border: '1px solid var(--color-border-strong)',
+    color: 'var(--color-text-muted)',
+    fontSize: 'var(--font-size-sm)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    textDecoration: 'none',
+    display: 'inline-block',
+};
+const modalBg = {
+    position: 'fixed',
+    inset: 0,
+    background: 'var(--color-overlay-strong)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: 'var(--space-16)',
+};
+const modal = {
+    background: 'var(--color-bg-elevated)',
+    border: '1px solid var(--color-border-strong)',
+    padding: 'var(--space-24)',
+    width: '100%',
+    maxWidth: 560,
+    borderRadius: 'var(--radius-md)',
+    maxHeight: '92vh',
+    overflowY: 'auto',
+};
+const modalTitle = {
+    fontSize: 'var(--font-size-xl)',
+    fontWeight: 'var(--font-weight-extrabold)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+    color: 'var(--color-text)',
+    margin: '0 0 var(--space-12) 0',
+};
+const modalSha = {
+    color: 'var(--color-text-muted)',
+    fontSize: 'var(--font-size-sm)',
+    fontFamily: 'monospace',
+    marginBottom: 'var(--space-16)',
+};
+const modalActions = { display: 'flex', gap: 'var(--space-8)', marginTop: 'var(--space-16)' };
+const modalHint = {
+    color: 'var(--color-text-muted)',
+    fontSize: 'var(--font-size-sm)',
+    margin: 'var(--space-4) 0 var(--space-12)',
+};
+const errorText = {
+    color: 'var(--color-danger)',
+    fontSize: 'var(--font-size-sm)',
+    margin: 'var(--space-8) 0',
+};
+const contractBody = {
+    background: 'var(--color-bg-page)',
+    border: '1px solid var(--color-border)',
+    padding: 'var(--space-16)',
+    maxHeight: 420,
+    overflowY: 'auto',
+};
+const fieldLabel = { display: 'block', marginBottom: 'var(--space-12)' };
+const fieldLabelText = {
+    fontSize: 'var(--font-size-sm)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+    color: 'var(--color-accent)',
+    fontWeight: 'var(--font-weight-bold)',
+    marginBottom: 'var(--space-4)',
+};
