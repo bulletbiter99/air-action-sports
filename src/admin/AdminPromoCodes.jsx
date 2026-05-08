@@ -1,7 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import { formatMoney } from '../utils/money.js';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
+import FilterBar from '../components/admin/FilterBar.jsx';
+
+const ACTIVE_OPTIONS = [
+  { value: '1', label: 'Active' },
+  { value: '0', label: 'Inactive' },
+];
 
 const centsToDollars = (c) => formatMoney(c, { currency: '', emptyFor: '' });
 const dollarsToCents = (s) => {
@@ -20,7 +28,7 @@ function MoneyInput({ value, onChange, required, placeholder, style: extraStyle 
   }, [value]);
   return (
     <div style={{ position: 'relative' }}>
-      <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--olive-light)', fontSize: 13, pointerEvents: 'none' }}>$</span>
+      <span style={{ position: 'absolute', left: 'var(--space-8)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontSize: 'var(--font-size-base)', pointerEvents: 'none' }}>$</span>
       <input
         required={required}
         type="number"
@@ -43,11 +51,9 @@ export default function AdminPromoCodes() {
 
   const [events, setEvents] = useState([]);
   const [promoCodes, setPromoCodes] = useState([]);
-  const [filterActive, setFilterActive] = useState(''); // '' | '1' | '0'
-  const [filterEvent, setFilterEvent] = useState('');
-  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState({ active: '', event_id: '', q: '' });
   const [loadingList, setLoadingList] = useState(false);
-  const [editing, setEditing] = useState(null); // null | 'new' | promo
+  const [editing, setEditing] = useState(null);
 
   useEffect(() => {
     if (loading) return;
@@ -62,13 +68,13 @@ export default function AdminPromoCodes() {
   const load = useCallback(async () => {
     setLoadingList(true);
     const params = new URLSearchParams();
-    if (filterActive) params.set('active', filterActive);
-    if (filterEvent) params.set('event_id', filterEvent);
-    if (search.trim()) params.set('q', search.trim());
+    if (filters.active) params.set('active', filters.active);
+    if (filters.event_id) params.set('event_id', filters.event_id);
+    if (filters.q.trim()) params.set('q', filters.q.trim());
     const res = await fetch(`/api/admin/promo-codes?${params}`, { credentials: 'include', cache: 'no-store' });
     if (res.ok) setPromoCodes((await res.json()).promoCodes || []);
     setLoadingList(false);
-  }, [filterActive, filterEvent, search]);
+  }, [filters.active, filters.event_id, filters.q]);
 
   useEffect(() => { if (isAuthenticated) loadEvents(); }, [isAuthenticated, loadEvents]);
   useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
@@ -93,36 +99,62 @@ export default function AdminPromoCodes() {
     if (res.ok) load();
   };
 
+  const filterSchema = useMemo(() => [
+    {
+      key: 'active',
+      label: 'Status',
+      type: 'enum',
+      options: ACTIVE_OPTIONS,
+    },
+    {
+      key: 'event_id',
+      label: 'Event',
+      type: 'enum',
+      options: events.map((e) => ({ value: e.id, label: e.title })),
+    },
+  ], [events]);
+
   if (loading || !isAuthenticated) return null;
 
   const eventTitle = (id) => id ? events.find((e) => e.id === id)?.title || id : 'All events';
+  const isFiltered = Boolean(filters.active || filters.event_id || filters.q);
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={h1}>Promo Codes</h1>
-        {hasRole('manager') && <button onClick={() => setEditing('new')} style={primaryBtn}>+ New Code</button>}
-      </div>
+    <div style={pageWrap}>
+      <AdminPageHeader
+        title="Promo Codes"
+        description="Discount codes for events. Codes can be percent or fixed-amount, scoped to a single event or global, with optional usage caps and date windows."
+        primaryAction={hasRole('manager') && (
+          <button onClick={() => setEditing('new')} style={primaryBtn}>+ New Code</button>
+        )}
+      />
 
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-        <input type="search" placeholder="Search code…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...input, flex: 1, minWidth: 200 }} />
-        <select value={filterActive} onChange={(e) => setFilterActive(e.target.value)} style={input}>
-          <option value="">All status</option>
-          <option value="1">Active</option>
-          <option value="0">Inactive</option>
-        </select>
-        <select value={filterEvent} onChange={(e) => setFilterEvent(e.target.value)} style={input}>
-          <option value="">All events</option>
-          {events.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-        </select>
-      </div>
+      <FilterBar
+        schema={filterSchema}
+        value={filters}
+        onChange={setFilters}
+        searchValue={filters.q}
+        onSearchChange={(q) => setFilters((f) => ({ ...f, q }))}
+        searchPlaceholder="Search code…"
+        resultCount={promoCodes.length}
+        savedViewsKey="adminPromoCodes"
+      />
 
       <section style={tableBox}>
-        {loadingList && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
+        {loadingList && <EmptyState variant="loading" title="Loading promo codes…" compact />}
         {!loadingList && promoCodes.length === 0 && (
-          <p style={{ color: 'var(--olive-light)' }}>No promo codes. Create one above.</p>
+          <EmptyState
+            isFiltered={isFiltered}
+            title={isFiltered ? 'No codes match these filters' : 'No promo codes yet'}
+            description={isFiltered
+              ? 'Try clearing a filter or expanding the search.'
+              : 'Create your first promo code to give customers a discount.'}
+            action={hasRole('manager') && !isFiltered && (
+              <button onClick={() => setEditing('new')} style={primaryBtn}>+ New Code</button>
+            )}
+          />
         )}
-        {promoCodes.length > 0 && (
+        {!loadingList && promoCodes.length > 0 && (
           <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
@@ -138,38 +170,38 @@ export default function AdminPromoCodes() {
             <tbody>
               {promoCodes.map((p) => (
                 <tr key={p.id} style={tr}>
-                  <td style={{ ...td, fontFamily: 'monospace', fontWeight: 700 }}>{p.code}</td>
+                  <td style={tdCode}>{p.code}</td>
                   <td style={td}>
                     {p.discountType === 'percent'
                       ? `${p.discountValue}% off`
                       : `${formatMoney(p.discountValue)} off`}
-                    {p.minOrderCents ? <div style={{ fontSize: 10, color: 'var(--olive-light)' }}>min {formatMoney(p.minOrderCents)}</div> : null}
+                    {p.minOrderCents ? <div style={subRow}>min {formatMoney(p.minOrderCents)}</div> : null}
                   </td>
-                  <td style={{ ...td, fontSize: 12 }}>{eventTitle(p.eventId)}</td>
+                  <td style={tdSmall}>{eventTitle(p.eventId)}</td>
                   <td style={td}>
                     {p.usesCount}{p.maxUses != null ? ` / ${p.maxUses}` : ''}
                   </td>
-                  <td style={{ ...td, fontSize: 11 }}>
+                  <td style={tdSmaller}>
                     {p.startsAt ? <div>from {new Date(p.startsAt).toLocaleDateString()}</div> : null}
                     {p.expiresAt ? <div>to {new Date(p.expiresAt).toLocaleDateString()}</div> : null}
-                    {!p.startsAt && !p.expiresAt && <span style={{ color: 'var(--olive-light)' }}>—</span>}
+                    {!p.startsAt && !p.expiresAt && <span style={mutedText}>—</span>}
                   </td>
                   <td style={td}>
                     {p.active
-                      ? <span style={{ color: '#2ecc71', fontSize: 12 }}>Active</span>
-                      : <span style={{ color: 'var(--olive-light)', fontSize: 12 }}>Inactive</span>}
+                      ? <span style={statusActive}>Active</span>
+                      : <span style={statusInactive}>Inactive</span>}
                   </td>
                   <td style={td}>
                     {hasRole('manager') && (
                       <>
                         <button onClick={() => setEditing(p)} style={subtleBtn}>Edit</button>
-                        <button onClick={() => toggleActive(p)} style={{ ...subtleBtn, marginLeft: 6 }}>
+                        <button onClick={() => toggleActive(p)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>
                           {p.active ? 'Disable' : 'Enable'}
                         </button>
                       </>
                     )}
                     {hasRole('owner') && (
-                      <button onClick={() => del(p.id)} style={{ ...subtleBtn, marginLeft: 6 }}>Delete</button>
+                      <button onClick={() => del(p.id)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Delete</button>
                     )}
                   </td>
                 </tr>
@@ -237,8 +269,8 @@ function PromoForm({ promo, events, onClose, onSaved }) {
   return (
     <div style={modalBg} onClick={onClose}>
       <form style={modal} onClick={(e) => e.stopPropagation()} onSubmit={save}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, color: 'var(--cream)', fontSize: 14, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+        <div style={modalHeader}>
+          <h3 style={modalTitle}>
             {isNew ? 'New promo code' : `Edit: ${promo.code}`}
           </h3>
           <button type="button" onClick={onClose} style={subtleBtn}>Close</button>
@@ -253,7 +285,7 @@ function PromoForm({ promo, events, onClose, onSaved }) {
             {events.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
           </select>
         </Field>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={fieldRow}>
           <Field label="Discount type *">
             <select value={form.discountType} onChange={(e) => setForm({ ...form, discountType: e.target.value })} style={input}>
               <option value="percent">Percent (%)</option>
@@ -267,7 +299,7 @@ function PromoForm({ promo, events, onClose, onSaved }) {
             }
           </Field>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={fieldRow}>
           <Field label="Max uses (blank = unlimited)">
             <input type="number" value={form.maxUses} onChange={(e) => setForm({ ...form, maxUses: e.target.value })} style={input} />
           </Field>
@@ -275,7 +307,7 @@ function PromoForm({ promo, events, onClose, onSaved }) {
             <MoneyInput value={form.minOrderCents} onChange={(v) => setForm({ ...form, minOrderCents: v })} />
           </Field>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={fieldRow}>
           <Field label="Starts at">
             <input type="datetime-local" value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} style={input} />
           </Field>
@@ -283,14 +315,14 @@ function PromoForm({ promo, events, onClose, onSaved }) {
             <input type="datetime-local" value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} style={input} />
           </Field>
         </div>
-        <label style={{ color: 'var(--tan-light)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, margin: '10px 0' }}>
+        <label style={activeCheckbox}>
           <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
           Active
         </label>
 
-        {err && <div style={{ color: '#e74c3c', fontSize: 12, margin: '8px 0' }}>{err}</div>}
+        {err && <div style={errorText}>{err}</div>}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        <div style={modalActions}>
           <button type="submit" disabled={saving} style={primaryBtn}>{saving ? 'Saving…' : (isNew ? 'Create' : 'Save')}</button>
           <button type="button" onClick={onClose} style={subtleBtn}>Cancel</button>
         </div>
@@ -301,8 +333,8 @@ function PromoForm({ promo, events, onClose, onSaved }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: 'block', marginBottom: 10 }}>
-      <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 700, marginBottom: 4 }}>{label}</div>
+    <label style={fieldLabel}>
+      <div style={fieldLabelText}>{label}</div>
       {children}
     </label>
   );
@@ -314,14 +346,122 @@ function toLocalInput(ms) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
-const tableBox = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem' };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '10px 12px', color: 'var(--cream)', verticalAlign: 'top' };
-const primaryBtn = { padding: '10px 18px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
-const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
-const modal = { background: 'var(--mid)', border: '1px solid var(--color-border-strong)', padding: '1.5rem', width: '100%', maxWidth: 560, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
+const pageWrap = { maxWidth: 1200, margin: '0 auto', padding: 'var(--space-32)' };
+const input = {
+  padding: 'var(--space-8) var(--space-12)',
+  background: 'var(--color-bg-page)',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-base)',
+  fontFamily: 'inherit',
+  width: '100%',
+  boxSizing: 'border-box',
+};
+const tableBox = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-24)',
+  marginTop: 'var(--space-16)',
+};
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+  textAlign: 'left',
+  padding: 'var(--space-8) var(--space-12)',
+  borderBottom: '1px solid var(--color-border-strong)',
+  color: 'var(--color-accent)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = { padding: 'var(--space-8) var(--space-12)', color: 'var(--color-text)', verticalAlign: 'top' };
+const tdSmall = { ...td, fontSize: 'var(--font-size-sm)' };
+const tdSmaller = { ...td, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' };
+const tdCode = {
+  ...td,
+  fontFamily: 'monospace',
+  fontWeight: 'var(--font-weight-bold)',
+};
+const subRow = { fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' };
+const mutedText = { color: 'var(--color-text-muted)' };
+const statusActive = { color: 'var(--color-success)', fontSize: 'var(--font-size-sm)' };
+const statusInactive = { color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' };
+const primaryBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'var(--color-accent)',
+  color: 'var(--color-accent-on-accent)',
+  border: 'none',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const subtleBtn = {
+  padding: 'var(--space-4) var(--space-12)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const modalBg = {
+  position: 'fixed',
+  inset: 0,
+  background: 'var(--color-overlay-strong)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1000,
+  padding: 'var(--space-16)',
+};
+const modal = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border-strong)',
+  padding: 'var(--space-24)',
+  width: '100%',
+  maxWidth: 560,
+  borderRadius: 'var(--radius-md)',
+  maxHeight: '92vh',
+  overflowY: 'auto',
+};
+const modalHeader = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 'var(--space-16)',
+};
+const modalTitle = {
+  margin: 0,
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-md)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const modalActions = { display: 'flex', gap: 'var(--space-8)', marginTop: 'var(--space-16)' };
+const fieldRow = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-12)' };
+const errorText = {
+  color: 'var(--color-danger)',
+  fontSize: 'var(--font-size-sm)',
+  margin: 'var(--space-8) 0',
+};
+const activeCheckbox = {
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-base)',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-4)',
+  margin: 'var(--space-8) 0',
+};
+const fieldLabel = { display: 'block', marginBottom: 'var(--space-12)' };
+const fieldLabelText = {
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent)',
+  fontWeight: 'var(--font-weight-bold)',
+  marginBottom: 'var(--space-4)',
+};
