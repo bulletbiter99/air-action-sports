@@ -15,7 +15,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useFeatureFlag } from './useFeatureFlag';
 import { useTodayActive } from '../hooks/useWidgetData.js';
 import { SIDEBAR } from './sidebarConfig.js';
 import { commandsFromSidebar, filterCommands } from './commandRegistry.js';
@@ -24,16 +23,15 @@ export default function CommandPalette({ open, onClose }) {
     const navigate = useNavigate();
     const inputRef = useRef(null);
     const todayState = useTodayActive();
-    const { enabled: customersEnabled } = useFeatureFlag('customers_entity');
     const [query, setQuery] = useState('');
     const [activeIdx, setActiveIdx] = useState(0);
 
+    // M4 B12b removed the customers_entity flag plumbing — no sidebar
+    // item carries `requiresFlag` anymore; commandsFromSidebar's filter
+    // logic stays in place but receives no items to filter on flag.
     const commands = useMemo(
-        () => commandsFromSidebar(SIDEBAR, {
-            todayState,
-            flags: { customers_entity: customersEnabled },
-        }),
-        [todayState, customersEnabled],
+        () => commandsFromSidebar(SIDEBAR, { todayState }),
+        [todayState],
     );
 
     const filtered = useMemo(
