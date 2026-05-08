@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import ScrollToTop from './components/ScrollToTop';
@@ -44,7 +44,6 @@ const AdminRentalAssignments = lazy(() => import('./admin/AdminRentalAssignments
 const AdminEvents = lazy(() => import('./admin/AdminEvents'));
 const AdminPromoCodes = lazy(() => import('./admin/AdminPromoCodes'));
 const AdminAnalytics = lazy(() => import('./admin/AdminAnalytics'));
-const AdminUsers = lazy(() => import('./admin/AdminUsers'));
 const AdminAcceptInvite = lazy(() => import('./admin/AdminAcceptInvite'));
 const AdminAuditLog = lazy(() => import('./admin/AdminAuditLog'));
 const AdminSettings = lazy(() => import('./admin/AdminSettings'));
@@ -58,7 +57,32 @@ const AdminCustomers = lazy(() => import('./admin/AdminCustomers'));
 const AdminCustomerDetail = lazy(() => import('./admin/AdminCustomerDetail'));
 const AdminBookings = lazy(() => import('./admin/AdminBookings'));
 const AdminBookingsDetail = lazy(() => import('./admin/AdminBookingsDetail'));
+const AdminBookingChargeQueue = lazy(() => import('./admin/AdminBookingChargeQueue'));
 const AdminToday = lazy(() => import('./admin/AdminToday'));
+const AdminStaff = lazy(() => import('./admin/AdminStaff'));
+const AdminStaffDetail = lazy(() => import('./admin/AdminStaffDetail'));
+const AdminStaffLibrary = lazy(() => import('./admin/AdminStaffLibrary'));
+const AdminStaffDocumentEditor = lazy(() => import('./admin/AdminStaffDocumentEditor'));
+const AdminStaff1099Thresholds = lazy(() => import('./admin/AdminStaff1099Thresholds'));
+
+// Portal (M5 Batch 6) — Tier 3 light-access magic-link portal
+const PortalLayout = lazy(() => import('./portal/PortalLayout'));
+const PortalHome = lazy(() => import('./portal/PortalHome'));
+const PortalDocument = lazy(() => import('./portal/PortalDocument'));
+const PortalAccount = lazy(() => import('./portal/PortalAccount'));
+const PortalConsume = lazy(() => import('./portal/PortalConsume'));
+
+// Event-day mode (M5 Batches 12-15)
+const EventDayLayout = lazy(() => import('./event-day/EventDayLayout'));
+const EventDayHome = lazy(() => import('./event-day/EventDayHome'));
+const EventDayCheckIn = lazy(() => import('./event-day/CheckIn'));
+const EventDayRoster = lazy(() => import('./event-day/RosterLookup'));
+const EventDayIncident = lazy(() => import('./event-day/IncidentReport'));
+const EventDayEquipment = lazy(() => import('./event-day/EquipmentReturn'));
+const EventDayChecklist = lazy(() => import('./event-day/EventChecklist'));
+const EventDayHQ = lazy(() => import('./event-day/EventHQ'));
+const EventDayAttendeeDetail = lazy(() => import('./event-day/AttendeeDetail'));
+const EventDayWalkUp = lazy(() => import('./event-day/WalkUpBooking'));
 
 export default function App() {
   return (
@@ -90,6 +114,25 @@ export default function App() {
           <Route path="v/:token" element={<VendorPackage />} />
           <Route path="vendor/login" element={<VendorLogin />} />
           <Route path="vendor/dashboard" element={<VendorDashboard />} />
+          <Route path="portal/auth/consume" element={<PortalConsume />} />
+          <Route path="event" element={<EventDayLayout />}>
+            <Route index element={<EventDayHome />} />
+            <Route path="check-in" element={<EventDayCheckIn />} />
+            <Route path="attendee/:qrToken" element={<EventDayAttendeeDetail />} />
+            <Route path="walkup" element={<EventDayWalkUp />} />
+            <Route path="roster" element={<EventDayRoster />} />
+            <Route path="incident" element={<EventDayIncident />} />
+            <Route path="equipment-return" element={<EventDayEquipment />} />
+            <Route path="checklist" element={<EventDayChecklist />} />
+            <Route path="hq" element={<EventDayHQ />} />
+          </Route>
+          <Route path="portal" element={<PortalLayout />}>
+            <Route index element={<PortalHome />} />
+            <Route path="documents" element={<PortalDocument />} />
+            <Route path="documents/:id" element={<PortalDocument />} />
+            <Route path="account" element={<PortalAccount />} />
+            <Route path="auth/signed-out" element={<PortalConsume />} />
+          </Route>
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="login" element={<AdminLogin />} />
@@ -109,7 +152,9 @@ export default function App() {
             <Route path="events" element={<AdminEvents />} />
             <Route path="promo-codes" element={<AdminPromoCodes />} />
             <Route path="analytics" element={<AdminAnalytics />} />
-            <Route path="users" element={<AdminUsers />} />
+            {/* M5 R17: legacy /admin/users decommissioned. Staff management
+                lives at /admin/staff (M5 B4+). Bookmarked URLs redirect. */}
+            <Route path="users" element={<Navigate to="/admin/staff" replace />} />
             <Route path="accept-invite" element={<AdminAcceptInvite />} />
             <Route path="audit-log" element={<AdminAuditLog />} />
             <Route path="vendors" element={<AdminVendors />} />
@@ -122,6 +167,13 @@ export default function App() {
             <Route path="customers/:id" element={<AdminCustomerDetail />} />
             <Route path="bookings" element={<AdminBookings />} />
             <Route path="bookings/:id" element={<AdminBookingsDetail />} />
+            <Route path="booking-charges" element={<AdminBookingChargeQueue />} />
+            <Route path="staff" element={<AdminStaff />} />
+            <Route path="staff/:id" element={<AdminStaffDetail />} />
+            <Route path="staff/library" element={<AdminStaffLibrary />} />
+            <Route path="staff/library/new" element={<AdminStaffDocumentEditor />} />
+            <Route path="staff/library/:id" element={<AdminStaffDocumentEditor />} />
+            <Route path="staff/1099-thresholds" element={<AdminStaff1099Thresholds />} />
           </Route>
         </Routes>
       </Suspense>

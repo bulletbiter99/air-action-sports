@@ -95,7 +95,7 @@ function MobileTopbar({ onOpen }) {
 }
 
 function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
-  const { isAuthenticated } = useAdmin();
+  const { isAuthenticated, user } = useAdmin();
   const [badges, setBadges] = useState({ newFeedback: 0 });
   const loc = useLocation();
 
@@ -126,6 +126,7 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
         <NewSidebarNav
           badges={badges}
           onClose={onClose}
+          userRole={user?.role}
         />
       </nav>
       <ProfileMenu onOpenFeedback={onOpenFeedback} />
@@ -135,14 +136,16 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
 
 // M4 B5 — new sidebar implementation rendering the SIDEBAR config from
 // sidebarConfig.js. Filters items via getVisibleItems based on the
-// today-active state (from useTodayActive). Settings group expand /
-// collapse persists in localStorage. M4 B12b removed the customers_entity
-// flag plumbing (no sidebar item uses requiresFlag anymore).
-function NewSidebarNav({ badges, onClose }) {
+// today-active state (from useTodayActive) and (M5 B0) the user role
+// for capability-stub gating on Rentals / Roster / Scan items. Settings
+// group expand / collapse persists in localStorage. M4 B12b removed the
+// customers_entity flag plumbing (no sidebar item uses requiresFlag
+// anymore).
+function NewSidebarNav({ badges, onClose, userRole }) {
   const todayState = useTodayActive();
   const visibleEntries = useMemo(
-    () => getVisibleItems(SIDEBAR, { todayState }),
-    [todayState],
+    () => getVisibleItems(SIDEBAR, { todayState, userRole }),
+    [todayState, userRole],
   );
 
   return (

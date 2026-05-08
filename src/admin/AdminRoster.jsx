@@ -1,17 +1,24 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
+import FilterBar from '../components/admin/FilterBar.jsx';
+
+const WAIVER_FILTER_OPTIONS = [
+  { value: 'signed', label: 'Waiver signed' },
+  { value: 'unsigned', label: 'Waiver pending' },
+  { value: 'checked-in', label: 'Checked in' },
+];
 
 export default function AdminRoster() {
   const { isAuthenticated, loading } = useAdmin();
   const navigate = useNavigate();
 
   const [events, setEvents] = useState([]);
-  const [eventId, setEventId] = useState('');
+  const [filters, setFilters] = useState({ event_id: '', waiver_filter: '', q: '' });
   const [roster, setRoster] = useState(null);
   const [loadingRoster, setLoadingRoster] = useState(false);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all'); // all | signed | unsigned | checked-in
 
   useEffect(() => {
     if (loading) return;
@@ -25,42 +32,42 @@ export default function AdminRoster() {
     const list = data.events || [];
     setEvents(list);
     // Auto-select the next upcoming event (earliest by date, not past).
-    // Falls back to the most recent event if there are no upcoming ones —
-    // that's the current admin's most likely pick when reviewing post-event.
-    if (list.length && !eventId) {
+    // Falls back to the most recent event if there are no upcoming ones.
+    setFilters((prev) => {
+      if (prev.event_id || !list.length) return prev;
       const upcoming = list
         .filter((e) => !e.past)
         .sort((a, b) => (a.dateIso || '').localeCompare(b.dateIso || ''));
-      if (upcoming.length) setEventId(upcoming[0].id);
-      else setEventId(list[0].id); // server returns DESC by date — list[0] is most recent
-    }
-  }, [eventId]);
+      const pick = upcoming.length ? upcoming[0].id : list[0].id;
+      return { ...prev, event_id: pick };
+    });
+  }, []);
 
   const loadRoster = useCallback(async () => {
-    if (!eventId) return;
+    if (!filters.event_id) return;
     setLoadingRoster(true);
-    const res = await fetch(`/api/admin/events/${eventId}/roster`, { credentials: 'include', cache: 'no-store' });
+    const res = await fetch(`/api/admin/events/${filters.event_id}/roster`, { credentials: 'include', cache: 'no-store' });
     if (res.ok) setRoster(await res.json());
     setLoadingRoster(false);
-  }, [eventId]);
+  }, [filters.event_id]);
 
   useEffect(() => { if (isAuthenticated) loadEvents(); }, [isAuthenticated, loadEvents]);
-  useEffect(() => { if (eventId) loadRoster(); }, [eventId, loadRoster]);
+  useEffect(() => { if (filters.event_id) loadRoster(); }, [filters.event_id, loadRoster]);
 
   const filtered = useMemo(() => {
     if (!roster?.attendees) return [];
-    const q = search.trim().toLowerCase();
+    const q = filters.q.trim().toLowerCase();
     return roster.attendees.filter((a) => {
-      if (filter === 'signed' && !a.waiverSigned) return false;
-      if (filter === 'unsigned' && a.waiverSigned) return false;
-      if (filter === 'checked-in' && !a.checkedInAt) return false;
+      if (filters.waiver_filter === 'signed' && !a.waiverSigned) return false;
+      if (filters.waiver_filter === 'unsigned' && a.waiverSigned) return false;
+      if (filters.waiver_filter === 'checked-in' && !a.checkedInAt) return false;
       if (q) {
         const hay = `${a.firstName} ${a.lastName || ''} ${a.email || ''} ${a.buyerName || ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [roster, search, filter]);
+  }, [roster, filters.q, filters.waiver_filter]);
 
   const stats = useMemo(() => {
     if (!roster?.attendees) return null;
@@ -72,8 +79,8 @@ export default function AdminRoster() {
   }, [roster]);
 
   const downloadCsv = () => {
-    if (!eventId) return;
-    window.location.href = `/api/admin/events/${eventId}/roster.csv`;
+    if (!filters.event_id) return;
+    window.location.href = `/api/admin/events/${filters.event_id}/roster.csv`;
   };
 
   const checkIn = async (attendeeId) => {
@@ -104,55 +111,83 @@ export default function AdminRoster() {
     }
   };
 
+  const filterSchema = useMemo(() => [
+    {
+      key: 'event_id',
+      label: 'Event',
+      type: 'enum',
+      options: events.map((ev) => ({
+        value: ev.id,
+        label: `${ev.title} — ${ev.displayDate} (${ev.attendeesCount || 0})`,
+      })),
+    },
+    {
+      key: 'waiver_filter',
+      label: 'Show only',
+      type: 'enum',
+      options: WAIVER_FILTER_OPTIONS,
+    },
+  ], [events]);
+
   if (loading || !isAuthenticated) return null;
 
   const customQuestions = roster?.event?.customQuestions || [];
+  const isFiltered = Boolean(filters.q || filters.waiver_filter);
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      <h1 style={h1}>Event Roster</h1>
+    <div style={pageWrap}>
+      <AdminPageHeader
+        title="Event Roster"
+        description="Players signed up for the selected event. Check players in, send waiver reminders, or export a CSV."
+        primaryAction={
+          <button onClick={downloadCsv} style={csvBtn} disabled={!filters.event_id}>
+            ▼ Export CSV
+          </button>
+        }
+      />
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
-        <select value={eventId} onChange={(e) => setEventId(e.target.value)} style={input}>
-          {events.map((ev) => (
-            <option key={ev.id} value={ev.id}>
-              {ev.title} — {ev.displayDate} ({ev.attendeesCount || 0} players)
-            </option>
-          ))}
-        </select>
-        <input
-          type="search"
-          placeholder="Search name, email, buyer…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ ...input, flex: 1, minWidth: 200 }}
-        />
-        <select value={filter} onChange={(e) => setFilter(e.target.value)} style={input}>
-          <option value="all">All players</option>
-          <option value="signed">Waiver signed</option>
-          <option value="unsigned">Waiver pending</option>
-          <option value="checked-in">Checked in</option>
-        </select>
-        <button onClick={downloadCsv} style={csvBtn} disabled={!eventId}>
-          ▼ CSV
-        </button>
-      </div>
+      <FilterBar
+        schema={filterSchema}
+        value={filters}
+        onChange={setFilters}
+        searchValue={filters.q}
+        onSearchChange={(q) => setFilters((f) => ({ ...f, q }))}
+        searchPlaceholder="Search name, email, buyer…"
+        resultCount={filtered.length}
+        savedViewsKey="adminRoster"
+      />
 
       {stats && (
         <div style={statsGrid}>
           <Stat label="Players" value={stats.total} />
-          <Stat label="Waiver signed" value={`${stats.signed} / ${stats.total}`} sub={stats.total === 0 ? '—' : `${Math.round(stats.signed / stats.total * 100)}%`} />
+          <Stat
+            label="Waiver signed"
+            value={`${stats.signed} / ${stats.total}`}
+            sub={stats.total === 0 ? '—' : `${Math.round(stats.signed / stats.total * 100)}%`}
+          />
           <Stat label="Checked in" value={stats.checked} />
           <Stat label="Comp" value={stats.comp} />
         </div>
       )}
 
       <section style={tableBox}>
-        {loadingRoster && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
-        {!loadingRoster && filtered.length === 0 && (
-          <p style={{ color: 'var(--olive-light)' }}>No players match the current filter.</p>
+        {loadingRoster && <EmptyState variant="loading" title="Loading roster…" compact />}
+        {!loadingRoster && !roster && (
+          <EmptyState
+            title="Pick an event to load its roster"
+            description="Use the Event filter above to load attendees for the selected event."
+          />
         )}
-        {filtered.length > 0 && (
+        {!loadingRoster && roster && filtered.length === 0 && (
+          <EmptyState
+            isFiltered={isFiltered}
+            title={isFiltered ? 'No players match these filters' : 'No players signed up yet'}
+            description={isFiltered
+              ? 'Try clearing a filter or expanding the search.'
+              : 'When customers book, attendees will appear here.'}
+          />
+        )}
+        {!loadingRoster && filtered.length > 0 && (
           <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
@@ -172,15 +207,15 @@ export default function AdminRoster() {
                   <td style={td}>{i + 1}</td>
                   <td style={td}>
                     <strong>{a.firstName} {a.lastName || ''}</strong>
-                    {a.isMinor && <span style={{ marginLeft: 6, fontSize: 10, color: '#e67e22', fontWeight: 700 }}>MINOR</span>}
+                    {a.isMinor && <span style={minorBadge}>MINOR</span>}
                     {customQuestions.length > 0 && a.customAnswers && Object.keys(a.customAnswers).length > 0 && (
-                      <div style={{ marginTop: 4, fontSize: 10, color: 'var(--olive-light)', lineHeight: 1.5 }}>
+                      <div style={customAnswersBlock}>
                         {customQuestions.map((q) => {
                           const v = a.customAnswers[q.key];
                           if (v === undefined || v === null || v === '') return null;
                           return (
                             <div key={q.key}>
-                              <span style={{ color: 'var(--tan)' }}>{q.label}:</span> {String(v)}
+                              <span style={{ color: 'var(--color-text-subtle)' }}>{q.label}:</span> {String(v)}
                             </div>
                           );
                         })}
@@ -192,10 +227,10 @@ export default function AdminRoster() {
                   <td style={td}>{a.ticketType || '—'}</td>
                   <td style={td}>
                     {a.waiverSigned
-                      ? <span style={{ color: '#2ecc71' }}>✓ Signed</span>
+                      ? <span style={waiverSigned}>✓ Signed</span>
                       : (
                         <div>
-                          <span style={{ color: 'var(--olive-light)' }}>Pending</span>
+                          <span style={{ color: 'var(--color-text-muted)' }}>Pending</span>
                           <button onClick={() => sendWaiver(a.id)} style={sendBtn}>✉ Send</button>
                         </div>
                       )}
@@ -203,17 +238,19 @@ export default function AdminRoster() {
                   <td style={td}>
                     {a.checkedInAt ? (
                       <div>
-                        <span style={{ color: '#2ecc71', fontWeight: 700 }}>✓ {new Date(a.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span style={checkedInTime}>
+                          ✓ {new Date(a.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                         <button onClick={() => checkOut(a.id)} style={undoBtn}>undo</button>
                       </div>
                     ) : (
                       <button onClick={() => checkIn(a.id)} style={checkInBtn}>Check In</button>
                     )}
                   </td>
-                  <td style={{ ...td, fontSize: 11 }}>
-                    <div style={{ color: 'var(--olive-light)' }}>{a.buyerName}</div>
-                    <div style={{ color: 'var(--tan)', fontSize: 10, fontFamily: 'monospace' }}>{a.bookingId}</div>
-                    {a.bookingStatus === 'comp' && <span style={{ display: 'inline-block', marginTop: 2, fontSize: 9, fontWeight: 800, color: '#9b59b6' }}>COMP</span>}
+                  <td style={tdSmall}>
+                    <div style={{ color: 'var(--color-text-muted)' }}>{a.buyerName}</div>
+                    <div style={bookingIdMono}>{a.bookingId}</div>
+                    {a.bookingStatus === 'comp' && <span style={compBadge}>COMP</span>}
                   </td>
                 </tr>
               ))}
@@ -228,32 +265,131 @@ export default function AdminRoster() {
 function Stat({ label, value, sub }) {
   return (
     <div style={statCard}>
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: 'var(--orange)', textTransform: 'uppercase' }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--cream)', margin: '6px 0 2px' }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: 'var(--olive-light)' }}>{sub}</div>}
+      <div style={statLabel}>{label}</div>
+      <div style={statValue}>{value}</div>
+      {sub && <div style={statSub}>{sub}</div>}
     </div>
   );
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: '0 0 1.5rem' };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', minWidth: 200 };
-const csvBtn = { padding: '10px 18px', background: 'var(--olive)', border: '1px solid var(--olive-light)', color: 'var(--cream)', fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' };
-const statsGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 };
-const statCard = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.25rem' };
-const tableBox = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem' };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '10px 12px', color: 'var(--cream)' };
+const pageWrap = { maxWidth: 1200, margin: '0 auto', padding: 'var(--space-32)' };
+const csvBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'var(--color-bg-sunken)',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wider)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const statsGrid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+  gap: 'var(--space-16)',
+  marginTop: 'var(--space-16)',
+  marginBottom: 'var(--space-24)',
+};
+const statCard = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-16)',
+};
+const statLabel = {
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wider)',
+  color: 'var(--color-accent)',
+  textTransform: 'uppercase',
+};
+const statValue = {
+  fontSize: 'var(--font-size-2xl)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  color: 'var(--color-text)',
+  margin: 'var(--space-4) 0 var(--space-4)',
+};
+const statSub = { fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' };
+const tableBox = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-24)',
+  marginTop: 'var(--space-16)',
+};
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+  textAlign: 'left',
+  padding: 'var(--space-8) var(--space-12)',
+  borderBottom: '1px solid var(--color-border-strong)',
+  color: 'var(--color-accent)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = { padding: 'var(--space-8) var(--space-12)', color: 'var(--color-text)' };
+const tdSmall = { ...td, fontSize: 'var(--font-size-sm)' };
+const minorBadge = {
+  marginLeft: 'var(--space-4)',
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-warning)',
+  fontWeight: 'var(--font-weight-bold)',
+};
+const customAnswersBlock = {
+  marginTop: 'var(--space-4)',
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-muted)',
+  lineHeight: 'var(--line-height-relaxed)',
+};
+const waiverSigned = { color: 'var(--color-success)' };
+const checkedInTime = {
+  color: 'var(--color-success)',
+  fontWeight: 'var(--font-weight-bold)',
+};
+const compBadge = {
+  display: 'inline-block',
+  marginTop: 'var(--space-4)',
+  fontSize: 'var(--font-size-xs)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  color: '#9b59b6',
+  letterSpacing: 'var(--letter-spacing-wide)',
+};
+const bookingIdMono = {
+  color: 'var(--color-text-subtle)',
+  fontSize: 'var(--font-size-xs)',
+  fontFamily: 'monospace',
+};
 const checkInBtn = {
-  padding: '6px 14px', background: 'var(--orange)', color: '#fff', border: 'none',
-  fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer',
+  padding: 'var(--space-4) var(--space-12)',
+  background: 'var(--color-accent)',
+  color: 'var(--color-accent-on-accent)',
+  border: 'none',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
 };
 const undoBtn = {
-  marginLeft: 8, padding: '2px 8px', background: 'transparent', border: '1px solid rgba(200,184,154,0.2)',
-  color: 'var(--olive-light)', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer',
+  marginLeft: 'var(--space-4)',
+  padding: 'var(--space-4) var(--space-8)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-xs)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
 };
 const sendBtn = {
-  marginLeft: 8, padding: '2px 8px', background: 'transparent', border: '1px solid rgba(212,84,26,0.4)',
-  color: 'var(--orange)', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer',
+  marginLeft: 'var(--space-4)',
+  padding: 'var(--space-4) var(--space-8)',
+  background: 'transparent',
+  border: '1px solid var(--color-accent)',
+  color: 'var(--color-accent)',
+  fontSize: 'var(--font-size-xs)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
 };

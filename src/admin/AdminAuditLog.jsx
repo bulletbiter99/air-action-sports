@@ -1,8 +1,21 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
+import FilterBar from '../components/admin/FilterBar.jsx';
 
-const TARGET_TYPES = ['', 'booking', 'attendee', 'user', 'event', 'ticket_type', 'promo_code', 'invitation', 'rental_item', 'rental_assignment'];
+const TARGET_TYPE_OPTIONS = [
+  { value: 'booking', label: 'Booking' },
+  { value: 'attendee', label: 'Attendee' },
+  { value: 'user', label: 'User' },
+  { value: 'event', label: 'Event' },
+  { value: 'ticket_type', label: 'Ticket type' },
+  { value: 'promo_code', label: 'Promo code' },
+  { value: 'invitation', label: 'Invitation' },
+  { value: 'rental_item', label: 'Rental item' },
+  { value: 'rental_assignment', label: 'Rental assignment' },
+];
 
 export default function AdminAuditLog() {
   const { isAuthenticated, loading } = useAdmin();
@@ -47,7 +60,15 @@ export default function AdminAuditLog() {
   useEffect(() => { if (isAuthenticated) loadActions(); }, [isAuthenticated, loadActions]);
   useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
 
-  const updateFilter = (k, v) => { setFilters((f) => ({ ...f, [k]: v })); setOffset(0); };
+  const handleFilterChange = (next) => {
+    setFilters((prev) => ({ ...prev, ...next }));
+    setOffset(0);
+  };
+
+  const handleSearchChange = (q) => {
+    setFilters((f) => ({ ...f, q }));
+    setOffset(0);
+  };
 
   const toggleExpand = (id) => {
     setExpanded((s) => {
@@ -57,49 +78,70 @@ export default function AdminAuditLog() {
     });
   };
 
+  const filterSchema = useMemo(() => [
+    {
+      key: 'action',
+      label: 'Action',
+      type: 'enum',
+      options: actions.map((a) => ({ value: a, label: a })),
+    },
+    {
+      key: 'target_type',
+      label: 'Target',
+      type: 'enum',
+      options: TARGET_TYPE_OPTIONS,
+    },
+  ], [actions]);
+
   if (loading || !isAuthenticated) return null;
 
+  const isFiltered = Boolean(filters.action || filters.target_type || filters.q);
   const page = Math.floor(offset / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      <h1 style={h1}>Audit Log</h1>
-      <p style={{ color: 'var(--olive-light)', fontSize: 13, marginBottom: 16 }}>
-        Every admin action that mutates state is recorded here. Use filters to narrow down.
-      </p>
+    <div style={pageWrap}>
+      <AdminPageHeader
+        title="Audit Log"
+        description="Every admin action that mutates state is recorded here. Use filters to narrow down."
+        breadcrumb={[{ label: 'Settings', to: '/admin/settings' }, { label: 'Audit Log' }]}
+      />
 
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-        <select value={filters.action} onChange={(e) => updateFilter('action', e.target.value)} style={input}>
-          <option value="">All actions ({actions.length})</option>
-          {actions.map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <select value={filters.target_type} onChange={(e) => updateFilter('target_type', e.target.value)} style={input}>
-          {TARGET_TYPES.map((t) => <option key={t} value={t}>{t || 'All targets'}</option>)}
-        </select>
-        <input
-          type="search" placeholder="Search target ID or metadata…"
-          value={filters.q} onChange={(e) => updateFilter('q', e.target.value)}
-          style={{ ...input, flex: 1, minWidth: 200 }}
-        />
-      </div>
+      <FilterBar
+        schema={filterSchema}
+        value={filters}
+        onChange={handleFilterChange}
+        searchValue={filters.q}
+        onSearchChange={handleSearchChange}
+        searchPlaceholder="Search target ID or metadata…"
+        resultCount={total}
+        savedViewsKey="adminAuditLog"
+      />
 
       <section style={tableBox}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ color: 'var(--olive-light)', fontSize: 12 }}>
-            {total} {total === 1 ? 'entry' : 'entries'} · page {page} of {totalPages}
+        <div style={tableHeader}>
+          <div style={paginationLabel}>
+            page {page} of {totalPages}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={paginationControls}>
             <button onClick={() => setOffset(Math.max(0, offset - limit))} disabled={offset === 0} style={subtleBtn}>← Prev</button>
             <button onClick={() => setOffset(offset + limit)} disabled={offset + limit >= total} style={subtleBtn}>Next →</button>
           </div>
         </div>
 
-        {loadingList && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
-        {!loadingList && entries.length === 0 && (
-          <p style={{ color: 'var(--olive-light)' }}>No entries match the current filter.</p>
+        {loadingList && (
+          <EmptyState variant="loading" title="Loading audit log…" />
         )}
-        {entries.length > 0 && (
+        {!loadingList && entries.length === 0 && (
+          <EmptyState
+            isFiltered={isFiltered}
+            title={isFiltered ? 'No entries match these filters' : 'No audit entries yet'}
+            description={isFiltered
+              ? 'Try clearing a filter or expanding the date range.'
+              : 'As admins perform actions, they will appear here.'}
+          />
+        )}
+        {!loadingList && entries.length > 0 && (
           <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
@@ -132,19 +174,19 @@ function AuditRow({ entry: e, expanded, onToggle }) {
   return (
     <>
       <tr style={tr}>
-        <td style={{ ...td, fontSize: 11, color: 'var(--olive-light)', whiteSpace: 'nowrap' }}>
+        <td style={tdTimestamp}>
           {new Date(e.createdAt).toLocaleString()}
         </td>
         <td style={td}>
           {e.userName
-            ? <><strong>{e.userName}</strong><div style={{ fontSize: 10, color: 'var(--olive-light)' }}>{e.userEmail}</div></>
-            : <span style={{ color: 'var(--olive-light)' }}>system</span>}
+            ? <><strong>{e.userName}</strong><div style={subRow}>{e.userEmail}</div></>
+            : <span style={mutedText}>system</span>}
         </td>
         <td style={td}>
           <ActionBadge action={e.action} />
         </td>
-        <td style={{ ...td, fontSize: 11, fontFamily: 'monospace' }}>
-          {e.targetType && <span style={{ color: 'var(--olive-light)', textTransform: 'uppercase', fontSize: 9, letterSpacing: 1, marginRight: 6 }}>{e.targetType}</span>}
+        <td style={tdTarget}>
+          {e.targetType && <span style={targetTypeLabel}>{e.targetType}</span>}
           {e.targetId}
         </td>
         <td style={td}>
@@ -155,11 +197,8 @@ function AuditRow({ entry: e, expanded, onToggle }) {
       </tr>
       {expanded && hasMeta && (
         <tr>
-          <td colSpan={5} style={{ padding: 0, background: 'rgba(0,0,0,0.2)' }}>
-            <pre style={{
-              margin: 0, padding: '10px 14px', fontSize: 11,
-              color: 'var(--tan-light)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            }}>{JSON.stringify(e.meta, null, 2)}</pre>
+          <td colSpan={5} style={metaRow}>
+            <pre style={metaPre}>{JSON.stringify(e.meta, null, 2)}</pre>
           </td>
         </tr>
       )}
@@ -169,6 +208,8 @@ function AuditRow({ entry: e, expanded, onToggle }) {
 
 function ActionBadge({ action }) {
   const [category] = action.split('.');
+  // Domain-specific badge colors stay raw — the per-category coloring
+  // is intentional information density, not a design-token target.
   const colors = {
     booking: '#2ecc71',
     attendee: '#3498db',
@@ -183,17 +224,77 @@ function ActionBadge({ action }) {
     reminder: '#16a085',
     reminder_1hr: '#16a085',
   };
-  const fg = colors[category] || 'var(--tan-light)';
+  const fg = colors[category] || 'var(--color-text-muted)';
   return (
-    <span style={{ color: fg, fontSize: 12, fontFamily: 'monospace' }}>{action}</span>
+    <span style={{ color: fg, fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{action}</span>
   );
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: '0 0 0.5rem' };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit' };
-const tableBox = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem' };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '10px 12px', color: 'var(--cream)', verticalAlign: 'top' };
-const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
+const pageWrap = { maxWidth: 1200, margin: '0 auto', padding: 'var(--space-32)' };
+const tableBox = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-24)',
+  marginTop: 'var(--space-16)',
+};
+const tableHeader = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 'var(--space-12)',
+};
+const paginationLabel = { color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' };
+const paginationControls = { display: 'flex', gap: 'var(--space-8)' };
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+  textAlign: 'left',
+  padding: 'var(--space-8) var(--space-12)',
+  borderBottom: '1px solid var(--color-border-strong)',
+  color: 'var(--color-accent)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = { padding: 'var(--space-8) var(--space-12)', color: 'var(--color-text)', verticalAlign: 'top' };
+const tdTimestamp = {
+  ...td,
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-muted)',
+  whiteSpace: 'nowrap',
+};
+const tdTarget = {
+  ...td,
+  fontSize: 'var(--font-size-xs)',
+  fontFamily: 'monospace',
+};
+const targetTypeLabel = {
+  color: 'var(--color-text-muted)',
+  textTransform: 'uppercase',
+  fontSize: 'var(--font-size-xs)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  marginRight: 'var(--space-4)',
+};
+const subRow = { fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' };
+const mutedText = { color: 'var(--color-text-muted)' };
+const metaRow = { padding: 0, background: 'var(--color-bg-sunken)' };
+const metaPre = {
+  margin: 0,
+  padding: 'var(--space-8) var(--space-12)',
+  fontSize: 'var(--font-size-sm)',
+  color: 'var(--color-text-muted)',
+  fontFamily: 'monospace',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+};
+const subtleBtn = {
+  padding: 'var(--space-4) var(--space-12)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};

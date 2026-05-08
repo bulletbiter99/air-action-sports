@@ -1,8 +1,30 @@
 import { verifySession, parseCookieHeader } from './session.js';
+import { parsePortalCookieHeader } from './portalSession.js';
 
 export async function requireAuth(c, next) {
     const cookieHeader = c.req.header('cookie');
     const token = parseCookieHeader(cookieHeader);
+
+    // Strict separation (M5 R6): if the caller presents a portal cookie
+    // (`aas_portal_session`) but NOT an admin cookie (`aas_session`),
+    // return 403 with a wrong-cookie-type hint rather than the generic
+    // 401. This is per the Surface 4a separation contract — portal users
+    // hitting /admin/* should be told they're on the wrong door, not
+    // bounced through the admin login flow.
+    //
+    // F57 (no cookie at all) still returns 401 — that path is unchanged.
+    if (!token) {
+        const portalCookie = parsePortalCookieHeader(cookieHeader);
+        if (portalCookie) {
+            return c.json({
+                error: 'Wrong session type for /admin route',
+                hint: 'You are signed in to the portal. Use /admin/login for admin access.',
+                portalCookieDetected: true,
+            }, 403);
+        }
+        return c.json({ error: 'Not authenticated' }, 401);
+    }
+
     const session = await verifySession(token, c.env.SESSION_SECRET);
     if (!session) return c.json({ error: 'Not authenticated' }, 401);
 

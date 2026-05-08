@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
 
 const EMPTY = {
   name: '', shortLabel: '', category: 'tax',
@@ -15,7 +17,7 @@ export default function AdminTaxesFees() {
 
   const [rows, setRows] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
-  const [editing, setEditing] = useState(null); // existing row or EMPTY
+  const [editing, setEditing] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -74,21 +76,17 @@ export default function AdminTaxesFees() {
   const fees = rows.filter((r) => r.category === 'fee');
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-        <div>
-          <h1 style={h1}>Taxes &amp; Fees</h1>
-          <p style={{ color: 'var(--olive-light)', fontSize: 13, marginTop: 4 }}>
-            Global taxes and fees. Active entries are applied to every checkout.
-            Customer sees a single <strong>Taxes &amp; Fees</strong> line — this breakdown is admin-only.
-          </p>
-        </div>
-        <button style={newBtn} onClick={() => setEditing(EMPTY)}>▶ Add New</button>
-      </div>
+    <div style={pageWrap}>
+      <AdminPageHeader
+        title="Taxes & Fees"
+        description="Global taxes and fees. Active entries are applied to every checkout. Customer sees a single Taxes & Fees line — this breakdown is admin-only."
+        breadcrumb={[{ label: 'Settings', to: '/admin/settings' }, { label: 'Taxes & Fees' }]}
+        primaryAction={<button style={primaryBtn} onClick={() => setEditing(EMPTY)}>+ Add New</button>}
+      />
 
       {error && <div style={errBanner}>{error}</div>}
 
-      {loadingList && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
+      {loadingList && <EmptyState variant="loading" title="Loading taxes & fees…" compact />}
 
       <Group title="Taxes" rows={taxes} onEdit={setEditing} onToggle={toggleActive} onDelete={remove} hasRole={hasRole} />
       <Group title="Fees" rows={fees} onEdit={setEditing} onToggle={toggleActive} onDelete={remove} hasRole={hasRole} />
@@ -102,7 +100,13 @@ function Group({ title, rows, onEdit, onToggle, onDelete, hasRole }) {
   return (
     <section style={section}>
       <h2 style={h2}>{title}</h2>
-      {rows.length === 0 && <p style={{ color: 'var(--olive-light)', fontSize: 13 }}>None configured.</p>}
+      {rows.length === 0 && (
+        <EmptyState
+          title={`No ${title.toLowerCase()} configured`}
+          description={`Click "+ Add New" to create a ${title.slice(0, -1).toLowerCase()}.`}
+          compact
+        />
+      )}
       {rows.length > 0 && (
         <div className="admin-table-wrap"><table style={table}>
           <thead>
@@ -126,17 +130,17 @@ function Group({ title, rows, onEdit, onToggle, onDelete, hasRole }) {
                 </td>
                 <td style={td}>
                   <strong>{r.name}</strong>
-                  {r.shortLabel && <div style={{ fontSize: 11, color: 'var(--olive-light)' }}>{r.shortLabel}</div>}
-                  {r.description && <div style={{ fontSize: 11, color: 'var(--olive-light)', marginTop: 4 }}>{r.description}</div>}
+                  {r.shortLabel && <div style={subRow}>{r.shortLabel}</div>}
+                  {r.description && <div style={{ ...subRow, marginTop: 'var(--space-4)' }}>{r.description}</div>}
                 </td>
                 <td style={td}>{r.percentDisplay || '—'}</td>
                 <td style={td}>{r.fixedDisplay || '—'}</td>
                 <td style={td}>{r.perUnit}</td>
                 <td style={td}>{r.appliesTo}</td>
-                <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <td style={tdActions}>
                   <button style={editBtn} onClick={() => onEdit(r)}>Edit</button>
                   {hasRole('owner') && (
-                    <button style={{ ...editBtn, marginLeft: 6, color: '#ff8a7e', borderColor: 'rgba(231,76,60,0.3)' }} onClick={() => onDelete(r)}>Delete</button>
+                    <button style={deleteBtn} onClick={() => onDelete(r)}>Delete</button>
                   )}
                 </td>
               </tr>
@@ -177,7 +181,7 @@ function EditModal({ row, onClose, onSave }) {
   return (
     <div style={modalBack} onClick={onClose}>
       <div style={modalCard} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ fontSize: 20, fontWeight: 900, color: 'var(--cream)', margin: '0 0 1rem', textTransform: 'uppercase', letterSpacing: '-0.5px' }}>
+        <h3 style={modalTitle}>
           {isNew ? 'Add Tax or Fee' : `Edit — ${row.name}`}
         </h3>
         <form onSubmit={submit}>
@@ -187,7 +191,7 @@ function EditModal({ row, onClose, onSave }) {
           <Field label="Short label (admin-only, optional)">
             <input type="text" value={form.shortLabel || ''} onChange={(e) => setForm({ ...form, shortLabel: e.target.value })} style={input} />
           </Field>
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={fieldRow}>
             <Field label="Category">
               <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} style={input}>
                 <option value="tax">Tax</option>
@@ -209,16 +213,16 @@ function EditModal({ row, onClose, onSave }) {
               <option value="addons">Add-ons only</option>
             </select>
           </Field>
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={fieldRow}>
             <Field label="Percent rate">
               <div style={{ position: 'relative' }}>
                 <input type="number" step="0.01" min="0" value={form.percentInput} onChange={(e) => setForm({ ...form, percentInput: e.target.value })} style={{ ...input, paddingRight: 28 }} />
-                <span style={{ position: 'absolute', right: 10, top: 10, color: 'var(--olive-light)' }}>%</span>
+                <span style={inputSuffixR}>%</span>
               </div>
             </Field>
             <Field label="Fixed amount ($)">
               <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 10, top: 10, color: 'var(--olive-light)' }}>$</span>
+                <span style={inputSuffixL}>$</span>
                 <input type="number" step="0.01" min="0" value={form.fixedInput} onChange={(e) => setForm({ ...form, fixedInput: e.target.value })} style={{ ...input, paddingLeft: 22 }} />
               </div>
             </Field>
@@ -229,13 +233,13 @@ function EditModal({ row, onClose, onSave }) {
           <Field label="Description (admin notes)">
             <textarea value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} style={{ ...input, width: '100%', resize: 'vertical', fontFamily: 'inherit' }} />
           </Field>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', color: 'var(--cream)', fontSize: 13 }}>
-            <input type="checkbox" checked={!!form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} style={{ accentColor: 'var(--orange)' }} />
+          <label style={activeCheckbox}>
+            <input type="checkbox" checked={!!form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} style={{ accentColor: 'var(--color-accent)' }} />
             Active — charge to customers now
           </label>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+          <div style={modalActions}>
             <button type="button" onClick={onClose} style={cancelBtn}>Cancel</button>
-            <button type="submit" style={saveBtn}>{isNew ? 'Create' : 'Save'}</button>
+            <button type="submit" style={primaryBtn}>{isNew ? 'Create' : 'Save'}</button>
           </div>
         </form>
       </div>
@@ -245,30 +249,174 @@ function EditModal({ row, onClose, onSave }) {
 
 function Field({ label, children }) {
   return (
-    <div style={{ flex: 1, marginBottom: 12 }}>
+    <div style={{ flex: 1, marginBottom: 'var(--space-12)' }}>
       <label style={lbl}>{label}</label>
       {children}
     </div>
   );
 }
 
-// styles
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
-const h2 = { fontSize: 14, fontWeight: 800, letterSpacing: 2, color: 'var(--orange)', textTransform: 'uppercase', margin: '0 0 16px' };
-const newBtn = { padding: '10px 22px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' };
-const section = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem', marginBottom: 24 };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '8px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '12px', color: 'var(--cream)', verticalAlign: 'top' };
-const pill = { padding: '3px 10px', fontSize: 10, fontWeight: 800, letterSpacing: 1, border: '1px solid', cursor: 'pointer', fontFamily: 'inherit' };
-const pillOn = { background: 'rgba(39,174,96,0.15)', color: '#2ecc71', borderColor: 'rgba(39,174,96,0.5)' };
-const pillOff = { background: 'rgba(149,165,166,0.15)', color: '#95a5a6', borderColor: 'rgba(149,165,166,0.5)' };
-const editBtn = { padding: '4px 10px', background: 'transparent', border: '1px solid rgba(200,184,154,0.3)', color: 'var(--tan)', fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' };
-const modalBack = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 500, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' };
-const modalCard = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.2)', padding: '2rem', maxWidth: 560, width: '100%' };
-const lbl = { display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--tan)', marginBottom: 6 };
-const input = { width: '100%', padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
-const cancelBtn = { padding: '10px 20px', background: 'transparent', color: 'var(--tan)', border: '1px solid rgba(200,184,154,0.3)', fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' };
-const saveBtn = { padding: '10px 20px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' };
-const errBanner = { background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', color: '#ff8a7e', padding: 12, marginBottom: 16, fontSize: 13 };
+const pageWrap = { maxWidth: 1100, margin: '0 auto', padding: 'var(--space-32)' };
+const h2 = {
+  fontSize: 'var(--font-size-md)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wider)',
+  color: 'var(--color-accent)',
+  textTransform: 'uppercase',
+  margin: '0 0 var(--space-16)',
+};
+const section = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-24)',
+  marginBottom: 'var(--space-24)',
+};
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+  textAlign: 'left',
+  padding: 'var(--space-8) var(--space-12)',
+  borderBottom: '1px solid var(--color-border-strong)',
+  color: 'var(--color-accent)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = { padding: 'var(--space-12)', color: 'var(--color-text)', verticalAlign: 'top' };
+const tdActions = { ...td, textAlign: 'right', whiteSpace: 'nowrap' };
+const subRow = { fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' };
+// Domain-specific status pill colors stay raw (success-green / muted-grey).
+const pill = {
+  padding: 'var(--space-4) var(--space-8)',
+  fontSize: 'var(--font-size-xs)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  border: '1px solid',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+const pillOn = { background: 'var(--color-success-soft)', color: 'var(--color-success)', borderColor: 'var(--color-success)' };
+const pillOff = { background: 'rgba(149,165,166,0.15)', color: 'var(--color-text-muted)', borderColor: 'var(--color-border-strong)' };
+const editBtn = {
+  padding: 'var(--space-4) var(--space-12)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-bold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+const deleteBtn = {
+  ...editBtn,
+  marginLeft: 'var(--space-4)',
+  color: 'var(--color-danger)',
+  borderColor: 'var(--color-danger)',
+};
+const modalBack = {
+  position: 'fixed',
+  inset: 0,
+  background: 'var(--color-overlay-strong)',
+  zIndex: 500,
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'center',
+  padding: 'var(--space-32) var(--space-16)',
+  overflowY: 'auto',
+};
+const modalCard = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border-strong)',
+  padding: 'var(--space-32)',
+  maxWidth: 560,
+  width: '100%',
+  borderRadius: 'var(--radius-md)',
+};
+const modalTitle = {
+  fontSize: 'var(--font-size-xl)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  color: 'var(--color-text)',
+  margin: '0 0 var(--space-16)',
+  textTransform: 'uppercase',
+  letterSpacing: '-0.5px',
+};
+const modalActions = {
+  display: 'flex',
+  gap: 'var(--space-8)',
+  justifyContent: 'flex-end',
+  marginTop: 'var(--space-16)',
+};
+const fieldRow = { display: 'flex', gap: 'var(--space-12)' };
+const lbl = {
+  display: 'block',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-bold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent)',
+  marginBottom: 'var(--space-4)',
+};
+const input = {
+  width: '100%',
+  padding: 'var(--space-8) var(--space-12)',
+  background: 'var(--color-bg-page)',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-base)',
+  outline: 'none',
+  boxSizing: 'border-box',
+  fontFamily: 'inherit',
+};
+const inputSuffixR = {
+  position: 'absolute',
+  right: 'var(--space-8)',
+  top: 'var(--space-8)',
+  color: 'var(--color-text-muted)',
+};
+const inputSuffixL = {
+  position: 'absolute',
+  left: 'var(--space-8)',
+  top: 'var(--space-8)',
+  color: 'var(--color-text-muted)',
+};
+const cancelBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'transparent',
+  color: 'var(--color-text-muted)',
+  border: '1px solid var(--color-border-strong)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wider)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const primaryBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'var(--color-accent)',
+  color: 'var(--color-accent-on-accent)',
+  border: 'none',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wider)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const errBanner = {
+  background: 'var(--color-danger-soft)',
+  border: '1px solid var(--color-danger)',
+  color: 'var(--color-danger)',
+  padding: 'var(--space-12)',
+  marginBottom: 'var(--space-16)',
+  fontSize: 'var(--font-size-base)',
+};
+const activeCheckbox = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-8)',
+  padding: 'var(--space-8) 0',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-base)',
+};

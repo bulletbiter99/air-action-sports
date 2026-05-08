@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
 
 // Versioned waiver document manager. Same pattern as vendor contracts —
 // new version retires the previous; past signers stay pinned to whatever
@@ -46,42 +48,42 @@ export default function AdminWaivers() {
     const liveDoc = rows.find((r) => !r.retiredAt);
 
     return (
-        <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                <h1 style={h1}>Waiver Document</h1>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <Link to="/admin/settings" style={subtleBtn}>← Settings</Link>
-                    {hasRole('owner') && (
-                        <button onClick={() => setCreating(true)} style={primaryBtn}>
-                            + New version
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            <p style={{ color: 'var(--olive-light)', fontSize: 12, marginBottom: 16, lineHeight: 1.6 }}>
-                Each signed waiver snapshots the exact body text it was signed against. Creating a new version retires the previous one
-                at the same instant — past signers stay pinned to whichever version they signed (legal defensibility under ESIGN §7001).
-                <br /><br />
-                <strong style={{ color: 'var(--tan)' }}>Note:</strong> Owner-only. There is always exactly one live version.
-            </p>
+        <div style={pageWrap}>
+            <AdminPageHeader
+                title="Waiver Document"
+                description="Each signed waiver snapshots the exact body text it was signed against. Creating a new version retires the previous one at the same instant — past signers stay pinned to whichever version they signed (legal defensibility under ESIGN §7001). Owner-only. There is always exactly one live version."
+                breadcrumb={[
+                    { label: 'Settings', to: '/admin/settings' },
+                    { label: 'Waiver Document' },
+                ]}
+                secondaryActions={<Link to="/admin/settings" style={subtleBtn}>← Settings</Link>}
+                primaryAction={hasRole('owner') && (
+                    <button onClick={() => setCreating(true)} style={primaryBtn}>+ New version</button>
+                )}
+            />
 
             {liveDoc && (
-                <div style={{ marginBottom: 16, padding: '14px 16px', background: 'rgba(120,196,147,0.06)', borderLeft: '3px solid #78c493', fontSize: 12, color: 'var(--tan-light)' }}>
-                    <strong style={{ color: '#78c493', letterSpacing: 1 }}>LIVE:</strong> v{liveDoc.version} — effective since{' '}
+                <div style={liveBanner}>
+                    <strong style={liveBannerLabel}>LIVE:</strong> v{liveDoc.version} — effective since{' '}
                     {new Date(liveDoc.effectiveFrom).toLocaleString()}.{' '}
-                    <button onClick={() => setViewing(liveDoc)} style={{ ...subtleBtn, padding: '4px 8px', marginLeft: 8 }}>Preview</button>
+                    <button onClick={() => setViewing(liveDoc)} style={{ ...subtleBtn, marginLeft: 'var(--space-8)' }}>Preview</button>
                 </div>
             )}
 
             <div style={tableBox}>
-                {loadingList && <p style={{ color: 'var(--olive-light)', fontSize: 12 }}>Loading…</p>}
-                {!loadingList && rows.length === 0 && (
-                    <p style={{ color: 'var(--olive-light)', fontSize: 12 }}>
-                        No waiver documents yet. (This shouldn&rsquo;t happen — the app seeded `wd_v1` at install.) Create one to enable signing.
-                    </p>
+                {loadingList && (
+                    <EmptyState variant="loading" title="Loading waiver versions…" compact />
                 )}
-                {rows.length > 0 && (
+                {!loadingList && rows.length === 0 && (
+                    <EmptyState
+                        title="No waiver documents yet"
+                        description="This shouldn't happen — the app seeded wd_v1 at install. Create a new version to enable signing."
+                        action={hasRole('owner') && (
+                            <button onClick={() => setCreating(true)} style={primaryBtn}>+ New version</button>
+                        )}
+                    />
+                )}
+                {!loadingList && rows.length > 0 && (
                     <table style={table}>
                         <thead>
                             <tr>
@@ -99,16 +101,16 @@ export default function AdminWaivers() {
                                     <td style={td}>v{r.version}</td>
                                     <td style={td}>
                                         {r.retiredAt
-                                            ? <span style={{ color: '#888', fontSize: 11 }}>retired</span>
-                                            : <span style={{ color: '#78c493', fontWeight: 800, fontSize: 11 }}>LIVE</span>}
+                                            ? <span style={retiredPill}>retired</span>
+                                            : <span style={livePill}>LIVE</span>}
                                     </td>
                                     <td style={td}>{new Date(r.effectiveFrom).toLocaleString()}</td>
                                     <td style={td}>{r.retiredAt ? new Date(r.retiredAt).toLocaleString() : '—'}</td>
-                                    <td style={{ ...td, fontFamily: 'monospace', fontSize: 11 }}>{r.bodySha256.slice(0, 12)}…</td>
-                                    <td style={{ ...td, textAlign: 'right' }}>
+                                    <td style={tdMonospace}>{r.bodySha256.slice(0, 12)}…</td>
+                                    <td style={tdActions}>
                                         <button onClick={() => setViewing(r)} style={subtleBtn}>View</button>
                                         {!r.retiredAt && hasRole('owner') && (
-                                            <button onClick={() => retire(r)} style={{ ...subtleBtn, marginLeft: 6 }}>Retire</button>
+                                            <button onClick={() => retire(r)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Retire</button>
                                         )}
                                     </td>
                                 </tr>
@@ -151,8 +153,8 @@ function WaiverModal({ seedFromLive, onClose, onSaved }) {
     return (
         <div style={modalBg} onClick={onClose}>
             <form onClick={(e) => e.stopPropagation()} onSubmit={submit} style={{ ...modal, maxWidth: 900 }}>
-                <h2 style={{ ...h1, fontSize: 20, marginBottom: 6 }}>New Waiver Version</h2>
-                <p style={{ color: 'var(--olive-light)', fontSize: 11, marginBottom: 14 }}>
+                <h2 style={modalTitle}>New Waiver Version</h2>
+                <p style={modalHint}>
                     Seeded from the current live version &mdash; edit below. The HTML is rendered to signers verbatim, so write clean,
                     semantic markup (<code>&lt;ol&gt;</code>, <code>&lt;p&gt;</code>, <code>&lt;strong&gt;</code>).
                 </p>
@@ -164,38 +166,26 @@ function WaiverModal({ seedFromLive, onClose, onSaved }) {
                         required
                         rows={20}
                         placeholder="<ol><li>I understand…</li><li>I confirm…</li></ol>"
-                        style={{ ...input, minHeight: 420, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+                        style={{ ...input, minHeight: 420, fontFamily: 'monospace', fontSize: 'var(--font-size-sm)', resize: 'vertical' }}
                     />
                 </Field>
 
                 {bodyHtml && (
-                    <details style={{ margin: '8px 0 14px' }}>
-                        <summary style={{ cursor: 'pointer', fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 700, marginBottom: 6 }}>
-                            Preview rendered
-                        </summary>
+                    <details style={previewToggle}>
+                        <summary style={previewToggleSummary}>Preview rendered</summary>
                         <div
-                            style={{
-                                background: 'var(--dark)',
-                                border: '1px solid rgba(200,184,154,0.15)',
-                                padding: 16,
-                                maxHeight: 280,
-                                overflowY: 'auto',
-                                color: 'var(--cream)',
-                                fontSize: 13,
-                                lineHeight: 1.6,
-                                marginTop: 6,
-                            }}
+                            style={previewBody}
                             dangerouslySetInnerHTML={{ __html: bodyHtml }}
                         />
                     </details>
                 )}
 
-                <p style={{ color: 'var(--olive-light)', fontSize: 11, margin: '4px 0 12px' }}>
+                <p style={modalHint}>
                     Once saved, this text is immutable. The previous live version retires at the same instant this one takes effect.
                     Past signers stay pinned to their original version (audit-trail preserved).
                 </p>
-                {err && <div style={{ color: '#e74c3c', fontSize: 12, margin: '8px 0' }}>{err}</div>}
-                <div style={{ display: 'flex', gap: 8 }}>
+                {err && <div style={errorText}>{err}</div>}
+                <div style={modalActions}>
                     <button type="submit" disabled={saving} style={primaryBtn}>{saving ? 'Saving…' : 'Publish new version'}</button>
                     <button type="button" onClick={onClose} style={subtleBtn}>Cancel</button>
                 </div>
@@ -208,27 +198,16 @@ function ViewModal({ waiver, onClose }) {
     return (
         <div style={modalBg} onClick={onClose}>
             <div onClick={(e) => e.stopPropagation()} style={{ ...modal, maxWidth: 820 }}>
-                <h2 style={{ ...h1, fontSize: 20, marginBottom: 6 }}>
+                <h2 style={modalTitle}>
                     Waiver v{waiver.version}
-                    {!waiver.retiredAt && <span style={{ marginLeft: 12, fontSize: 12, color: '#78c493', letterSpacing: 1 }}>LIVE</span>}
+                    {!waiver.retiredAt && <span style={liveLabelInline}>LIVE</span>}
                 </h2>
-                <p style={{ color: 'var(--olive-light)', fontSize: 11, fontFamily: 'monospace', marginBottom: 16 }}>
-                    SHA-256 {waiver.bodySha256}
-                </p>
+                <p style={modalSha}>SHA-256 {waiver.bodySha256}</p>
                 <div
-                    style={{
-                        background: 'var(--dark)',
-                        border: '1px solid rgba(200,184,154,0.15)',
-                        padding: 16,
-                        maxHeight: 460,
-                        overflowY: 'auto',
-                        color: 'var(--cream)',
-                        fontSize: 13,
-                        lineHeight: 1.6,
-                    }}
+                    style={previewBody}
                     dangerouslySetInnerHTML={{ __html: waiver.bodyHtml }}
                 />
-                <div style={{ marginTop: 16 }}>
+                <div style={modalActions}>
                     <button onClick={onClose} style={subtleBtn}>Close</button>
                 </div>
             </div>
@@ -238,21 +217,167 @@ function ViewModal({ waiver, onClose }) {
 
 function Field({ label, children }) {
     return (
-        <label style={{ display: 'block', marginBottom: 10 }}>
-            <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 700, marginBottom: 4 }}>{label}</div>
+        <label style={fieldLabel}>
+            <div style={fieldLabelText}>{label}</div>
             {children}
         </label>
     );
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
-const tableBox = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem' };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '10px 12px', color: 'var(--cream)', verticalAlign: 'top' };
-const primaryBtn = { padding: '10px 18px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer', textDecoration: 'none', display: 'inline-block' };
-const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
-const modal = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.2)', padding: '1.5rem', width: '100%', maxWidth: 560, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
+const pageWrap = { maxWidth: 1000, margin: '0 auto', padding: 'var(--space-32)' };
+const liveBanner = {
+    marginBottom: 'var(--space-16)',
+    padding: 'var(--space-12) var(--space-16)',
+    background: 'var(--color-success-soft)',
+    borderLeft: '3px solid var(--color-success)',
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-text-muted)',
+};
+const liveBannerLabel = {
+    color: 'var(--color-success)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+};
+const input = {
+    padding: 'var(--space-8) var(--space-12)',
+    background: 'var(--color-bg-page)',
+    border: '1px solid var(--color-border-strong)',
+    color: 'var(--color-text)',
+    fontSize: 'var(--font-size-base)',
+    fontFamily: 'inherit',
+    width: '100%',
+    boxSizing: 'border-box',
+};
+const tableBox = {
+    background: 'var(--color-bg-elevated)',
+    border: '1px solid var(--color-border)',
+    padding: 'var(--space-24)',
+};
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+    textAlign: 'left',
+    padding: 'var(--space-8) var(--space-12)',
+    borderBottom: '1px solid var(--color-border-strong)',
+    color: 'var(--color-accent)',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-extrabold)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = { padding: 'var(--space-8) var(--space-12)', color: 'var(--color-text)', verticalAlign: 'top' };
+const tdMonospace = { ...td, fontFamily: 'monospace', fontSize: 'var(--font-size-sm)' };
+const tdActions = { ...td, textAlign: 'right' };
+const livePill = {
+    color: 'var(--color-success)',
+    fontWeight: 'var(--font-weight-extrabold)',
+    fontSize: 'var(--font-size-sm)',
+};
+const retiredPill = {
+    color: 'var(--color-text-subtle)',
+    fontSize: 'var(--font-size-sm)',
+};
+const liveLabelInline = {
+    marginLeft: 'var(--space-12)',
+    fontSize: 'var(--font-size-sm)',
+    color: 'var(--color-success)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+};
+const primaryBtn = {
+    padding: 'var(--space-8) var(--space-16)',
+    background: 'var(--color-accent)',
+    color: 'var(--color-accent-on-accent)',
+    border: 'none',
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 'var(--font-weight-extrabold)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+};
+const subtleBtn = {
+    padding: 'var(--space-4) var(--space-12)',
+    background: 'transparent',
+    border: '1px solid var(--color-border-strong)',
+    color: 'var(--color-text-muted)',
+    fontSize: 'var(--font-size-sm)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    textDecoration: 'none',
+    display: 'inline-block',
+};
+const modalBg = {
+    position: 'fixed',
+    inset: 0,
+    background: 'var(--color-overlay-strong)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: 'var(--space-16)',
+};
+const modal = {
+    background: 'var(--color-bg-elevated)',
+    border: '1px solid var(--color-border-strong)',
+    padding: 'var(--space-24)',
+    width: '100%',
+    maxWidth: 560,
+    borderRadius: 'var(--radius-md)',
+    maxHeight: '92vh',
+    overflowY: 'auto',
+};
+const modalTitle = {
+    fontSize: 'var(--font-size-xl)',
+    fontWeight: 'var(--font-weight-extrabold)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+    color: 'var(--color-text)',
+    margin: '0 0 var(--space-8) 0',
+};
+const modalSha = {
+    color: 'var(--color-text-muted)',
+    fontSize: 'var(--font-size-sm)',
+    fontFamily: 'monospace',
+    marginBottom: 'var(--space-16)',
+};
+const modalActions = { display: 'flex', gap: 'var(--space-8)', marginTop: 'var(--space-16)' };
+const modalHint = {
+    color: 'var(--color-text-muted)',
+    fontSize: 'var(--font-size-sm)',
+    margin: 'var(--space-4) 0 var(--space-12)',
+    lineHeight: 'var(--line-height-relaxed)',
+};
+const errorText = {
+    color: 'var(--color-danger)',
+    fontSize: 'var(--font-size-sm)',
+    margin: 'var(--space-8) 0',
+};
+const previewToggle = { margin: 'var(--space-8) 0 var(--space-12)' };
+const previewToggleSummary = {
+    cursor: 'pointer',
+    fontSize: 'var(--font-size-sm)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+    color: 'var(--color-accent)',
+    fontWeight: 'var(--font-weight-bold)',
+    marginBottom: 'var(--space-4)',
+};
+const previewBody = {
+    background: 'var(--color-bg-page)',
+    border: '1px solid var(--color-border)',
+    padding: 'var(--space-16)',
+    maxHeight: 460,
+    overflowY: 'auto',
+    color: 'var(--color-text)',
+    fontSize: 'var(--font-size-base)',
+    lineHeight: 'var(--line-height-relaxed)',
+    marginTop: 'var(--space-4)',
+};
+const fieldLabel = { display: 'block', marginBottom: 'var(--space-12)' };
+const fieldLabelText = {
+    fontSize: 'var(--font-size-sm)',
+    letterSpacing: 'var(--letter-spacing-wide)',
+    textTransform: 'uppercase',
+    color: 'var(--color-accent)',
+    fontWeight: 'var(--font-weight-bold)',
+    marginBottom: 'var(--space-4)',
+};

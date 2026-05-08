@@ -131,12 +131,28 @@
     "worker/lib/capabilities.js": {
       "tier": "high",
       "covers": [
-        "hasCapability(user, capability)",
-        "userCapabilities(user)"
+        "listCapabilities(env, userId) — async DB-backed; joins role_preset_capabilities + user_capability_overrides; legacy fallback when role_preset_key NULL or M5 tables missing",
+        "userHasCapability(env, userId, key) — async DB check with dependency-chain walk via capabilities.requires_capability_key",
+        "hasCapability(user, key) — sync; checks user.capabilities array first, falls back to legacy role mapping",
+        "requireCapability(key) — Hono middleware factory; lazy-loads capabilities onto user; 401/403 with requiresCapability hint",
+        "userCapabilities(user) — sync; backward-compat alias for the M4 stub's import surface"
       ],
-      "audit_group": "(M4 B3a — capability stub for the M3-era 3-role hierarchy; M5 will formalize)",
+      "audit_group": "(M5 B2 DB-backed RBAC replacing M4 stub)",
       "tests": [
+        "tests/unit/lib/capabilities.test.js",
         "tests/unit/admin/bookings/detail-view.test.js"
+      ]
+    },
+    "worker/lib/users.js": {
+      "tier": "high",
+      "covers": [
+        "legacyRoleToRolePreset(role) — pure mapping owner->event_director, manager->booking_coordinator, staff->staff_legacy",
+        "migrateUserToRolePreset(env, userId) — idempotent; assigns role_preset_key based on legacy role",
+        "migrateAllUsersToRolePresets(env) — bulk migration with breakdown summary"
+      ],
+      "audit_group": "(M5 B2 role-preset migration helpers)",
+      "tests": [
+        "tests/unit/lib/users.test.js"
       ]
     },
     "worker/lib/customers.js": {
@@ -279,11 +295,12 @@
     "src/admin/sidebarConfig.js": {
       "tier": "high",
       "covers": [
-        "SIDEBAR registry (Surface 1 IA per docs/m4-discovery/sidebar-ia-audit.md — Home / Today / Events / Bookings / Customers / Settings group with 10 sub-items)",
-        "getVisibleItems (filters by dynamic todayActive + requiresFlag predicates)",
+        "SIDEBAR registry (Surface 1 IA per docs/m4-discovery/sidebar-ia-audit.md — Home / Today / Events / Bookings / Customers / Rentals / Roster / Scan / Settings group with 10 sub-items; Rentals/Roster/Scan restored to standing nav per M5 B0 D10)",
+        "getVisibleItems (filters by dynamic todayActive + requiresFlag + capability predicates)",
+        "userHasCapabilityStub (M5 B0 stub mapping capability → minimum legacy role; M5 B2 swaps to DB-backed check)",
         "loadSidebarExpand / saveSidebarExpand (localStorage helpers for Settings group expand state; namespaced aas:admin:sidebar:expand:*)"
       ],
-      "audit_group": "(M4 B5 sidebar IA reorganization)",
+      "audit_group": "(M4 B5 sidebar IA reorganization; M5 B0 D10 capability-gated standing nav)",
       "tests": [
         "tests/unit/admin/sidebarConfig.test.js"
       ]
@@ -309,6 +326,51 @@
       "audit_group": "(M4 B7 command palette)",
       "tests": [
         "tests/unit/admin/commandRegistry.test.js"
+      ]
+    },
+    "worker/lib/thresholds1099.js": {
+      "tier": "high",
+      "covers": [
+        "IRS_1099_THRESHOLD_CENTS (60000 = $600.00 — IRS 1099-NEC reporting threshold)",
+        "requires1099 / previousTaxYear / shouldAutoLockToday — pure helpers exposed for testability + UI use",
+        "formatIrs1099Csv / formatGenericCsv — pure CSV formatters used by the /export endpoint and the bookkeeper rollup",
+        "aggregate1099TotalsForYear (env, taxYear) — I/O wrapper that powers GET /api/admin/1099-thresholds and GET /export",
+        "getYearLock / lockTaxYear — I/O wrappers used by GET / and POST /lock-year + the auto-lock cron sweep",
+        "runTaxYearAutoLockSweep — nightly cron wired into worker/index.js 03:00 UTC dispatch; auto-locks the previous tax year on March 1+ and sends w9_reminder to threshold-meeting recipients with missing legal_name/EIN"
+      ],
+      "audit_group": "(M5 R11 1099 thresholds completion)",
+      "tests": [
+        "tests/unit/lib/thresholds1099.test.js",
+        "tests/unit/admin/thresholds1099/route.test.js"
+      ]
+    },
+    "worker/lib/eventDaySession.js": {
+      "tier": "high",
+      "covers": [
+        "EVENT_DAY_WINDOW_MS (30-hour window starting 00:00 UTC of event date_iso) + ACTIVITY_KINDS (4-element frozen list mapping to 0037 schema columns)",
+        "randomEventDaySessionId / isEventActive / eventDayWindowExpired — pure helpers exposed for testability + middleware",
+        "startEventDaySession / getActiveEventDaySession / getEventDaySessionById — I/O wrappers used by the session route + middleware",
+        "endEventDaySession (writes audit row; reason bound positionally) + bumpActivityCounter (whitelist-validated kind → column mapping for R13/R14/R16) + touchActivity (heartbeat)",
+        "requireEventDayAuth — Hono middleware chains portal-cookie verify -> session lookup -> portal_session ownership check -> event-window enforcement (auto-ends on event_window_closed)",
+        "parseEventDayCookie / setEventDayCookie / clearEventDayCookie + EVENT_DAY_COOKIE_NAME constant"
+      ],
+      "audit_group": "(M5 R12 event-day foundations — Surface 5)",
+      "tests": [
+        "tests/unit/lib/eventDaySession.test.js",
+        "tests/unit/event-day/session.test.js"
+      ]
+    },
+    "worker/routes/event-day/session.js": {
+      "tier": "high",
+      "covers": [
+        "POST /api/event-day/sessions/start (portal-cookie + event-staffed gate; idempotent reuse if active session exists for person+event)",
+        "POST /api/event-day/sessions/heartbeat (touch last_activity_at; gated by requireEventDayAuth)",
+        "POST /api/event-day/sessions/end (set signed_out_at + clear cookie + audit; gated by requireEventDayAuth)",
+        "GET /api/event-day/sessions/me (counters shape used by HQ dashboard in R15)"
+      ],
+      "audit_group": "(M5 R12 event-day foundations — Surface 5)",
+      "tests": [
+        "tests/unit/event-day/session.test.js"
       ]
     }
   },

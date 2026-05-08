@@ -3,9 +3,20 @@ import { useNavigate, Link } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAdmin } from './AdminContext';
 import { formatMoney } from '../utils/money.js';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
+import FilterBar from '../components/admin/FilterBar.jsx';
 
 const CATEGORIES = ['rifle', 'mask', 'vest', 'magazine', 'battery', 'other'];
 const CONDITIONS = ['new', 'good', 'fair', 'damaged', 'retired'];
+
+const STATUS_OPTIONS = [
+  { value: 'available', label: 'Available' },
+  { value: 'assigned', label: 'Assigned' },
+  { value: 'retired', label: 'Retired' },
+];
+const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c, label: c }));
+const INCLUDE_RETIRED_OPTIONS = [{ value: '1', label: 'Yes' }];
 
 const centsToDollars = (c) => formatMoney(c, { currency: '', emptyFor: '' });
 const dollarsToCents = (s) => {
@@ -24,7 +35,7 @@ function MoneyInput({ value, onChange, required, placeholder }) {
   }, [value]);
   return (
     <div style={{ position: 'relative' }}>
-      <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--olive-light)', fontSize: 13, pointerEvents: 'none' }}>$</span>
+      <span style={moneySign}>$</span>
       <input
         required={required}
         type="number"
@@ -41,18 +52,21 @@ function MoneyInput({ value, onChange, required, placeholder }) {
   );
 }
 
+const FILTER_SCHEMA = [
+  { key: 'category', label: 'Category', type: 'enum', options: CATEGORY_OPTIONS },
+  { key: 'status', label: 'Status', type: 'enum', options: STATUS_OPTIONS },
+  { key: 'includeRetired', label: 'Include retired', type: 'enum', options: INCLUDE_RETIRED_OPTIONS },
+];
+
 export default function AdminRentals() {
   const { isAuthenticated, loading, hasRole } = useAdmin();
   const navigate = useNavigate();
 
   const [items, setItems] = useState([]);
-  const [filter, setFilter] = useState('all'); // all | available | assigned | retired
-  const [category, setCategory] = useState('');
-  const [search, setSearch] = useState('');
-  const [includeRetired, setIncludeRetired] = useState(false);
+  const [filters, setFilters] = useState({ category: '', status: '', includeRetired: '', q: '' });
   const [loadingItems, setLoadingItems] = useState(false);
   const [selected, setSelected] = useState(new Set());
-  const [editing, setEditing] = useState(null); // item or 'new'
+  const [editing, setEditing] = useState(null);
 
   useEffect(() => {
     if (loading) return;
@@ -62,23 +76,23 @@ export default function AdminRentals() {
   const load = useCallback(async () => {
     setLoadingItems(true);
     const params = new URLSearchParams();
-    if (category) params.set('category', category);
-    if (search.trim()) params.set('q', search.trim());
-    if (includeRetired) params.set('includeRetired', '1');
+    if (filters.category) params.set('category', filters.category);
+    if (filters.q.trim()) params.set('q', filters.q.trim());
+    if (filters.includeRetired) params.set('includeRetired', '1');
     const res = await fetch(`/api/admin/rentals/items?${params}`, { credentials: 'include', cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       setItems(data.items || []);
     }
     setLoadingItems(false);
-  }, [category, search, includeRetired]);
+  }, [filters.category, filters.q, filters.includeRetired]);
 
   useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return items;
-    return items.filter((i) => i.status === filter);
-  }, [items, filter]);
+    if (!filters.status) return items;
+    return items.filter((i) => i.status === filters.status);
+  }, [items, filters.status]);
 
   const stats = useMemo(() => ({
     total: items.length,
@@ -127,48 +141,38 @@ export default function AdminRentals() {
 
   if (loading || !isAuthenticated) return null;
 
+  const isFiltered = Boolean(filters.category || filters.status || filters.includeRetired || filters.q);
+
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={h1}>Rental Equipment</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Link to="/admin/rentals/assignments" style={navLinkBtn}>Assignments →</Link>
-          {hasRole('manager') && (
-            <button onClick={() => setEditing('new')} style={primaryBtn}>+ New Item</button>
-          )}
-        </div>
-      </div>
+    <div style={pageWrap}>
+      <AdminPageHeader
+        title="Rental Equipment"
+        description="Inventory of rifles, masks, vests, and accessories. Print QR sheets for tagging items, manage condition, retire damaged equipment."
+        secondaryActions={<Link to="/admin/rentals/assignments" style={navLinkBtn}>Assignments →</Link>}
+        primaryAction={hasRole('manager') && (
+          <button onClick={() => setEditing('new')} style={primaryBtn}>+ New Item</button>
+        )}
+      />
 
       <div style={statsGrid}>
         <Stat label="Total" value={stats.total} />
-        <Stat label="Available" value={stats.available} color="#2ecc71" />
-        <Stat label="Assigned" value={stats.assigned} color="#e67e22" />
-        <Stat label="Retired" value={stats.retired} color="var(--olive-light)" />
+        <Stat label="Available" value={stats.available} color="var(--color-success)" />
+        <Stat label="Assigned" value={stats.assigned} color="var(--color-warning)" />
+        <Stat label="Retired" value={stats.retired} color="var(--color-text-muted)" />
       </div>
 
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-        <input
-          type="search" placeholder="Search name, SKU, serial…"
-          value={search} onChange={(e) => setSearch(e.target.value)}
-          style={{ ...input, flex: 1, minWidth: 200 }}
-        />
-        <select value={category} onChange={(e) => setCategory(e.target.value)} style={input}>
-          <option value="">All categories</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={filter} onChange={(e) => setFilter(e.target.value)} style={input}>
-          <option value="all">All status</option>
-          <option value="available">Available</option>
-          <option value="assigned">Assigned</option>
-          <option value="retired">Retired</option>
-        </select>
-        <label style={{ color: 'var(--tan-light)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={includeRetired} onChange={(e) => setIncludeRetired(e.target.checked)} />
-          include retired
-        </label>
-      </div>
+      <FilterBar
+        schema={FILTER_SCHEMA}
+        value={filters}
+        onChange={setFilters}
+        searchValue={filters.q}
+        onSearchChange={(q) => setFilters((f) => ({ ...f, q }))}
+        searchPlaceholder="Search name, SKU, serial…"
+        resultCount={filtered.length}
+        savedViewsKey="adminRentals"
+      />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+      <div style={bulkActionsRow}>
         <button onClick={selectAllFiltered} style={subtleBtn}>
           {filtered.every((i) => selected.has(i.id)) && filtered.length > 0 ? 'Deselect all' : 'Select all'}
         </button>
@@ -181,11 +185,20 @@ export default function AdminRentals() {
       </div>
 
       <section style={tableBox}>
-        {loadingItems && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
+        {loadingItems && <EmptyState variant="loading" title="Loading inventory…" compact />}
         {!loadingItems && filtered.length === 0 && (
-          <p style={{ color: 'var(--olive-light)' }}>No items match.</p>
+          <EmptyState
+            isFiltered={isFiltered}
+            title={isFiltered ? 'No items match these filters' : 'No items yet'}
+            description={isFiltered
+              ? 'Try clearing a filter or expanding the search.'
+              : 'Click "+ New Item" to add the first piece of rental equipment.'}
+            action={hasRole('manager') && !isFiltered && (
+              <button onClick={() => setEditing('new')} style={primaryBtn}>+ New Item</button>
+            )}
+          />
         )}
-        {filtered.length > 0 && (
+        {!loadingItems && filtered.length > 0 && (
           <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
@@ -206,9 +219,9 @@ export default function AdminRentals() {
                   </td>
                   <td style={td}>
                     <strong>{i.name}</strong>
-                    {i.serialNumber && <div style={{ fontSize: 10, color: 'var(--olive-light)' }}>SN: {i.serialNumber}</div>}
+                    {i.serialNumber && <div style={subRowMuted}>SN: {i.serialNumber}</div>}
                   </td>
-                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 11 }}>{i.sku}</td>
+                  <td style={tdMonospace}>{i.sku}</td>
                   <td style={td}>{i.category}</td>
                   <td style={td}><ConditionPill c={i.condition} /></td>
                   <td style={td}><StatusPill i={i} /></td>
@@ -217,7 +230,7 @@ export default function AdminRentals() {
                       <button onClick={() => setEditing(i)} style={subtleBtn}>Edit</button>
                     )}
                     {hasRole('owner') && i.active && (
-                      <button onClick={() => retire(i.id)} style={{ ...subtleBtn, marginLeft: 6 }}>Retire</button>
+                      <button onClick={() => retire(i.id)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Retire</button>
                     )}
                   </td>
                 </tr>
@@ -238,30 +251,36 @@ export default function AdminRentals() {
   );
 }
 
+// Domain-specific condition colors stay raw — the new/good/fair/damaged/retired
+// gradient is intentional information density (green→orange→red).
 function ConditionPill({ c }) {
   const colors = {
-    new: '#2ecc71', good: '#2ecc71', fair: '#f39c12', damaged: '#e74c3c', retired: 'var(--olive-light)',
+    new: 'var(--color-success)',
+    good: 'var(--color-success)',
+    fair: 'var(--color-warning)',
+    damaged: 'var(--color-danger)',
+    retired: 'var(--color-text-muted)',
   };
-  return <span style={{ color: colors[c] || 'var(--cream)', fontSize: 12 }}>{c}</span>;
+  return <span style={{ color: colors[c] || 'var(--color-text)', fontSize: 'var(--font-size-sm)' }}>{c}</span>;
 }
 
 function StatusPill({ i }) {
   if (i.status === 'assigned') {
     return (
-      <span style={{ color: '#e67e22', fontSize: 12 }}>
+      <span style={{ color: 'var(--color-warning)', fontSize: 'var(--font-size-sm)' }}>
         → {i.currentAssignment?.attendeeName || 'assigned'}
       </span>
     );
   }
-  if (i.status === 'available') return <span style={{ color: '#2ecc71', fontSize: 12 }}>Available</span>;
-  return <span style={{ color: 'var(--olive-light)', fontSize: 12 }}>Retired</span>;
+  if (i.status === 'available') return <span style={{ color: 'var(--color-success)', fontSize: 'var(--font-size-sm)' }}>Available</span>;
+  return <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>Retired</span>;
 }
 
 function Stat({ label, value, color }) {
   return (
     <div style={statCard}>
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: 'var(--orange)', textTransform: 'uppercase' }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 900, color: color || 'var(--cream)', margin: '6px 0 2px' }}>{value}</div>
+      <div style={statLabel}>{label}</div>
+      <div style={{ ...statValue, color: color || 'var(--color-text)' }}>{value}</div>
     </div>
   );
 }
@@ -306,8 +325,8 @@ function ItemForm({ item, onClose, onSaved }) {
   return (
     <div style={modalBg} onClick={onClose}>
       <form style={modal} onClick={(e) => e.stopPropagation()} onSubmit={save}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, color: 'var(--cream)', fontSize: 14, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+        <div style={modalHeader}>
+          <h3 style={modalTitle}>
             {isNew ? 'New rental item' : 'Edit item'}
           </h3>
           <button type="button" onClick={onClose} aria-label="Close" style={closeX}>×</button>
@@ -322,7 +341,7 @@ function ItemForm({ item, onClose, onSaved }) {
         <Field label="Serial number">
           <input value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} style={input} />
         </Field>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={twoCol}>
           <Field label="Category *">
             <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} style={input}>
               {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -334,7 +353,7 @@ function ItemForm({ item, onClose, onSaved }) {
             </select>
           </Field>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={twoCol}>
           <Field label="Purchase date">
             <input type="date" value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })} style={input} />
           </Field>
@@ -346,9 +365,9 @@ function ItemForm({ item, onClose, onSaved }) {
           <textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} style={{ ...input, resize: 'vertical' }} />
         </Field>
 
-        {err && <div style={{ color: '#e74c3c', fontSize: 12, margin: '8px 0' }}>{err}</div>}
+        {err && <div style={errorText}>{err}</div>}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        <div style={modalActions}>
           <button type="submit" disabled={saving} style={primaryBtn}>{saving ? 'Saving…' : (isNew ? 'Create' : 'Save')}</button>
         </div>
       </form>
@@ -358,8 +377,8 @@ function ItemForm({ item, onClose, onSaved }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: 'block', marginBottom: 10 }}>
-      <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 700, marginBottom: 4 }}>{label}</div>
+    <label style={fieldLabel}>
+      <div style={fieldLabelText}>{label}</div>
       {children}
     </label>
   );
@@ -387,6 +406,7 @@ export function AdminRentalQrSheet() {
       }
       setQrDataUrls(dataUrls);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -411,11 +431,11 @@ export function AdminRentalQrSheet() {
         .qr-sku { font-family: monospace; font-size: 9pt; color: #555; }
         .qr-cat { font-size: 9pt; color: #555; text-transform: uppercase; letter-spacing: 1px; }
       `}</style>
-      <div className="no-print" style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="no-print" style={{ marginBottom: 'var(--space-16)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <strong>QR Sheet — {items.length} items</strong>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => window.print()} style={{ padding: '8px 16px' }}>Print</button>
-          <button onClick={() => window.close()} style={{ padding: '8px 16px' }}>Close</button>
+        <div style={{ display: 'flex', gap: 'var(--space-8)' }}>
+          <button onClick={() => window.print()} style={{ padding: 'var(--space-8) var(--space-16)' }}>Print</button>
+          <button onClick={() => window.close()} style={{ padding: 'var(--space-8) var(--space-16)' }}>Close</button>
         </div>
       </div>
       <div className="qr-grid">
@@ -432,19 +452,184 @@ export function AdminRentalQrSheet() {
   );
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
-const statsGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 };
-const statCard = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.25rem' };
-const tableBox = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem' };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '10px 12px', color: 'var(--cream)' };
-const primaryBtn = { padding: '10px 18px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const secondaryBtn = { padding: '10px 18px', background: 'var(--olive)', color: 'var(--cream)', border: '1px solid var(--olive-light)', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
-const navLinkBtn = { padding: '10px 18px', background: 'transparent', border: '1px solid var(--olive-light)', color: 'var(--tan-light)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' };
-const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
-const modal = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.2)', padding: '1.5rem', width: '100%', maxWidth: 560, borderRadius: 4, maxHeight: '90vh', overflowY: 'auto' };
-const closeX = { width: 32, height: 32, border: '1px solid rgba(200,184,154,0.25)', background: 'transparent', color: 'var(--tan-light)', fontSize: 22, lineHeight: 1, cursor: 'pointer', borderRadius: 4, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' };
+const pageWrap = { maxWidth: 1200, margin: '0 auto', padding: 'var(--space-32)' };
+const input = {
+  padding: 'var(--space-8) var(--space-12)',
+  background: 'var(--color-bg-page)',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-base)',
+  fontFamily: 'inherit',
+  width: '100%',
+  boxSizing: 'border-box',
+};
+const moneySign = {
+  position: 'absolute',
+  left: 'var(--space-8)',
+  top: '50%',
+  transform: 'translateY(-50%)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-base)',
+  pointerEvents: 'none',
+};
+const statsGrid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+  gap: 'var(--space-16)',
+  marginTop: 'var(--space-16)',
+  marginBottom: 'var(--space-24)',
+};
+const statCard = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-16)',
+};
+const statLabel = {
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wider)',
+  color: 'var(--color-accent)',
+  textTransform: 'uppercase',
+};
+const statValue = {
+  fontSize: 'var(--font-size-2xl)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  margin: 'var(--space-4) 0 var(--space-4)',
+};
+const bulkActionsRow = {
+  display: 'flex',
+  gap: 'var(--space-8)',
+  marginTop: 'var(--space-12)',
+  marginBottom: 'var(--space-12)',
+  alignItems: 'center',
+};
+const tableBox = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-24)',
+  marginTop: 'var(--space-8)',
+};
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+  textAlign: 'left',
+  padding: 'var(--space-8) var(--space-12)',
+  borderBottom: '1px solid var(--color-border-strong)',
+  color: 'var(--color-accent)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = { padding: 'var(--space-8) var(--space-12)', color: 'var(--color-text)' };
+const tdMonospace = { ...td, fontFamily: 'monospace', fontSize: 'var(--font-size-sm)' };
+const subRowMuted = { fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' };
+const primaryBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'var(--color-accent)',
+  color: 'var(--color-accent-on-accent)',
+  border: 'none',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const secondaryBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'var(--color-bg-sunken)',
+  color: 'var(--color-text)',
+  border: '1px solid var(--color-border-strong)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const subtleBtn = {
+  padding: 'var(--space-4) var(--space-12)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const navLinkBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  textDecoration: 'none',
+  display: 'inline-flex',
+  alignItems: 'center',
+};
+const modalBg = {
+  position: 'fixed',
+  inset: 0,
+  background: 'var(--color-overlay-strong)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1000,
+  padding: 'var(--space-16)',
+};
+const modal = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border-strong)',
+  padding: 'var(--space-24)',
+  width: '100%',
+  maxWidth: 560,
+  borderRadius: 'var(--radius-md)',
+  maxHeight: '90vh',
+  overflowY: 'auto',
+};
+const modalHeader = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 'var(--space-16)',
+};
+const modalTitle = {
+  margin: 0,
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-md)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const modalActions = { display: 'flex', gap: 'var(--space-8)', marginTop: 'var(--space-16)' };
+const closeX = {
+  width: 32,
+  height: 32,
+  border: '1px solid var(--color-border-strong)',
+  background: 'transparent',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-xl)',
+  lineHeight: 1,
+  cursor: 'pointer',
+  borderRadius: 'var(--radius-md)',
+  padding: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+const twoCol = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-8)' };
+const fieldLabel = { display: 'block', marginBottom: 'var(--space-8)' };
+const fieldLabelText = {
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent)',
+  fontWeight: 'var(--font-weight-bold)',
+  marginBottom: 'var(--space-4)',
+};
+const errorText = {
+  color: 'var(--color-danger)',
+  fontSize: 'var(--font-size-sm)',
+  margin: 'var(--space-8) 0',
+};

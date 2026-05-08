@@ -1,14 +1,22 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
+import FilterBar from '../components/admin/FilterBar.jsx';
+
+const STATUS_OPTIONS = [
+  { value: 'open', label: 'Open (out)' },
+  { value: 'closed', label: 'Closed (returned)' },
+  { value: 'all', label: 'All' },
+];
 
 export default function AdminRentalAssignments() {
   const { isAuthenticated, loading } = useAdmin();
   const navigate = useNavigate();
 
   const [events, setEvents] = useState([]);
-  const [eventId, setEventId] = useState('');
-  const [status, setStatus] = useState('open');
+  const [filters, setFilters] = useState({ status: 'open', event_id: '' });
   const [assignments, setAssignments] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
 
@@ -28,15 +36,17 @@ export default function AdminRentalAssignments() {
   const load = useCallback(async () => {
     setLoadingList(true);
     const params = new URLSearchParams();
-    params.set('status', status);
-    if (eventId) params.set('event_id', eventId);
+    // Backend defaults to status='open' if absent. Pass explicitly when set so
+    // the user-removed-chip case (status='') sends nothing, falling back to default.
+    if (filters.status) params.set('status', filters.status);
+    if (filters.event_id) params.set('event_id', filters.event_id);
     const res = await fetch(`/api/admin/rentals/assignments?${params}`, { credentials: 'include', cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       setAssignments(data.assignments || []);
     }
     setLoadingList(false);
-  }, [status, eventId]);
+  }, [filters.status, filters.event_id]);
 
   useEffect(() => { if (isAuthenticated) { loadEvents(); } }, [isAuthenticated, loadEvents]);
   useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
@@ -56,33 +66,62 @@ export default function AdminRentalAssignments() {
     else alert('Failed to mark returned');
   };
 
+  const filterSchema = useMemo(() => [
+    {
+      key: 'status',
+      label: 'Status',
+      type: 'enum',
+      options: STATUS_OPTIONS,
+    },
+    {
+      key: 'event_id',
+      label: 'Event',
+      type: 'enum',
+      options: events.map((e) => ({ value: e.id, label: e.title })),
+    },
+  ], [events]);
+
   if (loading || !isAuthenticated) return null;
 
-  return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={h1}>Rental Assignments</h1>
-        <Link to="/admin/rentals" style={navLinkBtn}>← Inventory</Link>
-      </div>
+  const isFiltered = Boolean(
+    (filters.status && filters.status !== 'open') ||
+    filters.event_id
+  );
 
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} style={input}>
-          <option value="open">Open (out)</option>
-          <option value="closed">Closed (returned)</option>
-          <option value="all">All</option>
-        </select>
-        <select value={eventId} onChange={(e) => setEventId(e.target.value)} style={{ ...input, minWidth: 260 }}>
-          <option value="">All events</option>
-          {events.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-        </select>
-      </div>
+  return (
+    <div style={pageWrap}>
+      <AdminPageHeader
+        title="Rental Assignments"
+        description="Equipment currently checked out, plus closed/returned history."
+        breadcrumb={[
+          { label: 'Rentals', to: '/admin/rentals' },
+          { label: 'Assignments' },
+        ]}
+        secondaryActions={<Link to="/admin/rentals" style={navLinkBtn}>← Inventory</Link>}
+      />
+
+      <FilterBar
+        schema={filterSchema}
+        value={filters}
+        onChange={setFilters}
+        resultCount={assignments.length}
+        savedViewsKey="adminRentalAssignments"
+      />
 
       <section style={tableBox}>
-        {loadingList && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
-        {!loadingList && assignments.length === 0 && (
-          <p style={{ color: 'var(--olive-light)' }}>No assignments match.</p>
+        {loadingList && (
+          <EmptyState variant="loading" title="Loading assignments…" />
         )}
-        {assignments.length > 0 && (
+        {!loadingList && assignments.length === 0 && (
+          <EmptyState
+            isFiltered={isFiltered}
+            title={isFiltered ? 'No assignments match these filters' : 'No assignments yet'}
+            description={isFiltered
+              ? 'Try clearing a filter or selecting "All" status.'
+              : 'When equipment is assigned to attendees, those rows will appear here.'}
+          />
+        )}
+        {!loadingList && assignments.length > 0 && (
           <div className="admin-table-wrap"><table style={table}>
             <thead>
               <tr>
@@ -100,13 +139,15 @@ export default function AdminRentalAssignments() {
                 <tr key={a.id} style={tr}>
                   <td style={td}>
                     <strong>{a.itemName}</strong>
-                    <div style={{ fontSize: 10, color: 'var(--olive-light)', fontFamily: 'monospace' }}>{a.itemSku} · {a.itemCategory}</div>
+                    <div style={subRowMono}>{a.itemSku} · {a.itemCategory}</div>
                   </td>
                   <td style={td}>{a.attendeeName}</td>
-                  <td style={{ ...td, fontSize: 12, color: 'var(--tan-light)' }}>{a.eventTitle || '—'}</td>
-                  <td style={{ ...td, fontSize: 12 }}>{new Date(a.checkedOutAt).toLocaleString()}</td>
-                  <td style={{ ...td, fontSize: 12 }}>
-                    {a.checkedInAt ? new Date(a.checkedInAt).toLocaleString() : <span style={{ color: '#e67e22' }}>— still out</span>}
+                  <td style={tdSmall}>{a.eventTitle || '—'}</td>
+                  <td style={tdSmall}>{new Date(a.checkedOutAt).toLocaleString()}</td>
+                  <td style={tdSmall}>
+                    {a.checkedInAt
+                      ? new Date(a.checkedInAt).toLocaleString()
+                      : <span style={stillOut}>— still out</span>}
                   </td>
                   <td style={td}>
                     {a.conditionOnReturn ? <ReturnPill c={a.conditionOnReturn} notes={a.damageNotes} /> : '—'}
@@ -127,21 +168,79 @@ export default function AdminRentalAssignments() {
 }
 
 function ReturnPill({ c, notes }) {
-  const colors = { good: '#2ecc71', fair: '#f39c12', damaged: '#e74c3c', lost: '#c0392b' };
+  // Domain-specific condition colors. Fair/damaged/lost map to status
+  // tokens; "good" stays as success.
+  const colors = {
+    good: 'var(--color-success)',
+    fair: 'var(--color-warning)',
+    damaged: 'var(--color-danger)',
+    lost: 'var(--color-danger)',
+  };
   return (
     <div>
-      <span style={{ color: colors[c] || 'var(--cream)', fontSize: 12 }}>{c}</span>
-      {notes && <div style={{ fontSize: 11, color: 'var(--olive-light)', marginTop: 2 }}>{notes}</div>}
+      <span style={{ color: colors[c] || 'var(--color-text)', fontSize: 'var(--font-size-sm)' }}>{c}</span>
+      {notes && <div style={notesText}>{notes}</div>}
     </div>
   );
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit' };
-const tableBox = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem' };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '10px 12px', color: 'var(--cream)', verticalAlign: 'top' };
-const primaryBtn = { padding: '6px 14px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const navLinkBtn = { padding: '10px 18px', background: 'transparent', border: '1px solid var(--olive-light)', color: 'var(--tan-light)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' };
+const pageWrap = { maxWidth: 1200, margin: '0 auto', padding: 'var(--space-32)' };
+const tableBox = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-24)',
+  marginTop: 'var(--space-16)',
+};
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+  textAlign: 'left',
+  padding: 'var(--space-8) var(--space-12)',
+  borderBottom: '1px solid var(--color-border-strong)',
+  color: 'var(--color-accent)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = {
+  padding: 'var(--space-8) var(--space-12)',
+  color: 'var(--color-text)',
+  verticalAlign: 'top',
+};
+const tdSmall = { ...td, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' };
+const subRowMono = {
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-muted)',
+  fontFamily: 'monospace',
+};
+const stillOut = { color: 'var(--color-warning)' };
+const notesText = {
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-muted)',
+  marginTop: 'var(--space-4)',
+};
+const primaryBtn = {
+  padding: 'var(--space-4) var(--space-12)',
+  background: 'var(--color-accent)',
+  color: 'var(--color-accent-on-accent)',
+  border: 'none',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const navLinkBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  textDecoration: 'none',
+  display: 'inline-flex',
+  alignItems: 'center',
+};

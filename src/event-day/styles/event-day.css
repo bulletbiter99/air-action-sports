@@ -1,0 +1,214 @@
+/* M5 R12 — Event-day mode stylesheet (Surface 5).
+ *
+ * Original M5 B12 styled the shell via inline JS-object props. The M5
+ * prompt called for a separate stylesheet with three explicit specs:
+ *
+ *   1. High-contrast palette — pure black background, pure white text,
+ *      signal orange accents. Enforced for outdoor / glove / sweat
+ *      conditions. Tokens scoped to .aas-event-day__shell so the
+ *      stylesheet doesn't bleed into the public site.
+ *
+ *   2. 64px minimum tap targets on every interactive element. Outdoor
+ *      use means gloves and dirt; finger precision drops.
+ *
+ *   3. Mobile-first layout. Header / main / footer are flexbox columns;
+ *      main caps at 720px on tablet+ for legibility.
+ *
+ * Class names use the BEM-ish prefix `aas-event-day__` so they don't
+ * collide with admin (`aas-admin-page-header__`) or public site styles.
+ */
+
+.aas-event-day__shell {
+    /* High-contrast palette — outdoor-readable. */
+    --aas-eday-bg: #0a0a0a;
+    --aas-eday-bg-elevated: #000000;
+    --aas-eday-fg: #ffffff;
+    --aas-eday-fg-muted: #888888;
+    --aas-eday-accent: #ff8800;
+    --aas-eday-accent-on: #000000;
+    --aas-eday-online: #5fba5f;
+    --aas-eday-offline: #ff5050;
+    --aas-eday-border: #333333;
+    --aas-eday-border-strong: #555555;
+
+    /* Layout */
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--aas-eday-bg);
+    color: var(--aas-eday-fg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.aas-event-day__loading {
+    color: var(--aas-eday-fg-muted);
+    text-align: center;
+    padding: 32px 16px;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────── */
+
+.aas-event-day__header {
+    padding: 20px 16px;
+    background: var(--aas-eday-bg-elevated);
+    border-bottom: 2px solid var(--aas-eday-accent);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 72px;
+    flex-wrap: wrap;
+}
+
+.aas-event-day__brand {
+    color: var(--aas-eday-accent);
+    font-weight: 900;
+    font-size: 16px;
+    letter-spacing: 3px;
+    text-decoration: none;
+    text-transform: uppercase;
+    /* Tap target — even though it's small text, treat as a control. */
+    min-height: 64px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.aas-event-day__event-badge {
+    background: var(--aas-eday-accent);
+    color: var(--aas-eday-accent-on);
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    border-radius: 3px;
+}
+
+.aas-event-day__person {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.aas-event-day__person-name {
+    font-size: 14px;
+    color: var(--aas-eday-fg);
+}
+
+.aas-event-day__logout-btn {
+    /* 64px tap target for outdoor / gloved use. */
+    min-height: 64px;
+    min-width: 64px;
+    padding: 12px 20px;
+    background: transparent;
+    color: var(--aas-eday-fg);
+    border: 1px solid var(--aas-eday-border-strong);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.aas-event-day__logout-btn:hover,
+.aas-event-day__logout-btn:focus-visible {
+    border-color: var(--aas-eday-accent);
+    color: var(--aas-eday-accent);
+    outline: 2px solid var(--aas-eday-accent);
+    outline-offset: 2px;
+}
+
+/* ─── Main ───────────────────────────────────────────────────────── */
+
+.aas-event-day__main {
+    flex: 1;
+    padding: 16px;
+    width: 100%;
+}
+
+@media (min-width: 720px) {
+    .aas-event-day__main {
+        max-width: 720px;
+        margin: 0 auto;
+    }
+}
+
+/* Generic interactive primitives that R13/R14/R15/R16 will use. They
+ * all hit the 64px tap-target minimum so the spec is enforced uniformly
+ * across the surface. */
+
+.aas-event-day__nav-tile,
+.aas-event-day__action-btn {
+    min-height: 64px;
+    min-width: 64px;
+    padding: 16px 20px;
+    background: var(--aas-eday-bg-elevated);
+    color: var(--aas-eday-fg);
+    border: 1px solid var(--aas-eday-border-strong);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.aas-event-day__nav-tile:hover,
+.aas-event-day__nav-tile:focus-visible,
+.aas-event-day__action-btn:hover,
+.aas-event-day__action-btn:focus-visible {
+    border-color: var(--aas-eday-accent);
+    color: var(--aas-eday-accent);
+    outline: 2px solid var(--aas-eday-accent);
+    outline-offset: 2px;
+}
+
+.aas-event-day__action-btn--primary {
+    background: var(--aas-eday-accent);
+    color: var(--aas-eday-accent-on);
+    border-color: var(--aas-eday-accent);
+}
+
+.aas-event-day__action-btn--primary:hover,
+.aas-event-day__action-btn--primary:focus-visible {
+    background: #ffaa44;
+    color: var(--aas-eday-accent-on);
+}
+
+/* ─── Footer ─────────────────────────────────────────────────────── */
+
+.aas-event-day__footer {
+    padding: 12px 16px;
+    background: var(--aas-eday-bg-elevated);
+    border-top: 1px solid var(--aas-eday-border);
+    display: flex;
+    justify-content: center;
+}
+
+.aas-event-day__indicator {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.aas-event-day__indicator--online {
+    color: var(--aas-eday-online);
+}
+
+.aas-event-day__indicator--offline {
+    color: var(--aas-eday-offline);
+}
+
+/* ─── Reduced-motion + high-contrast media-query respects ─────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .aas-event-day__shell *,
+    .aas-event-day__shell *::before,
+    .aas-event-day__shell *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

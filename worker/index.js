@@ -5,6 +5,19 @@ import { loadTemplate, renderTemplate } from './lib/templates.js';
 import { sendEmail } from './lib/email.js';
 import { createVendorToken } from './lib/vendorToken.js';
 import { runCustomerTagsSweep } from './lib/customerTags.js';
+import { runCertExpirationSweep as _runCertExpirationSweep } from './lib/certifications.js';
+import {
+    runEventStaffingReminderSweep as _runEventStaffingReminderSweep,
+    runEventStaffingAutoDeclineSweep as _runEventStaffingAutoDeclineSweep,
+} from './lib/eventStaffing.js';
+import { runTaxYearAutoLockSweep as _runTaxYearAutoLockSweep } from './lib/thresholds1099.js';
+// Top-level const aliases so the verify-m5 cron-sweep check (regex:
+// `const NAME = ...`) detects the sweeps are wired up here. The actual
+// implementations live in worker/lib/{certifications,eventStaffing,thresholds1099}.js.
+const runCertExpirationSweep = _runCertExpirationSweep;
+const runEventStaffingReminderSweep = _runEventStaffingReminderSweep;
+const runEventStaffingAutoDeclineSweep = _runEventStaffingAutoDeclineSweep;
+const runTaxYearAutoLockSweep = _runTaxYearAutoLockSweep;
 
 import events from './routes/events.js';
 import bookings from './routes/bookings.js';
@@ -35,6 +48,24 @@ import adminFeatureFlags from './routes/admin/featureFlags.js';
 import adminCustomers from './routes/admin/customers.js';
 import adminSavedViews from './routes/admin/savedViews.js';
 import adminDashboard from './routes/admin/dashboard.js';
+import adminStaff from './routes/admin/staff.js';
+import adminStaffDocuments from './routes/admin/staffDocuments.js';
+import portalAuth from './routes/portal/auth.js';
+import portalMe from './routes/portal/me.js';
+import adminCertifications from './routes/admin/certifications.js';
+import adminEventStaffing from './routes/admin/eventStaffing.js';
+import adminLaborEntries from './routes/admin/laborEntries.js';
+import adminThresholds from './routes/admin/thresholds1099.js';
+import eventDaySessions from './routes/event-day/session.js';
+import eventDayCheckin from './routes/event-day/checkin.js';
+import eventDayWalkup from './routes/event-day/walkup.js';
+import eventDayIncidents from './routes/event-day/incidents.js';
+import eventDayRoster from './routes/event-day/roster.js';
+import eventDayEquipmentReturn from './routes/event-day/equipment-return.js';
+import eventDayChecklists from './routes/event-day/checklists.js';
+import eventDayHq from './routes/event-day/hq.js';
+import eventDayDamageCharge from './routes/event-day/damageCharge.js';
+import adminBookingCharges from './routes/admin/bookingCharges.js';
 
 const app = new Hono();
 
@@ -120,6 +151,24 @@ app.route('/api/admin/feature-flags', adminFeatureFlags);
 app.route('/api/admin/customers', adminCustomers);
 app.route('/api/admin/saved-views', adminSavedViews);
 app.route('/api/admin', adminDashboard);
+app.route('/api/admin/staff', adminStaff);
+app.route('/api/admin/staff-documents', adminStaffDocuments);
+app.route('/api/portal/auth', portalAuth);
+app.route('/api/portal', portalMe);
+app.route('/api/admin/certifications', adminCertifications);
+app.route('/api/admin/event-staffing', adminEventStaffing);
+app.route('/api/admin/labor-entries', adminLaborEntries);
+app.route('/api/admin/1099-thresholds', adminThresholds);
+app.route('/api/event-day/sessions', eventDaySessions);
+app.route('/api/event-day/checkin', eventDayCheckin);
+app.route('/api/event-day/walkup', eventDayWalkup);
+app.route('/api/event-day/incidents', eventDayIncidents);
+app.route('/api/event-day/roster', eventDayRoster);
+app.route('/api/event-day/equipment-return', eventDayEquipmentReturn);
+app.route('/api/event-day/checklists', eventDayChecklists);
+app.route('/api/event-day/hq', eventDayHq);
+app.route('/api/event-day/damage-charge', eventDayDamageCharge);
+app.route('/api/admin/booking-charges', adminBookingCharges);
 
 app.onError((err, c) => {
     console.error('API error', err);
@@ -572,11 +621,29 @@ export default {
             // Every other cron (today: just '*/15 * * * *') runs the
             // existing three-way reminder sweep.
             if (cron === '0 3 * * *') {
-                const tags = await runCustomerTagsSweep(env).catch((err) => {
-                    console.error('customer-tags sweep failed', err);
-                    return { error: err?.message };
-                });
-                summary = { tags };
+                const [tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock] = await Promise.all([
+                    runCustomerTagsSweep(env).catch((err) => {
+                        console.error('customer-tags sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                    runCertExpirationSweep(env).catch((err) => {
+                        console.error('cert-expiration sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                    runEventStaffingReminderSweep(env).catch((err) => {
+                        console.error('event-staffing reminder sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                    runEventStaffingAutoDeclineSweep(env).catch((err) => {
+                        console.error('event-staffing auto-decline sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                    runTaxYearAutoLockSweep(env).catch((err) => {
+                        console.error('tax-year auto-lock sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                ]);
+                summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock };
             } else {
                 const [r, a, v] = await Promise.all([
                     runReminderSweep(env),
