@@ -8,10 +8,13 @@
 // flag deleted in B12b post-DELETE).
 //
 // Decision D09 (docs/decisions.md): Roster / Scan / Rentals routes stay
-// alive; the sidebar hides them by default. They resurface inside
-// /admin/today (page activated in B12c) when activeEventToday=true. B4's
-// TodayCheckIns widget already deep-links via /admin/scan?event=... so
-// the routes work without sidebar entries.
+// alive; the sidebar hides them by default. They resurface as quick-action
+// tiles inside `/admin/today` (page lives at src/admin/AdminToday.jsx,
+// shipped in M4 B12c) when activeEventToday=true. B4's TodayCheckIns
+// widget + B6's CheckInBanner already deep-link via /admin/scan?event=...
+// so the routes work without sidebar entries (note: as of M4 close,
+// AdminScan + AdminRoster do not yet parse the ?event= query param;
+// the link navigates but doesn't pre-select — minor M5 polish item).
 //
 // `getVisibleItems`'s `requiresFlag` filter logic stays for forward-compat —
 // no current item uses it (M4 B12b removed `requiresFlag: 'customers_entity'`
