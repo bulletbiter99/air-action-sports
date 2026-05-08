@@ -61,6 +61,8 @@ const AdminBookingsDetail = lazy(() => import('./admin/AdminBookingsDetail'));
 const AdminToday = lazy(() => import('./admin/AdminToday'));
 const AdminStaff = lazy(() => import('./admin/AdminStaff'));
 const AdminStaffDetail = lazy(() => import('./admin/AdminStaffDetail'));
+const AdminStaffLibrary = lazy(() => import('./admin/AdminStaffLibrary'));
+const AdminStaffDocumentEditor = lazy(() => import('./admin/AdminStaffDocumentEditor'));
 
 export default function App() {
   return (
@@ -126,6 +128,9 @@ export default function App() {
             <Route path="bookings/:id" element={<AdminBookingsDetail />} />
             <Route path="staff" element={<AdminStaff />} />
             <Route path="staff/:id" element={<AdminStaffDetail />} />
+            <Route path="staff/library" element={<AdminStaffLibrary />} />
+            <Route path="staff/library/new" element={<AdminStaffDocumentEditor />} />
+            <Route path="staff/library/:id" element={<AdminStaffDocumentEditor />} />
           </Route>
         </Routes>
       </Suspense>
