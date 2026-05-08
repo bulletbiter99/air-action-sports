@@ -63,6 +63,7 @@ const AdminStaff = lazy(() => import('./admin/AdminStaff'));
 const AdminStaffDetail = lazy(() => import('./admin/AdminStaffDetail'));
 const AdminStaffLibrary = lazy(() => import('./admin/AdminStaffLibrary'));
 const AdminStaffDocumentEditor = lazy(() => import('./admin/AdminStaffDocumentEditor'));
+const AdminStaff1099Thresholds = lazy(() => import('./admin/AdminStaff1099Thresholds'));
 
 // Portal (M5 Batch 6) — Tier 3 light-access magic-link portal
 const PortalLayout = lazy(() => import('./portal/PortalLayout'));
@@ -165,6 +166,7 @@ export default function App() {
             <Route path="staff/library" element={<AdminStaffLibrary />} />
             <Route path="staff/library/new" element={<AdminStaffDocumentEditor />} />
             <Route path="staff/library/:id" element={<AdminStaffDocumentEditor />} />
+            <Route path="staff/1099-thresholds" element={<AdminStaff1099Thresholds />} />
           </Route>
         </Routes>
       </Suspense>
