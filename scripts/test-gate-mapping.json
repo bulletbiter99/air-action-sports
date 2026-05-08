@@ -343,6 +343,35 @@
         "tests/unit/lib/thresholds1099.test.js",
         "tests/unit/admin/thresholds1099/route.test.js"
       ]
+    },
+    "worker/lib/eventDaySession.js": {
+      "tier": "high",
+      "covers": [
+        "EVENT_DAY_WINDOW_MS (30-hour window starting 00:00 UTC of event date_iso) + ACTIVITY_KINDS (4-element frozen list mapping to 0037 schema columns)",
+        "randomEventDaySessionId / isEventActive / eventDayWindowExpired — pure helpers exposed for testability + middleware",
+        "startEventDaySession / getActiveEventDaySession / getEventDaySessionById — I/O wrappers used by the session route + middleware",
+        "endEventDaySession (writes audit row; reason bound positionally) + bumpActivityCounter (whitelist-validated kind → column mapping for R13/R14/R16) + touchActivity (heartbeat)",
+        "requireEventDayAuth — Hono middleware chains portal-cookie verify -> session lookup -> portal_session ownership check -> event-window enforcement (auto-ends on event_window_closed)",
+        "parseEventDayCookie / setEventDayCookie / clearEventDayCookie + EVENT_DAY_COOKIE_NAME constant"
+      ],
+      "audit_group": "(M5 R12 event-day foundations — Surface 5)",
+      "tests": [
+        "tests/unit/lib/eventDaySession.test.js",
+        "tests/unit/event-day/session.test.js"
+      ]
+    },
+    "worker/routes/event-day/session.js": {
+      "tier": "high",
+      "covers": [
+        "POST /api/event-day/sessions/start (portal-cookie + event-staffed gate; idempotent reuse if active session exists for person+event)",
+        "POST /api/event-day/sessions/heartbeat (touch last_activity_at; gated by requireEventDayAuth)",
+        "POST /api/event-day/sessions/end (set signed_out_at + clear cookie + audit; gated by requireEventDayAuth)",
+        "GET /api/event-day/sessions/me (counters shape used by HQ dashboard in R15)"
+      ],
+      "audit_group": "(M5 R12 event-day foundations — Surface 5)",
+      "tests": [
+        "tests/unit/event-day/session.test.js"
+      ]
     }
   },
   "uncovered": {
