@@ -25,8 +25,9 @@
 -- (Avoid the literal SQL keyword "TRANSACTION" anywhere — wrangler's
 -- parser keyword-scans uploaded SQL even inside comments.)
 
-INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VALUES
-  ('additional_charge_notice',
+INSERT INTO email_templates (id, slug, subject, body_html, body_text, updated_at, created_at) VALUES
+  ('tpl_additional_charge_notice',
+   'additional_charge_notice',
    'Additional charge for {{eventTitle}} — {{amountDisplay}}',
    '<p>Hi {{customerName}},</p>' ||
    '<p>During equipment return at <strong>{{eventTitle}}</strong>, our marshal recorded an issue with your <strong>{{itemName}}</strong> ' ||
@@ -41,9 +42,11 @@ INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VA
    'This payment link expires on {{linkExpiresOn}}.' || char(10) || char(10) ||
    'If you believe this charge is in error, reply to this email and the event manager will review it.' || char(10) || char(10) ||
    '— The Air Action Sports team',
+   strftime('%s','now') * 1000,
    strftime('%s','now') * 1000),
 
-  ('additional_charge_paid',
+  ('tpl_additional_charge_paid',
+   'additional_charge_paid',
    'Receipt — additional charge paid ({{amountDisplay}})',
    '<p>Hi {{customerName}},</p>' ||
    '<p>We''ve received your payment of <strong>{{amountDisplay}}</strong> for the {{itemName}} charge.</p>' ||
@@ -55,9 +58,11 @@ INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VA
    'Payment method: {{paymentMethod}}{{paymentReference}}' || char(10) || char(10) ||
    'This receipt is for your records. No further action is needed.' || char(10) || char(10) ||
    '— The Air Action Sports team',
+   strftime('%s','now') * 1000,
    strftime('%s','now') * 1000),
 
-  ('additional_charge_waived',
+  ('tpl_additional_charge_waived',
+   'additional_charge_waived',
    'Update — your {{itemName}} charge has been waived',
    '<p>Hi {{customerName}},</p>' ||
    '<p>Good news — the <strong>{{amountDisplay}}</strong> charge for {{itemName}} has been waived.</p>' ||
@@ -69,6 +74,7 @@ INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VA
    'Reason: {{waivedReason}}' || char(10) || char(10) ||
    'You are not being charged. Thanks for playing with us.' || char(10) || char(10) ||
    '— The Air Action Sports team',
+   strftime('%s','now') * 1000,
    strftime('%s','now') * 1000);
 
 -- Baseline booking_confirmation template — INSERT OR IGNORE so an
@@ -77,8 +83,9 @@ INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VA
 -- so customers aren't surprised when they receive an
 -- additional_charge_notice email after an event.
 
-INSERT OR IGNORE INTO email_templates (slug, subject, body_html, body_text, updated_at) VALUES
-  ('booking_confirmation',
+INSERT OR IGNORE INTO email_templates (id, slug, subject, body_html, body_text, updated_at, created_at) VALUES
+  ('tpl_booking_confirmation',
+   'booking_confirmation',
    'Your Air Action Sports booking is confirmed — {{eventTitle}}',
    '<p>Hi {{buyerName}},</p>' ||
    '<p>You are confirmed for <strong>{{eventTitle}}</strong> on <strong>{{eventDate}}</strong>.</p>' ||
@@ -97,4 +104,5 @@ INSERT OR IGNORE INTO email_templates (slug, subject, body_html, body_text, upda
    'Sign your waiver before the event: {{waiverLink}}' || char(10) || char(10) ||
    'Additional charges: damage to or loss of rental equipment may result in an additional charge sent to this email after the event. Charges include a payment link with full details. If you receive a charge you believe is in error, reply to this email and the event manager will review it.' || char(10) || char(10) ||
    '— The Air Action Sports team',
+   strftime('%s','now') * 1000,
    strftime('%s','now') * 1000);

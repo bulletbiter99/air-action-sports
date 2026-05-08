@@ -18,8 +18,9 @@
 -- (Avoid the literal SQL keyword "TRANSACTION" anywhere — wrangler's
 -- parser keyword-scans uploaded SQL even inside comments.)
 
-INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VALUES
-  ('w9_reminder',
+INSERT INTO email_templates (id, slug, subject, body_html, body_text, updated_at, created_at) VALUES
+  ('tpl_w9_reminder',
+   'w9_reminder',
    'Action needed — submit a W-9 for {{taxYear}} tax filing ({{total1099Display}})',
    '<p>Hi {{personName}},</p>' ||
    '<p>Our records show your <strong>{{taxYear}}</strong> 1099 earnings with Air Action Sports total <strong>{{total1099Display}}</strong>, ' ||
@@ -33,4 +34,5 @@ INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VA
    'Please send us a completed W-9 by {{requiredBy}} so we can file by the IRS deadline. Reply to this email with the form attached, or ask if you would like us to send a fillable PDF.' || char(10) || char(10) ||
    'If you''ve already submitted a W-9 for {{taxYear}}, reply and we''ll double-check our records.' || char(10) || char(10) ||
    '— The Air Action Sports team',
+   strftime('%s','now') * 1000,
    strftime('%s','now') * 1000);

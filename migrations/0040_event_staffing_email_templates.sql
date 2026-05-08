@@ -22,8 +22,9 @@
 -- Avoid the literal SQL keyword "TRANSACTION" anywhere — wrangler's
 -- parser keyword-scans uploaded SQL even inside comments.
 
-INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VALUES
-  ('event_staff_invite',
+INSERT INTO email_templates (id, slug, subject, body_html, body_text, updated_at, created_at) VALUES
+  ('tpl_event_staff_invite',
+   'event_staff_invite',
    'You''re invited to staff {{eventTitle}} on {{eventDate}}',
    '<p>Hi {{personName}},</p>' ||
    '<p>You''ve been assigned to staff <strong>{{eventTitle}}</strong> on <strong>{{eventDate}}</strong> as <strong>{{roleName}}</strong>.</p>' ||
@@ -37,9 +38,11 @@ INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VA
    'RSVP via the staff portal: {{rsvpLink}}' || char(10) || char(10) ||
    'Please RSVP within 48 hours. If you cannot make this event, reply to this email so we can find someone else.' || char(10) || char(10) ||
    '— The Air Action Sports team',
+   strftime('%s','now') * 1000,
    strftime('%s','now') * 1000),
 
-  ('event_staff_reminder',
+  ('tpl_event_staff_reminder',
+   'event_staff_reminder',
    'Reminder: you''re on the schedule for {{eventTitle}} ({{windowLabel}})',
    '<p>Hi {{personName}},</p>' ||
    '<p>Quick reminder — you''re scheduled to staff <strong>{{eventTitle}}</strong> on <strong>{{eventDate}}</strong> as <strong>{{roleName}}</strong>, starting <strong>{{shiftStartTime}}</strong> ({{windowLabel}}).</p>' ||
@@ -51,4 +54,5 @@ INSERT INTO email_templates (slug, subject, body_html, body_text, updated_at) VA
    'If anything has changed and you can no longer attend, please reply to this email immediately so we can find a replacement.' || char(10) || char(10) ||
    'See you at the event!' || char(10) || char(10) ||
    '— The Air Action Sports team',
+   strftime('%s','now') * 1000,
    strftime('%s','now') * 1000);
