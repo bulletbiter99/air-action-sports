@@ -268,7 +268,7 @@ function TemplateEditor({ slug, readOnly, onClose, onSaved }) {
               <button onClick={onClose} style={subtleBtn}>Close</button>
             </div>
 
-            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(200,184,154,0.1)' }}>
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--color-border)' }}>
               <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: 'var(--orange)', textTransform: 'uppercase', marginBottom: 8 }}>
                 Send a test
               </div>
@@ -304,8 +304,8 @@ function Field({ label, children }) {
 
 const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
 const backLink = { color: 'var(--olive-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
-const tableBox = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)', padding: '1.5rem' };
+const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
+const tableBox = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem' };
 const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
 const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
 const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
@@ -315,4 +315,4 @@ const secondaryBtn = { padding: '10px 18px', background: 'var(--olive)', color: 
 const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
 const tabBtn = { padding: '10px 16px', background: 'transparent', border: 'none', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
 const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
-const modal = { background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.2)', padding: '1.5rem', width: '100%', maxWidth: 820, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
+const modal = { background: 'var(--mid)', border: '1px solid var(--color-border-strong)', padding: '1.5rem', width: '100%', maxWidth: 820, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
