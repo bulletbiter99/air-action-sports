@@ -64,6 +64,7 @@ const AdminStaff = lazy(() => import('./admin/AdminStaff'));
 const AdminStaffDetail = lazy(() => import('./admin/AdminStaffDetail'));
 const AdminStaffLibrary = lazy(() => import('./admin/AdminStaffLibrary'));
 const AdminStaffDocumentEditor = lazy(() => import('./admin/AdminStaffDocumentEditor'));
+const AdminStaff1099Thresholds = lazy(() => import('./admin/AdminStaff1099Thresholds'));
 
 // Portal (M5 Batch 6) — Tier 3 light-access magic-link portal
 const PortalLayout = lazy(() => import('./portal/PortalLayout'));
@@ -81,6 +82,8 @@ const EventDayIncident = lazy(() => import('./event-day/IncidentReport'));
 const EventDayEquipment = lazy(() => import('./event-day/EquipmentReturn'));
 const EventDayChecklist = lazy(() => import('./event-day/EventChecklist'));
 const EventDayHQ = lazy(() => import('./event-day/EventHQ'));
+const EventDayAttendeeDetail = lazy(() => import('./event-day/AttendeeDetail'));
+const EventDayWalkUp = lazy(() => import('./event-day/WalkUpBooking'));
 
 export default function App() {
   return (
@@ -116,6 +119,8 @@ export default function App() {
           <Route path="event" element={<EventDayLayout />}>
             <Route index element={<EventDayHome />} />
             <Route path="check-in" element={<EventDayCheckIn />} />
+            <Route path="attendee/:qrToken" element={<EventDayAttendeeDetail />} />
+            <Route path="walkup" element={<EventDayWalkUp />} />
             <Route path="roster" element={<EventDayRoster />} />
             <Route path="incident" element={<EventDayIncident />} />
             <Route path="equipment-return" element={<EventDayEquipment />} />
@@ -167,6 +172,7 @@ export default function App() {
             <Route path="staff/library" element={<AdminStaffLibrary />} />
             <Route path="staff/library/new" element={<AdminStaffDocumentEditor />} />
             <Route path="staff/library/:id" element={<AdminStaffDocumentEditor />} />
+            <Route path="staff/1099-thresholds" element={<AdminStaff1099Thresholds />} />
           </Route>
         </Routes>
       </Suspense>
