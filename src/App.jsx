@@ -71,6 +71,10 @@ const PortalDocument = lazy(() => import('./portal/PortalDocument'));
 const PortalAccount = lazy(() => import('./portal/PortalAccount'));
 const PortalConsume = lazy(() => import('./portal/PortalConsume'));
 
+// Event-day mode (M5 Batches 12-15)
+const EventDayLayout = lazy(() => import('./event-day/EventDayLayout'));
+const EventDayHome = lazy(() => import('./event-day/EventDayHome'));
+
 export default function App() {
   return (
     <>
@@ -102,6 +106,9 @@ export default function App() {
           <Route path="vendor/login" element={<VendorLogin />} />
           <Route path="vendor/dashboard" element={<VendorDashboard />} />
           <Route path="portal/auth/consume" element={<PortalConsume />} />
+          <Route path="event" element={<EventDayLayout />}>
+            <Route index element={<EventDayHome />} />
+          </Route>
           <Route path="portal" element={<PortalLayout />}>
             <Route index element={<PortalHome />} />
             <Route path="documents" element={<PortalDocument />} />
