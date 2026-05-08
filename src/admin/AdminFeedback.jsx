@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import FeedbackModal from '../components/FeedbackModal';
 import FilterBar from '../components/admin/FilterBar.jsx';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import EmptyState from '../components/admin/EmptyState.jsx';
 
 const TYPE_LABEL = { bug: 'Bug', feature: 'Feature', usability: 'Usability', other: 'Other' };
 const STATUS_LABEL = {
@@ -25,6 +27,8 @@ const FEEDBACK_FILTER_SCHEMA = [
     options: PRIORITIES.map((p) => ({ value: p, label: p })) },
 ];
 
+// Domain colors stay raw — per-type / per-status / per-priority coloring is
+// intentional information density, not a design-token target.
 const TYPE_COLOR = { bug: '#e74c3c', feature: '#3498db', usability: '#e67e22', other: '#95a5a6' };
 const STATUS_COLOR = {
   new: '#d76c21', triaged: '#e67e22', 'in-progress': '#3498db',
@@ -70,28 +74,26 @@ export default function AdminFeedback() {
 
   if (!isAuthenticated) return null;
 
+  const isFiltered = Boolean(filters.status || filters.type || filters.priority || filters.q);
+
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      <div style={headerRow}>
-        <div>
-          <h1 style={h1}>Feedback</h1>
-          <div style={{ color: 'var(--olive-light)', fontSize: 13, marginTop: 4 }}>
-            User-submitted bugs, feature requests, and usability reports.
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setSubmitOpen(true)}
-          aria-label="Submit new feedback"
-          title="Submit new feedback"
-          style={plusBtn}
-        >
-          +
-        </button>
-      </div>
+    <div style={pageWrap}>
+      <AdminPageHeader
+        title="Feedback"
+        description="User-submitted bugs, feature requests, and usability reports."
+        primaryAction={
+          <button
+            type="button"
+            onClick={() => setSubmitOpen(true)}
+            aria-label="Submit new feedback"
+            title="Submit new feedback"
+            style={plusBtn}
+          >+</button>
+        }
+      />
 
       <div style={statsGrid}>
-        <StatCard label="New" value={summary.new} color="var(--orange)" onClick={() => setFilters({ ...filters, status: 'new' })} />
+        <StatCard label="New" value={summary.new} accent onClick={() => setFilters({ ...filters, status: 'new' })} />
         <StatCard label="Triaged" value={summary.triaged} onClick={() => setFilters({ ...filters, status: 'triaged' })} />
         <StatCard label="In progress" value={summary.inProgress} onClick={() => setFilters({ ...filters, status: 'in-progress' })} />
         <StatCard label="Resolved" value={summary.resolved} onClick={() => setFilters({ ...filters, status: 'resolved' })} />
@@ -109,12 +111,18 @@ export default function AdminFeedback() {
         savedViewsKey="adminFeedback"
       />
 
-      <section style={{ ...tableBox, marginTop: 16 }}>
-        {loadingList && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
+      <section style={tableBox}>
+        {loadingList && <EmptyState variant="loading" title="Loading feedback…" compact />}
         {!loadingList && items.length === 0 && (
-          <p style={{ color: 'var(--olive-light)' }}>No feedback matches these filters.</p>
+          <EmptyState
+            isFiltered={isFiltered}
+            title={isFiltered ? 'No feedback matches these filters' : 'No feedback yet'}
+            description={isFiltered
+              ? 'Try clearing a filter or expanding the search.'
+              : 'When users submit feedback, it will appear here.'}
+          />
         )}
-        {items.length > 0 && (
+        {!loadingList && items.length > 0 && (
           <div className="admin-table-wrap">
             <table style={table}>
               <thead>
@@ -131,10 +139,10 @@ export default function AdminFeedback() {
               <tbody>
                 {items.map((f) => (
                   <tr key={f.id} style={tr}>
-                    <td style={td}>{fmtDate(f.createdAt)}</td>
+                    <td style={tdSmall}>{fmtDate(f.createdAt)}</td>
                     <td style={td}><Pill color={TYPE_COLOR[f.type]}>{TYPE_LABEL[f.type]}</Pill></td>
-                    <td style={{ ...td, maxWidth: 360, fontWeight: 600 }}>{f.title}</td>
-                    <td style={{ ...td, fontSize: 12, color: 'var(--tan-light)' }}>{f.email || <em style={{ color: 'var(--olive-light)' }}>anonymous</em>}</td>
+                    <td style={tdTitle}>{f.title}</td>
+                    <td style={tdMuted}>{f.email || <em style={{ color: 'var(--color-text-subtle)' }}>anonymous</em>}</td>
                     <td style={td}><Pill color={STATUS_COLOR[f.status]}>{STATUS_LABEL[f.status]}</Pill></td>
                     <td style={td}><Pill color={PRIORITY_COLOR[f.priority]}>{f.priority}</Pill></td>
                     <td style={td}>
@@ -184,9 +192,8 @@ function FeedbackDetail({ feedback, canDelete, canEditStatus, onClose, onUpdated
   const [notifying, setNotifying] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState('');
   const [err, setErr] = useState('');
-  // Preview-before-send modal state.
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [preview, setPreview] = useState(null); // { rendered: { subject, html, text }, recipient }
+  const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewErr, setPreviewErr] = useState('');
 
@@ -212,8 +219,6 @@ function FeedbackDetail({ feedback, canDelete, canEditStatus, onClose, onUpdated
     if (res.ok) onDeleted(feedback.id);
   };
 
-  // Open preview modal — fetches the rendered email with this ticket's
-  // actual status + admin_note, so the user sees exactly what will be sent.
   const openNotifyPreview = async () => {
     setPreviewOpen(true);
     setPreviewLoading(true);
@@ -238,7 +243,6 @@ function FeedbackDetail({ feedback, canDelete, canEditStatus, onClose, onUpdated
     }
   };
 
-  // Actually send. Called from the modal's confirm button.
   const confirmNotify = async () => {
     setNotifying(true);
     setNotifyMsg('');
@@ -264,66 +268,64 @@ function FeedbackDetail({ feedback, canDelete, canEditStatus, onClose, onUpdated
   return (
     <div className="admin-modal-back" style={modalBg} onClick={onClose}>
       <div className="admin-modal-card" style={modal} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, color: 'var(--cream)', fontSize: 14, letterSpacing: 1.5, textTransform: 'uppercase' }}>
-            Feedback detail
-          </h3>
+        <div style={modalHeader}>
+          <h3 style={modalTitle}>Feedback detail</h3>
           <button type="button" onClick={onClose} aria-label="Close" style={closeX}>×</button>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={pillRow}>
           <Pill color={TYPE_COLOR[feedback.type]}>{TYPE_LABEL[feedback.type]}</Pill>
           <Pill color={STATUS_COLOR[feedback.status]}>{STATUS_LABEL[feedback.status]}</Pill>
           <Pill color={PRIORITY_COLOR[feedback.priority]}>{feedback.priority}</Pill>
-          <span style={{ color: 'var(--olive-light)', fontSize: 11, marginLeft: 'auto' }}>{fmtDate(feedback.createdAt)}</span>
+          <span style={pillRowDate}>{fmtDate(feedback.createdAt)}</span>
         </div>
 
-        <h2 style={{ color: 'var(--cream)', margin: '0 0 8px', fontSize: 18 }}>{feedback.title}</h2>
+        <h2 style={detailH2}>{feedback.title}</h2>
         <div style={descriptionBox}>{feedback.description}</div>
 
         {(feedback.attachmentUrl || feedback.attachmentDeletedAt) && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 700, marginBottom: 6 }}>Screenshot</div>
+          <div style={{ marginTop: 'var(--space-12)' }}>
+            <div style={fieldLabelText}>Screenshot</div>
             {feedback.attachmentUrl ? (
               <a href={feedback.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block' }}>
                 <img
                   src={feedback.attachmentUrl}
                   alt="Submitted screenshot"
-                  style={{ maxWidth: '100%', maxHeight: 320, border: '1px solid var(--color-border-strong)', borderRadius: 3 }}
+                  style={screenshotImg}
                 />
               </a>
             ) : (
-              <div style={{ fontSize: 12, color: 'var(--olive-light)', fontStyle: 'italic', padding: 10, border: '1px dashed rgba(200,184,154,0.15)', borderRadius: 3 }}>
+              <div style={screenshotDeleted}>
                 Screenshot was attached but has been deleted (retired {fmtDate(feedback.attachmentDeletedAt)}).
               </div>
             )}
           </div>
         )}
 
-        <div style={{ ...metaGrid, marginTop: 16 }}>
-          <MetaRow label="From" value={feedback.email ? <a href={mailto} style={{ color: 'var(--orange)' }}>{feedback.email}</a> : <em>anonymous</em>} />
-          <MetaRow label="Page" value={feedback.pageUrl ? <a href={feedback.pageUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--orange)' }}>{feedback.pageUrl}</a> : '—'} />
-          <MetaRow label="Browser" value={<span style={{ fontSize: 11 }}>{feedback.userAgent || '—'} {feedback.viewport ? `· ${feedback.viewport}` : ''}</span>} />
-          <MetaRow label="ID" value={<code style={{ fontSize: 11 }}>{feedback.id}</code>} />
+        <div style={{ ...metaGrid, marginTop: 'var(--space-16)' }}>
+          <MetaRow label="From" value={feedback.email ? <a href={mailto} style={{ color: 'var(--color-accent)' }}>{feedback.email}</a> : <em>anonymous</em>} />
+          <MetaRow label="Page" value={feedback.pageUrl ? <a href={feedback.pageUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--color-accent)' }}>{feedback.pageUrl}</a> : '—'} />
+          <MetaRow label="Browser" value={<span style={{ fontSize: 'var(--font-size-sm)' }}>{feedback.userAgent || '—'} {feedback.viewport ? `· ${feedback.viewport}` : ''}</span>} />
+          <MetaRow label="ID" value={<code style={{ fontSize: 'var(--font-size-sm)' }}>{feedback.id}</code>} />
         </div>
 
         <div style={sectionLabel}>Triage</div>
         <div style={twoCol}>
           <label style={fieldLabel}>
-            Status
+            <div style={fieldLabelText}>Status</div>
             <select value={status} onChange={(e) => setStatus(e.target.value)} style={input} disabled={!canEditStatus}>
               {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
             </select>
           </label>
           <label style={fieldLabel}>
-            Priority
+            <div style={fieldLabelText}>Priority</div>
             <select value={priority} onChange={(e) => setPriority(e.target.value)} style={input} disabled={!canEditStatus}>
               {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </label>
         </div>
-        <label style={{ ...fieldLabel, marginTop: 12 }}>
-          Admin note (private)
+        <label style={{ ...fieldLabel, marginTop: 'var(--space-12)' }}>
+          <div style={fieldLabelText}>Admin note (private)</div>
           <textarea
             rows={3}
             value={adminNote}
@@ -333,10 +335,10 @@ function FeedbackDetail({ feedback, canDelete, canEditStatus, onClose, onUpdated
           />
         </label>
 
-        {err && <div style={{ color: '#e74c3c', fontSize: 12, margin: '8px 0' }}>{err}</div>}
-        {notifyMsg && <div style={{ color: '#27ae60', fontSize: 12, margin: '8px 0' }}>{notifyMsg}</div>}
+        {err && <div style={errorText}>{err}</div>}
+        {notifyMsg && <div style={successText}>{notifyMsg}</div>}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+        <div style={modalActions}>
           <button type="button" onClick={save} disabled={saving} style={primaryBtn}>{saving ? 'Saving…' : 'Save changes'}</button>
           {feedback.email && canEditStatus && (
             <button type="button" onClick={openNotifyPreview} disabled={notifying} style={secondaryBtn}>
@@ -365,37 +367,23 @@ function FeedbackDetail({ feedback, canDelete, canEditStatus, onClose, onUpdated
 
 function NotifyPreviewModal({ recipient, loading, preview, err, sending, onCancel, onConfirm }) {
   return (
-    <div
-      style={{ ...modalBg, zIndex: 200 }}
-      onClick={onCancel}
-    >
-      <div
-        style={{ ...modal, maxWidth: 720 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, color: 'var(--cream)', fontSize: 14, letterSpacing: 1.5, textTransform: 'uppercase' }}>
-            Preview email
-          </h3>
+    <div style={{ ...modalBg, zIndex: 200 }} onClick={onCancel}>
+      <div style={{ ...modal, maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
+        <div style={modalHeader}>
+          <h3 style={modalTitle}>Preview email</h3>
           <button type="button" onClick={onCancel} aria-label="Close" style={closeX}>×</button>
         </div>
 
-        <div style={{ fontSize: 12, color: 'var(--olive-light)', marginBottom: 14 }}>
+        <div style={previewIntro}>
           This is exactly what will be sent. Subject and body render with the
           ticket&rsquo;s current <strong>status</strong> and <strong>admin note</strong>.
           Edit those first if you want different copy.
         </div>
 
-        {loading && (
-          <div style={{ padding: 20, textAlign: 'center', color: 'var(--olive-light)', fontSize: 13 }}>
-            Loading preview&hellip;
-          </div>
-        )}
+        {loading && <EmptyState variant="loading" title="Loading preview…" compact />}
 
         {err && (
-          <div style={{ color: '#e74c3c', fontSize: 12, padding: 10, background: 'rgba(231,76,60,0.08)', border: '1px solid rgba(231,76,60,0.2)', borderRadius: 3, marginBottom: 12 }}>
-            {err}
-          </div>
+          <div style={errBanner}>{err}</div>
         )}
 
         {preview && (
@@ -409,28 +397,18 @@ function NotifyPreviewModal({ recipient, loading, preview, err, sending, onCance
               <div style={previewMetaValue}>{preview.rendered.subject}</div>
             </div>
 
-            <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 700, margin: '14px 0 6px' }}>
-              Body
-            </div>
+            <div style={{ ...fieldLabelText, margin: 'var(--space-12) 0 var(--space-4)' }}>Body</div>
             <iframe
               title="Email body preview"
               srcDoc={preview.rendered.html}
               sandbox=""
-              style={{
-                width: '100%',
-                height: 360,
-                background: '#fff',
-                border: '1px solid var(--color-border-strong)',
-                borderRadius: 3,
-              }}
+              style={previewIframe}
             />
           </>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onCancel} style={secondaryBtn} disabled={sending}>
-            Cancel
-          </button>
+        <div style={{ ...modalActions, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} style={secondaryBtn} disabled={sending}>Cancel</button>
           <button
             type="button"
             onClick={onConfirm}
@@ -445,25 +423,12 @@ function NotifyPreviewModal({ recipient, loading, preview, err, sending, onCance
   );
 }
 
-const previewMetaRow = {
-  display: 'flex', gap: 12, alignItems: 'baseline',
-  padding: '8px 0',
-  borderBottom: '1px solid rgba(200,184,154,0.08)',
-};
-const previewMetaLabel = {
-  fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase',
-  color: 'var(--orange)', fontWeight: 700, minWidth: 60,
-};
-const previewMetaValue = {
-  fontSize: 13, color: 'var(--cream)', wordBreak: 'break-word', flex: 1,
-};
-
-function StatCard({ label, value, sub, color, onClick }) {
+function StatCard({ label, value, sub, accent, onClick }) {
   return (
     <button type="button" onClick={onClick} style={{ ...statCard, cursor: onClick ? 'pointer' : 'default' }}>
-      <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: color || 'var(--orange)', fontWeight: 700 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--cream)', margin: '4px 0' }}>{value ?? 0}</div>
-      {sub && <div style={{ fontSize: 11, color: 'var(--olive-light)' }}>{sub}</div>}
+      <div style={{ ...statCardLabel, color: accent ? 'var(--color-accent)' : 'var(--color-accent)' }}>{label}</div>
+      <div style={statCardValue}>{value ?? 0}</div>
+      {sub && <div style={statCardSub}>{sub}</div>}
     </button>
   );
 }
@@ -471,12 +436,16 @@ function StatCard({ label, value, sub, color, onClick }) {
 function Pill({ children, color }) {
   return (
     <span style={{
-      display: 'inline-block', padding: '3px 8px', borderRadius: 3,
-      background: `${color}22`, color, fontSize: 10, fontWeight: 800,
-      letterSpacing: 1, textTransform: 'uppercase',
-    }}>
-      {children}
-    </span>
+      display: 'inline-block',
+      padding: 'var(--space-4) var(--space-8)',
+      borderRadius: 'var(--radius-sm)',
+      background: `${color}22`,
+      color,
+      fontSize: 'var(--font-size-xs)',
+      fontWeight: 'var(--font-weight-extrabold)',
+      letterSpacing: 'var(--letter-spacing-wide)',
+      textTransform: 'uppercase',
+    }}>{children}</span>
   );
 }
 
@@ -489,38 +458,317 @@ function MetaRow({ label, value }) {
   );
 }
 
-const headerRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 };
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
+const pageWrap = { maxWidth: 1200, margin: '0 auto', padding: 'var(--space-32)' };
 const plusBtn = {
   width: 36, height: 36,
-  background: 'var(--orange)', color: '#fff',
-  border: 'none', borderRadius: 3,
-  fontSize: 24, fontWeight: 700, lineHeight: 1,
+  background: 'var(--color-accent)', color: 'var(--color-accent-on-accent)',
+  border: 'none', borderRadius: 'var(--radius-sm)',
+  fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-bold)', lineHeight: 1,
   cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   padding: 0, flexShrink: 0,
 };
-const statsGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 };
-const statCard = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.1rem', textAlign: 'left', color: 'inherit', fontFamily: 'inherit' };
-const tableBox = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem' };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const th = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid rgba(200,184,154,0.15)', color: 'var(--orange)', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' };
-const tr = { borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const td = { padding: '10px 12px', color: 'var(--cream)', verticalAlign: 'top' };
-const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
-const primaryBtn = { padding: '10px 18px', background: 'var(--orange)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const subtleBtn = { padding: '6px 12px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
-const secondaryBtn = { padding: '10px 18px', background: 'transparent', border: '1px solid var(--olive-light)', color: 'var(--cream)', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const dangerBtn = { padding: '10px 18px', background: 'transparent', border: '1px solid rgba(231,76,60,0.4)', color: '#e74c3c', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', cursor: 'pointer' };
-const secondaryLink = { padding: '10px 18px', background: 'transparent', border: '1px solid rgba(200,184,154,0.25)', color: 'var(--tan-light)', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' };
-const modalBg = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
-const modal = { background: 'var(--mid)', border: '1px solid var(--color-border-strong)', padding: '1.5rem', width: '100%', maxWidth: 640, borderRadius: 4, maxHeight: '92vh', overflowY: 'auto' };
-const closeX = { width: 32, height: 32, border: '1px solid rgba(200,184,154,0.25)', background: 'transparent', color: 'var(--tan-light)', fontSize: 22, lineHeight: 1, cursor: 'pointer', borderRadius: 4, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const descriptionBox = { background: 'var(--dark)', border: '1px solid var(--color-border)', padding: 14, borderRadius: 3, color: 'var(--cream)', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
-const metaGrid = { display: 'flex', flexDirection: 'column', gap: 4 };
-const metaRow = { display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, padding: '6px 0', borderBottom: '1px solid rgba(200,184,154,0.05)' };
-const metaRowLabel = { fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--olive-light)', fontWeight: 700 };
-const metaRowValue = { color: 'var(--tan-light)', fontSize: 13, wordBreak: 'break-word' };
-const sectionLabel = { fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--orange)', fontWeight: 800, margin: '20px 0 10px', borderTop: '1px solid rgba(200,184,154,0.12)', paddingTop: 16 };
-const twoCol = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 };
-const fieldLabel = { display: 'block', color: 'var(--tan-light)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700 };
+const statsGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 'var(--space-12)' };
+const statCard = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-16)',
+  textAlign: 'left',
+  color: 'inherit',
+  fontFamily: 'inherit',
+};
+const statCardLabel = {
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-bold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  color: 'var(--color-accent)',
+  textTransform: 'uppercase',
+};
+const statCardValue = {
+  fontSize: 'var(--font-size-3xl)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  color: 'var(--color-text)',
+  margin: 'var(--space-4) 0',
+};
+const statCardSub = { fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' };
+const tableBox = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-24)',
+  marginTop: 'var(--space-16)',
+};
+const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+const th = {
+  textAlign: 'left',
+  padding: 'var(--space-8) var(--space-12)',
+  borderBottom: '1px solid var(--color-border-strong)',
+  color: 'var(--color-accent)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
+const td = { padding: 'var(--space-8) var(--space-12)', color: 'var(--color-text)', verticalAlign: 'top' };
+const tdSmall = { ...td, fontSize: 'var(--font-size-sm)' };
+const tdMuted = { ...td, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' };
+const tdTitle = { ...td, maxWidth: 360, fontWeight: 'var(--font-weight-semibold)' };
+const input = {
+  padding: 'var(--space-8) var(--space-12)',
+  background: 'var(--color-bg-page)',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-base)',
+  fontFamily: 'inherit',
+  width: '100%',
+  boxSizing: 'border-box',
+};
+const primaryBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'var(--color-accent)',
+  color: 'var(--color-accent-on-accent)',
+  border: 'none',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const subtleBtn = {
+  padding: 'var(--space-4) var(--space-12)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const secondaryBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const dangerBtn = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'transparent',
+  border: '1px solid var(--color-danger)',
+  color: 'var(--color-danger)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+};
+const secondaryLink = {
+  padding: 'var(--space-8) var(--space-16)',
+  background: 'transparent',
+  border: '1px solid var(--color-border-strong)',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  textDecoration: 'none',
+  display: 'inline-flex',
+  alignItems: 'center',
+};
+const modalBg = {
+  position: 'fixed',
+  inset: 0,
+  background: 'var(--color-overlay-strong)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1000,
+  padding: 'var(--space-16)',
+};
+const modal = {
+  background: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border-strong)',
+  padding: 'var(--space-24)',
+  width: '100%',
+  maxWidth: 640,
+  borderRadius: 'var(--radius-md)',
+  maxHeight: '92vh',
+  overflowY: 'auto',
+};
+const modalHeader = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 'var(--space-16)',
+};
+const modalTitle = {
+  margin: 0,
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-md)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+};
+const modalActions = {
+  display: 'flex',
+  gap: 'var(--space-8)',
+  marginTop: 'var(--space-16)',
+  flexWrap: 'wrap',
+};
+const closeX = {
+  width: 32,
+  height: 32,
+  border: '1px solid var(--color-border-strong)',
+  background: 'transparent',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-xl)',
+  lineHeight: 1,
+  cursor: 'pointer',
+  borderRadius: 'var(--radius-md)',
+  padding: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+const descriptionBox = {
+  background: 'var(--color-bg-page)',
+  border: '1px solid var(--color-border)',
+  padding: 'var(--space-12)',
+  borderRadius: 'var(--radius-sm)',
+  color: 'var(--color-text)',
+  fontSize: 'var(--font-size-base)',
+  lineHeight: 'var(--line-height-normal)',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+};
+const detailH2 = {
+  color: 'var(--color-text)',
+  margin: '0 0 var(--space-8)',
+  fontSize: 'var(--font-size-lg)',
+  fontWeight: 'var(--font-weight-extrabold)',
+};
+const screenshotImg = {
+  maxWidth: '100%',
+  maxHeight: 320,
+  border: '1px solid var(--color-border-strong)',
+  borderRadius: 'var(--radius-sm)',
+};
+const screenshotDeleted = {
+  fontSize: 'var(--font-size-sm)',
+  color: 'var(--color-text-muted)',
+  fontStyle: 'italic',
+  padding: 'var(--space-12)',
+  border: '1px dashed var(--color-border)',
+  borderRadius: 'var(--radius-sm)',
+};
+const metaGrid = { display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' };
+const metaRow = {
+  display: 'grid',
+  gridTemplateColumns: '80px 1fr',
+  gap: 'var(--space-8)',
+  padding: 'var(--space-4) 0',
+  borderBottom: '1px solid var(--color-border-subtle)',
+};
+const metaRowLabel = {
+  fontSize: 'var(--font-size-xs)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  color: 'var(--color-text-muted)',
+  fontWeight: 'var(--font-weight-bold)',
+};
+const metaRowValue = {
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-base)',
+  wordBreak: 'break-word',
+};
+const sectionLabel = {
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wider)',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent)',
+  fontWeight: 'var(--font-weight-extrabold)',
+  margin: 'var(--space-24) 0 var(--space-8)',
+  borderTop: '1px solid var(--color-border)',
+  paddingTop: 'var(--space-16)',
+};
+const twoCol = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-8)' };
+const fieldLabel = {
+  display: 'block',
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-sm)',
+};
+const fieldLabelText = {
+  fontSize: 'var(--font-size-sm)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent)',
+  fontWeight: 'var(--font-weight-bold)',
+  marginBottom: 'var(--space-4)',
+};
+const pillRow = {
+  display: 'flex',
+  gap: 'var(--space-8)',
+  marginBottom: 'var(--space-12)',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+};
+const pillRowDate = {
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-xs)',
+  marginLeft: 'auto',
+};
+const errorText = {
+  color: 'var(--color-danger)',
+  fontSize: 'var(--font-size-sm)',
+  margin: 'var(--space-8) 0',
+};
+const successText = {
+  color: 'var(--color-success)',
+  fontSize: 'var(--font-size-sm)',
+  margin: 'var(--space-8) 0',
+};
+const errBanner = {
+  color: 'var(--color-danger)',
+  fontSize: 'var(--font-size-sm)',
+  padding: 'var(--space-8)',
+  background: 'var(--color-danger-soft)',
+  border: '1px solid var(--color-danger)',
+  borderRadius: 'var(--radius-sm)',
+  marginBottom: 'var(--space-12)',
+};
+const previewIntro = {
+  fontSize: 'var(--font-size-sm)',
+  color: 'var(--color-text-muted)',
+  marginBottom: 'var(--space-12)',
+};
+const previewMetaRow = {
+  display: 'flex',
+  gap: 'var(--space-12)',
+  alignItems: 'baseline',
+  padding: 'var(--space-8) 0',
+  borderBottom: '1px solid var(--color-border-subtle)',
+};
+const previewMetaLabel = {
+  fontSize: 'var(--font-size-xs)',
+  letterSpacing: 'var(--letter-spacing-wide)',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent)',
+  fontWeight: 'var(--font-weight-bold)',
+  minWidth: 60,
+};
+const previewMetaValue = {
+  fontSize: 'var(--font-size-base)',
+  color: 'var(--color-text)',
+  wordBreak: 'break-word',
+  flex: 1,
+};
+const previewIframe = {
+  width: '100%',
+  height: 360,
+  background: '#fff',
+  border: '1px solid var(--color-border-strong)',
+  borderRadius: 'var(--radius-sm)',
+};
