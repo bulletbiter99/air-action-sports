@@ -36,6 +36,7 @@ import adminCustomers from './routes/admin/customers.js';
 import adminSavedViews from './routes/admin/savedViews.js';
 import adminDashboard from './routes/admin/dashboard.js';
 import adminStaff from './routes/admin/staff.js';
+import adminStaffDocuments from './routes/admin/staffDocuments.js';
 
 const app = new Hono();
 
@@ -122,6 +123,7 @@ app.route('/api/admin/customers', adminCustomers);
 app.route('/api/admin/saved-views', adminSavedViews);
 app.route('/api/admin', adminDashboard);
 app.route('/api/admin/staff', adminStaff);
+app.route('/api/admin/staff-documents', adminStaffDocuments);
 
 app.onError((err, c) => {
     console.error('API error', err);
