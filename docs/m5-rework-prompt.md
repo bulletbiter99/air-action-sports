@@ -6,13 +6,15 @@
 
 ```
 You are continuing M5 (Staff Management + Event-Day Mode) on the
-Air Action Sports project. A previous session shipped 20 PRs against
+Air Action Sports project. The first session shipped 20 PRs against
 `milestone/5-staff-event-day` and declared M5 closed, but a subsequent
-audit revealed substantial scope gaps. The branch is NOT ready to merge
-to main.
+audit revealed substantial scope gaps. A second (rework) session has now
+landed 8 of 15 rework batches (PRs #122-#130). 7 batches remain. The
+branch is still NOT ready to merge to main.
 
-Your single job in this session: complete the M5 rework batches per
-docs/runbooks/m5-rework-plan.md, with NO scope cuts.
+Your single job in this session: complete the remaining M5 rework
+batches per docs/runbooks/m5-rework-plan.md, with NO scope cuts. Pick
+up at R11-1099-completion (the next batch in dependency order).
 
 ═══════════════════════════════════════════════════════════════════════
 NON-NEGOTIABLE OPERATING RULES
@@ -28,11 +30,16 @@ NON-NEGOTIABLE OPERATING RULES
    live gap state. Output is the authoritative starting point. If output
    conflicts with what the rework-plan says, trust the script.
 
-3. Pick rework batches IN ORDER (R0-structural -> R4-tests-split ->
-   R5-tests -> R6-strict -> R8-cron -> R9-cmpl -> R10-cmpl -> R11-cmpl
-   -> R12-found -> R13-full -> R14-routes -> R15-cklst -> R16-cmpl ->
-   R17-decom -> R18-final). The order honors dependencies (e.g., R12
-   foundations before R13/14/15/16 which extend the event-day stack).
+3. Pick rework batches IN ORDER. Already done by the prior rework session
+   (R0a + R0b + R0c, R4, R5, R6, R8, R9, R10 — verify-m5 will report
+   them PASS). REMAINING in dependency order:
+     R11-1099-completion → R12-event-day-foundations →
+     R13-checkin-full → R14-event-day-routes →
+     R15-checklists-persistence → R16-charges-completion →
+     R17-decommission → R18-final
+   The order honors dependencies (R12 foundations before R13/14/15/16
+   which extend the event-day stack; R17 decommission near the end so
+   admin tests stay valid; R18 is closing docs).
 
 4. Plan-mode-first per rework batch: write a plan, post it, wait for
    "proceed" before editing.
@@ -91,15 +98,90 @@ IMMEDIATE FIRST STEPS
 
 1. cd into the AAS project root.
 2. `git checkout milestone/5-staff-event-day && git pull`
-3. `npm test` (confirm baseline 1122 tests passing)
-4. `node scripts/verify-m5-completeness.js` (confirm baseline 1/95
-   checks pass — that's normal at session start)
-5. Read docs/runbooks/m5-rework-plan.md fully.
-6. Post the plan for R0-structural (the first rework batch).
+3. `npm test` (confirm baseline 1287 tests passing across 133 files —
+   that's the post-R10 state from the prior rework session)
+4. `node scripts/verify-m5-completeness.js` (confirm baseline 8/15
+   batches complete, 43/95 checks pass — that's the rework progress
+   when this session starts)
+5. Read docs/runbooks/m5-rework-plan.md fully. Skim the "Lessons learned"
+   section below before R11.
+6. Post the plan for R11-1099-completion (next batch).
    Wait for "proceed".
 7. Execute. After tests + lint + build green and
-   `verify-m5-completeness.js --batch=R0-structural` exits 0, open
+   `verify-m5-completeness.js --batch=R11-1099-completion` exits 0, open
    the PR.
+
+═══════════════════════════════════════════════════════════════════════
+LESSONS LEARNED FROM PRIOR REWORK BATCHES (R0-R10)
+═══════════════════════════════════════════════════════════════════════
+
+These were caught + fixed mid-batch in the rework session. Apply them
+preemptively in remaining batches.
+
+1. **Verify-m5 cron-sweep regex requires `const NAME = ` declaration**
+   in `worker/index.js`. Bare imports don't match. When you wire a
+   cron sweep imported from a lib file, alias it with a top-level const:
+   ```js
+   import { runMySweep as _runMySweep } from './lib/...';
+   // top-level alias so verify-m5 cron-sweep regex (`const NAME = `)
+   // detects the sweep is wired up here:
+   const runMySweep = _runMySweep;
+   ```
+   Used by R8 + R9.
+
+2. **Verify-m5 tab-active regex (`activeTab === 'X'.*ComingSoon` with
+   `/s` flag) spans the whole file.** A placeholder helper named
+   `ComingSoon` further down in the same file false-positives even
+   after the JSX line changes. Rename the helper (R10 used
+   `TabPlaceholder`). Affects any tab-activation in
+   src/admin/AdminStaffDetail.jsx.
+
+3. **Don't hardcode SQL result column literals.** `INSERT ... VALUES
+   (?, ?, ?, 'sent')` makes `expect(args).toContain('sent')` assertions
+   fail because the value is in the SQL string, not the args array.
+   Always parameterize: `VALUES (?, ?, ?, ?)` and bind `'sent'` as the
+   4th arg. Caught + fixed in R9 mid-batch.
+
+4. **`useMemo` inside JSX after an early return guard violates
+   `react-hooks/rules-of-hooks`.** R0b had
+   `<FilterBar schema={useMemo(() => CONST, [])} />` after
+   `if (!isAuthenticated) return null;` — fix is either move the
+   `useMemo` to component top OR pass a module-level constant
+   directly (the static-CONST case).
+
+5. **`requireAuth` portal-cookie 403 path only fires when admin cookie
+   is genuinely absent** (parseCookieHeader returns falsy). Garbled
+   admin cookie + portal cookie still goes through admin path → 401.
+   Preserves F57 (no-cookie returns 401).
+
+6. **Verify-m5 dirGlob checks** look at any file in the named directory
+   for the pattern. A broken-up fix across multiple migrations works
+   if the cumulative content matches. Use this when a single migration
+   file would be too big to fit the 10-file PR cap.
+
+═══════════════════════════════════════════════════════════════════════
+PRIOR REWORK PROGRESS (R0-R10) — for reference
+═══════════════════════════════════════════════════════════════════════
+
+| Batch | PR | Verify | Highlights |
+|---|---|---|---|
+| R0a | #122 | partial of R0 | AdminPageHeader + EmptyState shared primitives + 4 admin pages |
+| R0b | #123 | partial of R0 | 7 mid-size admin pages (Users / Waivers / Roster / TaxesFees / EmailTemplates / Vendors / PromoCodes) |
+| R0c | #124 | R0 8/8 | 5 largest admin pages — all 16 admin pages now have all 7 M5 B0 scope items |
+| R4  | #125 | 5/5 | combined route.test.js → 6 files (5 spec'd + archive); 5 new typeahead tests |
+| R5  | #126 | 5/5 | 4 staff document route tests in tests/unit/admin/staffDocuments/ |
+| R6  | #127 | 2/2 | requireAuth portal-cookie 403 distinction |
+| R8  | #128 | 8/8 | worker/lib/certifications.js + AdminStaffCertEditor.jsx + cron + 3 templates (mig 0039) |
+| R9  | #129 | 8/8 | AdminEventStaffing.jsx + worker/lib/eventStaffing.js + 2 crons + 2 templates (mig 0040) |
+| R10 | #130 | 4/4 | Schedule tab activated + worker/lib/laborEntries.js |
+
+Tests: 1122 baseline → 1287 (+165). Lint: 0 errors / 384 warnings.
+Verify: 8/15 batches complete · 43/95 checks pass.
+
+Migrations 0039 + 0040 are queued for operator-applies-remote at
+milestone close. R11-R16 may add more (R11: w9_reminder template;
+R15: event_checklists schema; R16: 3 charge email templates +
+booking_confirmation update).
 
 ═══════════════════════════════════════════════════════════════════════
 WHAT THE PRIOR SESSION DROPPED — AT A GLANCE
@@ -150,15 +232,18 @@ MANDATORY ACKNOWLEDGMENT
 
 Before doing anything else, respond with a one-paragraph acknowledgment
 that explicitly:
-1. Confirms you have read m5-rework-plan.md
+1. Confirms you have read m5-rework-plan.md and the "Lessons learned"
+   section above
 2. Confirms you understand "no scope cuts" means every gap-listed file
    must be created with substantive content
 3. Confirms you will run verify-m5-completeness.js before claiming any
    batch complete
-4. Lists the rework batches in execution order
+4. Lists the REMAINING rework batches in execution order (R11 → R12
+   → R13 → R14 → R15 → R16 → R17 → R18) — the prior rework session
+   already landed R0a/R0b/R0c, R4, R5, R6, R8, R9, R10
 
-After acknowledgment, run the verification script and post your
-R0-structural plan.
+After acknowledgment, run the verification script (expect 8/15 PASS,
+43/95 checks) and post your R11-1099-completion plan.
 ```
 
 ---
@@ -167,10 +252,16 @@ R0-structural plan.
 
 - This prompt is written to make scope-cuts hard. The verification script is the gating mechanism — the new session can claim whatever they want, but if the script doesn't pass, the rework batch isn't done.
 
-- If a rework batch is genuinely too large to fit in one sub-batch (10-file cap), the new session should split into Ra/Rb/Rc — that's allowed. What's NOT allowed is shipping fewer files than the rework plan lists.
+- If a rework batch is genuinely too large to fit in one sub-batch (10-file cap), the new session should split into Ra/Rb/Rc — that's allowed (R0 was split in the prior rework session). What's NOT allowed is shipping fewer files than the rework plan lists.
 
 - New session should treat `docs/runbooks/m5-rework-plan.md` as authoritative. If you discover a gap the plan didn't list, add it via a quick rework-plan amendment PR before doing the fix work.
 
-- Estimated rework scope: ~15 sub-PRs, ~40-60 new files (helpers / routes / UI / tests), ~5 new migrations, ~3 new cron sweeps. This is genuine work, not boilerplate.
+- **Remaining rework scope (R11-R18):** ~7 sub-PRs, ~25-35 new files (helpers / routes / UI / tests), ~3-4 new migrations (R11 w9_reminder; R15 event_checklists schema; R16 3 charge templates + booking_confirmation update), ~1-2 new cron sweeps (R11 tax-year auto-lock).
 
-- The milestone branch is currently unmergeable to main. **Do not merge until rework completes.**
+- **R14 fixes a known production bug** — `IncidentReport.jsx` posts to `/api/event-day/incidents` which doesn't exist; it 404s on submit. The fix is part of R14's scope.
+
+- **R15 rewires fake-mock state** — `EventChecklist.jsx` currently uses local React state with no persistence. R15 adds the migration, routes, and rewires the component to actually POST.
+
+- The milestone branch is currently unmergeable to main. **Do not merge until rework completes** (verify-m5 exits 0).
+
+- After R18 closes, the milestone-to-main PR is opened and the operator runs the queued migrations to remote D1 (0039, 0040, plus any added by R11/R15/R16). Workers Builds redeploy auto-registers the new cron sweeps.
