@@ -64,6 +64,13 @@ const AdminStaffDetail = lazy(() => import('./admin/AdminStaffDetail'));
 const AdminStaffLibrary = lazy(() => import('./admin/AdminStaffLibrary'));
 const AdminStaffDocumentEditor = lazy(() => import('./admin/AdminStaffDocumentEditor'));
 
+// Portal (M5 Batch 6) — Tier 3 light-access magic-link portal
+const PortalLayout = lazy(() => import('./portal/PortalLayout'));
+const PortalHome = lazy(() => import('./portal/PortalHome'));
+const PortalDocument = lazy(() => import('./portal/PortalDocument'));
+const PortalAccount = lazy(() => import('./portal/PortalAccount'));
+const PortalConsume = lazy(() => import('./portal/PortalConsume'));
+
 export default function App() {
   return (
     <>
@@ -94,6 +101,14 @@ export default function App() {
           <Route path="v/:token" element={<VendorPackage />} />
           <Route path="vendor/login" element={<VendorLogin />} />
           <Route path="vendor/dashboard" element={<VendorDashboard />} />
+          <Route path="portal/auth/consume" element={<PortalConsume />} />
+          <Route path="portal" element={<PortalLayout />}>
+            <Route index element={<PortalHome />} />
+            <Route path="documents" element={<PortalDocument />} />
+            <Route path="documents/:id" element={<PortalDocument />} />
+            <Route path="account" element={<PortalAccount />} />
+            <Route path="auth/signed-out" element={<PortalConsume />} />
+          </Route>
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="login" element={<AdminLogin />} />
