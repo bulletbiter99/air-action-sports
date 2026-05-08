@@ -58,6 +58,7 @@ const AdminCustomers = lazy(() => import('./admin/AdminCustomers'));
 const AdminCustomerDetail = lazy(() => import('./admin/AdminCustomerDetail'));
 const AdminBookings = lazy(() => import('./admin/AdminBookings'));
 const AdminBookingsDetail = lazy(() => import('./admin/AdminBookingsDetail'));
+const AdminBookingChargeQueue = lazy(() => import('./admin/AdminBookingChargeQueue'));
 const AdminToday = lazy(() => import('./admin/AdminToday'));
 const AdminStaff = lazy(() => import('./admin/AdminStaff'));
 const AdminStaffDetail = lazy(() => import('./admin/AdminStaffDetail'));
@@ -160,6 +161,7 @@ export default function App() {
             <Route path="customers/:id" element={<AdminCustomerDetail />} />
             <Route path="bookings" element={<AdminBookings />} />
             <Route path="bookings/:id" element={<AdminBookingsDetail />} />
+            <Route path="booking-charges" element={<AdminBookingChargeQueue />} />
             <Route path="staff" element={<AdminStaff />} />
             <Route path="staff/:id" element={<AdminStaffDetail />} />
             <Route path="staff/library" element={<AdminStaffLibrary />} />
