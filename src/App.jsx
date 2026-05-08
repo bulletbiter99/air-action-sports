@@ -58,6 +58,7 @@ const AdminCustomers = lazy(() => import('./admin/AdminCustomers'));
 const AdminCustomerDetail = lazy(() => import('./admin/AdminCustomerDetail'));
 const AdminBookings = lazy(() => import('./admin/AdminBookings'));
 const AdminBookingsDetail = lazy(() => import('./admin/AdminBookingsDetail'));
+const AdminToday = lazy(() => import('./admin/AdminToday'));
 
 export default function App() {
   return (
@@ -93,6 +94,7 @@ export default function App() {
             <Route index element={<AdminDashboard />} />
             <Route path="login" element={<AdminLogin />} />
             <Route path="setup" element={<AdminSetup />} />
+            <Route path="today" element={<AdminToday />} />
             <Route path="roster" element={<AdminRoster />} />
             <Route path="new-booking" element={<AdminNewBooking />} />
             <Route path="settings" element={<AdminSettings />} />

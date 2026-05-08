@@ -1,0 +1,102 @@
+M4 closing-state coverage baseline (2026-05-07)
+================================================
+Snapshot of `npm run test:coverage` after B12c closing.
+Future regressions on these files should be investigated before merging.
+
+Test count: 917 unit tests across 100 files.
+M3 baseline (closing): 617 / 80.
+Net M4 delta: +300 tests across +20 files.
+
+Lint: 0 errors / 287 warnings (B12c's AdminToday added 6 JSX-usage
+false-positives for internal helper components).
+Build: clean (~250ms).
+Bundle: AdminScan 449 kB (camera UI), index 203 kB, all other admin chunks <30 kB.
+
+All 28 gated paths in `scripts/test-gate-mapping.json gates` covered to the
+M3 floor or better. New gates introduced in M4 are listed below the table.
+
+Critical / High gated paths (post-M4):
+
+worker/lib/                       Lines    Branch   Funcs    Uncov-line-ranges
+  auditLog.js                     100      82.6     100      28, 65-66, 76
+  auth.js                         100      85.71    100      13, 37
+  capabilities.js                 95.45    33.33    50       65-67
+  customerEmail.js                100      100      100      —
+  customerTags.js                 99.2     92.85    100      125
+  customers.js                    100      74.07    100      ...89, 134, 144, 147
+  email.js                        94.64    80       100      62-64
+  featureFlags.js                 100      94.11    100      28, 122, 161
+  formatters.js                   80.2     83.33    75       39-57
+  money.js                        100      96.42    100      50
+  password.js                     100      94.11    100      54
+  pricing.js                      98.84    90.66    75       188-189
+  stripe.js                       93.93    89.74    85.71    27-32, 70-71
+  vendorToken.js                  100      87.5     100      37, 39, 66
+  waiverLookup.js                 100      100      100      —
+
+worker/                           Lines    Branch   Funcs
+  index.js                        78.44    75       76.92    ...84-585, 611-612
+
+worker/routes/                    Lines    Branch   Funcs
+  waivers.js                      93.61    71.9     100
+  webhooks.js                     91.37    77.77    100
+
+worker/routes/admin/              Lines    Branch   Funcs
+  analytics.js                    52.21    98.24    100      ...48-274, 347-380
+  bookings.js                     88.04    62.85    100      ...46-976, 980-992
+  customers.js                    97.79    73.33    100      ...84-185, 187-188
+  dashboard.js                    100      78.37    100      ...32, 135-136, 138
+  featureFlags.js                 100      100      100      —
+  savedViews.js                   98.88    76.47    100      79-80
+
+src/                              Lines    Branch   Funcs
+  hooks/useWidgetData.js          covered via cadence + today-active tests
+  admin/personaLayouts.js         covered via persona-layout tests
+  admin/sidebarConfig.js          covered via sidebar config + getVisibleItems tests
+  admin/walkUpHelpers.js          covered via walk-up helper tests
+  admin/commandRegistry.js        covered via commandsFromSidebar + filterCommands tests
+
+New gates landed in M4:
+
+  worker/index.js                 (B1a — Group G worker-level tests)
+  worker/routes/admin/savedViews.js (B2a)
+  worker/lib/capabilities.js      (B3a stub; M5 will replace with DB-backed)
+  worker/routes/admin/dashboard.js (B4b/B4d)
+  src/hooks/useWidgetData.js      (B4b — useTodayActive + useWidgetData cadence)
+  src/admin/personaLayouts.js     (B4b)
+  worker/routes/admin/analytics.js (B4d/B4e/B4f — ?period=mtd, /funnel, taxCents/feeCents)
+  src/admin/walkUpHelpers.js      (B6)
+  src/admin/sidebarConfig.js      (B5)
+  src/admin/commandRegistry.js    (B7)
+
+Notes
+-----
+- AdminToday.jsx (NEW in B12c) has no test coverage. Component is thin glue
+  + Link deep-links + 3 render states based on useTodayActive(). No RTL infra
+  installed; manual smoke validates. M5+ may add component tests if the page
+  grows.
+- formatters.js coverage stays at 80% because it's exercised indirectly via
+  webhook + waivers tests; no dedicated unit tests prescribed by the audit.
+- pricing.js 75% functions because exported helpers like `centsToDollars`
+  (M1 era) live alongside the calculateQuote core; helpers covered by
+  Group A pricing tests but not all branches exercised.
+- capabilities.js 50% functions because the M4 stub only formalizes 1 of 2
+  exported helpers; M5 staff-infrastructure work will replace with a
+  DB-backed query and full coverage.
+- analytics.js 52% lines because the helper functions exposed for tests are
+  exercised; full route handlers exercised via integration tests in M4 B4d/B4f
+  for the new code paths only (legacy /overview lifetime path uncovered).
+
+Audit groups still uncovered post-M4 (see scripts/test-gate-mapping.json#uncovered):
+  - Group H — cron (H71-H76): worker/index.js scheduled handler outer loop +
+    runReminderSweep / runAbandonPendingSweep / runVendorSweep. Deferred to
+    M5 (operationally critical; needs careful test design).
+  - worker/lib/emailSender.js (the 9 named senders) — covered indirectly via
+    webhook tests; no dedicated unit tests.
+  - worker/lib/formatters.js — see note above.
+  - AdminToday.jsx — see note above (B12c).
+  - AdminScan.jsx + AdminRoster.jsx ?event= query-param parsing — minor
+    M5 polish; not currently a gated path.
+
+Capture command:
+  npm run test:coverage 2>&1 | grep -E "^\s*(All files|<file>)"
