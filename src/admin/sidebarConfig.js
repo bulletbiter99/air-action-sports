@@ -3,16 +3,19 @@
 // Surface 1 IA target: flat top-level (Home / Today / Events / Bookings /
 // Customers) + a collapsible Settings group with 8 sub-items.
 //
-// The Sidebar component in AdminLayout.jsx reads this config when the
-// new_admin_dashboard feature flag is on; legacy NAV_SECTIONS renders
-// when the flag is off. Same flag the persona dashboard uses — flipping
-// it migrates both the dashboard and the sidebar together.
+// Production state post-B12a: the Sidebar component in AdminLayout.jsx
+// always renders this config (legacy NAV_SECTIONS deleted; new_admin_dashboard
+// flag deleted in B12b post-DELETE).
 //
 // Decision D09 (docs/decisions.md): Roster / Scan / Rentals routes stay
 // alive; the sidebar hides them by default. They resurface inside
-// /admin/today (page activated in B12) when activeEventToday=true. B4's
+// /admin/today (page activated in B12c) when activeEventToday=true. B4's
 // TodayCheckIns widget already deep-links via /admin/scan?event=... so
 // the routes work without sidebar entries.
+//
+// `getVisibleItems`'s `requiresFlag` filter logic stays for forward-compat —
+// no current item uses it (M4 B12b removed `requiresFlag: 'customers_entity'`
+// from the Customers item; M5+ may reintroduce flag-gated items).
 
 export const SIDEBAR = [
     { type: 'item', to: '/admin', label: 'Home', end: true },
@@ -24,12 +27,7 @@ export const SIDEBAR = [
     },
     { type: 'item', to: '/admin/events', label: 'Events' },
     { type: 'item', to: '/admin/bookings', label: 'Bookings' },
-    {
-        type: 'item',
-        to: '/admin/customers',
-        label: 'Customers',
-        requiresFlag: 'customers_entity',
-    },
+    { type: 'item', to: '/admin/customers', label: 'Customers' },
     { type: 'separator' },
     {
         type: 'group',

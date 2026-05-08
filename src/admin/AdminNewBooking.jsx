@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAdmin } from './AdminContext';
-import { useFeatureFlag } from './useFeatureFlag';
 import CustomerTypeahead from './CustomerTypeahead.jsx';
 import { pickRecallableBookings, formatBookingHint } from './walkUpHelpers.js';
 import { formatMoney as fmt } from '../utils/money.js';
@@ -39,10 +38,10 @@ export default function AdminNewBooking() {
   // customer selected, or when the customer has no recallable history.
   const [recall, setRecall] = useState(null);
   // M4 B6 — id of the customer linked to this booking via typeahead.
-  // Used by the "View customer" link in the recall hint.
+  // Used by the "View customer" link in the recall hint. M4 B12b
+  // removed the new_admin_dashboard flag gate — typeahead + recall
+  // are now always rendered.
   const [linkedCustomerId, setLinkedCustomerId] = useState(null);
-
-  const { enabled: newAdminDashboard } = useFeatureFlag('new_admin_dashboard');
 
   useEffect(() => {
     if (loading) return;
@@ -384,61 +383,57 @@ export default function AdminNewBooking() {
             <input type="text" value={buyer.fullName} onChange={(e) => setBuyer({ ...buyer, fullName: e.target.value })} style={input} required />
           </Field>
           <Field label="Email">
-            {newAdminDashboard ? (
-              <CustomerTypeahead
-                value={buyer.email}
-                onChange={(v) => {
-                  setBuyer((b) => ({ ...b, email: v }));
-                  // Editing the email after a selection clears the
-                  // recall hint (the buyer is now off-script).
-                  if (linkedCustomerId) {
-                    setRecall(null);
-                    setLinkedCustomerId(null);
-                  }
-                }}
-                onSelect={async (c) => {
-                  // Auto-fill from the picked customer + queue up recall fetch.
-                  setBuyer((b) => ({
-                    ...b,
-                    email: c.email || b.email,
-                    fullName: c.name || b.fullName,
-                    phone: c.phone || b.phone,
-                  }));
-                  setLinkedCustomerId(c.id || null);
-                  if (c.id) {
-                    try {
-                      const r = await fetch(
-                        `/api/admin/customers/${encodeURIComponent(c.id)}`,
-                        { credentials: 'include', cache: 'no-store' },
-                      );
-                      if (r.ok) {
-                        const json = await r.json();
-                        const recent = pickRecallableBookings(json.bookings || [], 3);
-                        setRecall(recent.length > 0 ? recent[0] : null);
-                      } else {
-                        setRecall(null);
-                      }
-                    } catch {
-                      setRecall(null);
-                    }
-                  }
-                }}
-                onClear={() => {
-                  // "Create new customer" path — keep the typed text but
-                  // drop the recall + linkedCustomerId.
+            <CustomerTypeahead
+              value={buyer.email}
+              onChange={(v) => {
+                setBuyer((b) => ({ ...b, email: v }));
+                // Editing the email after a selection clears the
+                // recall hint (the buyer is now off-script).
+                if (linkedCustomerId) {
                   setRecall(null);
                   setLinkedCustomerId(null);
-                }}
-                placeholder="Email…"
-                inputStyle={input}
-                required
-              />
-            ) : (
-              <input type="email" value={buyer.email} onChange={(e) => setBuyer({ ...buyer, email: e.target.value })} style={input} required />
-            )}
+                }
+              }}
+              onSelect={async (c) => {
+                // Auto-fill from the picked customer + queue up recall fetch.
+                setBuyer((b) => ({
+                  ...b,
+                  email: c.email || b.email,
+                  fullName: c.name || b.fullName,
+                  phone: c.phone || b.phone,
+                }));
+                setLinkedCustomerId(c.id || null);
+                if (c.id) {
+                  try {
+                    const r = await fetch(
+                      `/api/admin/customers/${encodeURIComponent(c.id)}`,
+                      { credentials: 'include', cache: 'no-store' },
+                    );
+                    if (r.ok) {
+                      const json = await r.json();
+                      const recent = pickRecallableBookings(json.bookings || [], 3);
+                      setRecall(recent.length > 0 ? recent[0] : null);
+                    } else {
+                      setRecall(null);
+                    }
+                  } catch {
+                    setRecall(null);
+                  }
+                }
+              }}
+              onClear={() => {
+                // "Create new customer" path — keep the typed text but
+                // drop the recall + linkedCustomerId.
+                setRecall(null);
+                setLinkedCustomerId(null);
+              }}
+              placeholder="Email…"
+              inputStyle={input}
+              required
+            />
           </Field>
         </div>
-        {newAdminDashboard && recall && (
+        {recall && (
           <div className="admin-newbooking-recall">
             <span className="admin-newbooking-recall__label">Repeat customer</span>
             <span className="admin-newbooking-recall__hint">

@@ -1,19 +1,12 @@
 // M3 Batch 8b — admin customers list page.
 //
 // Backed by GET /api/admin/customers (B8a). Uses M2's FilterBar primitive
-// for search + archived filter. Gated client-side by the customers_entity
-// feature flag — when the flag is off (the production default), the page
-// renders a "feature not enabled" placeholder. The route stays mounted so
-// a deep link doesn't 404 once the flag flips on.
-//
-// Sidebar entry (in AdminLayout) is hidden when the flag is off, so
-// admins see nothing to click on; this placeholder only appears if
-// someone navigates directly via URL.
+// for search + archived filter. M4 B12b removed the customers_entity
+// flag gate — page is now always live.
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import FilterBar from '../components/admin/FilterBar';
-import { useFeatureFlag } from './useFeatureFlag.js';
 import { formatMoney } from '../utils/money.js';
 import './AdminCustomers.css';
 
@@ -33,7 +26,6 @@ const FILTER_SCHEMA = [
 const PAGE_SIZE = 50;
 
 export default function AdminCustomers() {
-    const { enabled: flagEnabled, loading: flagLoading } = useFeatureFlag('customers_entity');
     const [filters, setFilters] = useState({ archived: 'false' });
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(0);
@@ -44,7 +36,6 @@ export default function AdminCustomers() {
     const archivedParam = filters.archived || 'false';
 
     const fetchPage = useCallback(async () => {
-        if (!flagEnabled) return;
         setLoading(true);
         setErr(null);
         const params = new URLSearchParams();
@@ -65,38 +56,20 @@ export default function AdminCustomers() {
         } finally {
             setLoading(false);
         }
-    }, [flagEnabled, page, archivedParam, search]);
+    }, [page, archivedParam, search]);
 
     // Refetch when filters/search/page change. Debounce search lightly so
     // typing doesn't fire a request per keystroke.
     useEffect(() => {
-        if (!flagEnabled) return;
         const t = setTimeout(fetchPage, 250);
         return () => clearTimeout(t);
-    }, [fetchPage, flagEnabled]);
+    }, [fetchPage]);
 
     // Reset to page 0 when filters/search change so we don't end up
     // showing an "empty page 7" state after narrowing the result set.
     useEffect(() => { setPage(0); }, [archivedParam, search]);
 
     const totalPages = useMemo(() => Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE)), [data.total]);
-
-    if (flagLoading) {
-        return <div className="admin-customers"><p className="admin-customers__loading">Loading…</p></div>;
-    }
-
-    if (!flagEnabled) {
-        return (
-            <div className="admin-customers admin-customers--disabled">
-                <h1>Customers</h1>
-                <p>
-                    The customers entity is not enabled for your account. Ask an owner to flip
-                    the <code>customers_entity</code> feature flag from <code>off</code> to <code>on</code>
-                    {' '}via Settings → Feature flags.
-                </p>
-            </div>
-        );
-    }
 
     return (
         <div className="admin-customers">
