@@ -64,6 +64,8 @@ import eventDayRoster from './routes/event-day/roster.js';
 import eventDayEquipmentReturn from './routes/event-day/equipment-return.js';
 import eventDayChecklists from './routes/event-day/checklists.js';
 import eventDayHq from './routes/event-day/hq.js';
+import eventDayDamageCharge from './routes/event-day/damageCharge.js';
+import adminBookingCharges from './routes/admin/bookingCharges.js';
 
 const app = new Hono();
 
@@ -165,6 +167,8 @@ app.route('/api/event-day/roster', eventDayRoster);
 app.route('/api/event-day/equipment-return', eventDayEquipmentReturn);
 app.route('/api/event-day/checklists', eventDayChecklists);
 app.route('/api/event-day/hq', eventDayHq);
+app.route('/api/event-day/damage-charge', eventDayDamageCharge);
+app.route('/api/admin/booking-charges', adminBookingCharges);
 
 app.onError((err, c) => {
     console.error('API error', err);
