@@ -55,6 +55,9 @@ import adminEventStaffing from './routes/admin/eventStaffing.js';
 import adminLaborEntries from './routes/admin/laborEntries.js';
 import adminThresholds from './routes/admin/thresholds1099.js';
 import eventDaySessions from './routes/event-day/session.js';
+import eventDayIncidents from './routes/event-day/incidents.js';
+import eventDayRoster from './routes/event-day/roster.js';
+import eventDayEquipmentReturn from './routes/event-day/equipment-return.js';
 
 const app = new Hono();
 
@@ -149,6 +152,9 @@ app.route('/api/admin/event-staffing', adminEventStaffing);
 app.route('/api/admin/labor-entries', adminLaborEntries);
 app.route('/api/admin/1099-thresholds', adminThresholds);
 app.route('/api/event-day/sessions', eventDaySessions);
+app.route('/api/event-day/incidents', eventDayIncidents);
+app.route('/api/event-day/roster', eventDayRoster);
+app.route('/api/event-day/equipment-return', eventDayEquipmentReturn);
 
 app.onError((err, c) => {
     console.error('API error', err);
