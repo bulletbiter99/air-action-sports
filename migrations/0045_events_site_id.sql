@@ -1,0 +1,40 @@
+-- M5.5 Batch 2 — Migration B: events.site_id nullable FK to sites
+--
+-- PRE-MIGRATION SPOT-CHECK (2026-05-11; per Lesson #7)
+-- ============================================================
+-- - events.site_id column does NOT exist on remote (PRAGMA verified
+--   0 matching cols).
+-- - sites table is empty on remote (0 rows; pre-seed — scripts/
+--   seed-sites.js populates Ghost Town + Foxtrot AFTER this migration
+--   applies).
+-- - events table has 1 row total on remote.
+-- - The existing events.site TEXT column stores event SERIES/BRANDING
+--   (e.g., "Delta" mil-sim brand) — NOT geographic location.
+--   Confirmed via production sample: site="Delta",
+--   location="Ghost Town - Rural Neighborhood".
+--   B2's backfill (scripts/backfill-events-site-id.js) uses
+--   events.location ONLY.
+--
+-- DESIGN NOTES
+-- ============================================================
+-- - Nullable on purpose. AAS events created before site_id existed
+--   have NULL initially; backfill populates known mappings (Ghost
+--   Town + Foxtrot). Events without a parseable site stay nullable
+--   indefinitely. Conflict detection (B3) treats NULL site_id as
+--   "no field conflict" — those events don't participate in
+--   field-rental conflict checks.
+-- - No NOT NULL migration planned for events.site_id. This is
+--   intentionally different from M3's customer_id pattern (which
+--   became NOT NULL in M3 B6 via column-rename). Events can remain
+--   site-less indefinitely; only field_rentals require site_id.
+-- - The pre-existing events.site column (event series branding) is
+--   not touched. It's free-text and operator-managed.
+--
+-- D1 quirks observed
+-- ============================================================
+-- - Additive only: ALTER TABLE ADD COLUMN + CREATE INDEX.
+-- - No table-rebuild; FK-during-DROP gotcha not triggered.
+-- - No email_templates seed; Lesson #7 not applicable.
+
+ALTER TABLE events ADD COLUMN site_id TEXT REFERENCES sites(id);
+CREATE INDEX idx_events_site_id ON events(site_id);
