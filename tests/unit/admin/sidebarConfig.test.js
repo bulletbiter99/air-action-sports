@@ -31,20 +31,31 @@ describe('SIDEBAR config', () => {
         expect(SIDEBAR[4].requiresFlag).toBeUndefined();
     });
 
-    it('continues with Rentals / Roster / Scan as capability-gated standing items (M5 B0 D10)', () => {
+    it('Sites at index 5 (M5.5 B6.5) — capability-gated', () => {
         expect(SIDEBAR[5]).toMatchObject({
+            type: 'item',
+            to: '/admin/sites',
+            label: 'Sites',
+            capability: 'sites.read',
+        });
+    });
+
+    it('continues with Rentals / Roster / Scan as capability-gated standing items (M5 B0 D10)', () => {
+        // M5.5 B6.5 bumped indices: Sites now occupies index 5, so the trio
+        // shifted to 6/7/8.
+        expect(SIDEBAR[6]).toMatchObject({
             type: 'item',
             to: '/admin/rentals',
             label: 'Rentals',
             capability: 'rentals.read',
         });
-        expect(SIDEBAR[6]).toMatchObject({
+        expect(SIDEBAR[7]).toMatchObject({
             type: 'item',
             to: '/admin/roster',
             label: 'Roster',
             capability: 'roster.read',
         });
-        expect(SIDEBAR[7]).toMatchObject({
+        expect(SIDEBAR[8]).toMatchObject({
             type: 'item',
             to: '/admin/scan',
             label: 'Scan',
@@ -57,9 +68,8 @@ describe('SIDEBAR config', () => {
         const groupIdx = SIDEBAR.findIndex((e) => e.type === 'group');
         expect(sepIdx).toBeGreaterThan(0);
         expect(groupIdx).toBeGreaterThan(sepIdx);
-        // M5 B0: separator now sits after the Rentals/Roster/Scan trio,
-        // not directly after Customers.
-        expect(SIDEBAR[8]).toMatchObject({ type: 'separator' });
+        // M5.5 B6.5: separator now sits at index 9 (after Sites was added).
+        expect(SIDEBAR[9]).toMatchObject({ type: 'separator' });
     });
 
     it('Settings group has 10 sub-items including Overview / Taxes / Email / Team / Audit / Waivers / Vendors / Promo Codes / Analytics / Feedback', () => {
@@ -134,14 +144,18 @@ describe('userHasCapabilityStub (M5 B0)', () => {
 });
 
 describe('getVisibleItems', () => {
-    it('owner with today active sees all 8 top-level items + sep + group = 10', () => {
+    it('owner with today active sees all 9 top-level items + sep + group = 11', () => {
+        // M5.5 B6.5: Sites entry added → 9 top-level items (Home, Today,
+        // Events, Bookings, Customers, Sites, Rentals, Roster, Scan)
+        // + separator + Settings group = 11.
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: true, eventId: 'evt_1', checkInOpen: false },
             userRole: 'owner',
         });
-        expect(visible).toHaveLength(10);
+        expect(visible).toHaveLength(11);
         expect(visible.find((e) => e.label === 'Today')).toBeDefined();
         expect(visible.find((e) => e.label === 'Customers')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Sites')).toBeDefined();
         expect(visible.find((e) => e.label === 'Rentals')).toBeDefined();
         expect(visible.find((e) => e.label === 'Roster')).toBeDefined();
         expect(visible.find((e) => e.label === 'Scan')).toBeDefined();

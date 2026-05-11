@@ -55,6 +55,8 @@ const AdminWaivers = lazy(() => import('./admin/AdminWaivers'));
 const AdminFeedback = lazy(() => import('./admin/AdminFeedback'));
 const AdminCustomers = lazy(() => import('./admin/AdminCustomers'));
 const AdminCustomerDetail = lazy(() => import('./admin/AdminCustomerDetail'));
+const AdminSites = lazy(() => import('./admin/AdminSites'));
+const AdminSiteDetail = lazy(() => import('./admin/AdminSiteDetail'));
 const AdminBookings = lazy(() => import('./admin/AdminBookings'));
 const AdminBookingsDetail = lazy(() => import('./admin/AdminBookingsDetail'));
 const AdminBookingChargeQueue = lazy(() => import('./admin/AdminBookingChargeQueue'));
@@ -165,6 +167,8 @@ export default function App() {
             <Route path="feedback" element={<AdminFeedback />} />
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="customers/:id" element={<AdminCustomerDetail />} />
+            <Route path="sites" element={<AdminSites />} />
+            <Route path="sites/:id" element={<AdminSiteDetail />} />
             <Route path="bookings" element={<AdminBookings />} />
             <Route path="bookings/:id" element={<AdminBookingsDetail />} />
             <Route path="booking-charges" element={<AdminBookingChargeQueue />} />
