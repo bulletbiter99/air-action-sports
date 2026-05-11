@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from '../../lib/auth.js';
 import { formatEvent, formatTicketType } from '../../lib/formatters.js';
 import { eventId as newEventId, ticketTypeId as newTicketTypeId, slugify } from '../../lib/ids.js';
 import { instantiateChecklists } from '../../lib/eventChecklists.js';
+import { detectEventConflicts, hasAnyConflict, dateIsoToDayWindow } from '../../lib/eventConflicts.js';
 
 const adminEvents = new Hono();
 adminEvents.use('*', requireAuth);
@@ -10,7 +11,7 @@ adminEvents.use('*', requireAuth);
 // Fields accepted by create/update. Missing fields preserved on update.
 const EVENT_STRING_FIELDS = [
     'title', 'slug', 'date_iso', 'display_date', 'display_day', 'display_month',
-    'location', 'site', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
+    'location', 'site', 'site_id', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
     'cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url',
     'short_description',
 ];
@@ -24,7 +25,7 @@ function parseEventBody(body, { partial = false } = {}) {
     const map = {
         title: 'title', slug: 'slug', dateIso: 'date_iso',
         displayDate: 'display_date', displayDay: 'display_day', displayMonth: 'display_month',
-        location: 'location', site: 'site', type: 'type', timeRange: 'time_range',
+        location: 'location', site: 'site', siteId: 'site_id', type: 'type', timeRange: 'time_range',
         checkIn: 'check_in', firstGame: 'first_game', endTime: 'end_time',
         coverImageUrl: 'cover_image_url',
         cardImageUrl: 'card_image_url', heroImageUrl: 'hero_image_url',
@@ -300,6 +301,28 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
     const { patch, error } = parseEventBody(body, { partial: false });
     if (error) return c.json({ error }, 400);
 
+    // M5.5 B3 — Conflict detection on whole-day window when site_id + date_iso
+    // are provided. Operator override via body.acknowledgeConflicts: true.
+    // Per requireRole gate above, only owner/manager reach this handler, and
+    // both can acknowledge (operator's "owner + operations director" decision).
+    let conflictsToAudit = null;
+    if (patch.site_id && patch.date_iso) {
+        const dayWindow = dateIsoToDayWindow(patch.date_iso);
+        if (dayWindow) {
+            const conflicts = await detectEventConflicts(c.env, {
+                siteId: patch.site_id,
+                startsAt: dayWindow.startMs,
+                endsAt: dayWindow.endMs,
+            });
+            if (hasAnyConflict(conflicts)) {
+                if (!body.acknowledgeConflicts) {
+                    return c.json({ error: 'Schedule conflict', conflicts }, 409);
+                }
+                conflictsToAudit = conflicts;
+            }
+        }
+    }
+
     // Image preflight on every URL the admin set — reject before insert so the
     // editor surfaces the failure inline. Each surface column is independent.
     for (const col of ['cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url']) {
@@ -327,7 +350,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
     const now = Date.now();
     const cols = [
         'id', 'title', 'date_iso', 'display_date', 'display_day', 'display_month',
-        'location', 'site', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
+        'location', 'site', 'site_id', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
         'base_price_cents', 'total_slots', 'addons_json', 'game_modes_json', 'details_json',
         'sales_close_at', 'published', 'past', 'featured',
         'cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url',
@@ -342,6 +365,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         display_month: patch.display_month || null,
         location: patch.location || null,
         site: patch.site || null,
+        site_id: patch.site_id || null,
         type: patch.type || null,
         time_range: patch.time_range || null,
         check_in: patch.check_in || null,
@@ -394,6 +418,14 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
          VALUES (?, 'event.created', 'event', ?, ?, ?)`
     ).bind(user.id, id, JSON.stringify({ title: vals.title, defaultTicketTypeId: defaultTtId }), now).run();
 
+    // M5.5 B3 — Audit-log conflict acknowledgment if operator chose to override.
+    if (conflictsToAudit) {
+        await c.env.DB.prepare(
+            `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+             VALUES (?, 'event.conflict_acknowledged', 'event', ?, ?, ?)`
+        ).bind(user.id, id, JSON.stringify({ conflicts: conflictsToAudit }), Date.now()).run();
+    }
+
     const row = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(id).first();
     return c.json({ event: { ...formatEvent(row), published: !!row.published } }, 201);
 });
@@ -407,11 +439,36 @@ adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: 'Invalid body' }, 400);
 
-    const existing = await c.env.DB.prepare(`SELECT id FROM events WHERE id = ?`).bind(id).first();
+    const existing = await c.env.DB.prepare(`SELECT id, site_id, date_iso FROM events WHERE id = ?`).bind(id).first();
     if (!existing) return c.json({ error: 'Event not found' }, 404);
 
     const { patch, error } = parseEventBody(body, { partial: true });
     if (error) return c.json({ error }, 400);
+
+    // M5.5 B3 — Conflict detection on schedule changes. Uses existing values
+    // for fields not in the patch (operator may be changing only site_id OR
+    // only date_iso). Operator override via body.acknowledgeConflicts: true.
+    let conflictsToAudit = null;
+    const checkSiteId = patch.site_id ?? existing.site_id;
+    const checkDateIso = patch.date_iso ?? existing.date_iso;
+    const isScheduleChange = patch.site_id !== undefined || patch.date_iso !== undefined;
+    if (isScheduleChange && checkSiteId && checkDateIso) {
+        const dayWindow = dateIsoToDayWindow(checkDateIso);
+        if (dayWindow) {
+            const conflicts = await detectEventConflicts(c.env, {
+                siteId: checkSiteId,
+                startsAt: dayWindow.startMs,
+                endsAt: dayWindow.endMs,
+                excludeEventId: id,
+            });
+            if (hasAnyConflict(conflicts)) {
+                if (!body.acknowledgeConflicts) {
+                    return c.json({ error: 'Schedule conflict', conflicts }, 409);
+                }
+                conflictsToAudit = conflicts;
+            }
+        }
+    }
 
     // Publish guard — block publish when there are zero active ticket types.
     if (patch.published === 1) {
@@ -445,6 +502,14 @@ adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
         `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
          VALUES (?, 'event.updated', 'event', ?, ?, ?)`
     ).bind(user.id, id, JSON.stringify({ fields: keys.filter((k) => k !== 'updated_at') }), Date.now()).run();
+
+    // M5.5 B3 — Audit-log conflict acknowledgment if operator chose to override.
+    if (conflictsToAudit) {
+        await c.env.DB.prepare(
+            `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+             VALUES (?, 'event.conflict_acknowledged', 'event', ?, ?, ?)`
+        ).bind(user.id, id, JSON.stringify({ conflicts: conflictsToAudit }), Date.now()).run();
+    }
 
     const row = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(id).first();
     return c.json({ event: { ...formatEvent(row), published: !!row.published } });

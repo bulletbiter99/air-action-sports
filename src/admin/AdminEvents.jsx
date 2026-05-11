@@ -246,6 +246,9 @@ function EventEditor({ eventId, onClose, onSaved }) {
   const [savingEvent, setSavingEvent] = useState(false);
   const [err, setErr] = useState('');
   const [currentEventId, setCurrentEventId] = useState(eventId);
+  // M5.5 B3 — conflict detection state. Populated when the API returns 409
+  // with a conflicts payload. Cleared on every submit attempt.
+  const [conflicts, setConflicts] = useState(null);
 
   useEffect(() => {
     if (isNew) return;
@@ -278,22 +281,31 @@ function EventEditor({ eventId, onClose, onSaved }) {
 
   const updateField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const saveEvent = async (e) => {
-    e?.preventDefault();
+  const saveEvent = async (e, options = {}) => {
+    e?.preventDefault?.();
     if (savingEvent) return;
-    setSavingEvent(true); setErr('');
+    setSavingEvent(true); setErr(''); setConflicts(null);
     try {
       const url = isNew ? '/api/admin/events' : `/api/admin/events/${currentEventId}`;
       const method = isNew ? 'POST' : 'PUT';
+      // M5.5 B3 — when re-submitting after a conflict, include
+      // acknowledgeConflicts: true so the API audit-logs the override
+      // and proceeds with the create/update.
+      const body = options.acknowledge
+        ? { ...form, acknowledgeConflicts: true }
+        : form;
       const res = await fetch(url, {
         method, credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         const data = await res.json();
         if (isNew) setCurrentEventId(data.event.id);
         onSaved();
+      } else if (res.status === 409) {
+        const d = await res.json().catch(() => ({}));
+        setConflicts(d.conflicts || null);
       } else {
         const d = await res.json().catch(() => ({}));
         setErr(d.error || 'Save failed');
@@ -485,6 +497,64 @@ function EventEditor({ eventId, onClose, onSaved }) {
               Past
             </label>
           </div>
+
+          {/* M5.5 B3 — Conflict banner. Shown when the API returns 409
+              with a conflicts payload. Owner + Operations Director (per
+              backend requireRole) can acknowledge and submit anyway. */}
+          {conflicts && (
+            <div style={{
+              border: '1px solid var(--orange-soft, #d4a574)',
+              background: 'var(--orange-soft-bg, #fff8f0)',
+              padding: 'var(--space-12)',
+              marginBottom: 'var(--space-12)',
+              borderRadius: 'var(--radius-sm, 4px)',
+            }}>
+              <strong style={{ display: 'block', marginBottom: 8 }}>
+                ⚠ Schedule conflict detected
+              </strong>
+              <p style={{ margin: '0 0 8px', fontSize: 14 }}>
+                This event overlaps with the following on the same site. Submit anyway to record the conflict and proceed.
+              </p>
+              {conflicts.events?.length > 0 && (
+                <div style={{ marginBottom: 6 }}>
+                  <strong style={{ fontSize: 13 }}>Events ({conflicts.events.length}):</strong>
+                  <ul style={{ margin: '4px 0 0 18px', padding: 0, fontSize: 13 }}>
+                    {conflicts.events.map((c) => (
+                      <li key={c.id}>{c.title} — {c.date_iso}{c.location ? ` (${c.location})` : ''}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {conflicts.blackouts?.length > 0 && (
+                <div style={{ marginBottom: 6 }}>
+                  <strong style={{ fontSize: 13 }}>Blackouts ({conflicts.blackouts.length}):</strong>
+                  <ul style={{ margin: '4px 0 0 18px', padding: 0, fontSize: 13 }}>
+                    {conflicts.blackouts.map((c) => (
+                      <li key={c.id}>{c.reason || '(no reason given)'} — {new Date(c.starts_at).toLocaleString()} to {new Date(c.ends_at).toLocaleString()}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {conflicts.fieldRentals?.length > 0 && (
+                <div style={{ marginBottom: 6 }}>
+                  <strong style={{ fontSize: 13 }}>Field rentals ({conflicts.fieldRentals.length}):</strong>
+                  <ul style={{ margin: '4px 0 0 18px', padding: 0, fontSize: 13 }}>
+                    {conflicts.fieldRentals.map((c) => (
+                      <li key={c.id}>Rental {c.id} — {new Date(c.starts_at).toLocaleString()} to {new Date(c.ends_at).toLocaleString()}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={(e) => saveEvent(e, { acknowledge: true })}
+                disabled={savingEvent}
+                style={{ ...primaryBtn, background: 'var(--orange-strong, #d4541a)', marginTop: 8 }}
+              >
+                {savingEvent ? 'Submitting…' : 'Submit anyway'}
+              </button>
+            </div>
+          )}
 
           {err && <div style={errorText}>{err}</div>}
 
