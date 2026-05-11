@@ -30,6 +30,9 @@ export const SIDEBAR = [
     { type: 'item', to: '/admin/events', label: 'Events' },
     { type: 'item', to: '/admin/bookings', label: 'Bookings' },
     { type: 'item', to: '/admin/customers', label: 'Customers' },
+    // M5.5 B6.5 — Sites + Fields directory (capability-gated). Backed by
+    // worker/routes/admin/sites.js; powers field rentals (M5.5 B7+).
+    { type: 'item', to: '/admin/sites', label: 'Sites', capability: 'sites.read' },
     // M5 B0 (D10) — restored from the M4 B5 D09 collapse. Capability-gated
     // so non-owner roles only see what their persona needs. The /admin/today
     // page continues to surface these as quick-action tiles when an event
@@ -83,6 +86,10 @@ const CAPABILITY_TO_LEGACY_ROLE = {
     'rentals.read': 'manager',
     'roster.read': 'staff',
     'scan.use': 'staff',
+    // M5.5 B6.5 — Sites directory. Manager + above see the entry; the
+    // DB-backed capability check at requireCapability() still gates the
+    // routes for finer-grained permissions (Site Coordinator, etc.).
+    'sites.read': 'manager',
 };
 
 /**
