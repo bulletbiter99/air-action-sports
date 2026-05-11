@@ -154,7 +154,7 @@ When in doubt, ask. The cost of a confirmation is low; the cost of an unwanted c
 
 ### Carry-forward: D1 quirks (added 2026-05-07 in m4-batch-0)
 
-Three behaviors of Cloudflare D1 + wrangler discovered during M3 that bite any future migration or remote D1 operation. Read these before writing a `migrations/*.sql` file or running a `wrangler d1 execute --remote` command. Captured in detail in [docs/runbooks/m3-deploy.md](docs/runbooks/m3-deploy.md).
+Four behaviors of Cloudflare D1 + wrangler discovered during M3 and M5.5 that bite any future migration or remote D1 operation. Read these before writing a `migrations/*.sql` file or running a `wrangler d1 execute --remote` command. Captured in detail in [docs/runbooks/m3-deploy.md](docs/runbooks/m3-deploy.md).
 
 1. **No `BEGIN TRANSACTION` / `COMMIT` keywords** — wrangler's parser keyword-scans uploaded SQL and rejects anything containing the literal word `TRANSACTION`, **including in SQL comments**. To document transactional intent in a migration, phrase it as "transaction-control statements" or similar — never use the literal keyword. D1 wraps each statement implicitly; you don't need to wrap manually.
 
@@ -168,6 +168,8 @@ Three behaviors of Cloudflare D1 + wrangler discovered during M3 that bite any f
    Reference: [migrations/0023_customers_not_null.sql](migrations/0023_customers_not_null.sql) (M3 B6).
 
 3. **`wrangler --remote --json --file` emits upload-progress UI characters before the JSON payload.** `JSON.parse(stdout)` fails on raw output. When parsing programmatically, strip everything before the first `[` or `{`. Reference: [scripts/backfill-customers.js](scripts/backfill-customers.js) (M3 B6 fix).
+
+4. **(Added 2026-05-11 in M5.5 B2)** **`wrangler d1 execute --json --file=` returns a SUMMARY row, NOT the actual SELECT row data, when run against `--remote`.** Against `--local`, the same flag returns the real row data. Symptom: a Node script calling `--file` for a SELECT receives `[{"results": [{"Total queries executed": 1, "Rows read": N, "Rows written": 0, "Database size (MB)": "X"}], ...}]` instead of the expected `[{"results": [{...row}, ...]}]`. For read queries, **use `--command=` (NOT `--file=`)** — `--command` returns row data on both local and remote. `--file` is still appropriate for multi-statement WRITES (INSERT/UPDATE/CREATE), where the summary is acceptable. Reference: M5.5 B2's [scripts/seed-sites.js](scripts/seed-sites.js) + [scripts/backfill-events-site-id.js](scripts/backfill-events-site-id.js) (hotfix after the first remote run silently failed to update `events.site_id` because the script's read-back interpreted the summary row as one phantom "site").
 
 ### Where to find each audit document
 
