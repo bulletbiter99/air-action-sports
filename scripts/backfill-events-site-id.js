@@ -198,6 +198,7 @@ function randomString(len) {
 }
 
 function wranglerExecute(envFlag, sql) {
+    // For multi-statement writes (UPDATEs + audit_log INSERTs).
     const tmpFile = join(tmpdir(), `backfill-events-${Date.now()}-${randomString(8)}.sql`);
     writeFileSync(tmpFile, sql, 'utf8');
     try {
@@ -222,17 +223,35 @@ function wranglerExecute(envFlag, sql) {
     }
 }
 
-function readEvents(envFlag) {
-    const result = wranglerExecute(
-        envFlag,
-        'SELECT id, location, site_id FROM events;',
+// Wrangler quirk (discovered during B2 remote backfill):
+// --json --file against REMOTE returns a SUMMARY row
+// ({"Total queries executed": N, "Rows read": N, ...}) instead of
+// the actual SELECT row data. The same flag against LOCAL D1
+// returns row data. To get actual rows from a SELECT against both
+// local and remote, use --command (NOT --file). See seed-sites.js
+// for the same fix.
+function wranglerQuery(envFlag, sql) {
+    const cmd = `npx wrangler d1 execute ${DB} ${envFlag} --json --command=${JSON.stringify(sql)}`;
+    const raw = execSync(cmd, {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env },
+    });
+    const firstJson = Math.min(
+        raw.indexOf('[') === -1 ? Infinity : raw.indexOf('['),
+        raw.indexOf('{') === -1 ? Infinity : raw.indexOf('{'),
     );
-    return result?.[0]?.results || [];
+    if (firstJson === Infinity) return [];
+    const parsed = JSON.parse(raw.slice(firstJson));
+    return parsed?.[0]?.results || [];
+}
+
+function readEvents(envFlag) {
+    return wranglerQuery(envFlag, 'SELECT id, location, site_id FROM events');
 }
 
 function readSites(envFlag) {
-    const result = wranglerExecute(envFlag, 'SELECT id, slug FROM sites;');
-    return result?.[0]?.results || [];
+    return wranglerQuery(envFlag, 'SELECT id, slug FROM sites');
 }
 
 function main() {

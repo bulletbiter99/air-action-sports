@@ -314,7 +314,8 @@ export function planToHumanSummary(plan) {
 // ────────────────────────────────────────────────────────────────────
 
 function wranglerExecute(envFlag, sql) {
-    // Write SQL to a temp file and shell out to wrangler --file.
+    // For multi-statement writes. Uses --file because --command can't
+    // handle multi-statement SQL reliably.
     // wrangler --remote --json --file emits upload-progress UI chars
     // before the JSON payload; strip them before parsing.
     const tmpFile = join(tmpdir(), `seed-sites-${Date.now()}-${randomString(8)}.sql`);
@@ -342,16 +343,35 @@ function wranglerExecute(envFlag, sql) {
     }
 }
 
+// Wrangler quirk (Lesson — discovered during B2 remote seed):
+// --json --file against REMOTE returns a SUMMARY row
+// ({"Total queries executed": N, "Rows read": N, ...}) instead of
+// the actual SELECT row data. The same flag against LOCAL D1
+// returns row data. To get actual rows from a SELECT against both
+// local and remote, use --command (NOT --file). --command also has
+// a max length limit (~16k chars), but read queries here are small.
+function wranglerQuery(envFlag, sql) {
+    const cmd = `npx wrangler d1 execute ${DB} ${envFlag} --json --command=${JSON.stringify(sql)}`;
+    const raw = execSync(cmd, {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env },
+    });
+    const firstJson = Math.min(
+        raw.indexOf('[') === -1 ? Infinity : raw.indexOf('['),
+        raw.indexOf('{') === -1 ? Infinity : raw.indexOf('{'),
+    );
+    if (firstJson === Infinity) return [];
+    const parsed = JSON.parse(raw.slice(firstJson));
+    return parsed?.[0]?.results || [];
+}
+
 function readSites(envFlag) {
-    const result = wranglerExecute(envFlag, 'SELECT id, slug FROM sites;');
-    const rows = result?.[0]?.results || [];
-    return rows;
+    return wranglerQuery(envFlag, 'SELECT id, slug FROM sites');
 }
 
 function readFields(envFlag) {
-    const result = wranglerExecute(envFlag, 'SELECT id, site_id, slug FROM site_fields;');
-    const rows = result?.[0]?.results || [];
-    return rows;
+    return wranglerQuery(envFlag, 'SELECT id, site_id, slug FROM site_fields');
 }
 
 function main() {
