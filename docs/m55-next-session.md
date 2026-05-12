@@ -1,26 +1,48 @@
 # Post-M5.5 next-session prompt
 
-**Status:** M5.5 (Field Rentals) is **CLOSED + DEPLOYED 2026-05-12** — production runs the full Surface 7 build. The previous version of this file handed off B7 plan-mode mid-milestone; this version is for the **post-M5.5 session** that decides between two forks: ship the 6-item polish backlog, or move to **M6 (Stripe live cutover + invoice integration for field rentals)**.
+**Status:** M5.5 (Field Rentals) is **CLOSED + DEPLOYED 2026-05-12**. Late on the same day, a post-M5.5 **staff-wiring fix** also shipped (PR [#165](https://github.com/bulletbiter99/air-action-sports/pull/165) merged as `d70952a` + follow-up deploy-fix `cd27867`; production Worker version `866dd1ef-106a-4373-8051-bfe27d45c3f4`). The fix closed 4 dormant M5 wiring gaps + 1 global-CSS leak that together made `/admin/staff` non-functional. The polish backlog below is unchanged — the staff-wiring fix was outside that backlog.
 
-The fresh session should read this file first, then read [HANDOFF.md](../HANDOFF.md) §NEW SESSION + the closed-M5.5 section in [CLAUDE.md](../CLAUDE.md) for the full context.
+This file remains the **post-M5.5 next-session prompt** that decides between two forks: ship the 6-item polish backlog, or move to **M6 (Stripe live cutover + invoice integration for field rentals)**.
+
+The fresh session should read this file first, then read [HANDOFF.md](../HANDOFF.md) §NEW SESSION + the closed-M5.5 + post-M5.5-fix sections in [CLAUDE.md](../CLAUDE.md) for the full context.
 
 ---
 
 ```
 You are starting a fresh session on the Air Action Sports project.
-M5.5 (Field Rentals) shipped + closed 2026-05-12. Production at
-`main` SHA 8decacc (merge PR #162). Workers Builds auto-deployed.
+M5.5 (Field Rentals) shipped + closed 2026-05-12. A post-M5.5 staff-
+wiring fix also shipped the same day. Production worker version
+866dd1ef-106a-4373-8051-bfe27d45c3f4; main at d70952a + cd27867.
 
 ═══════════════════════════════════════════════════════════════════════
-STATE AT HANDOFF (2026-05-12)
+STATE AT HANDOFF (2026-05-12 late)
 ═══════════════════════════════════════════════════════════════════════
 
-main: 8decacc (M5.5 close merge — preserves per-batch SHAs as second-
-  parent commits; first-parent log is clean).
-Tests: 1997 / 161 files (M5 baseline was 1538 / 146).
-Lint: 0 errors / 440 warnings (advisory; react-refresh).
+main: d70952a (PR #165 staff-wiring fix merge) + cd27867 (deploy-fix
+  follow-up). Cumulative on top of the M5.5 close (8decacc).
+Tests: 2022 / 163 files (M5.5 close was 1997 / 161 → +25 from new
+  staff-create + personsHelpers tests).
+Lint: 0 errors / 441 warnings (one new advisory: react-refresh on
+  src/admin/AdminStaffNew.jsx).
 Build: clean (~270ms).
-Open PRs: 0.
+Open PRs: 0 (PR #165 merged; deploy-fix on main).
+
+Post-M5.5 wiring fix in summary — 5 layered M5 gaps fixed in one batch:
+  A. persons table was empty in prod (backfill-persons.js was never run
+     AND was broken: pre-dated M5.5 D1 quirk #4, plus wrong audit_log
+     column shape). Fixed + ran. 4 persons + 4 person_roles minted.
+  B. createPersonForUser was dead code in worker/routes/admin/auth.js.
+     Wired into /setup + /accept-invite.
+  C. + New Person button had no route/form/POST endpoint. Added
+     POST /api/admin/staff, GET /roles-catalog, AdminStaffNew.jsx,
+     /admin/staff/new route.
+  D. All 4 users had role_preset_key=NULL → fell through to legacy fallback
+     (5 booking-only caps from M4, no staff.*). SQL UPDATE → 'owner'.
+  E. global.css `nav { position: fixed }` bled onto every <nav> in the
+     app, breaking profile tab nav layout. Scoped to .site-nav.
+  Deploy-fix. The B wiring transitively imported scripts/backfill-persons.js
+     which has top-level `import 'node:child_process'` — Cloudflare can't
+     load node:*. Inlined the 13-line pure helper in personsHelpers.js.
 
 D1 migrations applied to remote (M5.5 portion — all 10 applied):
   0044 sites_schema                       (B1, applied 2026-05-11)
@@ -163,11 +185,15 @@ PRE-FLIGHT (before any code change)
   git checkout main
   git pull origin main
   npm install
-  npm test                # expect 1997 passed across 161 files
-  npm run lint            # expect 0 errors / 440 warnings
+  npm test                # expect 2022 passed across 163 files
+  npm run lint            # expect 0 errors / 441 warnings
   npm run build           # expect clean
   curl https://airactionsport.com/api/health
                           # expect {"ok":true,...}
+  # Optional admin smokes (need a logged-in browser session):
+  #   /admin/staff           — 4 admin rows visible
+  #   /admin/staff/<id>      — profile tabs render INLINE (not floating top band)
+  #   /admin/staff/new       — form renders with all 22 roles in dropdown
 
 If any of these fails or numbers differ materially, STOP and investigate.
 
