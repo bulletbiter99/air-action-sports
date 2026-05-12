@@ -6,6 +6,7 @@ import { sendEmail } from './lib/email.js';
 import { createVendorToken } from './lib/vendorToken.js';
 import { runCustomerTagsSweep } from './lib/customerTags.js';
 import { runCertExpirationSweep as _runCertExpirationSweep } from './lib/certifications.js';
+import { runRecurrenceGenerationSweep as _runRecurrenceGenerationSweep } from './lib/fieldRentalRecurrences.js';
 import {
     runEventStaffingReminderSweep as _runEventStaffingReminderSweep,
     runEventStaffingAutoDeclineSweep as _runEventStaffingAutoDeclineSweep,
@@ -15,6 +16,7 @@ import { runTaxYearAutoLockSweep as _runTaxYearAutoLockSweep } from './lib/thres
 // `const NAME = ...`) detects the sweeps are wired up here. The actual
 // implementations live in worker/lib/{certifications,eventStaffing,thresholds1099}.js.
 const runCertExpirationSweep = _runCertExpirationSweep;
+const runRecurrenceGenerationSweep = _runRecurrenceGenerationSweep;
 const runEventStaffingReminderSweep = _runEventStaffingReminderSweep;
 const runEventStaffingAutoDeclineSweep = _runEventStaffingAutoDeclineSweep;
 const runTaxYearAutoLockSweep = _runTaxYearAutoLockSweep;
@@ -629,7 +631,7 @@ export default {
             // Every other cron (today: just '*/15 * * * *') runs the
             // existing three-way reminder sweep.
             if (cron === '0 3 * * *') {
-                const [tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock] = await Promise.all([
+                const [tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen] = await Promise.all([
                     runCustomerTagsSweep(env).catch((err) => {
                         console.error('customer-tags sweep failed', err);
                         return { error: err?.message };
@@ -650,8 +652,12 @@ export default {
                         console.error('tax-year auto-lock sweep failed', err);
                         return { error: err?.message };
                     }),
+                    runRecurrenceGenerationSweep(env).catch((err) => {
+                        console.error('recurrence-generation sweep failed', err);
+                        return { error: err?.message };
+                    }),
                 ]);
-                summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock };
+                summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen };
             } else {
                 const [r, a, v] = await Promise.all([
                     runReminderSweep(env),
