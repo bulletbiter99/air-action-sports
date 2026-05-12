@@ -8,6 +8,10 @@ import { runCustomerTagsSweep } from './lib/customerTags.js';
 import { runCertExpirationSweep as _runCertExpirationSweep } from './lib/certifications.js';
 import { runRecurrenceGenerationSweep as _runRecurrenceGenerationSweep } from './lib/fieldRentalRecurrences.js';
 import {
+    runCoiExpirationSweep as _runCoiExpirationSweep,
+    runLeadStaleSweep as _runLeadStaleSweep,
+} from './lib/fieldRentalCron.js';
+import {
     runEventStaffingReminderSweep as _runEventStaffingReminderSweep,
     runEventStaffingAutoDeclineSweep as _runEventStaffingAutoDeclineSweep,
 } from './lib/eventStaffing.js';
@@ -17,6 +21,8 @@ import { runTaxYearAutoLockSweep as _runTaxYearAutoLockSweep } from './lib/thres
 // implementations live in worker/lib/{certifications,eventStaffing,thresholds1099}.js.
 const runCertExpirationSweep = _runCertExpirationSweep;
 const runRecurrenceGenerationSweep = _runRecurrenceGenerationSweep;
+const runCoiExpirationSweep = _runCoiExpirationSweep;
+const runLeadStaleSweep = _runLeadStaleSweep;
 const runEventStaffingReminderSweep = _runEventStaffingReminderSweep;
 const runEventStaffingAutoDeclineSweep = _runEventStaffingAutoDeclineSweep;
 const runTaxYearAutoLockSweep = _runTaxYearAutoLockSweep;
@@ -631,7 +637,7 @@ export default {
             // Every other cron (today: just '*/15 * * * *') runs the
             // existing three-way reminder sweep.
             if (cron === '0 3 * * *') {
-                const [tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen] = await Promise.all([
+                const [tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen, coiAlerts, leadStale] = await Promise.all([
                     runCustomerTagsSweep(env).catch((err) => {
                         console.error('customer-tags sweep failed', err);
                         return { error: err?.message };
@@ -656,8 +662,16 @@ export default {
                         console.error('recurrence-generation sweep failed', err);
                         return { error: err?.message };
                     }),
+                    runCoiExpirationSweep(env).catch((err) => {
+                        console.error('coi-expiration sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                    runLeadStaleSweep(env).catch((err) => {
+                        console.error('lead-stale sweep failed', err);
+                        return { error: err?.message };
+                    }),
                 ]);
-                summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen };
+                summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen, coiAlerts, leadStale };
             } else {
                 const [r, a, v] = await Promise.all([
                     runReminderSweep(env),

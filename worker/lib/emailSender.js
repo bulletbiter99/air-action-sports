@@ -342,6 +342,89 @@ export async function sendFeedbackResolutionNotice(env, { feedback }) {
     });
 }
 
+// M5.5 Batch 10b — COI expiration alert (staff-facing). Sent by the
+// nightly runCoiExpirationSweep cron when a rental's coi_expires_at
+// falls into the 60d / 30d / 7d bucket and the corresponding sentinel
+// (coi_alert_60d_sent_at etc.) is still NULL. Sentinels prevent
+// re-sending per milestone.
+//
+// `bucket` ∈ {60, 30, 7}; selects the matching template slug.
+// `recipient` is the resolved AAS-staff email (site coordinator or
+// env.ADMIN_NOTIFY_EMAIL fallback).
+export async function sendCoiAlert(env, { rental, bucket, recipient, customerName, siteName, daysUntilExpiry }) {
+    if (!recipient) return { skipped: 'no_recipient_email' };
+    const slug = bucket === 60 ? 'coi_alert_60d'
+        : bucket === 30 ? 'coi_alert_30d'
+        : bucket === 7 ? 'coi_alert_7d'
+        : null;
+    if (!slug) return { skipped: 'unknown_bucket' };
+    const template = await loadTemplate(env.DB, slug);
+    if (!template) return { skipped: 'template_missing' };
+
+    const startsDate = Number.isFinite(Number(rental.scheduled_starts_at))
+        ? new Date(Number(rental.scheduled_starts_at)).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Denver' })
+        : '—';
+    const expiresDate = Number.isFinite(Number(rental.coi_expires_at))
+        ? new Date(Number(rental.coi_expires_at)).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Denver' })
+        : '—';
+
+    const vars = {
+        rental_id: rental.id,
+        customer_name: customerName || 'unknown',
+        scheduled_starts_at: startsDate,
+        site_name: siteName || 'site',
+        coi_expires_on: expiresDate,
+        days_until_expiry: daysUntilExpiry,
+        detail_url: `${env.SITE_URL || ''}/admin/field-rentals/${rental.id}`,
+    };
+    const rendered = renderTemplate(template, vars);
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: recipient,
+        replyTo: env.REPLY_TO_EMAIL,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: slug },
+            { name: 'rental_id', value: rental.id },
+        ],
+    });
+}
+
+// M5.5 Batch 10b — Lead-stale alert (staff-facing). Sent by the
+// nightly runLeadStaleSweep cron when a rental sits in lead/draft for
+// 14+ days without movement; re-fires every 7 days while stuck.
+// `recipient` resolution mirrors sendCoiAlert.
+export async function sendLeadStaleAlert(env, { rental, recipient, customerName, daysSinceLastUpdate }) {
+    if (!recipient) return { skipped: 'no_recipient_email' };
+    const template = await loadTemplate(env.DB, 'field_rental_lead_stale');
+    if (!template) return { skipped: 'template_missing' };
+
+    const vars = {
+        rental_id: rental.id,
+        customer_name: customerName || 'unknown',
+        status: rental.status || 'lead',
+        days_since_last_update: daysSinceLastUpdate,
+        detail_url: `${env.SITE_URL || ''}/admin/field-rentals/${rental.id}`,
+    };
+    const rendered = renderTemplate(template, vars);
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: recipient,
+        replyTo: env.REPLY_TO_EMAIL,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: 'field_rental_lead_stale' },
+            { name: 'rental_id', value: rental.id },
+        ],
+    });
+}
+
 // M5 Batch 6 — staff portal invite email (Surface 4a part 4).
 // Variables: personName, inviterName, magicLink, expiresAt
 export async function sendStaffPortalInvite(env, { person, inviterName, magicLink, expiresAt }) {
