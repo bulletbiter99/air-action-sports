@@ -213,6 +213,39 @@
         "tests/unit/lib/customer-tags.test.js"
       ]
     },
+    "worker/routes/admin/staff.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/staff (list + typeahead)",
+        "GET /api/admin/staff/roles-catalog",
+        "GET /api/admin/staff/:id (detail)",
+        "POST /api/admin/staff (create person)",
+        "PUT /api/admin/staff/:id (edit profile)",
+        "POST /api/admin/staff/:id/role-assign",
+        "PUT /api/admin/staff/:id/notes",
+        "POST /api/admin/staff/:id/archive"
+      ],
+      "audit_group": "(M5 R4 + R17 + post-M5.5 create-flow fix)",
+      "tests": [
+        "tests/unit/admin/staff/list.test.js",
+        "tests/unit/admin/staff/detail.test.js",
+        "tests/unit/admin/staff/typeahead.test.js",
+        "tests/unit/admin/staff/roles.test.js",
+        "tests/unit/admin/staff/notes.test.js",
+        "tests/unit/admin/staff/archive.test.js",
+        "tests/unit/admin/staff/create.test.js"
+      ]
+    },
+    "worker/routes/admin/personsHelpers.js": {
+      "tier": "high",
+      "covers": [
+        "createPersonForUser (idempotent persons-row creation + primary role + audit)"
+      ],
+      "audit_group": "(M5 B3 + post-M5.5 audit-shape fix; called from /setup + /accept-invite)",
+      "tests": [
+        "tests/unit/admin/personsHelpers.test.js"
+      ]
+    },
     "worker/routes/admin/savedViews.js": {
       "tier": "high",
       "covers": [

@@ -7,6 +7,7 @@
 // the existing row without modification.
 
 import { legacyRoleToPersonRoleId } from '../../../scripts/backfill-persons.js';
+import { writeAudit } from '../../lib/auditLog.js';
 
 /**
  * Generates a 12-char random alphanumeric ID with the given prefix.
@@ -87,22 +88,17 @@ export async function createPersonForUser(env, user, options = {}) {
         }
     }
 
-    // Audit log — best effort; mirrors the backfill script's audit row.
+    // Audit log — best effort, via the shared writeAudit helper (uses the
+    // 6-col shape matching the production audit_log schema: AUTOINCREMENT
+    // id, user_id, meta_json).
     try {
-        await env.DB
-            .prepare(
-                `INSERT INTO audit_log (id, action, actor_user_id, target_type, target_id, meta, created_at)
-                 VALUES (?, ?, ?, 'person', ?, ?, ?)`
-            )
-            .bind(
-                randomPersonId('al'),
-                'person.created_via_invite',
-                options.actorUserId || null,
-                personId,
-                JSON.stringify({ user_id: user.id, primary_role: roleId }),
-                now,
-            )
-            .run();
+        await writeAudit(env, {
+            userId: options.actorUserId || null,
+            action: 'person.created_via_invite',
+            targetType: 'person',
+            targetId: personId,
+            meta: { user_id: user.id, primary_role: roleId },
+        });
     } catch {
         /* audit best-effort */
     }

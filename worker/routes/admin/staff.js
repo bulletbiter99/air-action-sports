@@ -25,10 +25,21 @@ import { writeAudit } from '../../lib/auditLog.js';
 import { decryptSafely } from '../../lib/personEncryption.js';
 import { mintInviteToken } from '../../lib/portalSession.js';
 import { sendStaffPortalInvite } from '../../lib/emailSender.js';
+import { isValidEmail } from '../../lib/email.js';
 
 const adminStaff = new Hono();
 
 adminStaff.use('*', requireAuth);
+
+const PERSON_STATUSES = ['active', 'onboarding', 'on_leave', 'offboarding', 'inactive'];
+const ID_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+function newPersonId(prefix) {
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    let out = '';
+    for (let i = 0; i < bytes.length; i++) out += ID_ALPHABET[bytes[i] % ID_ALPHABET.length];
+    return `${prefix}_${out}`;
+}
 
 // ────────────────────────────────────────────────────────────────────
 // PII / compensation masking helpers
@@ -160,6 +171,81 @@ adminStaff.get('/', requireCapability('staff.read'), async (c) => {
             createdAt: row.created_at,
         })),
     });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// GET /api/admin/staff/roles-catalog — list role catalog for assign UIs
+// ────────────────────────────────────────────────────────────────────
+// Registered before /:id so the literal segment wins routing.
+adminStaff.get('/roles-catalog', requireCapability('staff.read'), async (c) => {
+    const rolesResult = await c.env.DB.prepare(
+        'SELECT id, key, name, tier FROM roles ORDER BY tier, name COLLATE NOCASE'
+    ).all();
+    return c.json({ roles: rolesResult.results || [] });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// POST /api/admin/staff — create a person (+ optional primary role)
+// ────────────────────────────────────────────────────────────────────
+adminStaff.post('/', requireCapability('staff.write'), async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+
+    const fullName = String(body.fullName || '').trim();
+    if (!fullName) return c.json({ error: 'fullName required' }, 400);
+    if (fullName.length > 200) return c.json({ error: 'fullName too long' }, 400);
+
+    const email = body.email == null ? null : String(body.email).trim().toLowerCase();
+    if (email && !isValidEmail(email)) {
+        return c.json({ error: 'email is not a valid address' }, 400);
+    }
+
+    const phone = body.phone == null ? null : String(body.phone).trim() || null;
+    const preferredName = body.preferredName == null ? null : String(body.preferredName).trim() || null;
+
+    const status = body.status ? String(body.status) : 'onboarding';
+    if (!PERSON_STATUSES.includes(status)) {
+        return c.json({ error: `status must be one of ${PERSON_STATUSES.join(', ')}` }, 400);
+    }
+
+    const primaryRoleId = body.primaryRoleId ? String(body.primaryRoleId) : null;
+    if (primaryRoleId) {
+        const role = await c.env.DB.prepare('SELECT id FROM roles WHERE id = ?').bind(primaryRoleId).first();
+        if (!role) return c.json({ error: 'Unknown primaryRoleId' }, 400);
+    }
+
+    const notes = body.notes == null ? null : String(body.notes);
+
+    const user = c.get('user');
+    const personId = newPersonId('prs');
+    const now = Date.now();
+
+    await c.env.DB.prepare(
+        `INSERT INTO persons (id, user_id, full_name, preferred_name, email, phone, notes, status, created_at, updated_at)
+         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(personId, fullName, preferredName, email, phone, notes, status, now, now).run();
+
+    let personRoleId = null;
+    if (primaryRoleId) {
+        personRoleId = newPersonId('pr');
+        await c.env.DB.prepare(
+            `INSERT INTO person_roles (id, person_id, role_id, is_primary, effective_from, created_by_user_id, created_at)
+             VALUES (?, ?, ?, 1, ?, ?, ?)`
+        ).bind(personRoleId, personId, primaryRoleId, now, user.id, now).run();
+    }
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'staff.created',
+        targetType: 'person',
+        targetId: personId,
+        meta: { primaryRoleId, hasEmail: Boolean(email), status },
+    });
+
+    const created = await c.env.DB.prepare('SELECT * FROM persons WHERE id = ?').bind(personId).first();
+    const capabilities = user.capabilities || (await listCapabilities(c.env, user.id));
+    const person = await formatPerson(c.env, created, capabilities);
+
+    return c.json({ person, personRoleId }, 201);
 });
 
 // ────────────────────────────────────────────────────────────────────

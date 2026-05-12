@@ -7,6 +7,7 @@ import { randomId } from '../../lib/ids.js';
 import { sendPasswordReset } from '../../lib/emailSender.js';
 import { rateLimit } from '../../lib/rateLimit.js';
 import { readJson, BODY_LIMITS } from '../../lib/bodyGuard.js';
+import { createPersonForUser } from './personsHelpers.js';
 
 // Field-level caps applied across auth flows. The password cap in particular
 // protects PBKDF2 from a hash-DoS via a multi-megabyte password string.
@@ -52,6 +53,19 @@ auth.post('/setup', async (c) => {
         `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
          VALUES (?, 'user.setup_owner', 'user', ?, ?, ?)`
     ).bind(id, id, JSON.stringify({ email: body.email }), now).run();
+
+    // Mint the corresponding persons row + primary role assignment so the
+    // first owner shows up on /admin/staff with a default Tier-1 role.
+    // Best-effort: if it fails (e.g. roles catalog not seeded yet on a
+    // fresh DB), we don't fail the setup itself — operator can re-run
+    // scripts/backfill-persons.js later.
+    try {
+        await createPersonForUser(c.env, {
+            id, email: body.email.trim().toLowerCase(), display_name: body.displayName.trim(), role: 'owner',
+        }, { actorUserId: id });
+    } catch (err) {
+        console.error('setup: createPersonForUser failed', err);
+    }
 
     // New user, session_version defaults to 1 (migration 0010).
     const token = await createSession(id, 'owner', 1, c.env.SESSION_SECRET);
@@ -270,6 +284,17 @@ auth.post('/accept-invite', rateLimit('RL_RESET_PWD'), async (c) => {
         `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
          VALUES (?, 'user.invite_accepted', 'user', ?, ?, ?)`
     ).bind(id, id, JSON.stringify({ email: invite.email, role: invite.role, invited_by: invite.invited_by }), now).run();
+
+    // Mint the corresponding persons row + primary role assignment so the
+    // new admin shows up on /admin/staff with a default tier-appropriate
+    // role. Best-effort: if it fails we don't fail the invite acceptance.
+    try {
+        await createPersonForUser(c.env, {
+            id, email: invite.email, display_name: body.displayName.trim(), role: invite.role,
+        }, { actorUserId: invite.invited_by || id });
+    } catch (err) {
+        console.error('accept-invite: createPersonForUser failed', err);
+    }
 
     // New user; session_version defaults to 1 per migration 0010.
     const token = await createSession(id, invite.role, 1, c.env.SESSION_SECRET);
