@@ -173,6 +173,179 @@ describe('GET /api/admin/customers/:id — detail', () => {
     });
 });
 
+// ────────────────────────────────────────────────────────────────────
+// M5.5 B9 — formatCustomer + GET /:id field_rentals JOIN
+// ────────────────────────────────────────────────────────────────────
+
+describe('M5.5 B9 — formatCustomer business fields', () => {
+    function baseRow(overrides = {}) {
+        return {
+            id: 'cus_test', email: 't@x.com', email_normalized: 't@x.com', name: 'Test',
+            phone: null, total_bookings: 0, total_attendees: 0, lifetime_value_cents: 0,
+            refund_count: 0, first_booking_at: null, last_booking_at: null,
+            email_transactional: 1, email_marketing: 1, sms_transactional: 0, sms_marketing: 0,
+            notes: null, archived_at: null, archived_reason: null, archived_by: null,
+            merged_into: null, created_at: 1000, updated_at: 1000,
+            ...overrides,
+        };
+    }
+
+    it('exposes clientType (defaults to "individual" when row missing the column)', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'staff' });
+        env.DB.__on(/SELECT \* FROM customers WHERE id = \?/, baseRow(), 'first');
+
+        const res = await worker.fetch(fetchJson('/api/admin/customers/cus_test', { headers: { cookie: cookieHeader } }), env, {});
+        const json = await res.json();
+        expect(json.customer.clientType).toBe('individual');
+    });
+
+    it('surfaces businessName and businessWebsite when clientType=business', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'staff' });
+        env.DB.__on(/SELECT \* FROM customers WHERE id = \?/, baseRow({
+            client_type: 'business',
+            business_name: 'Acme Tactical LLC',
+            business_website: 'https://acme-tactical.example',
+        }), 'first');
+
+        const res = await worker.fetch(fetchJson('/api/admin/customers/cus_test', { headers: { cookie: cookieHeader } }), env, {});
+        const json = await res.json();
+        expect(json.customer.clientType).toBe('business');
+        expect(json.customer.businessName).toBe('Acme Tactical LLC');
+        expect(json.customer.businessWebsite).toBe('https://acme-tactical.example');
+    });
+
+    it('null business_name/website surface as null (not undefined)', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'staff' });
+        env.DB.__on(/SELECT \* FROM customers WHERE id = \?/, baseRow({
+            client_type: 'business', business_name: null, business_website: null,
+        }), 'first');
+
+        const res = await worker.fetch(fetchJson('/api/admin/customers/cus_test', { headers: { cookie: cookieHeader } }), env, {});
+        const json = await res.json();
+        expect(json.customer.businessName).toBeNull();
+        expect(json.customer.businessWebsite).toBeNull();
+    });
+
+    it('list endpoint also surfaces clientType in each row', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'staff' });
+        env.DB.__on(/SELECT COUNT\(\*\) AS n FROM customers/, { n: 1 }, 'first');
+        env.DB.__on(/FROM customers WHERE archived_at IS NULL/, {
+            results: [baseRow({ id: 'cus_biz', client_type: 'business', business_name: 'Acme' })],
+        }, 'all');
+
+        const res = await worker.fetch(fetchJson('/api/admin/customers', { headers: { cookie: cookieHeader } }), env, {});
+        const json = await res.json();
+        expect(json.customers[0].clientType).toBe('business');
+        expect(json.customers[0].businessName).toBe('Acme');
+    });
+});
+
+describe('M5.5 B9 — GET /:id field_rentals JOIN', () => {
+    function baseRow(overrides = {}) {
+        return {
+            id: 'cus_test', email: 't@x.com', email_normalized: 't@x.com', name: 'Test',
+            phone: null, total_bookings: 0, total_attendees: 0, lifetime_value_cents: 0,
+            refund_count: 0, first_booking_at: null, last_booking_at: null,
+            email_transactional: 1, email_marketing: 1, sms_transactional: 0, sms_marketing: 0,
+            notes: null, archived_at: null, archived_reason: null, archived_by: null,
+            merged_into: null, created_at: 1000, updated_at: 1000,
+            ...overrides,
+        };
+    }
+
+    it('returns fieldRentals: [] when customer has no rentals', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'staff' });
+        env.DB.__on(/SELECT \* FROM customers WHERE id = \?/, baseRow(), 'first');
+
+        const res = await worker.fetch(fetchJson('/api/admin/customers/cus_test', { headers: { cookie: cookieHeader } }), env, {});
+        const json = await res.json();
+        expect(json.fieldRentals).toEqual([]);
+    });
+
+    it('returns fieldRentals with formatted rows when rentals exist', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'staff' });
+        env.DB.__on(/SELECT \* FROM customers WHERE id = \?/, baseRow({ client_type: 'business' }), 'first');
+        env.DB.__on(/FROM field_rentals\s+WHERE customer_id = \?\s+ORDER BY scheduled_starts_at/, {
+            results: [
+                {
+                    id: 'fr_001', status: 'paid',
+                    scheduled_starts_at: 1000, scheduled_ends_at: 2000,
+                    total_cents: 50000, coi_status: 'received', coi_expires_at: 99000,
+                    archived_at: null, engagement_type: 'paintball',
+                },
+                {
+                    id: 'fr_002', status: 'lead',
+                    scheduled_starts_at: 500, scheduled_ends_at: 1500,
+                    total_cents: 25000, coi_status: 'pending', coi_expires_at: null,
+                    archived_at: null, engagement_type: 'film_shoot',
+                },
+            ],
+        }, 'all');
+
+        const res = await worker.fetch(fetchJson('/api/admin/customers/cus_test', { headers: { cookie: cookieHeader } }), env, {});
+        const json = await res.json();
+        expect(json.fieldRentals).toHaveLength(2);
+        expect(json.fieldRentals[0].id).toBe('fr_001');
+        expect(json.fieldRentals[0].status).toBe('paid');
+        expect(json.fieldRentals[0].scheduledStartsAt).toBe(1000);
+        expect(json.fieldRentals[0].totalCents).toBe(50000);
+        expect(json.fieldRentals[0].coiStatus).toBe('received');
+        expect(json.fieldRentals[0].engagementType).toBe('paintball');
+        expect(json.fieldRentals[1].id).toBe('fr_002');
+    });
+
+    it('field_rentals query is bounded by LIMIT 100 and ORDER BY scheduled_starts_at DESC', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'staff' });
+        env.DB.__on(/SELECT \* FROM customers WHERE id = \?/, baseRow(), 'first');
+
+        let capturedSql = '';
+        env.DB.__on(/FROM field_rentals\s+WHERE customer_id/, (sql) => {
+            capturedSql = sql;
+            return { results: [] };
+        }, 'all');
+
+        await worker.fetch(fetchJson('/api/admin/customers/cus_test', { headers: { cookie: cookieHeader } }), env, {});
+        expect(capturedSql).toMatch(/ORDER BY scheduled_starts_at DESC/);
+        expect(capturedSql).toMatch(/LIMIT 100/);
+    });
+
+    it('degrades to empty fieldRentals when field_rentals query throws', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'staff' });
+        env.DB.__on(/SELECT \* FROM customers WHERE id = \?/, baseRow(), 'first');
+        env.DB.__on(/FROM field_rentals\s+WHERE customer_id/, () => {
+            throw new Error('no such table: field_rentals');
+        }, 'all');
+
+        const res = await worker.fetch(fetchJson('/api/admin/customers/cus_test', { headers: { cookie: cookieHeader } }), env, {});
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.fieldRentals).toEqual([]);
+    });
+
+    it('field_rentals query binds the customer_id', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_actor', role: 'staff' });
+        env.DB.__on(/SELECT \* FROM customers WHERE id = \?/, baseRow({ id: 'cus_xyz' }), 'first');
+
+        let capturedBinds = null;
+        env.DB.__on(/FROM field_rentals\s+WHERE customer_id/, (sql, args) => {
+            capturedBinds = args;
+            return { results: [] };
+        }, 'all');
+
+        await worker.fetch(fetchJson('/api/admin/customers/cus_xyz', { headers: { cookie: cookieHeader } }), env, {});
+        expect(capturedBinds).toEqual(['cus_xyz']);
+    });
+});
+
 describe('POST /api/admin/customers/merge', () => {
     it('happy path: archives duplicate, re-points bookings/attendees, audits, recomputes primary', async () => {
         const env = createMockEnv();
