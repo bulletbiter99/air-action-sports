@@ -91,7 +91,7 @@ export default function AdminStaffDetail() {
                 {activeTab === 'roles' && <RolesTab personId={p.id} roles={data.roles} canAssign={hasRole?.('manager')} onChanged={load} />}
                 {activeTab === 'notes' && <NotesTab personId={p.id} person={p} canEdit={hasRole?.('manager')} onSaved={load} />}
                 {activeTab === 'documents' && <TabPlaceholder batch="Batch 5" feature="Document acknowledgments" />}
-                {activeTab === 'access' && <TabPlaceholder batch="Batch 6" feature="Portal session log" />}
+                {activeTab === 'access' && <AccessTab personId={p.id} hasEmail={Boolean(p.email)} canInvite={hasRole?.('manager')} />}
                 {activeTab === 'issues' && <TabPlaceholder batch="Batch 14" feature="Incident log" />}
                 {activeTab === 'certifications' && <CertificationsTab personId={p.id} canEdit={hasRole?.('manager')} />}
                 {activeTab === 'schedule' && <ScheduleTab personId={p.id} canEdit={hasRole?.('manager')} canMarkPaid={hasRole?.('owner')} />}
@@ -296,6 +296,154 @@ function NotesTab({ personId, person, canEdit, onSaved }) {
         </div>
     );
 }
+
+function AccessTab({ personId, hasEmail, canInvite }) {
+    const [sessions, setSessions] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [revokeTarget, setRevokeTarget] = useState(null);
+    const [revokeReason, setRevokeReason] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [inviteResult, setInviteResult] = useState(null);
+    const [error, setError] = useState(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/admin/staff/${personId}/portal-sessions`, { credentials: 'include', cache: 'no-store' });
+            if (res.ok) {
+                setSessions((await res.json()).sessions || []);
+            }
+        } finally { setLoading(false); }
+    }, [personId]);
+
+    useEffect(() => { load(); }, [load]);
+
+    async function sendInvite() {
+        setError(null);
+        setInviteResult(null);
+        setSubmitting(true);
+        try {
+            const res = await fetch(`/api/admin/staff/${personId}/invite`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                setInviteResult(data.debugLink ? `Invite minted (no email sent — debug link: ${data.debugLink})` : 'Invite emailed to person.');
+                await load();
+            } else {
+                setError(data?.error || `Invite failed (${res.status})`);
+            }
+        } finally { setSubmitting(false); }
+    }
+
+    async function submitRevoke() {
+        if (!revokeTarget) return;
+        setError(null);
+        setSubmitting(true);
+        try {
+            const res = await fetch(`/api/admin/staff/${personId}/portal-sessions/${revokeTarget}/revoke`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: revokeReason.trim() || 'admin_revoked' }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                setRevokeTarget(null);
+                setRevokeReason('');
+                await load();
+            } else {
+                setError(data?.error || `Revoke failed (${res.status})`);
+            }
+        } finally { setSubmitting(false); }
+    }
+
+    return (
+        <div style={section}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={h2}>Access</h2>
+                {canInvite && (
+                    <button type="button" disabled={!hasEmail || submitting} onClick={sendInvite} style={primaryBtn} title={!hasEmail ? 'Person has no email on file — add one in Profile first' : ''}>
+                        {submitting ? 'Sending…' : '+ Send portal invite'}
+                    </button>
+                )}
+            </div>
+            {error && <div style={{ marginTop: 12, padding: 10, background: 'var(--color-danger-soft)', color: 'var(--color-danger)', fontSize: 13 }}>{error}</div>}
+            {inviteResult && <div style={{ marginTop: 12, padding: 10, background: 'var(--color-success-soft)', color: 'var(--color-success)', fontSize: 13 }}>{inviteResult}</div>}
+
+            <div style={{ marginTop: 16 }}>
+                {loading && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
+                {!loading && sessions.length === 0 && <p style={{ color: 'var(--olive-light)', fontStyle: 'italic' }}>No portal sessions on file.</p>}
+                {!loading && sessions.length > 0 && (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 8 }}>
+                        <thead>
+                            <tr>
+                                <th style={accessTh}>Status</th>
+                                <th style={accessTh}>Invited</th>
+                                <th style={accessTh}>Consumed</th>
+                                <th style={accessTh}>Expires</th>
+                                <th style={accessTh}>IP</th>
+                                <th style={accessTh}>User agent</th>
+                                <th style={accessTh}></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sessions.map((s) => (
+                                <tr key={s.id} style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                                    <td style={accessTd}>
+                                        <span style={{ ...statusBase, ...accessStatus[s.status] }}>{s.status}</span>
+                                        {s.revokedReason && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>({s.revokedReason})</span>}
+                                    </td>
+                                    <td style={accessTd}>{new Date(s.createdAt).toLocaleString()}</td>
+                                    <td style={accessTd}>{s.consumedAt ? new Date(s.consumedAt).toLocaleString() : '—'}</td>
+                                    <td style={accessTd}>{new Date(s.cookieExpiresAt || s.expiresAt).toLocaleString()}</td>
+                                    <td style={accessTd}>{s.ipAddress || '—'}</td>
+                                    <td style={{ ...accessTd, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.userAgent || ''}>{s.userAgent || '—'}</td>
+                                    <td style={{ ...accessTd, textAlign: 'right' }}>
+                                        {canInvite && (s.status === 'pending' || s.status === 'active') && (
+                                            <button type="button" onClick={() => { setRevokeTarget(s.id); setRevokeReason(''); }} style={{ padding: '4px 10px', fontSize: 11, background: 'transparent', border: '1px solid var(--color-border-strong)', color: 'var(--color-warning)', cursor: 'pointer' }}>Revoke</button>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+
+            {revokeTarget && (
+                <div style={modalBack} onClick={() => setRevokeTarget(null)}>
+                    <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={{ ...h2, marginBottom: 16 }}>Revoke portal session</h3>
+                        <p style={{ color: 'var(--olive-light)', fontSize: 13, marginBottom: 12 }}>
+                            Revoking will immediately invalidate the magic-link token (if unconsumed) or the live cookie session (if consumed). The person will be signed out of the portal.
+                        </p>
+                        <label style={{ ...lbl, display: 'block' }}>
+                            Reason (optional)
+                            <input type="text" value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} style={input} maxLength={200} placeholder="e.g. lost device" />
+                        </label>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+                            <button type="button" onClick={() => setRevokeTarget(null)} style={cancelBtn}>Cancel</button>
+                            <button type="button" disabled={submitting} onClick={submitRevoke} style={primaryBtn}>
+                                {submitting ? 'Revoking…' : 'Revoke'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+const accessTh = { textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--color-border-strong)', color: 'var(--color-accent)', fontSize: 11, textTransform: 'uppercase' };
+const accessTd = { padding: '6px 8px', fontSize: 12, color: 'var(--cream)' };
+const accessStatus = {
+    pending:  { background: 'var(--color-info-soft)',    color: 'var(--color-info)' },
+    active:   { background: 'var(--color-success-soft)', color: 'var(--color-success)' },
+    expired:  { background: 'var(--color-bg-sunken)',    color: 'var(--color-text-subtle)' },
+    revoked:  { background: 'var(--color-warning-soft)', color: 'var(--color-warning)' },
+};
 
 function CertificationsTab({ personId, canEdit }) {
     const [certs, setCerts] = useState([]);
