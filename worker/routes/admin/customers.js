@@ -112,6 +112,31 @@ adminCustomers.get('/:id', async (c) => {
          ORDER BY tag_type, tag`,
     ).bind(id).all();
 
+    // M5.5 B9 — Field rentals linked to this customer. Bounded at 100
+    // rows for high-volume customers (none today; future-proof). For a
+    // full list, the operator clicks through to
+    // /admin/field-rentals?customer_id=... which uses the paginated
+    // list endpoint with its own ordering controls.
+    //
+    // Defensive try/catch in case the field_rentals table is somehow
+    // absent (shouldn't happen on remote post-migration-0047, but
+    // protects local-dev callers without a fully-applied schema).
+    let fieldRentalsRows = [];
+    try {
+        const frResult = await c.env.DB.prepare(
+            `SELECT id, status, scheduled_starts_at, scheduled_ends_at,
+                    total_cents, coi_status, coi_expires_at, archived_at,
+                    engagement_type
+             FROM field_rentals
+             WHERE customer_id = ?
+             ORDER BY scheduled_starts_at DESC
+             LIMIT 100`,
+        ).bind(id).all();
+        fieldRentalsRows = frResult.results || [];
+    } catch {
+        fieldRentalsRows = [];
+    }
+
     return c.json({
         customer: formatCustomer(row),
         bookings: (bookingsResult.results || []).map((b) => ({
@@ -136,6 +161,17 @@ adminCustomers.get('/:id', async (c) => {
             tagType: t.tag_type,
             createdAt: t.created_at,
             createdBy: t.created_by,
+        })),
+        fieldRentals: fieldRentalsRows.map((fr) => ({
+            id: fr.id,
+            status: fr.status,
+            scheduledStartsAt: fr.scheduled_starts_at,
+            scheduledEndsAt: fr.scheduled_ends_at,
+            totalCents: fr.total_cents,
+            coiStatus: fr.coi_status,
+            coiExpiresAt: fr.coi_expires_at,
+            archivedAt: fr.archived_at,
+            engagementType: fr.engagement_type,
         })),
     });
 });
@@ -356,6 +392,15 @@ function formatCustomer(row) {
         mergedInto: row.merged_into,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
+
+        // M5.5 B3 columns surfaced post-B9 (migration 0050 made
+        // client_type NOT NULL with DEFAULT 'individual'). EIN +
+        // billing address stay encrypted at rest; their decrypted
+        // read surfaces land in B10 alongside the
+        // customers.read.business_fields capability seed.
+        clientType: row.client_type || 'individual',
+        businessName: row.business_name || null,
+        businessWebsite: row.business_website || null,
     };
 }
 
