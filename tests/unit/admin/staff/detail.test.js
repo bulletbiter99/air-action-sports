@@ -71,4 +71,46 @@ describe('GET /api/admin/staff/:id (detail)', () => {
         expect(auditWrite).toBeDefined();
         expect(auditWrite.args.some((a) => a === 'staff.pii.unmasked')).toBe(true);
     });
+
+    it('exposes viewerCanSeeSensitiveNotes=false when read_sensitive cap absent', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['staff.read']);
+        bindStaffDetail(env.DB, defaultPerson({ id: 'prs_1' }));
+
+        const res = await worker.fetch(
+            new Request('https://airactionsport.com/api/admin/staff/prs_1', { headers: { cookie: cookieHeader } }),
+            env, {},
+        );
+        const body = await res.json();
+        expect(body.person.viewerCanSeeSensitiveNotes).toBe(false);
+        expect(body.person.viewerCanWriteSensitiveNotes).toBe(false);
+        expect(body.person.notesSensitive).toBe(null);
+    });
+
+    it('exposes viewerCanSeeSensitiveNotes=true + viewerCanWriteSensitiveNotes=false when only read cap granted', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['staff.read', 'staff.notes.read_sensitive']);
+        bindStaffDetail(env.DB, defaultPerson({ id: 'prs_1', notes_sensitive: 'HR-only note' }));
+
+        const res = await worker.fetch(
+            new Request('https://airactionsport.com/api/admin/staff/prs_1', { headers: { cookie: cookieHeader } }),
+            env, {},
+        );
+        const body = await res.json();
+        expect(body.person.viewerCanSeeSensitiveNotes).toBe(true);
+        expect(body.person.viewerCanWriteSensitiveNotes).toBe(false);
+        expect(body.person.notesSensitive).toBe('HR-only note');
+    });
+
+    it('exposes both viewerCanSeeSensitiveNotes + viewerCanWriteSensitiveNotes when both caps granted, even with null value', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['staff.read', 'staff.notes.read_sensitive', 'staff.notes.write_sensitive']);
+        bindStaffDetail(env.DB, defaultPerson({ id: 'prs_1', notes_sensitive: null }));
+
+        const res = await worker.fetch(
+            new Request('https://airactionsport.com/api/admin/staff/prs_1', { headers: { cookie: cookieHeader } }),
+            env, {},
+        );
+        const body = await res.json();
+        expect(body.person.viewerCanSeeSensitiveNotes).toBe(true);
+        expect(body.person.viewerCanWriteSensitiveNotes).toBe(true);
+        expect(body.person.notesSensitive).toBe(null);
+    });
 });

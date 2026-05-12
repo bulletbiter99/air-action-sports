@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import AdminStaffCertEditor from './AdminStaffCertEditor.jsx';
+import AdminStaffProfileEdit from './AdminStaffProfileEdit.jsx';
 
 const TABS = [
     { key: 'profile',        label: 'Profile' },
@@ -100,9 +101,16 @@ export default function AdminStaffDetail() {
 }
 
 function ProfileTab({ person, canEdit, onSaved }) {
+    const [showEdit, setShowEdit] = useState(false);
+
     return (
         <div style={section}>
-            <h2 style={h2}>Profile</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={h2}>Profile</h2>
+                {canEdit && (
+                    <button type="button" onClick={() => setShowEdit(true)} style={primaryBtn}>Edit profile</button>
+                )}
+            </div>
             <div style={fieldGrid}>
                 <Field label="Full name" value={person.fullName} />
                 <Field label="Preferred name" value={person.preferredName} />
@@ -111,6 +119,7 @@ function ProfileTab({ person, canEdit, onSaved }) {
                 <Field label="Phone" value={person.phone} hint={!person.viewerCanSeePii && person.phone ? '(masked)' : null} />
                 <Field label="Status" value={person.archivedAt ? `archived (${person.archivedReason || 'no reason'})` : person.status} />
                 <Field label="Hired at" value={person.hiredAt ? new Date(person.hiredAt).toLocaleDateString() : null} />
+                <Field label="Separated at" value={person.separatedAt ? new Date(person.separatedAt).toLocaleDateString() : null} />
                 <Field label="Created at" value={person.createdAt ? new Date(person.createdAt).toLocaleString() : null} />
                 {person.viewerCanSeePii && (
                     <Field label="Mailing address" value={person.mailingAddress} />
@@ -122,10 +131,13 @@ function ProfileTab({ person, canEdit, onSaved }) {
                     </>
                 )}
             </div>
-            {canEdit && (
-                <p style={{ color: 'var(--olive-light)', fontSize: 12, marginTop: 16, fontStyle: 'italic' }}>
-                    Inline edit form coming in a follow-up batch. PUT /api/admin/staff/:id is wired today; admin curl works.
-                </p>
+
+            {showEdit && (
+                <AdminStaffProfileEdit
+                    person={person}
+                    onClose={() => setShowEdit(false)}
+                    onSaved={() => { setShowEdit(false); onSaved?.(); }}
+                />
             )}
         </div>
     );
@@ -239,11 +251,18 @@ function NotesTab({ personId, person, canEdit, onSaved }) {
     const [notesSensitive, setNotesSensitive] = useState(person.notesSensitive || '');
     const [saving, setSaving] = useState(false);
 
+    // Show the sensitive-notes textarea whenever the viewer has read_sensitive,
+    // even if the current value is null — they may want to author the first note.
+    // The Write side of the PUT requires write_sensitive (server-enforced) and
+    // we gate the field as disabled when only read is granted.
+    const canSeeSensitive = Boolean(person.viewerCanSeeSensitiveNotes);
+    const canWriteSensitive = Boolean(person.viewerCanWriteSensitiveNotes);
+
     async function save() {
         setSaving(true);
         try {
             const body = { notes };
-            if (person.viewerCanSeePii) body.notesSensitive = notesSensitive;
+            if (canWriteSensitive) body.notesSensitive = notesSensitive;
             const res = await fetch(`/api/admin/staff/${personId}/notes`, {
                 method: 'PUT', credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
@@ -262,10 +281,11 @@ function NotesTab({ personId, person, canEdit, onSaved }) {
                 Notes (visible to all who can read this person)
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} style={input} disabled={!canEdit} />
             </label>
-            {(person.notesSensitive !== null) && (
+            {canSeeSensitive && (
                 <label style={{ ...lbl, display: 'block' }}>
                     Sensitive notes (HR-only — gated by staff.notes.read_sensitive)
-                    <textarea value={notesSensitive} onChange={(e) => setNotesSensitive(e.target.value)} rows={4} style={input} disabled={!canEdit} />
+                    {!canWriteSensitive && <span style={maskHint}> · read-only</span>}
+                    <textarea value={notesSensitive} onChange={(e) => setNotesSensitive(e.target.value)} rows={4} style={input} disabled={!canEdit || !canWriteSensitive} />
                 </label>
             )}
             {canEdit && (
