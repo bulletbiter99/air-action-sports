@@ -1,220 +1,239 @@
-# M5.5 — Next session prompt (B7 plan-mode)
+# Post-M5.5 next-session prompt
 
-**Copy the block below into a fresh Claude Code session.** It hands the new session everything it needs to resume M5.5 cleanly: B1 through B6.5 have shipped + been rolling-brought-up to main; B7 starts next.
+**Status:** M5.5 (Field Rentals) is **CLOSED + DEPLOYED 2026-05-12** — production runs the full Surface 7 build. The previous version of this file handed off B7 plan-mode mid-milestone; this version is for the **post-M5.5 session** that decides between two forks: ship the 6-item polish backlog, or move to **M6 (Stripe live cutover + invoice integration for field rentals)**.
 
-The previous session closed B6.5 (AdminSites CRUD UI) and did a mid-milestone milestone-to-main merge so production now runs the M5.5 schema + Sites UI. A fresh-context session is the right place to plan + execute B7 (the field rentals backend — 8 files at cap, the largest batch in M5.5 so far).
+The fresh session should read this file first, then read [HANDOFF.md](../HANDOFF.md) §NEW SESSION + the closed-M5.5 section in [CLAUDE.md](../CLAUDE.md) for the full context.
 
 ---
 
 ```
-You are continuing M5.5 (Field Rentals) on the Air Action Sports
-project. The milestone is mid-flight: B1 through B6.5 have shipped
-and been rolling-brought-up to main. Your job is B7 plan-mode →
-execute → handoff → wait for confirmation → B8 plan-mode → and so
-on through B11.
+You are starting a fresh session on the Air Action Sports project.
+M5.5 (Field Rentals) shipped + closed 2026-05-12. Production at
+`main` SHA 8decacc (merge PR #162). Workers Builds auto-deployed.
 
 ═══════════════════════════════════════════════════════════════════════
-STATE AT HANDOFF (2026-05-11)
+STATE AT HANDOFF (2026-05-12)
 ═══════════════════════════════════════════════════════════════════════
 
-main: at the mid-milestone milestone-to-main merge commit (see
-  `git log origin/main --oneline -5`). Includes all B1-B6.5 work.
-milestone/5.5-field-rentals: same tip as main after the rolling
-  brings-up.
-Tests: 1634 across 150 files.
-Lint: 0 errors / ~405 warnings.
-Build: clean (~263ms).
-Open PRs against milestone/5.5-field-rentals: 0.
+main: 8decacc (M5.5 close merge — preserves per-batch SHAs as second-
+  parent commits; first-parent log is clean).
+Tests: 1997 / 161 files (M5 baseline was 1538 / 146).
+Lint: 0 errors / 440 warnings (advisory; react-refresh).
+Build: clean (~270ms).
+Open PRs: 0.
 
-D1 migrations applied to remote (M5.5 portion): 0044-0049
-  0044 sites_schema             (B1)
-  0045 events_site_id           (B2)
-  0046 customers_client_type    (B3)
-  0047 field_rentals_core       (B4)
-  0048 field_rentals_docs_payments_sua  (B5)
-  0049 field_rentals_capabilities (B6)
+D1 migrations applied to remote (M5.5 portion):
+  0044 sites_schema                       (B1, applied 2026-05-11)
+  0045 events_site_id                     (B2, applied 2026-05-11)
+  0046 customers_client_type              (B3, applied 2026-05-11)
+  0047 field_rentals_core                 (B4, applied 2026-05-11)
+  0048 field_rentals_documents_payments   (B5, applied 2026-05-11)
+  0049 field_rentals_capabilities         (B6, applied 2026-05-11)
+  0050 customers_client_type_not_null     (B9, applied 2026-05-12)
+  0051 cron_sentinels_and_business_caps   (B10a, applied 2026-05-12)
+  0052 field_rental_cron_email_templates  (B10b, applied 2026-05-12)
+  ⏳ 0053 inquiry_notification_email_template (B11, QUEUED — apply
+       post-deploy per docs/runbooks/m55-deploy.md)
 
 Production data state:
-- 2 sites seeded: Ghost Town (Hiawatha UT 84545) + Foxtrot
-  (Kaysville UT 84037), each with one field of the same name
-- 1 event (operation-nightfall) linked to Ghost Town via site_id
-- 0 field_rentals records yet — B7's create flow will be the first
-- 17 new capabilities + site_coordinator role_preset live
+- 2 sites: Ghost Town (Hiawatha UT 84545) + Foxtrot (Kaysville UT 84037)
+- 1 event (operation-nightfall) linked to Ghost Town
+- 0 field_rentals records — first exercise lands when the first
+  /api/inquiry hits with subject=private-hire or corporate
+- Crons all wired but idle (no qualifying data to act on)
 
 ═══════════════════════════════════════════════════════════════════════
-NON-NEGOTIABLE OPERATING RULES (preserved from M5.5 prompt)
+OPERATOR-APPLIES-REMOTE BACKLOG
 ═══════════════════════════════════════════════════════════════════════
 
-1. Read these documents end-to-end BEFORE B7 plan-mode:
-   - HANDOFF.md (§NEW SESSION at the top — M5.5 mid-milestone state)
-   - CLAUDE.md (Milestone 5.5 section + D1 quirks subsection,
-     especially quirk #4 about wrangler --json --file)
-   - docs/surfaces/surface-7-field-rentals.md (Surface 7 design)
-   - docs/surfaces/surface-7-schema.md (drafted schema — note that
-     the M5.5 prompt's operational schema is the source of truth
-     where it diverges from Surface 7)
-   - docs/audit/06-do-not-touch.md (Critical and High tiers)
-   - scripts/test-gate-mapping.json (gated paths inventory)
+Two operational items before the session can ship the next code change:
 
-2. Plan-mode-first per batch. Write the B7 plan, post it, WAIT
-   for "proceed" before editing. No batch starts editing until
-   the plan is acknowledged.
+1. Apply migration 0053 (~30 seconds):
+     source .claude/.env
+     CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN \
+       npx wrangler d1 migrations apply air-action-sports-db --remote
 
-3. 8-file cap per PR. Hard rule. If B7 scope exceeds 8 files,
-   split into B7a + B7b upfront in the plan — never split
-   mid-execution.
+   Verify:
+     wrangler d1 execute air-action-sports-db --remote --command="SELECT slug FROM email_templates WHERE slug='inquiry_notification'"
+     # expected: 1 row
 
-4. Branch off milestone/5.5-field-rentals as
-   `m55-batch-7-field-rentals-backend` (or similar flat name).
+2. Run the 6-item smoke checklist in docs/runbooks/m55-deploy.md
+   ("Post-deploy smoke" section). Confirms:
+   - /contact form submission (general + field-rental paths)
+   - Operator notification email arrives
+   - Honeypot guard works
+   - Rate limit returns 429 on burst
+   - 03:00 UTC cron summary includes recurrenceGen + coiAlerts + leadStale
 
-5. Conventional Commits with `m55-<area>` scope.
-
-6. No --force ever. No rebases on shared branches. No direct
-   commits to main or to milestone/5.5-field-rentals.
-
-7. Pre-migration spot-check is mandatory. Every migration that
-   touches an existing table must verify production schema via
-   `wrangler d1 execute --remote --command=".schema <table>"`
-   BEFORE writing the migration. Document findings in the
-   migration's header comment block.
-
-8. Every email_templates seed must include id='tpl_<slug>' and
-   created_at=updated_at (Lesson #7 from M5; M5.5's B7 may seed
-   email templates for the contract / payment-reminder flows).
-
-9. Use --command (NOT --file) for SELECT queries against remote
-   D1 in any script (D1 quirk #4 from M5.5 B2 hotfix).
-
-10. Between-batch handoff required. After each batch closes
-    (PR merged to milestone), produce a 5-bullet summary and
-    WAIT for operator confirmation before opening the next
-    batch's plan-mode.
-
-11. Stop-and-ask conditions:
-    - A do-not-touch file needs modification (formatEvent in
-      worker/lib/formatters.js, bookings.js, waivers.js,
-      stripe.js, auth.js)
-    - Pre-migration spot-check reveals divergence
-    - A test reveals current behavior conflicts with
-      audit-documented behavior
-    - Coverage on any gated file drops from current baseline
+If smoke fails on any item, see docs/runbooks/m55-rollback.md for the
+4-level decision tree. The fresh session can help diagnose — start by
+checking audit_log for inquiry.email_failed / coi_alert_no_recipient /
+lead_stale_template_missing rows.
 
 ═══════════════════════════════════════════════════════════════════════
-PRE-FLIGHT (before posting B7 plan-mode)
+FORK: NEXT DIRECTION (operator picks)
 ═══════════════════════════════════════════════════════════════════════
 
-  git fetch origin
-  git checkout milestone/5.5-field-rentals
-  git pull origin milestone/5.5-field-rentals
+After smoke passes, the operator picks one of two directions:
+
+── Fork A: post-M5.5 polish (6 items, ~3-5 batches at 8-file cap)
+   ──────────────────────────────────────────────────────────────
+
+   1. AES decryption surface for business_tax_id (EIN) +
+      business_billing_address
+      - worker/lib/personEncryption.js already has decrypt helpers
+        (M5 used these for compensation_rate_cents)
+      - Extend customers.js GET /:id to decrypt when viewer has
+        customers.read.business_fields capability
+      - AdminCustomerDetail.jsx renders decrypted fields (currently
+        shows "lands in M5.5 B10" placeholder text — replace)
+      - Add edit modal for business fields, gated by
+        customers.write.business_fields
+      - Estimated 5-6 files. Capabilities + bindings already seeded.
+
+   2. Admin POST /api/admin/customers + create modal
+      - Phone-intake gap: operator currently has no UI to manually
+        create a customer (only via booking flow or /contact form)
+      - New endpoint in worker/routes/admin/customers.js
+      - Modal in src/admin/AdminCustomers.jsx with client_type +
+        business field collection
+      - Estimated 3-4 files.
+
+   3. Monthly day_of_month recurrence pattern
+      - Schema accepts {kind: 'day_of_month', day: 1-31} but the
+        generator only handles {kind: 'nth_weekday'}
+      - Operator decision needed: Feb 30 → skip month OR fall back to
+        last day OR fall forward to March 1
+      - Estimated 2-3 files (lib + tests + maybe doc update).
+
+   4. /status route clears lead_stale_at on transition
+      - Current behavior: 7-day silence after revert before re-alert
+      - Add lead_stale_at = NULL to the UPDATE in
+        worker/routes/admin/fieldRentals.js /status handler
+      - Estimated 1-2 files (route + 1 test).
+
+   5. UNIQUE constraint on (recurrence_id, recurrence_instance_index)
+      - Stronger idempotency for the recurrence cron
+      - Requires column-rename pattern (D1 quirk #2) since the
+        existing idx_field_rentals_recurrence is just an INDEX, not
+        UNIQUE
+      - Estimated 1 migration + tests.
+
+   6. AdminScan + AdminRoster ?event= deep-link parsing
+      - M5 carryover; currently /admin/today links navigate but don't
+        pre-select the event
+      - useSearchParams() to read event= and pre-fill the dropdown
+      - Estimated 2 files (~10 lines per file).
+
+   These can ship as one combined "post-M5.5 polish" batch OR split.
+   Recommended split: items 1+2 (largest, customer-facing), then 3+4
+   (recurrence + lead-stale polish), then 5+6 (small carryover items).
+
+── Fork B: M6 (Stripe live + invoice integration)
+   ──────────────────────────────────
+
+   This is the larger, longer milestone. Scope per CLAUDE.md M5.5
+   open questions + Surface 7 §11:
+
+   - Stripe sandbox → live cutover (test keys → live keys; webhook
+     endpoint signing key rotation)
+   - $1 end-to-end live test
+   - DMARC + Resend DKIM/SPF DNS records (booking confirmations
+     currently may land in spam)
+   - Stripe Invoices integration for field rentals (currently
+     payments are off-platform; field_rental_payments.stripe_invoice_id
+     column is reserved but unused)
+   - Recurring B2B billing: card-on-file for paintball groups with
+     monthly bookings (the recurring discount in
+     field_rental_recurrences.template_pricing_notes is operator-
+     descriptive; M6 makes it actually charge a card)
+
+   M6 should start with plan-mode + decisions register entry. The
+   surface is large enough to be its own milestone, not a polish PR.
+
+═══════════════════════════════════════════════════════════════════════
+PRE-FLIGHT (before any code change)
+═══════════════════════════════════════════════════════════════════════
+
+  git checkout main
+  git pull origin main
   npm install
-  npm test                  # expect 1634 passed across 150 files
-  npm run lint              # expect 0 errors / ~405 warnings
-  npm run build             # expect clean
+  npm test                # expect 1997 passed across 161 files
+  npm run lint            # expect 0 errors / 440 warnings
+  npm run build           # expect clean
+  curl https://airactionsport.com/api/health
+                          # expect {"ok":true,...}
 
-If any of these fails or numbers differ materially, STOP and
-investigate before opening B7 plan-mode.
-
-═══════════════════════════════════════════════════════════════════════
-B7 SCOPE (from the M5.5 prompt; verbatim)
-═══════════════════════════════════════════════════════════════════════
-
-Batch 7 — Field rentals list + detail backend
-
-Files (~8 at cap):
-- `worker/routes/admin/fieldRentals.js` — list/detail/create/
-  update/cancel/archive endpoints
-- `worker/lib/fieldRentals.js` — pure helper functions:
-  getRentalForDisplay, computePricing, validateStatusTransition,
-  applyConflictCheck
-- `worker/routes/admin/fieldRentalDocuments.js` — document
-  upload/list/retrieval with R2 storage + magic-byte sniff
-  (reuse existing worker/lib/magicBytes.js)
-- `worker/routes/admin/fieldRentalPayments.js` — record payment /
-  send payment reminder / list payments
-
-Tests:
-- `tests/unit/admin/fieldRentals/list.test.js`
-- `tests/unit/admin/fieldRentals/detail.test.js`
-- `tests/unit/admin/fieldRentals/statusTransitions.test.js`
-- `tests/unit/lib/fieldRentals.test.js`
-
-Total: 4 backend files + 4 test files = 8 files. At the cap.
+If any of these fails or numbers differ materially, STOP and investigate.
 
 ═══════════════════════════════════════════════════════════════════════
-B7 PLAN-MODE — WHAT TO INCLUDE
+NON-NEGOTIABLE OPERATING RULES (preserved from M5.5)
 ═══════════════════════════════════════════════════════════════════════
 
-The plan should surface decisions about:
-
-1. Status transition matrix
-   - Valid transitions for the 8 statuses (lead/draft/sent/agreed/
-     paid/completed/cancelled/refunded)
-   - Which transitions write audit log; which require specific
-     capabilities; which trigger side-effects (email send,
-     payment recording, etc.)
-
-2. Pricing calculation algorithm
-   - field_rentals.site_fee_cents + addon_fees_json + discount_cents
-     + tax_cents → total_cents
-   - Validation rules (no negative totals, addon fee shape, etc.)
-   - Whether to recompute on every write or trust caller-provided
-     total_cents
-
-3. Conflict check integration on rental create / reschedule
-   - Reuse worker/lib/eventConflicts.js from B3 (the lib already
-     queries field_rentals defensively; now that the table exists
-     after B4, the query will return real data)
-   - Same acknowledgeConflicts: true override pattern from B3
-   - Audit log: field_rental.conflict_acknowledged
-
-4. Document upload constraints
-   - File size limit (probably 10MB per M5 pattern)
-   - Magic-byte sniff via worker/lib/magicBytes.js (M5 staff
-     documents already use this)
-   - R2 key naming: field_rentals/<rental_id>/<frd_id>.<ext>
-
-5. Payment lifecycle states
-   - field_rental_payments.status: pending → received → refunded /
-     void
-   - How field_rentals.deposit_received_at + balance_received_at
-     get maintained as denormalized aggregates
-
-6. Capability enforcement per endpoint
-   - field_rentals.read for GET endpoints
-   - field_rentals.read.pii for unmasking renter PII
-   - field_rentals.write for PUT/PATCH
-   - field_rentals.create for POST
-   - field_rentals.cancel for cancel
-   - field_rentals.archive for archive
-   - field_rentals.deposit_record / balance_record for payment
-     recording
-   - field_rentals.documents.read / documents.upload for documents
-   - field_rentals.coi.read_pii for unmasking COI details
-   - field_rentals.notes.read_sensitive / write_sensitive for the
-     PII-tier notes
+1. Plan-mode-first per batch. Write the plan, post it, WAIT for
+   "proceed" before editing.
+2. 8-file cap per PR (M5.5 standard). Split upfront if scope exceeds.
+3. Conventional Commits with appropriate scope.
+4. No --force, no rebases on shared branches, no direct commits to main.
+5. Pre-migration spot-check is mandatory — verify production schema
+   via `wrangler d1 execute --remote --command=".schema <table>"`
+   BEFORE writing the migration.
+6. Every email_templates seed includes id='tpl_<slug>' and
+   created_at=updated_at (Lesson #7).
+7. Use --command (NOT --file) for SELECT against remote D1 (D1 quirk #4).
+8. Between-batch handoff required — 5-bullet summary; operator confirms
+   before next batch's plan-mode.
+9. Stop-and-ask conditions:
+   - A do-not-touch file needs modification (formatEvent, bookings.js,
+     waivers.js, stripe.js, auth.js)
+   - Pre-migration spot-check reveals divergence
+   - A test reveals current behavior conflicts with audit-documented
+     behavior
+   - Coverage on any gated file drops from current baseline
 
 ═══════════════════════════════════════════════════════════════════════
-WHAT THIS SESSION IS NOT DOING
+READING ORDER FOR THE FRESH SESSION
 ═══════════════════════════════════════════════════════════════════════
 
-- Not creating any migration (B7 is pure code on top of B1-B6
-  schema + B6 capabilities)
-- Not touching DNT files
-- Not building the frontend (B8 ships AdminFieldRentals.jsx etc.)
-- Not wiring crons (B10 ships recurrence-gen + COI + lead-stale
-  sweeps)
-- Not integrating the inquiry form (B11)
+Read end-to-end BEFORE deciding on Fork A vs Fork B:
+
+1. HANDOFF.md §NEW SESSION (top) — current state + state-at-close table
+2. CLAUDE.md Milestone 5.5 section — full per-batch table + lessons +
+   carry-forward facts + polish backlog
+3. docs/runbooks/m55-deploy.md — operator deploy procedure + smoke
+4. docs/runbooks/m55-rollback.md — 4-level decision tree (in case
+   anything breaks on first real /api/inquiry submission)
+5. docs/runbooks/m55-baseline-coverage.txt — snapshot at close
+6. docs/audit/06-do-not-touch.md — DNT inventory (still in force)
 
 ═══════════════════════════════════════════════════════════════════════
-POST-B7 (what comes next)
+QUICK DECISIONS TO SURFACE TO OPERATOR EARLY
 ═══════════════════════════════════════════════════════════════════════
 
-After B7 ships + merges to milestone:
-- B8: Field rentals frontend (5 components + 3 tests, 8 files at cap)
-- B9: Customers client_type backfill + NOT NULL + customer detail FR tab (4 files)
-- B10a/b: 3 cron sweeps + sentinels migration + email templates (split — 9 files total)
-- B11: Inquiry form integration + closing runbooks (4-6 files)
+(Operator can answer these before any plan-mode posting.)
 
-After B11 ships + merges to milestone, do a final milestone-to-main
-merge to close M5.5 + produce closing runbooks.
+1. Has migration 0053 been applied to remote?
+2. Has the 6-item smoke checklist been run? Any failures?
+3. Fork A (polish) or Fork B (M6)?
+4. If Fork A: ship the 6 items as one combined batch, or split into
+   3 batches (1+2 / 3+4 / 5+6)?
+5. If Fork B: any operator constraints on Stripe live cutover timing
+   (e.g. waiting for a specific event date or accounting close)?
+
+═══════════════════════════════════════════════════════════════════════
+END OF PROMPT
+═══════════════════════════════════════════════════════════════════════
 ```
+
+---
+
+### What this file replaces
+
+The previous version of this file was the B7 plan-mode handoff prompt (M5.5 mid-milestone). It's been fully repurposed for the post-M5.5 session. The history of the mid-milestone version is in git — `git log --all -- docs/m55-next-session.md` shows the prior state.
+
+### Future maintenance
+
+This file should stay synchronized with HANDOFF.md §NEW SESSION + CLAUDE.md Milestone 5.5 section. When the next milestone (M6 or polish batches) starts:
+
+- If polish batches: append a state update at the top of this file noting which polish items have shipped, OR rotate this file to `docs/post-m55-polish-next-session.md` for clarity
+- If M6: create `docs/m6-next-session.md` mirroring the M3/M4/M5 pattern; this file becomes a historical reference
