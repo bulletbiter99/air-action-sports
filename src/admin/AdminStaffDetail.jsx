@@ -91,7 +91,7 @@ export default function AdminStaffDetail() {
                 {activeTab === 'roles' && <RolesTab personId={p.id} roles={data.roles} canAssign={hasRole?.('manager')} onChanged={load} />}
                 {activeTab === 'notes' && <NotesTab personId={p.id} person={p} canEdit={hasRole?.('manager')} onSaved={load} />}
                 {activeTab === 'documents' && <DocumentsTab personId={p.id} canAssign={hasRole?.('manager')} />}
-                {activeTab === 'access' && <AccessTab personId={p.id} hasEmail={Boolean(p.email)} canInvite={hasRole?.('manager')} />}
+                {activeTab === 'access' && <AccessTab personId={p.id} personEmail={p.email} hasEmail={Boolean(p.email)} canInvite={hasRole?.('manager')} />}
                 {activeTab === 'issues' && <IssuesTab personId={p.id} />}
                 {activeTab === 'certifications' && <CertificationsTab personId={p.id} canEdit={hasRole?.('manager')} />}
                 {activeTab === 'schedule' && <ScheduleTab personId={p.id} canEdit={hasRole?.('manager')} canMarkPaid={hasRole?.('owner')} />}
@@ -442,13 +442,14 @@ function DocRow({ doc, canAssign, onAck }) {
     );
 }
 
-function AccessTab({ personId, hasEmail, canInvite }) {
+function AccessTab({ personId, personEmail, hasEmail, canInvite }) {
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [revokeTarget, setRevokeTarget] = useState(null);
     const [revokeReason, setRevokeReason] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [inviteResult, setInviteResult] = useState(null);
+    const [confirmInvite, setConfirmInvite] = useState(false);
     const [error, setError] = useState(null);
 
     const load = useCallback(async () => {
@@ -475,7 +476,8 @@ function AccessTab({ personId, hasEmail, canInvite }) {
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
-                setInviteResult(data.debugLink ? `Invite minted (no email sent — debug link: ${data.debugLink})` : 'Invite emailed to person.');
+                setInviteResult(data.debugLink ? `Invite minted (no email sent — debug link: ${data.debugLink})` : `Invite emailed to ${personEmail || 'person on file'}.`);
+                setConfirmInvite(false);
                 await load();
             } else {
                 setError(data?.error || `Invite failed (${res.status})`);
@@ -509,8 +511,8 @@ function AccessTab({ personId, hasEmail, canInvite }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={h2}>Access</h2>
                 {canInvite && (
-                    <button type="button" disabled={!hasEmail || submitting} onClick={sendInvite} style={primaryBtn} title={!hasEmail ? 'Person has no email on file — add one in Profile first' : ''}>
-                        {submitting ? 'Sending…' : '+ Send portal invite'}
+                    <button type="button" disabled={!hasEmail || submitting} onClick={() => { setError(null); setInviteResult(null); setConfirmInvite(true); }} style={primaryBtn} title={!hasEmail ? 'Person has no email on file — add one in Profile first' : ''}>
+                        + Send portal invite
                     </button>
                 )}
             </div>
@@ -556,6 +558,29 @@ function AccessTab({ personId, hasEmail, canInvite }) {
                     </table>
                 )}
             </div>
+
+            {confirmInvite && (
+                <div style={modalBack} onClick={() => !submitting && setConfirmInvite(false)}>
+                    <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={{ ...h2, marginBottom: 16 }}>Send portal invite</h3>
+                        <p style={{ color: 'var(--olive-light)', fontSize: 13, marginBottom: 8 }}>
+                            A one-time magic-link email will be sent to:
+                        </p>
+                        <p style={{ color: 'var(--cream)', fontSize: 14, fontWeight: 700, padding: '10px 12px', background: 'var(--color-bg-sunken)', border: '1px solid var(--color-border-strong)', marginBottom: 12, wordBreak: 'break-all' }}>
+                            {personEmail || '(no email on file)'}
+                        </p>
+                        <p style={{ color: 'var(--olive-light)', fontSize: 12, marginBottom: 16 }}>
+                            The link is valid for 24 hours. The person clicks it to access their staff portal. To send to a different address, update the Email field on the Profile tab first.
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button type="button" disabled={submitting} onClick={() => setConfirmInvite(false)} style={cancelBtn}>Cancel</button>
+                            <button type="button" disabled={submitting || !personEmail} onClick={sendInvite} style={primaryBtn}>
+                                {submitting ? 'Sending…' : 'Send invite'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {revokeTarget && (
                 <div style={modalBack} onClick={() => setRevokeTarget(null)}>
