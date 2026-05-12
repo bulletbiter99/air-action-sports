@@ -39,11 +39,17 @@ function parseEventBody(body, { partial = false } = {}) {
         if (body[k] === undefined) continue;
         if (EVENT_STRING_FIELDS.includes(col)) {
             let v = body[k] === null ? null : String(body[k]).trim();
-            // slug must be URL-safe. Enforced on both create and update so it
-            // can't ever contain characters that'd break the /events/:slug
-            // HTML rewriter or the OG URL in meta tags.
-            if (col === 'slug' && v !== null && v !== '' && !/^[a-z0-9-]+$/.test(v)) {
-                return { error: 'slug must contain only lowercase letters, numbers, and hyphens' };
+            // slug must be URL-safe. Instead of rejecting non-conforming
+            // input, transparently normalize it via slugify() so an operator
+            // typing e.g. "Operation '68" or "MyEvent" gets "operation-68"
+            // / "myevent" without seeing a validation error. Only refuse
+            // when the input has no usable characters at all.
+            if (col === 'slug' && v !== null && v !== '') {
+                const cleaned = slugify(v);
+                if (!cleaned) {
+                    return { error: 'slug must contain at least one letter or number' };
+                }
+                v = cleaned;
             }
             patch[col] = v;
         } else if (EVENT_INT_FIELDS.includes(col)) {
