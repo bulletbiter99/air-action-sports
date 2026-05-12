@@ -4,6 +4,7 @@ const AdminContext = createContext(null);
 
 export function AdminProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [capabilities, setCapabilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [setupNeeded, setSetupNeeded] = useState(false);
 
@@ -16,13 +17,16 @@ export function AdminProvider({ children }) {
       const setupData = await setupRes.json().catch(() => ({ setupNeeded: false }));
       setSetupNeeded(!!setupData.setupNeeded);
       if (meRes.ok) {
-        const { user } = await meRes.json();
-        setUser(user);
+        const data = await meRes.json();
+        setUser(data.user || null);
+        setCapabilities(Array.isArray(data.capabilities) ? data.capabilities : []);
       } else {
         setUser(null);
+        setCapabilities([]);
       }
     } catch {
       setUser(null);
+      setCapabilities([]);
     } finally {
       setLoading(false);
     }
@@ -40,8 +44,11 @@ export function AdminProvider({ children }) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: data.error || 'Login failed' };
     setUser(data.user);
+    // /login does not return capabilities — trigger a refresh so the
+    // capabilities array catches up before the SPA renders gated UI.
+    refresh();
     return { ok: true };
-  }, []);
+  }, [refresh]);
 
   const setup = useCallback(async (email, password, displayName) => {
     const res = await fetch('/api/admin/auth/setup', {
@@ -54,8 +61,9 @@ export function AdminProvider({ children }) {
     if (!res.ok) return { ok: false, error: data.error || 'Setup failed' };
     setUser(data.user);
     setSetupNeeded(false);
+    refresh();
     return { ok: true };
-  }, []);
+  }, [refresh]);
 
   const logout = useCallback(async () => {
     await fetch('/api/admin/auth/logout', {
@@ -63,6 +71,7 @@ export function AdminProvider({ children }) {
       credentials: 'include',
     }).catch(() => {});
     setUser(null);
+    setCapabilities([]);
   }, []);
 
   const hasRole = (role) => {
@@ -71,10 +80,13 @@ export function AdminProvider({ children }) {
     return (hierarchy[user.role] || 0) >= (hierarchy[role] || 99);
   };
 
+  const hasCapability = (cap) => Array.isArray(capabilities) && capabilities.includes(cap);
+
   return (
     <AdminContext.Provider
       value={{
         user,
+        capabilities,
         loading,
         setupNeeded,
         isAuthenticated: !!user,
@@ -83,6 +95,7 @@ export function AdminProvider({ children }) {
         setup,
         refresh,
         hasRole,
+        hasCapability,
       }}
     >
       {children}

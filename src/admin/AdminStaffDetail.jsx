@@ -30,7 +30,7 @@ const TABS = [
 export default function AdminStaffDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { isAuthenticated, hasRole } = useAdmin();
+    const { isAuthenticated, hasRole, hasCapability } = useAdmin();
 
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -91,7 +91,7 @@ export default function AdminStaffDetail() {
                 {activeTab === 'roles' && <RolesTab personId={p.id} roles={data.roles} canAssign={hasRole?.('manager')} onChanged={load} />}
                 {activeTab === 'notes' && <NotesTab personId={p.id} person={p} canEdit={hasRole?.('manager')} onSaved={load} />}
                 {activeTab === 'documents' && <DocumentsTab personId={p.id} canAssign={hasRole?.('manager')} />}
-                {activeTab === 'access' && <AccessTab personId={p.id} personEmail={p.email} hasEmail={Boolean(p.email)} canInvite={hasRole?.('manager')} />}
+                {activeTab === 'access' && <AccessTab personId={p.id} personEmail={p.email} hasEmail={Boolean(p.email)} canInvite={hasCapability?.('staff.invite')} />}
                 {activeTab === 'issues' && <IssuesTab personId={p.id} />}
                 {activeTab === 'certifications' && <CertificationsTab personId={p.id} canEdit={hasRole?.('manager')} />}
                 {activeTab === 'schedule' && <ScheduleTab personId={p.id} canEdit={hasRole?.('manager')} canMarkPaid={hasRole?.('owner')} />}
