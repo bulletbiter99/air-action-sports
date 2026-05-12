@@ -40,22 +40,31 @@ describe('SIDEBAR config', () => {
         });
     });
 
-    it('continues with Rentals / Roster / Scan as capability-gated standing items (M5 B0 D10)', () => {
-        // M5.5 B6.5 bumped indices: Sites now occupies index 5, so the trio
-        // shifted to 6/7/8.
+    it('Field Rentals at index 6 (M5.5 B8) — capability-gated', () => {
         expect(SIDEBAR[6]).toMatchObject({
+            type: 'item',
+            to: '/admin/field-rentals',
+            label: 'Field Rentals',
+            capability: 'field_rentals.read',
+        });
+    });
+
+    it('continues with Rentals / Roster / Scan as capability-gated standing items (M5 B0 D10)', () => {
+        // M5.5 B8 bumped indices again: Sites (5) + Field Rentals (6) added,
+        // so the trio shifted to 7/8/9.
+        expect(SIDEBAR[7]).toMatchObject({
             type: 'item',
             to: '/admin/rentals',
             label: 'Rentals',
             capability: 'rentals.read',
         });
-        expect(SIDEBAR[7]).toMatchObject({
+        expect(SIDEBAR[8]).toMatchObject({
             type: 'item',
             to: '/admin/roster',
             label: 'Roster',
             capability: 'roster.read',
         });
-        expect(SIDEBAR[8]).toMatchObject({
+        expect(SIDEBAR[9]).toMatchObject({
             type: 'item',
             to: '/admin/scan',
             label: 'Scan',
@@ -68,8 +77,8 @@ describe('SIDEBAR config', () => {
         const groupIdx = SIDEBAR.findIndex((e) => e.type === 'group');
         expect(sepIdx).toBeGreaterThan(0);
         expect(groupIdx).toBeGreaterThan(sepIdx);
-        // M5.5 B6.5: separator now sits at index 9 (after Sites was added).
-        expect(SIDEBAR[9]).toMatchObject({ type: 'separator' });
+        // M5.5 B8: separator now sits at index 10 (after Sites + Field Rentals).
+        expect(SIDEBAR[10]).toMatchObject({ type: 'separator' });
     });
 
     it('Settings group has 10 sub-items including Overview / Taxes / Email / Team / Audit / Waivers / Vendors / Promo Codes / Analytics / Feedback', () => {
@@ -127,6 +136,16 @@ describe('userHasCapabilityStub (M5 B0)', () => {
         expect(userHasCapabilityStub('staff', 'scan.use')).toBe(true);
     });
 
+    it('field_rentals.read and sites.read gate at manager+ (M5.5 B6.5 + B8)', () => {
+        // Owner / manager → visible; staff → hidden (mirrors rentals.read).
+        expect(userHasCapabilityStub('owner', 'sites.read')).toBe(true);
+        expect(userHasCapabilityStub('owner', 'field_rentals.read')).toBe(true);
+        expect(userHasCapabilityStub('manager', 'sites.read')).toBe(true);
+        expect(userHasCapabilityStub('manager', 'field_rentals.read')).toBe(true);
+        expect(userHasCapabilityStub('staff', 'sites.read')).toBe(false);
+        expect(userHasCapabilityStub('staff', 'field_rentals.read')).toBe(false);
+    });
+
     it('undefined role sees nothing capability-gated', () => {
         expect(userHasCapabilityStub(undefined, 'rentals.read')).toBe(false);
         expect(userHasCapabilityStub(undefined, 'roster.read')).toBe(false);
@@ -144,29 +163,32 @@ describe('userHasCapabilityStub (M5 B0)', () => {
 });
 
 describe('getVisibleItems', () => {
-    it('owner with today active sees all 9 top-level items + sep + group = 11', () => {
-        // M5.5 B6.5: Sites entry added → 9 top-level items (Home, Today,
-        // Events, Bookings, Customers, Sites, Rentals, Roster, Scan)
-        // + separator + Settings group = 11.
+    it('owner with today active sees all 10 top-level items + sep + group = 12', () => {
+        // M5.5 B8: Field Rentals entry added → 10 top-level items (Home, Today,
+        // Events, Bookings, Customers, Sites, Field Rentals, Rentals, Roster,
+        // Scan) + separator + Settings group = 12.
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: true, eventId: 'evt_1', checkInOpen: false },
             userRole: 'owner',
         });
-        expect(visible).toHaveLength(11);
+        expect(visible).toHaveLength(12);
         expect(visible.find((e) => e.label === 'Today')).toBeDefined();
         expect(visible.find((e) => e.label === 'Customers')).toBeDefined();
         expect(visible.find((e) => e.label === 'Sites')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Field Rentals')).toBeDefined();
         expect(visible.find((e) => e.label === 'Rentals')).toBeDefined();
         expect(visible.find((e) => e.label === 'Roster')).toBeDefined();
         expect(visible.find((e) => e.label === 'Scan')).toBeDefined();
     });
 
-    it('staff role hides Rentals (capability-gated to manager+) but keeps Roster + Scan', () => {
+    it('staff role hides Rentals + Sites + Field Rentals (all manager+) but keeps Roster + Scan', () => {
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: false },
             userRole: 'staff',
         });
         expect(visible.find((e) => e.label === 'Rentals')).toBeUndefined();
+        expect(visible.find((e) => e.label === 'Sites')).toBeUndefined();
+        expect(visible.find((e) => e.label === 'Field Rentals')).toBeUndefined();
         expect(visible.find((e) => e.label === 'Roster')).toBeDefined();
         expect(visible.find((e) => e.label === 'Scan')).toBeDefined();
     });
@@ -206,7 +228,7 @@ describe('getVisibleItems', () => {
         expect(both.find((e) => e.label === 'Y')).toBeDefined();
     });
 
-    it('combined: today inactive + owner role → Today hidden, Rentals/Roster/Scan visible', () => {
+    it('combined: today inactive + owner role → Today hidden, Sites/Field Rentals/Rentals/Roster/Scan visible', () => {
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: false },
             userRole: 'owner',
@@ -216,6 +238,8 @@ describe('getVisibleItems', () => {
         expect(labels).toContain('Events');
         expect(labels).toContain('Bookings');
         expect(labels).toContain('Customers');
+        expect(labels).toContain('Sites');
+        expect(labels).toContain('Field Rentals');
         expect(labels).toContain('Rentals');
         expect(labels).toContain('Roster');
         expect(labels).toContain('Scan');
@@ -256,10 +280,13 @@ describe('getVisibleItems', () => {
     it('handles missing ctx (defaults to no today state, no flags, no role)', () => {
         const visible = getVisibleItems(SIDEBAR);
         // Today should be hidden (default is falsy); Customers is no
-        // longer flag-gated post-B12b so it's always visible. Rentals/
-        // Roster/Scan should be hidden (no userRole = no capability).
+        // longer flag-gated post-B12b so it's always visible. Sites /
+        // Field Rentals / Rentals / Roster / Scan should be hidden
+        // (no userRole = no capability).
         expect(visible.find((e) => e.label === 'Today')).toBeUndefined();
         expect(visible.find((e) => e.label === 'Customers')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Sites')).toBeUndefined();
+        expect(visible.find((e) => e.label === 'Field Rentals')).toBeUndefined();
         expect(visible.find((e) => e.label === 'Rentals')).toBeUndefined();
         expect(visible.find((e) => e.label === 'Roster')).toBeUndefined();
         expect(visible.find((e) => e.label === 'Scan')).toBeUndefined();

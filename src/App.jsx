@@ -57,6 +57,9 @@ const AdminCustomers = lazy(() => import('./admin/AdminCustomers'));
 const AdminCustomerDetail = lazy(() => import('./admin/AdminCustomerDetail'));
 const AdminSites = lazy(() => import('./admin/AdminSites'));
 const AdminSiteDetail = lazy(() => import('./admin/AdminSiteDetail'));
+const AdminFieldRentals = lazy(() => import('./admin/AdminFieldRentals'));
+const AdminFieldRentalDetail = lazy(() => import('./admin/AdminFieldRentalDetail'));
+const AdminFieldRentalNew = lazy(() => import('./admin/AdminFieldRentalNew'));
 const AdminBookings = lazy(() => import('./admin/AdminBookings'));
 const AdminBookingsDetail = lazy(() => import('./admin/AdminBookingsDetail'));
 const AdminBookingChargeQueue = lazy(() => import('./admin/AdminBookingChargeQueue'));
@@ -169,6 +172,9 @@ export default function App() {
             <Route path="customers/:id" element={<AdminCustomerDetail />} />
             <Route path="sites" element={<AdminSites />} />
             <Route path="sites/:id" element={<AdminSiteDetail />} />
+            <Route path="field-rentals" element={<AdminFieldRentals />} />
+            <Route path="field-rentals/new" element={<AdminFieldRentalNew />} />
+            <Route path="field-rentals/:id" element={<AdminFieldRentalDetail />} />
             <Route path="bookings" element={<AdminBookings />} />
             <Route path="bookings/:id" element={<AdminBookingsDetail />} />
             <Route path="booking-charges" element={<AdminBookingChargeQueue />} />
