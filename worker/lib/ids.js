@@ -72,3 +72,16 @@ export function slugify(input) {
 export function sessionToken() {
     return randomId(40);
 }
+
+// M5.5 — Field Rentals
+export function siteId() {
+    return `site_${randomId(12)}`;
+}
+
+export function fieldId() {
+    return `fld_${randomId(12)}`;
+}
+
+export function blackoutId() {
+    return `blk_${randomId(12)}`;
+}

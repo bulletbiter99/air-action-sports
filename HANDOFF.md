@@ -4,39 +4,83 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ✓ M5 deployed (2026-05-08)
+## ⚠ NEW SESSION — M5.5 mid-milestone (2026-05-11; B7 next)
 
-**Production runs M5.** `main` at `82fc839` (PR [#142](https://github.com/bulletbiter99/air-action-sports/pull/142) milestone merge + PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) hotfix); all 14 M5 D1 migrations (0030-0043) applied to remote D1; latest Workers deployment `fb1d535b-d6ca-4cd0-ae98-c49601b27ab8` at 2026-05-08T22:50 UTC.
+**M5.5 (Field Rentals) is IN FLIGHT.** B1 through B6.5 have shipped on `milestone/5.5-field-rentals`. The milestone branch + main are about to be brought up to the same state via a rolling-brings-up merge (M4 pattern). The next session opens **B7 plan-mode (field rentals backend — 8 files at cap)**.
 
-**Deploy sequence outcome:**
+**Copy the prompt at [docs/m55-next-session.md](docs/m55-next-session.md) into the fresh session.** It hands the new session everything needed to resume cleanly.
 
-| Phase | What | Outcome |
+### M5.5 state at handoff
+
+| Metric | Value |
+|---|---|
+| Tests | **1634 across 150 files** (M5 baseline 1538 → +96 / +4) |
+| Lint | 0 errors / ~405 warnings |
+| Build | clean (~263ms) |
+| Migrations on remote | **0030-0049 all applied** (M5 close + M5.5 B1/B2/B3/B4/B5/B6 = 6 new in M5.5) |
+| Milestone branch | `milestone/5.5-field-rentals` at SHA-after-merge (see CLAUDE.md M5.5 batch table) |
+| `main` | snapshot of milestone via the mid-milestone merge (this PR) |
+| Open PRs on milestone | 0 |
+
+### M5.5 batches completed so far (B1-B6.5)
+
+| Batch | PR | What shipped |
 |---|---|---|
-| 2 | Verify milestone/5 — 1538/146 tests, 0 lint errors, build clean, verify-m5 95/95 | ✓ |
-| 3 | PR [#142](https://github.com/bulletbiter99/air-action-sports/pull/142) milestone/5 → main | ✓ merged as `1e74c15` |
-| 4 | Apply 14 D1 migrations to remote — **first attempt failed at 0033** (`NOT NULL constraint failed: email_templates.created_at`) | ⚠ required hotfix |
-| 4a | Hotfix PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) — added `id` + `created_at` to email_templates seed migrations 0033/0039/0040/0041/0043 (11 rows total) | ✓ merged as `82fc839` |
-| 4b | Re-run `wrangler d1 migrations apply --remote` after hotfix — all 14 applied (0030-0043) | ✓ |
-| 5 | Verify Workers Builds redeploy — `fb1d535b...` at 22:50 UTC matches hotfix merge | ✓ |
-| 6 | HTTP smoke 9/9 routes return 200; M5 schema tables verified on remote D1; 11 `tpl_*` email_templates seeded | ✓ |
+| B1 | [#145](https://github.com/bulletbiter99/air-action-sports/pull/145) | Migration 0044 (sites/site_fields/site_blackouts) + inquiry-form audit doc |
+| B2 | [#146](https://github.com/bulletbiter99/air-action-sports/pull/146) | Migration 0045 (`events.site_id`) + seed-sites.js + backfill script + `worker/lib/ids.js` helpers + 46 tests |
+| B2-hotfix | [#147](https://github.com/bulletbiter99/air-action-sports/pull/147) | wrangler `--json --file` quirk fix (returns summary, not rows, on remote) — captured as D1 quirk #4 |
+| B3 | [#148](https://github.com/bulletbiter99/air-action-sports/pull/148) | Migration 0046 (customers.client_type + business_* cols) + `worker/lib/eventConflicts.js` + AdminEvents conflict UI + 26 tests |
+| B4 | [#149](https://github.com/bulletbiter99/air-action-sports/pull/149) | Migration 0047 (field_rentals + recurrences + contacts + customer_contacts; 4 tables, ~90 cols, 14 indexes) |
+| B5 | [#150](https://github.com/bulletbiter99/air-action-sports/pull/150) | Migration 0048 (field_rental_documents + field_rental_payments + site_use_agreement_documents) |
+| B6 | [#151](https://github.com/bulletbiter99/air-action-sports/pull/151) | Migration 0049 (17 new caps + site_coordinator role_preset + 45 bindings) |
+| B6.5 | [#152](https://github.com/bulletbiter99/air-action-sports/pull/152) | AdminSites CRUD UI — 10-endpoint worker route + AdminSites + AdminSiteDetail + 24 tests |
 
-**Live now (delta vs M4 close):** Staff portal (magic-link auth + `/portal/me` self-service); event-day kiosk shell at `/event` (high-contrast palette, 64px tap targets); AdminStaff suite (list/detail/cert editor); AdminEventStaffing (staffing + RSVP); AdminBookingChargeQueue (damage-charge fast-path); AdminStaff1099Thresholds (bookkeeper rollup); 9 event-day routes; 3 new cron sweeps registered on the 03:00 UTC trigger (cert expiration / event-staffing reminder + auto-decline / tax-year auto-lock — first run tomorrow); 11 new email templates; AdminUsers DELETED (R17); `/admin/users` → `/admin/staff` redirect.
+### What's live in production after this mid-milestone merge
 
-**Recommended operator post-deploy manual smoke** (in a browser):
-1. Login to `/admin` (any owner-tier user)
-2. `/admin/users` → confirms 302 redirect to `/admin/staff`
-3. `/admin/staff`, `/admin/booking-charges`, `/admin/staff/1099-thresholds` → pages render with empty states (no staff exist yet)
-4. `/event` → kiosk shell loads (high-contrast, 64px tap targets)
-5. Optional: invite a second admin via `/admin/staff` to dogfood the staff portal magic-link flow
+- **D1 schema:** sites + site_fields + site_blackouts; events.site_id; customers.client_type + 4 business_* cols; field_rentals + field_rental_recurrences + field_rental_contacts + customer_contacts; field_rental_documents + field_rental_payments + site_use_agreement_documents; 17 new capabilities + site_coordinator role_preset
+- **Data:** Ghost Town (Hiawatha UT 84545) + Foxtrot (Kaysville UT 84037) seeded with one field each; the 1 production event (operation-nightfall) backfilled to site_id of Ghost Town
+- **UI:** `/admin/sites` (list with stats: events / rentals per site) + `/admin/sites/:id` (detail with metadata edit + fields CRUD + blackouts CRUD)
+- **API:** 10 endpoints under `/api/admin/sites` covering sites + fields + blackouts with capability gating (Owner / Manager via Operations Director role; Site Coordinator role-preset ready for B7+)
 
-**Pending operational items** (not code; not blocking M5 close):
+### What B7 starts with
+
+- **All schema in place** (B1-B5 + B6 capabilities)
+- **AdminSites UI live** (B6.5) for operator to manage Ghost Town + Foxtrot
+- **No field_rentals records yet** — B7's create flow will populate the table
+- **`worker/lib/ids.js`** has `siteId()` / `fieldId()` / `blackoutId()` helpers from B2; B7 will add `fieldRentalId()` / `fieldRentalContactId()` / `fieldRentalRecurrenceId()` / etc.
+
+### M5.5 operating rules (preserved for B7-B11)
+
+1. **Plan-mode-first per batch.** Write a plan, post it, wait for "proceed" before editing.
+2. **Branch off `milestone/5.5-field-rentals`** with flat `m55-batch-N-slug` naming.
+3. **8-file cap per PR.** Tighter than the M3/M4 10-file standard.
+4. **Conventional Commits** with `m55-<area>` scope.
+5. **No `--force` ever, no rebases on shared branches, no direct commits to `main` or milestone.**
+6. **Spot-check production schema BEFORE every migration** (per Lesson #7).
+7. **Every email_templates seed includes `id='tpl_<slug>'` and `created_at=updated_at`** (Lesson #7).
+8. **Between-batch handoff required** — 5-bullet summary; operator confirms before next batch.
+
+### Lessons captured during M5.5 so far
+
+1. **wrangler `--json --file` returns a SUMMARY row on remote, not actual SELECT data** (it works correctly on local). Use `--command` (not `--file`) for read queries against remote D1. Captured as **D1 quirk #4** in CLAUDE.md. Surfaced when B2's seed-sites + backfill scripts reported phantom counts.
+2. **M5 pre-seeded many M5.5 capabilities** in 0031_capabilities_seed.sql. B6 had to spot-check existing caps + bindings to avoid duplicates. Use `field_rentals.create.bypass_conflict` (existing) instead of duplicating as `field_rentals.override_conflict` (prompt name).
+3. **`formatEvent` is DNT-listed** — B3 had to plumb the conflict API without modifying it (the form doesn't yet expose `site_id`; B7+ may need a side endpoint that doesn't touch formatEvent).
+4. **Production schema rarely matches Surface 7 drafts perfectly.** B4 used the M5.5 prompt's column list over the surface-7-schema.md doc. B5 verified `version INTEGER UNIQUE` + `effective_from INTEGER` + `created_by TEXT` (NOT `created_by_user_id`) as canonical pattern. Always spot-check `waiver_documents` + `vendor_contract_documents` before writing versioned-document tables.
+
+---
+
+### M5 deployed (2026-05-08) — historical reference
+
+**Production runs M5 (and now M5.5 mid-milestone).** Previously: `main` was at `82fc839` (M5 close); M5 added staff/event-day/damage-charge surfaces; all 14 M5 D1 migrations (0030-0043) applied to remote; latest M5 Workers deployment was `fb1d535b-d6ca-4cd0-ae98-c49601b27ab8` at 2026-05-08T22:50 UTC. M5 deploy required a Phase 4 hotfix (PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143)) for the email_templates schema gap — captured as Lesson #7 (see below).
+
+M5 deliverables live: Staff portal (magic-link auth + `/portal/me`), event-day kiosk shell at `/event`, AdminStaff suite, AdminEventStaffing, AdminBookingChargeQueue, AdminStaff1099Thresholds, 9 event-day routes, 3 cron sweeps (cert / staff reminders / tax-year auto-lock), 11 new email templates, AdminUsers DELETED with redirect to /admin/staff. Full M5 reference in **CLAUDE.md Milestone 5 section**. Closing runbooks at [docs/runbooks/m5-baseline-coverage.txt](docs/runbooks/m5-baseline-coverage.txt), [docs/runbooks/m5-deploy.md](docs/runbooks/m5-deploy.md), [docs/runbooks/m5-rollback.md](docs/runbooks/m5-rollback.md).
+
+**Pending operational items** (not code; not blocking M5.5):
 - Stripe sandbox → live cutover (M6 territory: `/admin/booking-charges/pay/:token` link landing 404s pre-M6; admin uses "Mark Paid" modal for Venmo/cash/check)
 - DMARC + Resend DKIM/SPF DNS (confirmation emails may land in spam)
 - Cloudflare Always-Use-HTTPS toggle
 - Operation Nightfall content seed (cover images, custom questions, email-template review)
 - Comp-ticket dry run before first live event
-
-The full M5 milestone reference (rework batch table #122-#143, gated paths, carry-forward facts, stop-and-ask conditions) lives in **`CLAUDE.md` Milestone 5 section**. Closing runbooks at [docs/runbooks/m5-baseline-coverage.txt](docs/runbooks/m5-baseline-coverage.txt), [docs/runbooks/m5-deploy.md](docs/runbooks/m5-deploy.md), [docs/runbooks/m5-rollback.md](docs/runbooks/m5-rollback.md).
 
 ### Lessons captured during M5 (durable; apply to future milestones)
 

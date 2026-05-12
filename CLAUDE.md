@@ -154,7 +154,7 @@ When in doubt, ask. The cost of a confirmation is low; the cost of an unwanted c
 
 ### Carry-forward: D1 quirks (added 2026-05-07 in m4-batch-0)
 
-Three behaviors of Cloudflare D1 + wrangler discovered during M3 that bite any future migration or remote D1 operation. Read these before writing a `migrations/*.sql` file or running a `wrangler d1 execute --remote` command. Captured in detail in [docs/runbooks/m3-deploy.md](docs/runbooks/m3-deploy.md).
+Four behaviors of Cloudflare D1 + wrangler discovered during M3 and M5.5 that bite any future migration or remote D1 operation. Read these before writing a `migrations/*.sql` file or running a `wrangler d1 execute --remote` command. Captured in detail in [docs/runbooks/m3-deploy.md](docs/runbooks/m3-deploy.md).
 
 1. **No `BEGIN TRANSACTION` / `COMMIT` keywords** — wrangler's parser keyword-scans uploaded SQL and rejects anything containing the literal word `TRANSACTION`, **including in SQL comments**. To document transactional intent in a migration, phrase it as "transaction-control statements" or similar — never use the literal keyword. D1 wraps each statement implicitly; you don't need to wrap manually.
 
@@ -168,6 +168,8 @@ Three behaviors of Cloudflare D1 + wrangler discovered during M3 that bite any f
    Reference: [migrations/0023_customers_not_null.sql](migrations/0023_customers_not_null.sql) (M3 B6).
 
 3. **`wrangler --remote --json --file` emits upload-progress UI characters before the JSON payload.** `JSON.parse(stdout)` fails on raw output. When parsing programmatically, strip everything before the first `[` or `{`. Reference: [scripts/backfill-customers.js](scripts/backfill-customers.js) (M3 B6 fix).
+
+4. **(Added 2026-05-11 in M5.5 B2)** **`wrangler d1 execute --json --file=` returns a SUMMARY row, NOT the actual SELECT row data, when run against `--remote`.** Against `--local`, the same flag returns the real row data. Symptom: a Node script calling `--file` for a SELECT receives `[{"results": [{"Total queries executed": 1, "Rows read": N, "Rows written": 0, "Database size (MB)": "X"}], ...}]` instead of the expected `[{"results": [{...row}, ...]}]`. For read queries, **use `--command=` (NOT `--file=`)** — `--command` returns row data on both local and remote. `--file` is still appropriate for multi-statement WRITES (INSERT/UPDATE/CREATE), where the summary is acceptable. Reference: M5.5 B2's [scripts/seed-sites.js](scripts/seed-sites.js) + [scripts/backfill-events-site-id.js](scripts/backfill-events-site-id.js) (hotfix after the first remote run silently failed to update `events.site_id` because the script's read-back interpreted the summary row as one phantom "site").
 
 ### Where to find each audit document
 
@@ -534,6 +536,87 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 5. `npm run build` — confirm clean
 6. `node scripts/verify-m5-completeness.js` — should exit 0 (15/15)
 7. **M5 is CLOSED + DEPLOYED 2026-05-08.** Production at `82fc839`; all 14 migrations applied to remote; latest Workers deployment `fb1d535b...`. See `docs/runbooks/m5-{baseline-coverage.txt,deploy.md,rollback.md}` for the post-M5 reference. The deploy story (including the Phase 4 hotfix) is captured in HANDOFF.md §M5 deployed.
+
+---
+
+### Milestone 5.5 — Field Rentals (⏳ IN FLIGHT; B6.5 closed 2026-05-11; B7 next)
+
+**Long-lived branch:** `milestone/5.5-field-rentals` (off `main` at `69e02d8`, M5 docs cleanup). **Status: in flight.** B1 through B6.5 have shipped; B7-B11 pending. Mid-milestone rolling-brings-up to main per the M4 pattern: each milestone-to-main merge brings production up to the milestone branch's state.
+
+**Sub-branches** use **flat `m55-batch-N-slug` naming** (same git ref-collision workaround M1-M5 used). The B6.5 batch was numbered to fit between B6 and B7 after a mid-milestone scope addition (the operator's "add/remove fields and locations" requirement surfaced after B2).
+
+**Operator acknowledgment** (from the M5.5 prompt): schema migrations + the public booking flow change in M6 are tested only via local `wrangler dev` before being applied to production. Recovery from a migration mishap requires reverting + restoring D1 from a Cloudflare automated backup at 24-hour granularity.
+
+**Per-batch operating rules** (preserved across all M5.5 batches):
+
+- Plan-mode-first per batch — write the plan, post it, wait for "proceed" before editing
+- **8-file cap per PR** (tighter than the M3/M4 10-file standard)
+- Conventional Commits with `m55-<area>` scope
+- No `--force`, no rebases on shared branches, no direct commits to `main` or milestone
+- All tests use M2 mock helpers + M5 adminSession helper. No live D1 / Stripe / Resend
+- **Pre-migration spot-check is mandatory** — every migration that touches an existing table must verify production schema matches local fixture before authoring (per Lesson #7)
+- Every `email_templates` seed must include `id='tpl_<slug>'` and `created_at=updated_at` (Lesson #7)
+- Between-batch handoff required — 5-bullet summary; operator confirms before next batch opens
+- Stop-and-ask if: a do-not-touch file needs touching, a spot-check reveals divergence, conflict-detection ambiguity surfaces, the inquiry-form audit (Batch 1) reveals an unexpected integration
+
+**Critical do-not-touch surfaces in M5.5** (cumulative with audit DNT):
+
+- `worker/routes/bookings.js` (public POST /checkout) — M6 territory
+- `worker/routes/waivers.js` (public waiver sign)
+- `worker/lib/stripe.js` — M6 territory
+- `worker/lib/auth.js`
+- `worker/lib/formatters.js` (`formatEvent` confirmed DNT in B3; explicit operator approval required to add `siteId` exposure)
+
+**Status (B1 through B6.5 complete; 1634 tests / 150 files):**
+
+| Batch | What it ships | Squash on milestone | PR |
+|---|---|---|---|
+| **B1** Sites schema + inquiry-form audit (2 files) | `migrations/0044_sites_schema.sql` (sites + site_fields + site_blackouts) + `docs/m55-discovery/inquiry-form-audit.md` (recommendation: Path A reuse the form, route by subject) | `cd501e8` | [#145](https://github.com/bulletbiter99/air-action-sports/pull/145) |
+| **B2** events.site_id + sites seed + backfill (6 files) | `migrations/0045_events_site_id.sql` + `worker/lib/ids.js` extension (`siteId()`/`fieldId()`/`blackoutId()`) + `scripts/seed-sites.js` (Ghost Town Hiawatha UT 84545 + Foxtrot Kaysville UT 84037) + `scripts/backfill-events-site-id.js` (parses `events.location` only; `events.site` is event-series branding) + 46 tests | `c20bb1b` | [#146](https://github.com/bulletbiter99/air-action-sports/pull/146) |
+| **B2-hotfix** wrangler `--json --file` quirk (3 files) | `scripts/seed-sites.js` + `scripts/backfill-events-site-id.js` switched to `--command` for read queries (`--file` returns SUMMARY rows on remote, not actual SELECT data). CLAUDE.md D1 quirk #4 added. | `52fb5bf` | [#147](https://github.com/bulletbiter99/air-action-sports/pull/147) |
+| **B3** customers extension + event conflict detection (5 files) | `migrations/0046_customers_client_type.sql` (5 nullable cols: client_type + business_name + business_tax_id + business_billing_address + business_website) + `worker/lib/eventConflicts.js` (whole-day window semantics; defensive field_rentals try-catch) + `worker/routes/admin/events.js` extension (POST/PUT conflict check + `acknowledgeConflicts` override) + `src/admin/AdminEvents.jsx` conflict banner + 26 tests | `a61b66c` | [#148](https://github.com/bulletbiter99/air-action-sports/pull/148) |
+| **B4** field_rentals core schema (1 file) | `migrations/0047_field_rentals_core.sql` — 4 tables (`customer_contacts` + `field_rental_recurrences` + `field_rentals` (~50 cols) + `field_rental_contacts`) + 14 indexes. Multi-field rentals via comma-separated `site_field_ids`; B10 sentinels (coi_alert_60d/30d/7d_sent_at) included | `890f4d8` | [#149](https://github.com/bulletbiter99/air-action-sports/pull/149) |
+| **B5** field_rental documents + payments + SUA templates (1 file) | `migrations/0048_field_rentals_documents_payments.sql` — 3 tables: `site_use_agreement_documents` (canonical retire-replace pattern matching waiver_documents) + `field_rental_documents` (kind discriminator + COI-specific + SUA-specific nullable cols) + `field_rental_payments` (off-platform; Stripe Invoices deferred to M6) | `575d42b` | [#150](https://github.com/bulletbiter99/air-action-sports/pull/150) |
+| **B6** capabilities seed + Site Coordinator role-preset (1 file) | `migrations/0049_field_rentals_capabilities.sql` — 17 new caps (events.override_conflict + 16 field_rentals/sites) + new `site_coordinator` role_preset (tier 2) + 45 bindings. M5 had pre-seeded 14 caps in 0031; B6 added the gaps. Note: prompt's "field_rentals.override_conflict" maps to existing `field_rentals.create.bypass_conflict` | `efbe243` | [#151](https://github.com/bulletbiter99/air-action-sports/pull/151) |
+| **B6.5** AdminSites CRUD UI (8 files; first major code batch) | `worker/routes/admin/sites.js` (NEW; 10 endpoints) + `worker/index.js` mount + `src/admin/AdminSites.jsx` (list + stats + create modal) + `src/admin/AdminSiteDetail.jsx` (single-page; 3 sections — metadata / fields / blackouts) + `src/App.jsx` routes + `src/admin/sidebarConfig.js` (Sites entry at index 5) + 23 route tests + sidebarConfig test updates. Operator decisions: blackouts included, page stats included, archive guard Option A (upcoming events OR rentals block) | `f1aff32` | [#152](https://github.com/bulletbiter99/air-action-sports/pull/152) |
+| **mid-milestone → main** | milestone-to-main rolling brings-up (this PR; covers all B1-B6.5 + this docs update) — production now runs M5.5 schema + AdminSites UI | TBD | TBD |
+
+**Cumulative through B6.5:** 1634 unit tests across 150 files (+96 / +4 vs M5 close at 1538/146). **DoD test target (≥1600) comfortably met.** 6 D1 migrations applied to remote (0044-0049). 17 new capabilities + `site_coordinator` role_preset live. AdminSites UI live for managing Ghost Town + Foxtrot.
+
+**Lessons captured during M5.5 so far** (durable):
+
+1. **wrangler `--json --file` returns a SUMMARY row on remote, not actual SELECT data** (it works correctly on local). Use `--command` (not `--file`) for read queries against remote D1. Surfaced when B2's seed-sites + backfill scripts reported phantom counts on remote despite working correctly on local. Captured as **D1 quirk #4** (see the D1 quirks subsection above).
+2. **M5 pre-seeded many M5.5 capabilities** in `0031_capabilities_seed.sql`. B6 had to spot-check existing caps + bindings to avoid duplicates. Use `field_rentals.create.bypass_conflict` (existing) instead of duplicating as `field_rentals.override_conflict` (prompt name).
+3. **`formatEvent` is DNT** — B3 had to plumb the conflict API without modifying it. The AdminEvents form does NOT yet expose `site_id`; B7+ may need a side endpoint or operator approval to extend `formatEvent`.
+4. **Production schema rarely matches Surface 7 drafts perfectly.** B4 used the M5.5 prompt's column list over the surface-7-schema.md draft. B5 verified `version INTEGER UNIQUE` + `effective_from INTEGER` + `created_by TEXT` (NOT `created_by_user_id`) as the canonical retire-and-replace pattern. Always spot-check `waiver_documents` + `vendor_contract_documents` before writing versioned-document tables.
+5. **B6.5 added a sidebar entry that shifted index assertions in existing sidebarConfig tests.** Per the 8-file cap, the test fix landed in the same PR. Future batches that touch `sidebarConfig.js` should expect to update `tests/unit/admin/sidebarConfig.test.js` indices.
+
+**M5.5-specific carry-forward facts** (durable):
+
+- **Sites + fields seeded:** Ghost Town (Hiawatha UT 84545; one field "Ghost Town") and Foxtrot (Kaysville UT 84037; one field "Foxtrot"). The 1 production event (operation-nightfall, location="Ghost Town - Rural Neighborhood") is linked to Ghost Town's site_id. CQB Building and Compound are NOT official locations (operator-confirmed during B2).
+- **`events.site` column ≠ geographic location** — it stores event SERIES branding (e.g. "Delta" for the Operation Delta mil-sim brand). The geographic signal is `events.location`. Backfill scripts and conflict detection use `events.location` only.
+- **`events.site_id` is intentionally nullable** — events without a parseable site stay nullable indefinitely. Conflict detection treats NULL `site_id` as "no field conflict".
+- **field_rentals.site_field_ids is comma-separated TEXT** (not a FK) — multi-field rentals possible. Integrity enforced at the route layer in B7.
+- **B6.5 sidebar capability uses M5 B0 stub** (manager+ visibility). The DB-backed capability check at `requireCapability()` still gates the routes for finer-grained permissions (e.g. Site Coordinator without `sites.archive`).
+- **Override gate** for event conflict acknowledgment uses the existing `requireRole('owner', 'manager')` middleware — captures both Owner and "Operations Director" (operator's mapping of manager role).
+
+**Stop-and-ask conditions specific to M5.5** (cumulative with audit DNT):
+
+- A do-not-touch file (`formatEvent`, `bookings.js`, `waivers.js`, `stripe.js`, `auth.js`) needs modification
+- Pre-migration spot-check reveals divergence between local fixture and production schema
+- Conflict detection logic creates ambiguous prompts (e.g. partial-day windows)
+- A test reveals current behavior conflicts with audit-documented behavior
+- The inquiry form audit (Batch 1) reveals an integration point that wasn't anticipated
+
+**Resume the milestone in a fresh session:**
+
+1. `git checkout main && git pull origin main` (the mid-milestone merge brings main up to milestone state)
+2. `npm install`
+3. `npm test` — confirm **1634 / 150** passing
+4. `npm run lint` — confirm 0 errors
+5. `npm run build` — confirm clean
+6. **Use the prompt at [docs/m55-next-session.md](docs/m55-next-session.md)** for B7 plan-mode
+7. B7 starts with field rentals backend — 8 files at cap
 
 ---
 
