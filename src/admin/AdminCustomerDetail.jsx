@@ -15,6 +15,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import { formatMoney } from '../utils/money.js';
+import { classifyStatus as classifyFieldRentalStatus, classifyCoiStatus } from './AdminFieldRentals.jsx';
 import './AdminCustomers.css';
 
 export default function AdminCustomerDetail() {
@@ -74,8 +75,10 @@ export default function AdminCustomerDetail() {
     }
     if (!data) return null;
 
-    const { customer, bookings, tags } = data;
+    const { customer, bookings, tags, fieldRentals = [] } = data;
     const archived = !!customer.archivedAt;
+    const isBusiness = customer.clientType === 'business';
+    const nowMs = Date.now();
 
     return (
         <div className="admin-customers admin-customers__detail">
@@ -100,8 +103,56 @@ export default function AdminCustomerDetail() {
                     )}</dd>
                     <dt>Phone</dt>
                     <dd>{customer.phone || <em>—</em>}</dd>
+                    <dt>Client type</dt>
+                    <dd>
+                        <span
+                            className="admin-customers__pill"
+                            style={{
+                                background: isBusiness ? '#cffafe' : '#e5e7eb',
+                                color: isBusiness ? '#0e7490' : '#475569',
+                            }}
+                        >
+                            {isBusiness ? 'Business' : 'Individual'}
+                        </span>
+                    </dd>
                 </dl>
             </section>
+
+            {isBusiness && (
+                <section className="admin-customers__card">
+                    <h2>Business profile</h2>
+                    <dl className="admin-customers__dl">
+                        <dt>Business name</dt>
+                        <dd>{customer.businessName || <em className="admin-customers__muted">(not set)</em>}</dd>
+                        <dt>Website</dt>
+                        <dd>
+                            {customer.businessWebsite ? (
+                                <a
+                                    href={customer.businessWebsite}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    {customer.businessWebsite}
+                                </a>
+                            ) : <em className="admin-customers__muted">(not set)</em>}
+                        </dd>
+                        <dt>EIN / Tax ID</dt>
+                        <dd>
+                            <em className="admin-customers__muted">
+                                Encrypted at rest. Decryption requires <code>customers.read.business_fields</code>{' '}
+                                (lands in M5.5 B10).
+                            </em>
+                        </dd>
+                        <dt>Billing address</dt>
+                        <dd>
+                            <em className="admin-customers__muted">
+                                Encrypted at rest. Decryption requires <code>customers.read.business_fields</code>{' '}
+                                (lands in M5.5 B10).
+                            </em>
+                        </dd>
+                    </dl>
+                </section>
+            )}
 
             <section className="admin-customers__card">
                 <h2>Aggregates</h2>
@@ -182,6 +233,56 @@ export default function AdminCustomerDetail() {
                     </table>
                 )}
             </section>
+
+            {fieldRentals.length > 0 && (
+                <section className="admin-customers__card">
+                    <header className="admin-customers__card-header">
+                        <h2>Field rentals ({fieldRentals.length})</h2>
+                        <Link
+                            to={`/admin/field-rentals?customer_id=${encodeURIComponent(customer.id)}`}
+                            className="admin-customers__back-link"
+                        >
+                            View in field rentals →
+                        </Link>
+                    </header>
+                    <table className="admin-customers__table">
+                        <thead>
+                            <tr>
+                                <th>Rental</th>
+                                <th>Schedule</th>
+                                <th>Status</th>
+                                <th>COI</th>
+                                <th>Engagement</th>
+                                <th className="admin-customers__num">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {fieldRentals.map((fr) => {
+                                const s = classifyFieldRentalStatus(fr.status);
+                                const c = classifyCoiStatus(fr.coiStatus, fr.coiExpiresAt, nowMs);
+                                const pillStyle = (cls) => ({
+                                    display: 'inline-block', padding: '2px 8px', borderRadius: 12,
+                                    background: cls.bg, color: cls.color, fontSize: 12, fontWeight: 600,
+                                });
+                                return (
+                                    <tr key={fr.id} style={fr.archivedAt ? { opacity: 0.55 } : null}>
+                                        <td>
+                                            <Link to={`/admin/field-rentals/${encodeURIComponent(fr.id)}`}>
+                                                <code>{fr.id}</code>
+                                            </Link>
+                                        </td>
+                                        <td>{formatDate(fr.scheduledStartsAt)} → {formatDate(fr.scheduledEndsAt)}</td>
+                                        <td><span style={pillStyle(s)}>{s.label}</span></td>
+                                        <td><span style={pillStyle(c)}>{c.label}</span></td>
+                                        <td>{(fr.engagementType || '').replace(/_/g, ' ') || '—'}</td>
+                                        <td className="admin-customers__num">{formatMoney(fr.totalCents)}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </section>
+            )}
 
             {!archived && (
                 <section className="admin-customers__card">

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { createSession, setCookie, clearCookie, verifySession, parseCookieHeader } from '../../lib/session.js';
 import { requireAuth, publicUser } from '../../lib/auth.js';
+import { listCapabilities } from '../../lib/capabilities.js';
 import { randomId } from '../../lib/ids.js';
 import { sendPasswordReset } from '../../lib/emailSender.js';
 import { rateLimit } from '../../lib/rateLimit.js';
@@ -107,7 +108,13 @@ auth.post('/logout', async (c) => {
 });
 
 auth.get('/me', requireAuth, async (c) => {
-    return c.json({ user: publicUser(c.get('user')) });
+    const user = c.get('user');
+    // M5.5 B8 — surface the user's effective capabilities so the frontend can
+    // gate UI affordances (e.g. the "Submit anyway" conflict-override button in
+    // the field-rentals new flow, which requires field_rentals.create.bypass_conflict).
+    // Server-side checks still run on every privileged endpoint; this is for UX.
+    const capabilities = await listCapabilities(c.env, user.id);
+    return c.json({ user: publicUser(user), capabilities });
 });
 
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour

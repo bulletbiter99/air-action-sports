@@ -1,0 +1,85 @@
+-- 0051_cron_sentinels_and_business_caps.sql
+--
+-- M5.5 Batch 10a — sentinel column for the lead-stale cron (B10b) +
+-- complete the customers.*.business_fields role-preset bindings per
+-- Surface 7 §10 (B9 followup).
+--
+-- PRE-MIGRATION SPOT-CHECK (2026-05-12; per Lesson #7)
+-- ============================================================
+-- field_rentals exists (M5.5 B4 / migration 0047). Confirmed via .schema
+-- that the table currently has 50+ cols including coi_alert_60d/30d/7d_sent_at
+-- (B4 pre-baked the COI sentinels for B10b) but NO lead_stale_at column.
+-- Adding it now in B10a so the column exists when B10b's lead-stale sweep
+-- needs to populate it; B10b lib code references field_rentals.lead_stale_at
+-- and would fail with "no such column" without this migration.
+--
+-- capabilities + role_preset_capabilities exist (M5 B2 / migration 0031).
+-- Spot-check on production state (via grep of 0031 + 0049):
+--   - customers.read.business_fields and customers.write.business_fields
+--     capability rows EXIST (0031 lines 149-150).
+--   - Bindings already present:
+--       owner — both (via `SELECT 'owner', key FROM capabilities` shortcut
+--         in 0031, which auto-binds owner to every capability).
+--       event_director — customers.read.business_fields (0031 line 315).
+--       booking_coordinator — customers.read.business_fields (0031 line 348).
+--       bookkeeper — both read + write (0031 lines 396-397).
+--   - MISSING per Surface 7 §10 default-bindings table:
+--       site_coordinator — customers.read.business_fields
+--     (site_coordinator role_preset was added in M5.5 B6 migration 0049
+--     but that batch only seeded its field_rentals/sites bindings; the
+--     business_fields read binding for the role was not yet covered.)
+--
+-- DESIGN NOTES
+-- ============================================================
+-- - field_rentals.lead_stale_at: epoch ms, nullable. B10b's sweep:
+--   (a) on rentals in status='lead'/'draft' that have crossed the
+--       N-day threshold since updated_at, sets lead_stale_at = now and
+--       sends a lead_stale email to the assigned site coordinator;
+--   (b) on any subsequent status change, the lead_stale_at sentinel
+--       is cleared (handled in worker/routes/admin/fieldRentals.js
+--       /:id/status handler in B10b).
+--   No CHECK / DEFAULT — just a nullable timestamp column.
+--
+-- - site_coordinator binding: per Surface 7 §10 the role's read-tier
+--   should include unmasking business fields (operator confirmed B10a
+--   plan-mode decision #4). The route layer's hasCapability check will
+--   start returning true once this binding is seeded; until then,
+--   site_coordinator users see masked / placeholder business fields
+--   (matches B9 behavior).
+--
+-- D1 QUIRKS OBSERVED
+-- ============================================================
+-- - Additive ALTER TABLE + INSERT only. No table-rebuild; FK-during-DROP
+--   not triggered.
+-- - No BEGIN/COMMIT keywords; no literal "TRANSACTION" anywhere.
+-- - No email_templates seed; Lesson #7 not applicable.
+--
+-- OPERATOR-APPLIES-REMOTE STEP (post-merge, post-Workers-deploy):
+--   CLOUDFLARE_API_TOKEN=$TOKEN \
+--     npx wrangler d1 migrations apply air-action-sports-db --remote
+--
+-- Verify:
+--   .schema field_rentals          -- shows lead_stale_at INTEGER
+--   SELECT role_preset_key FROM role_preset_capabilities
+--     WHERE capability_key='customers.read.business_fields' AND role_preset_key='site_coordinator';
+--   -- expected: 1 row
+
+-- ────────────────────────────────────────────────────────────────────
+-- field_rentals.lead_stale_at — sentinel for B10b lead-stale cron
+-- ────────────────────────────────────────────────────────────────────
+
+ALTER TABLE field_rentals ADD COLUMN lead_stale_at INTEGER;
+
+-- Optional index — the lead-stale sweep filters on
+--   (status IN ('lead','draft') AND lead_stale_at IS NULL)
+-- which is covered well enough by the existing idx_field_rentals_status.
+-- A separate index on lead_stale_at would help if we ever sort/range-scan
+-- by it, but at production scale today (0 rentals) the cost-benefit
+-- doesn't justify the extra B-tree.
+
+-- ────────────────────────────────────────────────────────────────────
+-- Missing role_preset_capabilities binding
+-- ────────────────────────────────────────────────────────────────────
+
+INSERT INTO role_preset_capabilities (role_preset_key, capability_key, created_at) VALUES
+  ('site_coordinator', 'customers.read.business_fields', strftime('%s','now') * 1000);

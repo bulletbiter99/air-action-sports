@@ -372,6 +372,70 @@
       "tests": [
         "tests/unit/event-day/session.test.js"
       ]
+    },
+    "worker/lib/fieldRentals.js": {
+      "tier": "high",
+      "covers": [
+        "FIELD_RENTAL_STATUSES + transition matrix (8-state graph with operator-confirmed back-reverts sent→draft + agreed→sent)",
+        "allowedTransitions / validateStatusTransition — pure helpers used by /:id/status + /:id/cancel + lifecycle audits",
+        "parseAddonFees — JSON or array; rejects >20 items, label >100 chars, non-integer or negative cents",
+        "computePricing — server-trusted: total = site_fee + sum(addons.cents) - discount + tax; rejects negative total",
+        "formatFieldRental / formatFieldRentalContact — DB row → API shape with PII masking (notes / notes_sensitive / contact email+phone)"
+      ],
+      "audit_group": "(M5.5 B7a field rentals pure helpers)",
+      "tests": [
+        "tests/unit/lib/fieldRentals.test.js"
+      ]
+    },
+    "worker/routes/admin/fieldRentals.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/field-rentals (list with status/site/customer/engagement/coi filters; q PII-aware free-text search; pagination + order whitelist)",
+        "GET /api/admin/field-rentals/:id (detail + contacts + site/customer JOIN; PII unmask audits customer_pii.unmasked)",
+        "POST /api/admin/field-rentals (conflict-detection 409; bypass_conflict cap + acknowledgeConflicts override; server-trusted pricing recompute)",
+        "PUT /api/admin/field-rentals/:id (rejects status/schedule changes; recomputes total_cents on pricing-input change; archived rejected)",
+        "POST /api/admin/field-rentals/:id/status (non-cancel/non-refund transitions only; validateStatusTransition gate)",
+        "POST /api/admin/field-rentals/:id/cancel (sets cancelled_at + cancellation_reason + deposit_retained; audit field_rental.cancelled)",
+        "POST /api/admin/field-rentals/:id/archive (terminal-status-only; soft-archive; audit field_rental.archived)",
+        "POST /api/admin/field-rentals/:id/reschedule (re-runs conflict check with excludeFieldRentalId; same bypass override path)"
+      ],
+      "audit_group": "(M5.5 B7a admin field rentals route)",
+      "tests": [
+        "tests/unit/admin/fieldRentals/list.test.js",
+        "tests/unit/admin/fieldRentals/detail.test.js"
+      ]
+    },
+    "worker/routes/admin/fieldRentalDocuments.js": {
+      "tier": "high",
+      "covers": [
+        "POST /api/admin/field-rental-documents (multipart upload + magic-byte sniff via worker/lib/magicBytes.js; 10MB cap; R2 key field_rentals/<rental>/<doc>.<ext>)",
+        "kind='coi' required metadata (carrier/policy/amount/effective/expires); denormalizes field_rentals.coi_status='received' + coi_expires_at + requirements_coi_received=1",
+        "kind='agreement' requires live SUA template (returns 409 with hint when none exists); captures sua_body_sha256_snapshot for integrity check; denormalizes requirements_agreement_signed=1",
+        "Versioning: new agreement or coi upload retires prior live row (retired_at = now)",
+        "GET /api/admin/field-rental-documents?rental_id=… (list; COI carrier/policy/amount fields masked unless field_rentals.coi.read_pii)",
+        "GET /api/admin/field-rental-documents/:docId/download (proxies R2 bytes; audit field_rental_document.downloaded with ip_address)",
+        "POST /api/admin/field-rental-documents/:docId/retire (manual retire without replacement)"
+      ],
+      "audit_group": "(M5.5 B7b admin field rental documents)",
+      "tests": [
+        "tests/unit/admin/fieldRentals/documents.test.js"
+      ]
+    },
+    "worker/routes/admin/fieldRentalPayments.js": {
+      "tier": "high",
+      "covers": [
+        "POST /api/admin/field-rental-payments (per-kind capability gating: deposit_record / balance_record / write; kind='refund' rejected — refunds only via /refund endpoint)",
+        "Aggregate sync on received: kind=deposit/full syncs field_rentals.deposit_*; kind=balance/full syncs balance_* (full syncs BOTH)",
+        "Auto-transition rental agreed → paid on first received deposit/balance/full payment (writes status_changed audit)",
+        "Refused 409 on cancelled/refunded parent rental (except kind='refund' which is already rejected upstream)",
+        "GET /api/admin/field-rental-payments?rental_id=… (gated by field_rentals.read.financials; reference + notes PII-gated)",
+        "PUT /api/admin/field-rental-payments/:paymentId (pending→received transition triggers aggregate sync + auto-flip; refunded/void rejected)",
+        "POST /api/admin/field-rental-payments/:paymentId/refund (canonical refund flow; validates amount ≤ original; reverseAggregateOnRefund re-binds to newer received row OR clears aggregate)"
+      ],
+      "audit_group": "(M5.5 B7b admin field rental payments)",
+      "tests": [
+        "tests/unit/admin/fieldRentals/payments.test.js"
+      ]
     }
   },
   "uncovered": {

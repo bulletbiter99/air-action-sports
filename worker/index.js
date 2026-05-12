@@ -6,6 +6,11 @@ import { sendEmail } from './lib/email.js';
 import { createVendorToken } from './lib/vendorToken.js';
 import { runCustomerTagsSweep } from './lib/customerTags.js';
 import { runCertExpirationSweep as _runCertExpirationSweep } from './lib/certifications.js';
+import { runRecurrenceGenerationSweep as _runRecurrenceGenerationSweep } from './lib/fieldRentalRecurrences.js';
+import {
+    runCoiExpirationSweep as _runCoiExpirationSweep,
+    runLeadStaleSweep as _runLeadStaleSweep,
+} from './lib/fieldRentalCron.js';
 import {
     runEventStaffingReminderSweep as _runEventStaffingReminderSweep,
     runEventStaffingAutoDeclineSweep as _runEventStaffingAutoDeclineSweep,
@@ -15,6 +20,9 @@ import { runTaxYearAutoLockSweep as _runTaxYearAutoLockSweep } from './lib/thres
 // `const NAME = ...`) detects the sweeps are wired up here. The actual
 // implementations live in worker/lib/{certifications,eventStaffing,thresholds1099}.js.
 const runCertExpirationSweep = _runCertExpirationSweep;
+const runRecurrenceGenerationSweep = _runRecurrenceGenerationSweep;
+const runCoiExpirationSweep = _runCoiExpirationSweep;
+const runLeadStaleSweep = _runLeadStaleSweep;
 const runEventStaffingReminderSweep = _runEventStaffingReminderSweep;
 const runEventStaffingAutoDeclineSweep = _runEventStaffingAutoDeclineSweep;
 const runTaxYearAutoLockSweep = _runTaxYearAutoLockSweep;
@@ -25,6 +33,7 @@ import webhooks from './routes/webhooks.js';
 import waivers from './routes/waivers.js';
 import publicTaxesFees from './routes/taxesFees.js';
 import publicFeedback from './routes/feedback.js';
+import publicInquiry from './routes/inquiry.js';
 import vendorPublic from './routes/vendor.js';
 import vendorAuth from './routes/vendorAuth.js';
 import adminAuth from './routes/admin/auth.js';
@@ -47,6 +56,9 @@ import adminFeedback from './routes/admin/feedback.js';
 import adminFeatureFlags from './routes/admin/featureFlags.js';
 import adminCustomers from './routes/admin/customers.js';
 import adminSites from './routes/admin/sites.js';
+import adminFieldRentals from './routes/admin/fieldRentals.js';
+import adminFieldRentalDocuments from './routes/admin/fieldRentalDocuments.js';
+import adminFieldRentalPayments from './routes/admin/fieldRentalPayments.js';
 import adminSavedViews from './routes/admin/savedViews.js';
 import adminDashboard from './routes/admin/dashboard.js';
 import adminStaff from './routes/admin/staff.js';
@@ -128,6 +140,7 @@ app.route('/api/webhooks', webhooks);
 app.route('/api/waivers', waivers);
 app.route('/api/taxes-fees', publicTaxesFees);
 app.route('/api/feedback', publicFeedback);
+app.route('/api/inquiry', publicInquiry);
 app.route('/api/vendor/auth', vendorAuth);
 app.route('/api/vendor', vendorPublic);
 app.route('/api/admin/auth', adminAuth);
@@ -151,6 +164,9 @@ app.route('/api/admin/feedback', adminFeedback);
 app.route('/api/admin/feature-flags', adminFeatureFlags);
 app.route('/api/admin/customers', adminCustomers);
 app.route('/api/admin/sites', adminSites);
+app.route('/api/admin/field-rentals', adminFieldRentals);
+app.route('/api/admin/field-rental-documents', adminFieldRentalDocuments);
+app.route('/api/admin/field-rental-payments', adminFieldRentalPayments);
 app.route('/api/admin/saved-views', adminSavedViews);
 app.route('/api/admin', adminDashboard);
 app.route('/api/admin/staff', adminStaff);
@@ -623,7 +639,7 @@ export default {
             // Every other cron (today: just '*/15 * * * *') runs the
             // existing three-way reminder sweep.
             if (cron === '0 3 * * *') {
-                const [tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock] = await Promise.all([
+                const [tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen, coiAlerts, leadStale] = await Promise.all([
                     runCustomerTagsSweep(env).catch((err) => {
                         console.error('customer-tags sweep failed', err);
                         return { error: err?.message };
@@ -644,8 +660,20 @@ export default {
                         console.error('tax-year auto-lock sweep failed', err);
                         return { error: err?.message };
                     }),
+                    runRecurrenceGenerationSweep(env).catch((err) => {
+                        console.error('recurrence-generation sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                    runCoiExpirationSweep(env).catch((err) => {
+                        console.error('coi-expiration sweep failed', err);
+                        return { error: err?.message };
+                    }),
+                    runLeadStaleSweep(env).catch((err) => {
+                        console.error('lead-stale sweep failed', err);
+                        return { error: err?.message };
+                    }),
                 ]);
-                summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock };
+                summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen, coiAlerts, leadStale };
             } else {
                 const [r, a, v] = await Promise.all([
                     runReminderSweep(env),
