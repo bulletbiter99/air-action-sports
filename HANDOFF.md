@@ -4,11 +4,51 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — M5.5 CLOSED + DEPLOYED (2026-05-12)
+## ⚠ NEW SESSION — Post-M5.5 staff-wiring fix DEPLOYED (2026-05-12 late)
 
-**M5.5 (Field Rentals) is CLOSED.** All 11 batches (B1-B11 + B2-hotfix + B6.5) merged to milestone; milestone merged to `main` as `8decacc` via PR [#162](https://github.com/bulletbiter99/air-action-sports/pull/162). Workers Builds auto-deployed from main. **Operator next step:** apply migration 0053 to remote + run 6-item smoke checklist per [docs/runbooks/m55-deploy.md](docs/runbooks/m55-deploy.md).
+**M5.5 closed earlier today; the post-M5.5 staff-wiring fix is now live on top.** Production worker version `866dd1ef-106a-4373-8051-bfe27d45c3f4` deployed ~18:11 UTC, from `main` SHA `d70952a` (merge of PR [#165](https://github.com/bulletbiter99/air-action-sports/pull/165)) + a follow-up deploy-fix commit `cd27867`. **/admin/staff is functional end-to-end** for the first time since M5: 4 admins listed, profile tabs inline, "+ New Person" form renders the role-catalog dropdown.
 
-**Copy the prompt at [docs/m55-next-session.md](docs/m55-next-session.md) into the fresh session.** It opens with the post-M5.5 polish backlog (6 items) and an explicit fork: ship the polish vs. start M6 (Stripe live cutover + invoice integration for field rentals).
+**M5.5 (Field Rentals) is still CLOSED.** All 11 batches (B1-B11 + B2-hotfix + B6.5) merged to milestone; milestone merged to `main` as `8decacc` via PR [#162](https://github.com/bulletbiter99/air-action-sports/pull/162). Migration 0053 + 6-item smoke from [docs/runbooks/m55-deploy.md](docs/runbooks/m55-deploy.md) are still operator-actionable.
+
+**Copy the prompt at [docs/m55-next-session.md](docs/m55-next-session.md) into the fresh session.** Polish backlog unchanged (the staff-wiring fix was outside that backlog — it was 4 undiscovered M5 wiring gaps + 1 CSS leak surfaced by the operator clicking "+ New Person" and getting a blank page).
+
+### Post-M5.5 wiring fix — what shipped (2026-05-12 18:11 UTC)
+
+Investigation found **five layered M5 gaps** that shipped at close but never worked end-to-end. PR [#165](https://github.com/bulletbiter99/air-action-sports/pull/165) (merged as `d70952a`) + deploy-fix commit (`cd27867`) addressed every prong.
+
+| Prong | What was broken | Fix |
+|---|---|---|
+| A | `persons` table empty in prod — backfill never ran (and was broken anyway: pre-dated M5.5 D1 quirk #4 + had wrong audit_log column shape) | Fixed `scripts/backfill-persons.js` (split exec→wranglerQuery/Execute; corrected audit shape); ran on remote → **4 persons + 4 person_roles + 4 audit rows** |
+| B | `createPersonForUser` was dead code — exported but never imported | Wired into both `/api/admin/auth/setup` (bootstrap) and `/api/admin/auth/accept-invite` |
+| C | `+ New Person` button had no route, no form, no `POST /api/admin/staff` endpoint | Added the endpoint + `GET /roles-catalog` + `AdminStaffNew.jsx` form + route registration |
+| D | `users.role_preset_key=NULL` for all 4 admins — every M5+ admin route 403'd via legacy fallback (which only had M4 booking caps, no `staff.*`) | SQL UPDATE → `role_preset_key='owner'` for all 4 |
+| E | Bare `nav { position: fixed; ... }` in global.css bled onto every admin `<nav>`, escaping the profile tab nav to a band at the top of viewport | Scoped to `.site-nav` class; updated `Navbar.jsx`; dropped now-redundant resets in `admin.css` |
+| (Deploy-fix) | The B wiring made the worker bundle reach `scripts/backfill-persons.js`, which has top-level `import { execSync } from 'node:child_process'` — Cloudflare Workers can't load `node:*` modules. First wrangler deploy failed | Inlined the 13-line pure `legacyRoleToPersonRoleId` in `personsHelpers.js`, dropped the cross-file import |
+
+### Production data state at the fix close
+
+- ✅ **4 persons rows** linked to all 4 admin user_ids: Paul (bulletbiter99@gmail.com), Rebecca (actionairsport@gmail.com), Adam (agustafson15@gmail.com), Bradley (bradley.reynolds1883@gmail.com)
+- ✅ **4 person_roles rows** all primary, all `role_event_director` (Event Director / Operations Manager, Tier 1)
+- ✅ **All 4 users now have `role_preset_key='owner'`** — full 92-cap set live for every admin (was 5 booking-only caps via legacy fallback before)
+- ✅ **`/admin/staff` returns 200** with all 4 admins + PII visible per capability
+- ✅ **`/admin/staff/<id>` profile** loads with 8 tabs (Profile/Roles/Documents/Notes/Access/Issues/Certifications/Schedule) inline below the page header
+- ✅ **`/admin/staff/new` create form** renders + role catalog populated with all 22 roles
+
+### Test count + build state post-fix
+
+- **2022 tests / 163 files** (M5.5 close baseline 1997/161 → +25 from new tests for createPersonForUser + staff create endpoint)
+- **Lint 0 errors / 441 warnings** (one new advisory from react-refresh on AdminStaffNew.jsx)
+- **Build clean ~270ms**
+
+### Lessons added (durable; preserved as carry-forward to M6+)
+
+1. **A helper-without-an-import is a tripwire.** If a file's docstring says "called from X for Y", grep the import side, not just the export. M5's `createPersonForUser` was orphaned for weeks because no `worker/routes/admin/auth.js` import existed.
+2. **`audit_log` in production has 6 cols + AUTOINCREMENT id** (not 7 + TEXT id) — always go through `writeAudit()`, never raw SQL.
+3. **Pure-helper tests catch shape bugs but not wire-up bugs.** `backfillPersons.test.js` had 15 passing tests on pure helpers while the CLI portion was broken in 2 independent ways at the I/O layer. Integration smokes are required.
+4. **Bare element selectors leak across the app.** `nav { position: fixed; ... }` in global.css was scoped by intent to the public site but applied to every `<nav>` (admin tab navs, portal sidebar, etc.). Always use a class. Admin.css already had a workaround override for the sidebar — pattern would have repeated indefinitely.
+5. **A file's top-level imports always run when the module loads.** Even if the worker only uses ONE pure helper from a file, the bundle includes ALL of that file's top-level imports. A Node CLI script with `import 'node:child_process'` will break Cloudflare deploy if reachable from `worker/index.js`. Options: (a) inline the helper, (b) extract to a pure-imports-only file, or (c) make Node imports lazy via dynamic `await import(...)` inside the `if (isMain)` block.
+
+---
 
 ### M5.5 state at close
 
