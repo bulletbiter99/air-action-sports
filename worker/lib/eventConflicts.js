@@ -9,18 +9,24 @@
 // operational reality that an AAS event occupies its site for the
 // full day — see B3 plan-mode decision 2026-05-11.
 //
-// site_blackouts + field_rentals are stored with epoch-ms start/end
-// columns so the comparison is direct.
+// site_blackouts is stored with epoch-ms `starts_at`/`ends_at` columns.
+// field_rentals (B4) uses `scheduled_starts_at`/`scheduled_ends_at`; we
+// alias them to `starts_at`/`ends_at` in the SELECT so the response
+// shape stays consistent across all three conflict categories and the
+// AdminEvents conflict-banner frontend keeps working unchanged.
 //
-// field_rentals doesn't exist until B4 — this lib is defensive
-// (try/catch on the field_rentals query). After B4 lands the
-// field_rentals table, the same lib starts returning real rentals
-// without code change.
+// Cancelled or archived rentals don't conflict (operator-confirmed
+// B7a). They're excluded at the SQL level.
+//
+// The try/catch around the field_rentals query is preserved for
+// defensive resilience — if the table is ever missing or the schema
+// drifts, the lib degrades to "no rental conflicts" rather than
+// blowing up the event-create / event-edit flow.
 //
 // Used by:
 // - worker/routes/admin/events.js (POST + PUT; B3 wires this)
 // - worker/routes/admin/sites.js (B6.5 — blackout create flow)
-// - worker/routes/admin/fieldRentals.js (B7 — rental create / reschedule)
+// - worker/routes/admin/fieldRentals.js (B7a — rental create / reschedule)
 
 /**
  * Convert a YYYY-MM-DD date_iso string into [startMs, endMs)
@@ -58,12 +64,13 @@ export function intervalsOverlap(aStart, aEnd, bStart, bEnd) {
  * @param {number} options.startsAt Required. Epoch ms.
  * @param {number} options.endsAt Required. Epoch ms. Must be > startsAt.
  * @param {string} [options.excludeEventId] Exclude this event from event conflicts (edit flow).
+ * @param {string} [options.excludeFieldRentalId] Exclude this rental from field-rental conflicts (rental reschedule flow).
  * @param {string[]} [options.fieldIds] Reserved for future per-field scoping; currently unused.
  * @returns {Promise<{ events: object[], blackouts: object[], fieldRentals: object[] }>}
  */
 export async function detectEventConflicts(env, options) {
     const opts = options || {};
-    const { siteId, startsAt, endsAt, excludeEventId } = opts;
+    const { siteId, startsAt, endsAt, excludeEventId, excludeFieldRentalId } = opts;
 
     // Defensive: missing site_id or invalid window means no conflict possible
     if (!siteId || !Number.isFinite(startsAt) || !Number.isFinite(endsAt)) {
@@ -115,18 +122,33 @@ export async function detectEventConflicts(env, options) {
         .all();
     const blackouts = blackoutsRes.results || [];
 
-    // Field rentals: defensive try-catch (table doesn't exist until B4).
+    // Field rentals: aliased SELECT preserves the {starts_at, ends_at}
+    // response shape consumed by AdminEvents.jsx's conflict banner.
+    // Cancelled and archived rentals are excluded. excludeFieldRentalId
+    // supports the rental-edit/reschedule flow (don't flag self as a
+    // conflict). The defensive try/catch is preserved in case the table
+    // is ever absent (e.g. local dev without migrations applied).
     let fieldRentals = [];
     try {
-        const frRes = await env.DB.prepare(
-            `SELECT id, customer_id, starts_at, ends_at FROM field_rentals
-             WHERE site_id = ? AND starts_at < ? AND ends_at > ?`,
-        )
-            .bind(siteId, endsAt, startsAt)
-            .all();
+        const frRes = excludeFieldRentalId
+            ? await env.DB.prepare(
+                  `SELECT id, customer_id, scheduled_starts_at AS starts_at, scheduled_ends_at AS ends_at FROM field_rentals
+                   WHERE site_id = ? AND scheduled_starts_at < ? AND scheduled_ends_at > ?
+                     AND cancelled_at IS NULL AND archived_at IS NULL
+                     AND id != ?`,
+              )
+                  .bind(siteId, endsAt, startsAt, excludeFieldRentalId)
+                  .all()
+            : await env.DB.prepare(
+                  `SELECT id, customer_id, scheduled_starts_at AS starts_at, scheduled_ends_at AS ends_at FROM field_rentals
+                   WHERE site_id = ? AND scheduled_starts_at < ? AND scheduled_ends_at > ?
+                     AND cancelled_at IS NULL AND archived_at IS NULL`,
+              )
+                  .bind(siteId, endsAt, startsAt)
+                  .all();
         fieldRentals = frRes.results || [];
     } catch (_err) {
-        // field_rentals table doesn't exist yet (pre-B4). Treat as no rentals.
+        // field_rentals table missing or query failure — degrade to no rentals.
         fieldRentals = [];
     }
 
