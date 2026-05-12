@@ -623,10 +623,10 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 - Conflict detection logic creates ambiguous prompts (e.g. partial-day windows)
 - A test reveals current behavior conflicts with audit-documented behavior
 
-**Operator-applies-remote backlog at M5.5 close:**
+**Operator-applies-remote status at M5.5 close:**
 
-- ⏳ **Migration 0053** (inquiry_notification email template) — queued; operator runs `wrangler d1 migrations apply` post-deploy
-- ⏳ **6-item smoke checklist** in `docs/runbooks/m55-deploy.md`
+- ✅ **All 10 D1 migrations applied to remote** (0044-0049 mid-milestone 2026-05-11; 0050-0053 post-deploy 2026-05-12). Verified: 5 new email templates seeded; customers.client_type backfilled to 'individual' (2 rows); site_coordinator binding for customers.read.business_fields present (5 role-presets total: owner / event_director / booking_coordinator / bookkeeper / site_coordinator).
+- ⏳ **6-item smoke checklist** in `docs/runbooks/m55-deploy.md` — operator-driven manual verification (submit test /contact, verify operator email arrives + honeypot guard).
 
 **Known post-M5.5 polish backlog** (queued for next batch when operator is ready):
 

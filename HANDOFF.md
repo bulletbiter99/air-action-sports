@@ -17,7 +17,7 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 | Tests | **1997 across 161 files** (M5 baseline 1538 → +459 / +15 over the milestone) |
 | Lint | 0 errors / 440 warnings (advisory; mostly `react-refresh/only-export-components` on JSX pure-helper exports) |
 | Build | clean (~270ms) |
-| Migrations on remote | **0044-0052 applied** (9 of 10 M5.5 migrations); **0053 queued for post-deploy operator apply** |
+| Migrations on remote | **All 10 M5.5 migrations applied** (0044-0049 mid-milestone 2026-05-11; 0050-0053 post-deploy 2026-05-12) ✓ |
 | Milestone branch | `milestone/5.5-field-rentals` at `8fc2a1a` (retained for reference) |
 | `main` | `8decacc` — M5.5 close merge |
 | Open PRs on milestone | 0 |
@@ -56,20 +56,11 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 - **Crons:** 8 sweeps at 03:00 UTC (recurrenceGen + coiAlerts + leadStale new in M5.5)
 - **Capabilities:** 92 total (17 new in M5.5); site_coordinator role_preset live
 
-### Operator action queued post-deploy
+### Operator actions post-deploy (status)
 
-```bash
-# Apply migration 0053 (inquiry_notification email template)
-source .claude/.env
-CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
-
-# Verify
-wrangler d1 execute air-action-sports-db --remote \
-  --command="SELECT slug FROM email_templates WHERE slug='inquiry_notification'"
-# expected: 1 row
-```
-
-Then run the 6-item smoke checklist in [docs/runbooks/m55-deploy.md](docs/runbooks/m55-deploy.md) (verify /contact submission both paths + honeypot guard + rate limit + cron summary log).
+- ✅ **All 10 D1 migrations applied to remote** (2026-05-12). Verified: 5 new email templates seeded (`coi_alert_60d/30d/7d`, `field_rental_lead_stale`, `inquiry_notification`); both customer rows have `client_type='individual'`; site_coordinator binding present for `customers.read.business_fields` alongside owner / event_director / booking_coordinator / bookkeeper (5 role-presets total).
+- ⏳ **6-item smoke checklist** in [docs/runbooks/m55-deploy.md](docs/runbooks/m55-deploy.md) — operator-driven manual verification. Recommended timing: when next at a computer, submit a test `/contact` form (general + private-hire) and verify operator email arrives + honeypot guard works.
+- ⏳ **First overnight cron** — 03:00 UTC sweeps should include `recurrenceGen` / `coiAlerts` / `leadStale` summary keys (all zero counts with 0 field_rentals data).
 
 ### Post-M5.5 polish backlog (queued for next batch when ready)
 
