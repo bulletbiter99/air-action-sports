@@ -22,18 +22,25 @@ Lint: 0 errors / 440 warnings (advisory; react-refresh).
 Build: clean (~270ms).
 Open PRs: 0.
 
-D1 migrations applied to remote (M5.5 portion):
+D1 migrations applied to remote (M5.5 portion — all 10 applied):
   0044 sites_schema                       (B1, applied 2026-05-11)
   0045 events_site_id                     (B2, applied 2026-05-11)
   0046 customers_client_type              (B3, applied 2026-05-11)
   0047 field_rentals_core                 (B4, applied 2026-05-11)
   0048 field_rentals_documents_payments   (B5, applied 2026-05-11)
   0049 field_rentals_capabilities         (B6, applied 2026-05-11)
-  0050 customers_client_type_not_null     (B9, applied 2026-05-12)
-  0051 cron_sentinels_and_business_caps   (B10a, applied 2026-05-12)
-  0052 field_rental_cron_email_templates  (B10b, applied 2026-05-12)
-  ⏳ 0053 inquiry_notification_email_template (B11, QUEUED — apply
-       post-deploy per docs/runbooks/m55-deploy.md)
+  0050 customers_client_type_not_null     (B9, applied 2026-05-12 post-deploy)
+  0051 cron_sentinels_and_business_caps   (B10a, applied 2026-05-12 post-deploy)
+  0052 field_rental_cron_email_templates  (B10b, applied 2026-05-12 post-deploy)
+  0053 inquiry_notification_email_template (B11, applied 2026-05-12 post-deploy)
+
+Verified post-apply:
+- 5 new email templates seeded (coi_alert_60d/30d/7d + field_rental_lead_stale + inquiry_notification)
+- 2 existing customers backfilled to client_type='individual'
+- site_coordinator binding for customers.read.business_fields seeded
+  (5 role-presets total now: owner / event_director / booking_coordinator
+  / bookkeeper / site_coordinator)
+- /api/health returns 200
 
 Production data state:
 - 2 sites: Ghost Town (Hiawatha UT 84545) + Foxtrot (Kaysville UT 84037)
@@ -43,27 +50,25 @@ Production data state:
 - Crons all wired but idle (no qualifying data to act on)
 
 ═══════════════════════════════════════════════════════════════════════
-OPERATOR-APPLIES-REMOTE BACKLOG
+OPERATOR-APPLIES-REMOTE STATUS
 ═══════════════════════════════════════════════════════════════════════
 
-Two operational items before the session can ship the next code change:
+✓ DONE: all 10 M5.5 migrations applied to remote D1 (2026-05-12).
 
-1. Apply migration 0053 (~30 seconds):
-     source .claude/.env
-     CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN \
-       npx wrangler d1 migrations apply air-action-sports-db --remote
+Remaining operator-driven verification (not blocking next code change;
+can happen alongside the next session):
 
-   Verify:
-     wrangler d1 execute air-action-sports-db --remote --command="SELECT slug FROM email_templates WHERE slug='inquiry_notification'"
-     # expected: 1 row
-
-2. Run the 6-item smoke checklist in docs/runbooks/m55-deploy.md
-   ("Post-deploy smoke" section). Confirms:
+1. 6-item smoke checklist in docs/runbooks/m55-deploy.md "Post-deploy
+   smoke" section. Confirms:
    - /contact form submission (general + field-rental paths)
    - Operator notification email arrives
-   - Honeypot guard works
+   - Honeypot guard returns 200 silently
    - Rate limit returns 429 on burst
    - 03:00 UTC cron summary includes recurrenceGen + coiAlerts + leadStale
+
+2. First overnight cron — inspect Cloudflare Workers logs after the
+   next 03:00 UTC sweep. Expected: all three new sweeps return zero
+   counts with 0 field_rentals records in production.
 
 If smoke fails on any item, see docs/runbooks/m55-rollback.md for the
 4-level decision tree. The fresh session can help diagnose — start by

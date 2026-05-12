@@ -38,16 +38,37 @@ Ten migrations were applied over the milestone, in order:
 | `0047_field_rentals_core.sql` | B4 | `field_rentals` + `field_rental_recurrences` + `customer_contacts` + `field_rental_contacts` (4 tables, ~50 cols on the workhorse) | ✓ 2026-05-11 |
 | `0048_field_rentals_documents_payments.sql` | B5 | `site_use_agreement_documents` + `field_rental_documents` + `field_rental_payments` (3 tables) | ✓ 2026-05-11 |
 | `0049_field_rentals_capabilities.sql` | B6 | 17 new caps + `site_coordinator` role_preset + 45 bindings | ✓ 2026-05-11 |
-| `0050_customers_client_type_not_null.sql` | B9 | Column-rename to NOT NULL DEFAULT 'individual' (D1 quirk #2 pattern) | ✓ 2026-05-12 |
-| `0051_cron_sentinels_and_business_caps.sql` | B10a | `field_rentals.lead_stale_at` column + `site_coordinator → customers.read.business_fields` binding | ✓ 2026-05-12 |
-| `0052_field_rental_cron_email_templates.sql` | B10b | 4 cron email templates (coi_alert_60d/30d/7d + field_rental_lead_stale) | ✓ 2026-05-12 |
-| `0053_inquiry_notification_email_template.sql` | B11 | 1 email template (inquiry_notification) for the public /contact pipeline | (queued — apply after merge) |
+| `0050_customers_client_type_not_null.sql` | B9 | Column-rename to NOT NULL DEFAULT 'individual' (D1 quirk #2 pattern) | ✓ 2026-05-12 (post-deploy) |
+| `0051_cron_sentinels_and_business_caps.sql` | B10a | `field_rentals.lead_stale_at` column + `site_coordinator → customers.read.business_fields` binding | ✓ 2026-05-12 (post-deploy) |
+| `0052_field_rental_cron_email_templates.sql` | B10b | 4 cron email templates (coi_alert_60d/30d/7d + field_rental_lead_stale) | ✓ 2026-05-12 (post-deploy) |
+| `0053_inquiry_notification_email_template.sql` | B11 | 1 email template (inquiry_notification) for the public /contact pipeline | ✓ 2026-05-12 (post-deploy) |
 
-To apply remaining migration:
+**All 10 M5.5 migrations now applied to remote.** Note: 0050-0053 actually landed together post-deploy on 2026-05-12 (the per-batch PR descriptions optimistically said "applied" but the operator held the wrangler apply until after the milestone-to-main merge — verified via `wrangler d1 migrations list --remote` which showed all 4 pending before the final apply pass).
+
+For reference (already done):
 
 ```bash
 source .claude/.env  # or export CLOUDFLARE_API_TOKEN
 CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
+```
+
+Verification queries (ran 2026-05-12 post-apply):
+
+```bash
+# 5 new email templates seeded
+wrangler d1 execute air-action-sports-db --remote \
+  --command="SELECT slug FROM email_templates WHERE slug IN ('coi_alert_60d','coi_alert_30d','coi_alert_7d','field_rental_lead_stale','inquiry_notification')"
+# Result: 5 rows ✓
+
+# customers.client_type backfilled
+wrangler d1 execute air-action-sports-db --remote \
+  --command="SELECT client_type, COUNT(*) AS n FROM customers GROUP BY client_type"
+# Result: 'individual' = 2 ✓
+
+# site_coordinator binding seeded
+wrangler d1 execute air-action-sports-db --remote \
+  --command="SELECT role_preset_key FROM role_preset_capabilities WHERE capability_key='customers.read.business_fields' ORDER BY role_preset_key"
+# Result: booking_coordinator, bookkeeper, event_director, owner, site_coordinator ✓
 ```
 
 ---

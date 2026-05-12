@@ -40,7 +40,7 @@ Test growth across M5.5:
 D1 MIGRATIONS APPLIED DURING M5.5
 ────────────────────────────────────────────────────────────────────
 
-10 migrations applied to remote during the milestone:
+All 10 migrations applied to remote during the milestone:
 
   0044_sites_schema.sql                         (B1; 2026-05-11)
   0045_events_site_id.sql                       (B2; 2026-05-11)
@@ -48,13 +48,19 @@ D1 MIGRATIONS APPLIED DURING M5.5
   0047_field_rentals_core.sql                   (B4; 2026-05-11)
   0048_field_rentals_documents_payments.sql     (B5; 2026-05-11)
   0049_field_rentals_capabilities.sql           (B6; 2026-05-11)
-  0050_customers_client_type_not_null.sql       (B9; 2026-05-12)
-  0051_cron_sentinels_and_business_caps.sql     (B10a; 2026-05-12)
-  0052_field_rental_cron_email_templates.sql    (B10b; 2026-05-12)
-  0053_inquiry_notification_email_template.sql  (B11; queued)
+  0050_customers_client_type_not_null.sql       (B9; 2026-05-12 post-deploy)
+  0051_cron_sentinels_and_business_caps.sql     (B10a; 2026-05-12 post-deploy)
+  0052_field_rental_cron_email_templates.sql    (B10b; 2026-05-12 post-deploy)
+  0053_inquiry_notification_email_template.sql  (B11; 2026-05-12 post-deploy)
 
 All additive except 0050 + 0023 (M3) which use the column-rename pattern
 per CLAUDE.md D1 quirk #2.
+
+Note: 0050-0053 landed together post-deploy on 2026-05-12 (the per-batch
+PR descriptions optimistically claimed "applied" mid-milestone, but the
+operator held the wrangler apply until after the milestone-to-main
+merge; all 4 were pending in `wrangler d1 migrations list --remote` and
+applied in one pass).
 
 ────────────────────────────────────────────────────────────────────
 NEW GATED PATHS (scripts/test-gate-mapping.json)
