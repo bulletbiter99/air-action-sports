@@ -97,7 +97,7 @@ export default function Home() {
         <div className="hero-grid-overlay"></div>
         <div className="hero-content">
           <div className="hero-badge">&#9632; Live Field Operations &#9632;</div>
-          <h1>Lock &amp;<span>Load Up.</span></h1>
+          <h1>Live Airsoft<span>Events</span></h1>
           <p className="hero-sub">
             Real terrain. Real tactics. Real fun.<br />
             Airsoft events across multiple elite outdoor sites.
