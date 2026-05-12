@@ -33,22 +33,13 @@
   overflow-y: auto;
   z-index: 50;
 }
-/* Override global `nav { position: fixed; align-items: center; justify-content: space-between }` from global.css */
+/* Admin sidebar nav — vertical column inside the sticky sidebar. */
 nav.admin-sidebar-nav {
-  position: static;
-  top: auto;
-  width: auto;
-  background: transparent;
-  border-bottom: 0;
-  justify-content: flex-start;
-  align-items: stretch;
-  padding: var(--admin-pad-nav);
-  height: auto;
   display: flex;
   flex-direction: column;
+  padding: var(--admin-pad-nav);
   overflow-y: auto;
   flex: 1;
-  z-index: auto;
 }
 nav.admin-sidebar-nav a { text-align: left; }
 
