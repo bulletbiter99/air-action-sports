@@ -518,4 +518,84 @@ adminStaff.post('/:id/invite', requireCapability('staff.invite'), async (c) => {
     return c.json({ ok: true, sessionId, ...(debugLink ? { debugLink } : {}) });
 });
 
+// ────────────────────────────────────────────────────────────────────
+// GET /api/admin/staff/:id/portal-sessions — list portal-invite +
+// portal-session history for the Access tab on AdminStaffDetail.
+// ────────────────────────────────────────────────────────────────────
+adminStaff.get('/:id/portal-sessions', requireCapability('staff.read'), async (c) => {
+    const personId = c.req.param('id');
+    const rows = await c.env.DB.prepare(
+        `SELECT id, person_id, consumed_at, expires_at, cookie_expires_at,
+                ip_address, user_agent, created_by_user_id, created_at,
+                revoked_at, revoked_reason
+         FROM portal_sessions
+         WHERE person_id = ?
+         ORDER BY created_at DESC
+         LIMIT 100`
+    ).bind(personId).all();
+
+    const now = Date.now();
+    const sessions = (rows.results || []).map((r) => {
+        let status;
+        if (r.revoked_at) {
+            status = 'revoked';
+        } else if (r.consumed_at) {
+            status = (r.cookie_expires_at && r.cookie_expires_at >= now) ? 'active' : 'expired';
+        } else {
+            status = r.expires_at >= now ? 'pending' : 'expired';
+        }
+        return {
+            id: r.id,
+            personId: r.person_id,
+            createdAt: r.created_at,
+            consumedAt: r.consumed_at,
+            expiresAt: r.expires_at,
+            cookieExpiresAt: r.cookie_expires_at,
+            revokedAt: r.revoked_at,
+            revokedReason: r.revoked_reason,
+            ipAddress: r.ip_address,
+            userAgent: r.user_agent,
+            createdByUserId: r.created_by_user_id,
+            status,
+        };
+    });
+
+    return c.json({ sessions });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// POST /api/admin/staff/:id/portal-sessions/:sessionId/revoke
+// Invalidates a portal session. Gated by staff.invite (same cap that
+// creates them). Idempotent: returns 409 if already revoked.
+// ────────────────────────────────────────────────────────────────────
+adminStaff.post('/:id/portal-sessions/:sessionId/revoke', requireCapability('staff.invite'), async (c) => {
+    const personId = c.req.param('id');
+    const sessionId = c.req.param('sessionId');
+    const body = await c.req.json().catch(() => ({}));
+    const reason = body.reason ? String(body.reason).slice(0, 200) : 'admin_revoked';
+
+    const row = await c.env.DB.prepare(
+        'SELECT id, person_id, revoked_at FROM portal_sessions WHERE id = ?'
+    ).bind(sessionId).first();
+    if (!row) return c.json({ error: 'Not found' }, 404);
+    if (row.person_id !== personId) return c.json({ error: 'Session does not belong to this person' }, 400);
+    if (row.revoked_at) return c.json({ error: 'Already revoked', revokedAt: row.revoked_at }, 409);
+
+    const now = Date.now();
+    await c.env.DB.prepare(
+        'UPDATE portal_sessions SET revoked_at = ?, revoked_reason = ? WHERE id = ?'
+    ).bind(now, reason, sessionId).run();
+
+    const user = c.get('user');
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'portal.session.revoked',
+        targetType: 'person',
+        targetId: personId,
+        meta: { sessionId, reason },
+    });
+
+    return c.json({ ok: true, revokedAt: now });
+});
+
 export default adminStaff;
