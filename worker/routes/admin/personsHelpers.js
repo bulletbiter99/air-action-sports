@@ -6,8 +6,28 @@
 // Idempotent: if a persons row already exists for the user_id, returns
 // the existing row without modification.
 
-import { legacyRoleToPersonRoleId } from '../../../scripts/backfill-persons.js';
 import { writeAudit } from '../../lib/auditLog.js';
+
+/**
+ * Mirrors scripts/backfill-persons.js legacyRoleToPersonRoleId. Kept inline
+ * here (not imported from the CLI script) because Cloudflare Workers
+ * cannot load the `node:*` modules that script's CLI portion pulls in
+ * (node:child_process, node:fs, etc.). Duplicating 13 lines of a pure
+ * switch is cheaper than the coupling.
+ */
+function legacyRoleToPersonRoleId(legacyRole) {
+    if (!legacyRole) return null;
+    switch (legacyRole) {
+        case 'owner':
+            return 'role_event_director';
+        case 'manager':
+            return 'role_booking_coordinator';
+        case 'staff':
+            return 'role_check_in_staff';
+        default:
+            return null;
+    }
+}
 
 /**
  * Generates a 12-char random alphanumeric ID with the given prefix.
