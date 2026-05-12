@@ -5,6 +5,7 @@ import { formatMoney } from '../utils/money.js';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import EmptyState from '../components/admin/EmptyState.jsx';
 import FilterBar from '../components/admin/FilterBar.jsx';
+import { parseEmailList, formatDiscountDisplay } from './promoCodeBatchHelpers.js';
 
 const ACTIVE_OPTIONS = [
   { value: '1', label: 'Active' },
@@ -54,6 +55,7 @@ export default function AdminPromoCodes() {
   const [filters, setFilters] = useState({ active: '', event_id: '', q: '' });
   const [loadingList, setLoadingList] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [batchOpen, setBatchOpen] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -123,9 +125,12 @@ export default function AdminPromoCodes() {
     <div style={pageWrap}>
       <AdminPageHeader
         title="Promo Codes"
-        description="Discount codes for events. Codes can be percent or fixed-amount, scoped to a single event or global, with optional usage caps and date windows."
+        description="Discount codes for events. Codes can be percent or fixed-amount, scoped to a single event or global, with optional usage caps and date windows. Use Batch Create to issue single-use codes bound to specific recipients (e.g. past-attendee VIP campaigns)."
         primaryAction={hasRole('manager') && (
-          <button onClick={() => setEditing('new')} style={primaryBtn}>+ New Code</button>
+          <div style={{ display: 'flex', gap: 'var(--space-8)' }}>
+            <button onClick={() => setBatchOpen(true)} style={subtleBtn}>+ Batch Create</button>
+            <button onClick={() => setEditing('new')} style={primaryBtn}>+ New Code</button>
+          </div>
         )}
       />
 
@@ -219,6 +224,14 @@ export default function AdminPromoCodes() {
           onSaved={() => { setEditing(null); load(); }}
         />
       )}
+
+      {batchOpen && (
+        <BatchPromoModal
+          events={events}
+          onClose={() => setBatchOpen(false)}
+          onDone={() => { setBatchOpen(false); load(); }}
+        />
+      )}
     </div>
   );
 }
@@ -234,6 +247,7 @@ function PromoForm({ promo, events, onClose, onSaved }) {
     minOrderCents: promo?.minOrderCents ?? '',
     startsAt: promo?.startsAt ? toLocalInput(promo.startsAt) : '',
     expiresAt: promo?.expiresAt ? toLocalInput(promo.expiresAt) : '',
+    restrictedToEmail: promo?.restrictedToEmail || '',
     active: promo ? !!promo.active : true,
   });
   const [saving, setSaving] = useState(false);
@@ -249,6 +263,7 @@ function PromoForm({ promo, events, onClose, onSaved }) {
       minOrderCents: form.minOrderCents === '' ? null : Number(form.minOrderCents),
       startsAt: form.startsAt ? new Date(form.startsAt).getTime() : null,
       expiresAt: form.expiresAt ? new Date(form.expiresAt).getTime() : null,
+      restrictedToEmail: form.restrictedToEmail?.trim() ? form.restrictedToEmail.trim().toLowerCase() : null,
       discountValue: Number(form.discountValue),
     };
     const url = isNew ? '/api/admin/promo-codes' : `/api/admin/promo-codes/${promo.id}`;
@@ -315,6 +330,9 @@ function PromoForm({ promo, events, onClose, onSaved }) {
             <input type="datetime-local" value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} style={input} />
           </Field>
         </div>
+        <Field label="Restrict to email (optional — single recipient only)">
+          <input type="email" value={form.restrictedToEmail} onChange={(e) => setForm({ ...form, restrictedToEmail: e.target.value })} style={input} placeholder="alice@example.com" />
+        </Field>
         <label style={activeCheckbox}>
           <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
           Active
@@ -327,6 +345,230 @@ function PromoForm({ promo, events, onClose, onSaved }) {
           <button type="button" onClick={onClose} style={subtleBtn}>Cancel</button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function BatchPromoModal({ events, onClose, onDone }) {
+  const [emailText, setEmailText] = useState('');
+  const [parsed, setParsed] = useState({ valid: [], invalid: [], duplicates: [] });
+  const [eventId, setEventId] = useState('');
+  const [discountType, setDiscountType] = useState('percent');
+  const [discountValue, setDiscountValue] = useState(25);
+  const [expiresAt, setExpiresAt] = useState('');
+  const [minOrderCents, setMinOrderCents] = useState('');
+  const [codePrefix, setCodePrefix] = useState('AAS');
+  const [sendEmails, setSendEmails] = useState(true);
+  const [sendToSelfFirst, setSendToSelfFirst] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState('');
+
+  function reparse(text) {
+    setEmailText(text);
+    setParsed(parseEmailList(text));
+  }
+
+  function removeEmail(email) {
+    const remaining = parsed.valid.filter((e) => e !== email);
+    setParsed({ ...parsed, valid: remaining });
+    setEmailText(remaining.join('\n'));
+  }
+
+  const totalRecipients = parsed.valid.length + (sendToSelfFirst ? 1 : 0);
+  const discountDisplay = formatDiscountDisplay(discountType, discountType === 'fixed' ? discountValue * 100 : discountValue);
+
+  async function submit() {
+    setErr('');
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/admin/promo-codes/batch', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipients: parsed.valid.map((email) => ({ email })),
+          discountType,
+          discountValue: discountType === 'fixed' ? Math.round(Number(discountValue) * 100) : Math.round(Number(discountValue)),
+          expiresAt: expiresAt ? new Date(expiresAt).getTime() : null,
+          minOrderCents: minOrderCents === '' ? null : Math.round(Number(minOrderCents) * 100),
+          eventId: eventId || null,
+          codePrefix: codePrefix.trim().toUpperCase(),
+          sendEmails,
+          sendToSelfFirst,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(data.error || `Batch failed (${res.status})`);
+        return;
+      }
+      setResult(data);
+    } catch (e) {
+      setErr(e?.message || 'Network error');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (result) {
+    return (
+      <div style={modalBg} onClick={() => { onDone(); }}>
+        <div style={modal} onClick={(e) => e.stopPropagation()}>
+          <div style={modalHeader}>
+            <h3 style={modalTitle}>Batch complete</h3>
+            <button type="button" onClick={onDone} style={subtleBtn}>Close</button>
+          </div>
+          <p>{result.created} codes created. {sendEmails ? `${result.emailsSent} emails sent.` : '(emails not sent)'}</p>
+          {result.emailResults?.filter((r) => r.error).length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, color: 'var(--color-warning)', marginBottom: 4 }}>Send failures:</div>
+              <ul style={{ fontSize: 12, color: 'var(--color-text-muted)', maxHeight: 120, overflow: 'auto', paddingLeft: 16 }}>
+                {result.emailResults.filter((r) => r.error).map((r, i) => <li key={i}>{r.email} — {r.error}</li>)}
+              </ul>
+            </div>
+          )}
+          <div style={modalActions}>
+            <button type="button" onClick={onDone} style={primaryBtn}>Done</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={modalBg} onClick={onClose}>
+      <div style={modal} onClick={(e) => e.stopPropagation()}>
+        <div style={modalHeader}>
+          <h3 style={modalTitle}>Batch create promo codes</h3>
+          <button type="button" onClick={onClose} style={subtleBtn}>Close</button>
+        </div>
+
+        <Field label="Recipients — paste one email per line (or comma/semicolon separated)">
+          <textarea
+            value={emailText}
+            onChange={(e) => reparse(e.target.value)}
+            rows={6}
+            style={{ ...input, fontFamily: 'monospace', resize: 'vertical' }}
+            placeholder={'alice@example.com\nbob@example.com\ncarol@example.com'}
+          />
+        </Field>
+
+        {(parsed.valid.length > 0 || parsed.invalid.length > 0 || parsed.duplicates.length > 0) && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {parsed.valid.map((email) => (
+                <span key={email} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '4px 8px', background: 'var(--color-success-soft)',
+                  color: 'var(--color-success)', fontSize: 11, borderRadius: 3,
+                }}>
+                  {email}
+                  <button type="button" onClick={() => removeEmail(email)} style={{
+                    background: 'transparent', border: 0, color: 'inherit',
+                    cursor: 'pointer', padding: '0 2px', fontSize: 12,
+                  }}>×</button>
+                </span>
+              ))}
+            </div>
+            {parsed.invalid.length > 0 && (
+              <div style={{ marginTop: 6, fontSize: 11, color: 'var(--color-danger)' }}>
+                Invalid: {parsed.invalid.join(', ')}
+              </div>
+            )}
+            {parsed.duplicates.length > 0 && (
+              <div style={{ marginTop: 6, fontSize: 11, color: 'var(--color-warning)' }}>
+                Duplicates removed: {parsed.duplicates.length}
+              </div>
+            )}
+          </div>
+        )}
+
+        <Field label="Event (blank = all events)">
+          <select value={eventId} onChange={(e) => setEventId(e.target.value)} style={input}>
+            <option value="">All events</option>
+            {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+          </select>
+        </Field>
+
+        <div style={fieldRow}>
+          <Field label="Discount type">
+            <select value={discountType} onChange={(e) => setDiscountType(e.target.value)} style={input}>
+              <option value="percent">Percent (%)</option>
+              <option value="fixed">Fixed amount (USD)</option>
+            </select>
+          </Field>
+          <Field label={discountType === 'percent' ? 'Percent (1–100)' : 'Amount off (USD)'}>
+            <input type="number" min="1" max={discountType === 'percent' ? '100' : undefined} step={discountType === 'fixed' ? '0.01' : '1'} value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} style={input} />
+          </Field>
+        </div>
+
+        <div style={fieldRow}>
+          <Field label="Expires at">
+            <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} style={input} />
+          </Field>
+          <Field label="Min order (USD, optional)">
+            <input type="number" step="0.01" value={minOrderCents} onChange={(e) => setMinOrderCents(e.target.value)} style={input} />
+          </Field>
+        </div>
+
+        <Field label="Code prefix (2–12 chars, A–Z / 0–9)">
+          <input value={codePrefix} onChange={(e) => setCodePrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))} style={input} placeholder="AAS" />
+        </Field>
+
+        <label style={{ ...activeCheckbox, display: 'flex' }}>
+          <input type="checkbox" checked={sendEmails} onChange={(e) => setSendEmails(e.target.checked)} />
+          Email each recipient their code immediately
+        </label>
+        <label style={{ ...activeCheckbox, display: 'flex' }}>
+          <input type="checkbox" checked={sendToSelfFirst} onChange={(e) => setSendToSelfFirst(e.target.checked)} />
+          Send a test code to my own email too (for previewing)
+        </label>
+
+        {err && <div style={errorText}>{err}</div>}
+
+        <div style={modalActions}>
+          <button
+            type="button"
+            disabled={parsed.valid.length === 0 || !Number(discountValue)}
+            onClick={() => setConfirmOpen(true)}
+            style={primaryBtn}
+          >
+            {sendEmails ? 'Generate codes & email recipients…' : 'Generate codes…'}
+          </button>
+          <button type="button" onClick={onClose} style={subtleBtn}>Cancel</button>
+        </div>
+
+        {confirmOpen && (
+          <div style={{ ...modalBg, zIndex: 1100 }} onClick={() => !submitting && setConfirmOpen(false)}>
+            <div style={{ ...modal, maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+              <div style={modalHeader}>
+                <h3 style={modalTitle}>Confirm batch</h3>
+              </div>
+              <p style={{ fontSize: 14, marginBottom: 12 }}>
+                <strong>{totalRecipients}</strong> {totalRecipients === 1 ? 'code' : 'codes'} will be created
+                {sendEmails && <> and <strong>{totalRecipients}</strong> {totalRecipients === 1 ? 'email will be sent' : 'emails will be sent'}</>}.
+              </p>
+              <ul style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16, paddingLeft: 20 }}>
+                <li>Discount: <strong style={{ color: 'var(--color-text)' }}>{discountDisplay}</strong></li>
+                <li>Event scope: <strong style={{ color: 'var(--color-text)' }}>{eventId ? events.find((e) => e.id === eventId)?.title || eventId : 'all events'}</strong></li>
+                <li>Expires: <strong style={{ color: 'var(--color-text)' }}>{expiresAt ? new Date(expiresAt).toLocaleString() : 'no expiration'}</strong></li>
+                <li>Each code is <strong style={{ color: 'var(--color-text)' }}>single-use</strong> and bound to its recipient's email.</li>
+              </ul>
+              <div style={{ padding: 12, background: 'var(--color-warning-soft)', color: 'var(--color-warning)', fontSize: 12, borderRadius: 3, marginBottom: 16 }}>
+                <strong>⚠ This cannot be undone.</strong> {sendEmails ? 'Emails will be sent immediately. ' : ''}Codes can be deactivated later, but they will appear as "Invalid code" to recipients — bad UX. Double-check the list before sending.
+              </div>
+              <div style={modalActions}>
+                <button type="button" disabled={submitting} onClick={async () => { await submit(); setConfirmOpen(false); }} style={primaryBtn}>
+                  {submitting ? 'Working…' : `Yes, ${sendEmails ? `send ${totalRecipients} ${totalRecipients === 1 ? 'email' : 'emails'}` : 'create codes'}`}
+                </button>
+                <button type="button" disabled={submitting} onClick={() => setConfirmOpen(false)} style={subtleBtn}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

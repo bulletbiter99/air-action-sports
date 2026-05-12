@@ -72,7 +72,7 @@ async function checkTicketInventory(db, eventId, ticketSelections) {
     return errors;
 }
 
-async function resolvePromoCode(db, code, eventId, subtotalCents) {
+async function resolvePromoCode(db, code, eventId, subtotalCents, customerEmail) {
     if (!code) return null;
     const row = await db.prepare(
         `SELECT * FROM promo_codes
@@ -86,6 +86,15 @@ async function resolvePromoCode(db, code, eventId, subtotalCents) {
     if (row.max_uses != null && row.uses_count >= row.max_uses) return { error: 'Promo code used up' };
     if (row.min_order_cents && subtotalCents < row.min_order_cents) {
         return { error: `Promo code requires order ≥ $${centsToDollars(row.min_order_cents)}` };
+    }
+    // Email restriction (single-use-per-recipient codes). Soft on /quote
+    // when no email has been entered yet (just shows the discount preview);
+    // /checkout always passes buyer.email so a mismatch hard-rejects there.
+    if (row.restricted_to_email) {
+        const provided = customerEmail ? String(customerEmail).trim().toLowerCase() : null;
+        if (provided && provided !== String(row.restricted_to_email).trim().toLowerCase()) {
+            return { error: 'This code is restricted to a different email address' };
+        }
     }
     return {
         id: row.id,
@@ -120,7 +129,11 @@ bookings.post('/quote', rateLimit('RL_QUOTE'), async (c) => {
     let promo = null;
     let promoError = null;
     if (body.promoCode && preQuote.subtotalCents > 0) {
-        const resolved = await resolvePromoCode(c.env.DB, body.promoCode, body.eventId, preQuote.subtotalCents);
+        // /quote may be called before the user enters contact info — pass
+        // whatever buyer.email the form has (null is fine; the email gate
+        // only fires when a value is provided AND there's a restriction).
+        const previewEmail = body.buyer?.email || null;
+        const resolved = await resolvePromoCode(c.env.DB, body.promoCode, body.eventId, preQuote.subtotalCents, previewEmail);
         if (resolved?.error) promoError = resolved.error;
         else promo = resolved;
     }
@@ -218,7 +231,9 @@ bookings.post('/checkout', rateLimit('RL_CHECKOUT'), async (c) => {
 
     let promo = null;
     if (body.promoCode && preQuote.subtotalCents > 0) {
-        const resolved = await resolvePromoCode(c.env.DB, body.promoCode, body.eventId, preQuote.subtotalCents);
+        // /checkout always has buyer.email (required above); email-restricted
+        // codes hard-reject when the booking email doesn't match.
+        const resolved = await resolvePromoCode(c.env.DB, body.promoCode, body.eventId, preQuote.subtotalCents, buyer.email);
         if (resolved?.error) return c.json({ error: resolved.error }, 400);
         promo = resolved;
     }
