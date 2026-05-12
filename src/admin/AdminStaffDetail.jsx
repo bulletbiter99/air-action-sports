@@ -90,7 +90,7 @@ export default function AdminStaffDetail() {
                 {activeTab === 'profile' && <ProfileTab person={p} canEdit={hasRole?.('manager')} onSaved={load} />}
                 {activeTab === 'roles' && <RolesTab personId={p.id} roles={data.roles} canAssign={hasRole?.('manager')} onChanged={load} />}
                 {activeTab === 'notes' && <NotesTab personId={p.id} person={p} canEdit={hasRole?.('manager')} onSaved={load} />}
-                {activeTab === 'documents' && <TabPlaceholder batch="Batch 5" feature="Document acknowledgments" />}
+                {activeTab === 'documents' && <DocumentsTab personId={p.id} canAssign={hasRole?.('manager')} />}
                 {activeTab === 'access' && <AccessTab personId={p.id} hasEmail={Boolean(p.email)} canInvite={hasRole?.('manager')} />}
                 {activeTab === 'issues' && <TabPlaceholder batch="Batch 14" feature="Incident log" />}
                 {activeTab === 'certifications' && <CertificationsTab personId={p.id} canEdit={hasRole?.('manager')} />}
@@ -293,6 +293,151 @@ function NotesTab({ personId, person, canEdit, onSaved }) {
                     {saving ? 'Saving…' : 'Save'}
                 </button>
             )}
+        </div>
+    );
+}
+
+function DocumentsTab({ personId, canAssign }) {
+    const [docs, setDocs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [ackTarget, setAckTarget] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState(null);
+    const [successMsg, setSuccessMsg] = useState(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/admin/staff-documents/for-person/${personId}`, { credentials: 'include', cache: 'no-store' });
+            if (res.ok) setDocs((await res.json()).documents || []);
+        } finally { setLoading(false); }
+    }, [personId]);
+
+    useEffect(() => { load(); }, [load]);
+
+    async function submitAck() {
+        if (!ackTarget) return;
+        setError(null);
+        setSuccessMsg(null);
+        setSubmitting(true);
+        try {
+            const res = await fetch(`/api/admin/staff-documents/${ackTarget.staffDocumentId}/acknowledge-for-person`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ personId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                setSuccessMsg(`Marked "${ackTarget.title}" v${ackTarget.version} as acknowledged.`);
+                setAckTarget(null);
+                await load();
+            } else {
+                setError(data?.error || `Acknowledge failed (${res.status})`);
+            }
+        } finally { setSubmitting(false); }
+    }
+
+    const requiredPending = docs.filter((d) => d.status === 'required_pending' || d.status === 'required_stale');
+    const acknowledged = docs.filter((d) => d.status === 'required_acked' || d.status === 'optional_acked');
+    const available = docs.filter((d) => d.status === 'available');
+
+    return (
+        <div style={section}>
+            <h2 style={h2}>Documents</h2>
+            {error && <div style={{ marginTop: 12, padding: 10, background: 'var(--color-danger-soft)', color: 'var(--color-danger)', fontSize: 13 }}>{error}</div>}
+            {successMsg && <div style={{ marginTop: 12, padding: 10, background: 'var(--color-success-soft)', color: 'var(--color-success)', fontSize: 13 }}>{successMsg}</div>}
+
+            {loading && <p style={{ color: 'var(--olive-light)', marginTop: 12 }}>Loading…</p>}
+            {!loading && docs.length === 0 && <p style={{ color: 'var(--olive-light)', fontStyle: 'italic', marginTop: 12 }}>No documents in the library yet. Manage at <Link to="/admin/staff/library" style={{ color: 'var(--orange)' }}>/admin/staff/library</Link>.</p>}
+
+            {!loading && requiredPending.length > 0 && (
+                <DocSection title={`Required — pending (${requiredPending.length})`} variant="warning">
+                    {requiredPending.map((d) => (
+                        <DocRow key={d.staffDocumentId} doc={d} canAssign={canAssign} onAck={() => setAckTarget(d)} />
+                    ))}
+                </DocSection>
+            )}
+
+            {!loading && acknowledged.length > 0 && (
+                <DocSection title={`Acknowledged (${acknowledged.length})`} variant="success">
+                    {acknowledged.map((d) => (
+                        <DocRow key={d.staffDocumentId} doc={d} canAssign={canAssign} />
+                    ))}
+                </DocSection>
+            )}
+
+            {!loading && available.length > 0 && (
+                <DocSection title={`Available in library (${available.length})`} variant="subtle">
+                    {available.map((d) => (
+                        <DocRow key={d.staffDocumentId} doc={d} canAssign={canAssign} onAck={() => setAckTarget(d)} />
+                    ))}
+                </DocSection>
+            )}
+
+            {ackTarget && (
+                <div style={modalBack} onClick={() => setAckTarget(null)}>
+                    <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={{ ...h2, marginBottom: 16 }}>Mark as acknowledged</h3>
+                        <p style={{ color: 'var(--olive-light)', fontSize: 13, marginBottom: 12 }}>
+                            Record an admin-side acknowledgment for <strong style={{ color: 'var(--cream)' }}>{ackTarget.title}</strong> (v{ackTarget.version}). This is for cases where the person signed a paper copy or acknowledged out-of-band; the normal flow is portal self-serve.
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+                            <button type="button" onClick={() => setAckTarget(null)} style={cancelBtn}>Cancel</button>
+                            <button type="button" disabled={submitting} onClick={submitAck} style={primaryBtn}>
+                                {submitting ? 'Recording…' : 'Mark acknowledged'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function DocSection({ title, variant, children }) {
+    const titleColor = variant === 'warning' ? 'var(--color-warning)'
+        : variant === 'success' ? 'var(--color-success)'
+        : 'var(--color-text-muted)';
+    return (
+        <div style={{ marginTop: 16 }}>
+            <h3 style={{ fontSize: 11, color: titleColor, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{title}</h3>
+            <div>{children}</div>
+        </div>
+    );
+}
+
+function DocRow({ doc, canAssign, onAck }) {
+    return (
+        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <strong style={{ color: 'var(--cream)' }}>{doc.title}</strong>
+                    <span style={{ fontSize: 10, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>{doc.kind} · v{doc.version}</span>
+                    {(doc.requiredForRoles || []).length > 0 && (
+                        <span style={{ fontSize: 10, color: 'var(--color-warning)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                            Required for: {doc.requiredForRoles.map((r) => r.name).join(', ')}
+                        </span>
+                    )}
+                </div>
+                {doc.description && <p style={{ color: 'var(--olive-light)', fontSize: 12, margin: '4px 0 0' }}>{doc.description}</p>}
+                {doc.acknowledged && (
+                    <p style={{ color: 'var(--color-text-muted)', fontSize: 11, margin: '4px 0 0' }}>
+                        Acknowledged v{doc.acknowledged.version} on {new Date(doc.acknowledged.at).toLocaleDateString()}
+                        {doc.status === 'required_stale' && <span style={{ color: 'var(--color-warning)', marginLeft: 6 }}>· stale (newer version published)</span>}
+                        <span style={{ marginLeft: 6 }}>· {doc.acknowledged.source === 'admin_assigned' ? 'admin-recorded' : 'portal self-serve'}</span>
+                    </p>
+                )}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                {canAssign && onAck && (
+                    <button type="button" onClick={onAck} style={{ padding: '6px 12px', fontSize: 11, background: 'transparent', border: '1px solid var(--color-border-strong)', color: 'var(--orange)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        Mark acked
+                    </button>
+                )}
+                <Link to={`/admin/staff/library/${doc.staffDocumentId}`} style={{ padding: '6px 12px', fontSize: 11, background: 'transparent', border: '1px solid var(--color-border-strong)', color: 'var(--tan)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                    View
+                </Link>
+            </div>
         </div>
     );
 }
