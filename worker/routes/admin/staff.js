@@ -66,6 +66,7 @@ async function formatPerson(env, row, capabilities) {
     const canPii = capabilities.includes('staff.read.pii');
     const canCompensation = capabilities.includes('staff.read.compensation');
     const canSensitiveNotes = capabilities.includes('staff.notes.read_sensitive');
+    const canWriteSensitiveNotes = capabilities.includes('staff.notes.write_sensitive');
 
     let mailingAddress = null;
     if (canPii && row.mailing_address_ciphertext) {
@@ -94,6 +95,8 @@ async function formatPerson(env, row, capabilities) {
         updatedAt: row.updated_at,
         viewerCanSeePii: canPii,
         viewerCanSeeCompensation: canCompensation,
+        viewerCanSeeSensitiveNotes: canSensitiveNotes,
+        viewerCanWriteSensitiveNotes: canWriteSensitiveNotes,
     };
 }
 
