@@ -1,0 +1,211 @@
+M5.5 BASELINE COVERAGE — snapshot at milestone close (2026-05-12)
+================================================================
+
+Source-of-truth: milestone/5.5-field-rentals tip (after B11 squash-merge,
+before milestone-to-main final merge).
+
+This file is the cumulative coverage reference for M5.5. Mirrors the
+docs/runbooks/m{1,2,3,4,5}-baseline-coverage.* files for prior milestones.
+
+────────────────────────────────────────────────────────────────────
+TEST + LINT + BUILD STATE
+────────────────────────────────────────────────────────────────────
+
+Tests:           1997 passed across 161 files (npm test)
+Test runner:     Vitest 2.1.x, Node 20
+Lint:            0 errors / 440 warnings (npm run lint)
+                 (ESLint flat config from M3 B0; warnings are primarily
+                  react-refresh/only-export-components from the pure-helper
+                  exports on M5.5 JSX files — advisory, not breaking.)
+Build:           clean (~270ms) (npm run build)
+                 Bundle: AdminFieldRentalDetail-*.js ~26 kB lazy chunk;
+                 AdminFieldRentals + AdminFieldRentalNew lazy chunks;
+                 AdminCustomerDetail re-emits ~10 kB larger with the
+                 new Business profile + Field Rentals sections.
+
+Test growth across M5.5:
+  M5 close:      1538 / 146   (baseline at start of M5.5)
+  M5.5 B6.5:     1634 / 150   (+96 / +4)
+  M5.5 B7a:      1747 / 153   (+113 / +3)
+  M5.5 B7b:      1792 / 155   (+45 / +2)
+  M5.5 B8:       1857 / 156   (+65 / +1)
+  M5.5 B9:       1866 / 156   (+9 / +0)
+  M5.5 B10a:     1938 / 158   (+72 / +2)
+  M5.5 B10b:     1979 / 160   (+41 / +2)
+  M5.5 B11:      1997 / 161   (+18 / +1)
+  ────────────────
+  M5.5 total:    +459 tests / +15 files vs M5 close
+
+────────────────────────────────────────────────────────────────────
+D1 MIGRATIONS APPLIED DURING M5.5
+────────────────────────────────────────────────────────────────────
+
+10 migrations applied to remote during the milestone:
+
+  0044_sites_schema.sql                         (B1; 2026-05-11)
+  0045_events_site_id.sql                       (B2; 2026-05-11)
+  0046_customers_client_type.sql                (B3; 2026-05-11)
+  0047_field_rentals_core.sql                   (B4; 2026-05-11)
+  0048_field_rentals_documents_payments.sql     (B5; 2026-05-11)
+  0049_field_rentals_capabilities.sql           (B6; 2026-05-11)
+  0050_customers_client_type_not_null.sql       (B9; 2026-05-12)
+  0051_cron_sentinels_and_business_caps.sql     (B10a; 2026-05-12)
+  0052_field_rental_cron_email_templates.sql    (B10b; 2026-05-12)
+  0053_inquiry_notification_email_template.sql  (B11; queued)
+
+All additive except 0050 + 0023 (M3) which use the column-rename pattern
+per CLAUDE.md D1 quirk #2.
+
+────────────────────────────────────────────────────────────────────
+NEW GATED PATHS (scripts/test-gate-mapping.json)
+────────────────────────────────────────────────────────────────────
+
+M5.5 added 4 new gated paths (registered in B7b):
+
+  worker/lib/fieldRentals.js                    — pure helpers
+                                                  tests: lib/fieldRentals.test.js
+  worker/routes/admin/fieldRentals.js           — 8 endpoints
+                                                  tests: admin/fieldRentals/{list,detail}.test.js
+  worker/routes/admin/fieldRentalDocuments.js   — 5 endpoints
+                                                  tests: admin/fieldRentals/documents.test.js
+  worker/routes/admin/fieldRentalPayments.js    — 4 endpoints
+                                                  tests: admin/fieldRentals/payments.test.js
+
+────────────────────────────────────────────────────────────────────
+NEW WORKER ROUTES + LIBS
+────────────────────────────────────────────────────────────────────
+
+Public:
+  worker/routes/inquiry.js                      POST /api/inquiry (B11)
+
+Admin:
+  worker/routes/admin/sites.js                  10 endpoints (B6.5)
+  worker/routes/admin/fieldRentals.js           8 endpoints (B7a)
+  worker/routes/admin/fieldRentalDocuments.js   5 endpoints (B7b)
+  worker/routes/admin/fieldRentalPayments.js    4 endpoints (B7b)
+
+Libs:
+  worker/lib/eventConflicts.js                  (B3) NEW
+  worker/lib/fieldRentals.js                    (B7a) NEW
+  worker/lib/fieldRentalRecurrences.js          (B10a) NEW
+  worker/lib/fieldRentalCron.js                 (B10b) NEW
+
+Existing libs extended (additive only; DNT-protected 9 senders untouched):
+  worker/lib/ids.js                             +10 new ID generators
+  worker/lib/emailSender.js                     +3 senders (sendCoiAlert,
+                                                  sendLeadStaleAlert,
+                                                  + B7a/B7b weren't here)
+
+────────────────────────────────────────────────────────────────────
+NEW FRONTEND PAGES (admin)
+────────────────────────────────────────────────────────────────────
+
+  src/admin/AdminSites.jsx                      (B6.5)
+  src/admin/AdminSiteDetail.jsx                 (B6.5)
+  src/admin/AdminFieldRentals.jsx               (B8)
+  src/admin/AdminFieldRentalDetail.jsx          (B8) — 2-col layout + 5 modals
+  src/admin/AdminFieldRentalNew.jsx             (B8) — 3-step wizard
+  src/admin/AdminCustomerDetail.jsx             (B9 edit) — +Business + +FieldRentals sections
+  src/pages/Contact.jsx                         (B11 edit) — replaces placeholder
+
+Sidebar entries added (B6.5 + B8):
+  Sites           (capability: sites.read; tier: manager+)
+  Field Rentals   (capability: field_rentals.read; tier: manager+)
+
+────────────────────────────────────────────────────────────────────
+CRON SWEEPS REGISTERED
+────────────────────────────────────────────────────────────────────
+
+03:00 UTC daily dispatch (was 5 sweeps pre-M5.5, now 8):
+
+  runCustomerTagsSweep            (M3 B10; vip/frequent/lapsed/new)
+  runCertExpirationSweep          (M5 R8; 60d/30d/7d staff cert alerts)
+  runEventStaffingReminderSweep   (M5 R9)
+  runEventStaffingAutoDeclineSweep (M5 R9)
+  runTaxYearAutoLockSweep         (M5 R11)
+
+  runRecurrenceGenerationSweep    (M5.5 B10a) — 90-day horizon
+  runCoiExpirationSweep           (M5.5 B10b) — 60d/30d/7d COI alerts
+  runLeadStaleSweep               (M5.5 B10b) — 14d threshold + 7d cadence
+
+15-min dispatch (*/15 * * * *) unchanged:
+  runReminderSweep  +  runAbandonPendingSweep  +  runVendorSweep
+
+────────────────────────────────────────────────────────────────────
+EMAIL TEMPLATES SEEDED IN M5.5
+────────────────────────────────────────────────────────────────────
+
+5 new templates landed across M5.5:
+
+  coi_alert_60d                   (B10b)
+  coi_alert_30d                   (B10b)
+  coi_alert_7d                    (B10b)
+  field_rental_lead_stale         (B10b)
+  inquiry_notification            (B11)
+
+All seeded with id='tpl_<slug>' + created_at = updated_at per
+CLAUDE.md Lesson #7 (avoid the M5 deploy hotfix failure mode).
+
+────────────────────────────────────────────────────────────────────
+CAPABILITIES + ROLE-PRESETS
+────────────────────────────────────────────────────────────────────
+
+Capabilities added in M5.5:
+  +17 new caps seeded in B6 (migration 0049)
+  +0 new caps in B10a (only added a missing binding)
+  Total caps post-M5.5: ~92 (M5 pre-seeded ~75; M5.5 added 17)
+
+Role-preset added: site_coordinator (B6, migration 0049, tier 2)
+
+Role-preset → capability bindings added:
+  B6 / 0049:   45 bindings (owner + bookkeeper + compliance_reviewer + site_coordinator)
+  B10a / 0051: 1 binding (site_coordinator → customers.read.business_fields)
+  Total M5.5 new bindings: 46
+
+────────────────────────────────────────────────────────────────────
+KEY OPERATIONAL POSTURES (M5.5 carry-forward)
+────────────────────────────────────────────────────────────────────
+
+- Field rentals are ADMIN-CREATED via /admin/field-rentals/new OR
+  AUTO-CREATED via the public /contact form (subject=private-hire/corporate).
+  There is no admin-side POST /api/admin/customers endpoint yet;
+  phone-intake operators direct-INSERT via SQL or wait for the post-M5.5
+  polish batch.
+
+- Recurrence sweep generates child rentals out to a 90-day horizon
+  nightly. With 0 active series today, sweep is a no-op.
+
+- COI + lead-stale sweeps fire only when rentals exist with the
+  qualifying conditions. With 0 rentals today, sweeps are no-ops.
+
+- Public /contact form: rate-limited via RL_FEEDBACK, honeypot field
+  'website' silent-drops bots, subject routes to either field-rental
+  lead OR general inquiry. Operator notification email always sent
+  (best-effort: failure doesn't block public submission).
+
+- AES-GCM encryption: customers.business_tax_id + .business_billing_address
+  columns exist (migration 0046) but the decrypt+render+edit surface
+  is DEFERRED to a post-M5.5 polish batch. Stub messages on the
+  customer detail page point to "lands in M5.5 B10" — that text is
+  inaccurate post-deploy; track for the polish batch.
+
+────────────────────────────────────────────────────────────────────
+KNOWN POST-M5.5 POLISH ITEMS
+────────────────────────────────────────────────────────────────────
+
+(See docs/runbooks/m55-deploy.md "Known deferrals" for context.)
+
+  1. AES decryption surface for business_tax_id + business_billing_address
+     (route extension + AdminCustomerDetail render + edit modal)
+  2. Admin POST /api/admin/customers endpoint + create modal in AdminCustomers.jsx
+  3. Monthly recurrence with kind='day_of_month' support
+     (currently only kind='nth_weekday' is generated)
+  4. /status route clearing field_rentals.lead_stale_at on transition
+     (current: 7-day silence after revert; acceptable but minor polish)
+  5. CLAUDE.md + HANDOFF.md M5.5-close updates (deferred to post-merge docs PR)
+  6. UNIQUE constraint on (recurrence_id, recurrence_instance_index)
+     for stronger idempotency on the recurrence cron
+
+────────────────────────────────────────────────────────────────────
+END OF M5.5 BASELINE COVERAGE
+────────────────────────────────────────────────────────────────────

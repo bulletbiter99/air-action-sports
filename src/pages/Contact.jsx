@@ -11,8 +11,14 @@ export default function Contact() {
     phone: '',
     subject: '',
     message: '',
+    // Honeypot — bots will fill it, humans won't see it (display:none).
+    // Worker silently 200s any request with non-empty `website`.
+    website: '',
   });
   const [errors, setErrors] = useState({});
+  // 'idle' | 'submitting' | 'success' | 'error' | 'rate_limited'
+  const [submitState, setSubmitState] = useState('idle');
+  const [serverError, setServerError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -31,16 +37,38 @@ export default function Contact() {
     return newErrors;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = validate();
     setErrors(newErrors);
+    setServerError('');
 
-    if (Object.keys(newErrors).length === 0) {
-      // PLACEHOLDER: Replace with actual form submission (Formspree, fetch to backend, etc.)
-      alert("Message sent! We'll get back to you shortly.");
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+    if (Object.keys(newErrors).length > 0) return;
+
+    setSubmitState('submitting');
+    try {
+      const res = await fetch('/api/inquiry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (res.status === 429) {
+        setSubmitState('rate_limited');
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setServerError(data.error || `Something went wrong (HTTP ${res.status}).`);
+        setSubmitState('error');
+        return;
+      }
+      // Success — clear form and show inline confirmation.
+      setFormData({ name: '', email: '', phone: '', subject: '', message: '', website: '' });
       setErrors({});
+      setSubmitState('success');
+    } catch (err) {
+      setServerError(err?.message || 'Network error. Please try again.');
+      setSubmitState('error');
     }
   };
 
@@ -65,8 +93,30 @@ export default function Contact() {
         <div className="contact-grid">
           {/* Left Column -- Contact Form */}
           <div>
-            {/* PLACEHOLDER: Replace YOUR-FORM-ID with your Formspree endpoint */}
             <form id="contact-form" onSubmit={handleSubmit} noValidate>
+              {/* Honeypot field — hidden from sighted users + screen readers (aria-hidden).
+                  Bots filling it trigger a silent 200 on the worker side. */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '-9999px',
+                  width: 1,
+                  height: 1,
+                  overflow: 'hidden',
+                }}
+                aria-hidden="true"
+              >
+                <label htmlFor="website">Website (leave blank)</label>
+                <input
+                  type="text"
+                  id="website"
+                  name="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={formData.website}
+                  onChange={handleChange}
+                />
+              </div>
               <div className="form-row">
                 <div className={`form-group${errors.name ? ' error' : ''}`}>
                   <label className="form-label" htmlFor="name">
@@ -162,9 +212,61 @@ export default function Contact() {
                 <span className="form-error">Please enter your message</span>
               </div>
 
-              <button type="submit" className="form-submit">
-                &#9658; Send Message
+              <button
+                type="submit"
+                className="form-submit"
+                disabled={submitState === 'submitting'}
+              >
+                {submitState === 'submitting' ? 'Sending…' : '▸ Send Message'}
               </button>
+
+              {submitState === 'success' && (
+                <div
+                  role="status"
+                  style={{
+                    marginTop: '1rem',
+                    padding: '12px 16px',
+                    background: '#dcfce7',
+                    border: '1px solid #16a34a',
+                    color: '#166534',
+                    borderRadius: 4,
+                  }}
+                >
+                  Message sent! We aim to reply within 24 hours.
+                </div>
+              )}
+
+              {submitState === 'rate_limited' && (
+                <div
+                  role="status"
+                  style={{
+                    marginTop: '1rem',
+                    padding: '12px 16px',
+                    background: '#fef3c7',
+                    border: '1px solid #f59e0b',
+                    color: '#92400e',
+                    borderRadius: 4,
+                  }}
+                >
+                  You&apos;re sending messages too quickly. Try again in a minute.
+                </div>
+              )}
+
+              {submitState === 'error' && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: '1rem',
+                    padding: '12px 16px',
+                    background: '#fef0f0',
+                    border: '1px solid #d4541a',
+                    color: '#991b1b',
+                    borderRadius: 4,
+                  }}
+                >
+                  {serverError || 'Something went wrong. Please email us directly.'}
+                </div>
+              )}
             </form>
           </div>
 
