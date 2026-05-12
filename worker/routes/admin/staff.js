@@ -598,4 +598,70 @@ adminStaff.post('/:id/portal-sessions/:sessionId/revoke', requireCapability('sta
     return c.json({ ok: true, revokedAt: now });
 });
 
+// ────────────────────────────────────────────────────────────────────
+// GET /api/admin/staff/:id/incidents
+// Returns incidents this person was either:
+//   - filed_by (i.e. this person reported the incident as a marshal/EMT/etc.)
+//   - or named in via incident_persons (victim/aggressor/witness/responder/other)
+// Both lists are capped at 100 and ordered DESC by filed_at. Status is
+// computed server-side: 'resolved' / 'escalated' / 'open'.
+// ────────────────────────────────────────────────────────────────────
+adminStaff.get('/:id/incidents', requireCapability('staff.read'), async (c) => {
+    const personId = c.req.param('id');
+
+    const filedByRows = await c.env.DB.prepare(
+        `SELECT i.id, i.event_id, e.title AS event_title, i.type, i.severity, i.location,
+                i.narrative, i.filed_at, i.escalated_at, i.resolved_at, i.resolution_note
+         FROM incidents i
+         LEFT JOIN events e ON e.id = i.event_id
+         WHERE i.filed_by_person_id = ?
+         ORDER BY i.filed_at DESC
+         LIMIT 100`
+    ).bind(personId).all();
+
+    const involvingRows = await c.env.DB.prepare(
+        `SELECT i.id, i.event_id, e.title AS event_title, i.type, i.severity, i.location,
+                i.narrative, i.filed_at, i.escalated_at, i.resolved_at, i.resolution_note,
+                ip.involvement, ip.notes AS involvement_notes
+         FROM incident_persons ip
+         INNER JOIN incidents i ON i.id = ip.incident_id
+         LEFT JOIN events e ON e.id = i.event_id
+         WHERE ip.person_id = ?
+         ORDER BY i.filed_at DESC
+         LIMIT 100`
+    ).bind(personId).all();
+
+    function statusOf(row) {
+        if (row.resolved_at) return 'resolved';
+        if (row.escalated_at) return 'escalated';
+        return 'open';
+    }
+
+    function formatBase(r) {
+        return {
+            id: r.id,
+            eventId: r.event_id,
+            eventTitle: r.event_title,
+            type: r.type,
+            severity: r.severity,
+            location: r.location,
+            narrative: r.narrative,
+            filedAt: r.filed_at,
+            escalatedAt: r.escalated_at,
+            resolvedAt: r.resolved_at,
+            resolutionNote: r.resolution_note,
+            status: statusOf(r),
+        };
+    }
+
+    return c.json({
+        filedBy: (filedByRows.results || []).map(formatBase),
+        involving: (involvingRows.results || []).map((r) => ({
+            ...formatBase(r),
+            involvement: r.involvement,
+            involvementNotes: r.involvement_notes,
+        })),
+    });
+});
+
 export default adminStaff;

@@ -92,7 +92,7 @@ export default function AdminStaffDetail() {
                 {activeTab === 'notes' && <NotesTab personId={p.id} person={p} canEdit={hasRole?.('manager')} onSaved={load} />}
                 {activeTab === 'documents' && <DocumentsTab personId={p.id} canAssign={hasRole?.('manager')} />}
                 {activeTab === 'access' && <AccessTab personId={p.id} hasEmail={Boolean(p.email)} canInvite={hasRole?.('manager')} />}
-                {activeTab === 'issues' && <TabPlaceholder batch="Batch 14" feature="Incident log" />}
+                {activeTab === 'issues' && <IssuesTab personId={p.id} />}
                 {activeTab === 'certifications' && <CertificationsTab personId={p.id} canEdit={hasRole?.('manager')} />}
                 {activeTab === 'schedule' && <ScheduleTab personId={p.id} canEdit={hasRole?.('manager')} canMarkPaid={hasRole?.('owner')} />}
             </div>
@@ -589,6 +589,129 @@ const accessStatus = {
     expired:  { background: 'var(--color-bg-sunken)',    color: 'var(--color-text-subtle)' },
     revoked:  { background: 'var(--color-warning-soft)', color: 'var(--color-warning)' },
 };
+
+function IssuesTab({ personId }) {
+    const [filedBy, setFiledBy] = useState([]);
+    const [involving, setInvolving] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [expandedId, setExpandedId] = useState(null);
+
+    useEffect(() => {
+        (async () => {
+            setLoading(true);
+            try {
+                const res = await fetch(`/api/admin/staff/${personId}/incidents`, { credentials: 'include', cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    setFiledBy(data.filedBy || []);
+                    setInvolving(data.involving || []);
+                }
+            } finally { setLoading(false); }
+        })();
+    }, [personId]);
+
+    const total = filedBy.length + involving.length;
+
+    return (
+        <div style={section}>
+            <h2 style={h2}>Issues</h2>
+
+            {loading && <p style={{ color: 'var(--olive-light)', marginTop: 12 }}>Loading…</p>}
+            {!loading && total === 0 && (
+                <p style={{ color: 'var(--olive-light)', fontStyle: 'italic', marginTop: 12 }}>No incidents on file for this person.</p>
+            )}
+
+            {!loading && filedBy.length > 0 && (
+                <IssuesSection title={`Filed by this person (${filedBy.length})`}>
+                    {filedBy.map((i) => (
+                        <IncidentRow key={`filed_${i.id}`} incident={i} expanded={expandedId === `filed_${i.id}`} onToggle={() => setExpandedId(expandedId === `filed_${i.id}` ? null : `filed_${i.id}`)} />
+                    ))}
+                </IssuesSection>
+            )}
+
+            {!loading && involving.length > 0 && (
+                <IssuesSection title={`Involving this person (${involving.length})`}>
+                    {involving.map((i) => (
+                        <IncidentRow key={`inv_${i.id}`} incident={i} expanded={expandedId === `inv_${i.id}`} onToggle={() => setExpandedId(expandedId === `inv_${i.id}` ? null : `inv_${i.id}`)} showInvolvement />
+                    ))}
+                </IssuesSection>
+            )}
+        </div>
+    );
+}
+
+function IssuesSection({ title, children }) {
+    return (
+        <div style={{ marginTop: 16 }}>
+            <h3 style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{title}</h3>
+            <div>{children}</div>
+        </div>
+    );
+}
+
+const SEVERITY_STYLES = {
+    minor:    { background: 'var(--color-info-soft)',    color: 'var(--color-info)' },
+    moderate: { background: 'var(--color-warning-soft)', color: 'var(--color-warning)' },
+    serious:  { background: 'var(--color-danger-soft)',  color: 'var(--color-danger)' },
+};
+
+const STATUS_INCIDENT_STYLES = {
+    open:      { background: 'var(--color-warning-soft)', color: 'var(--color-warning)' },
+    escalated: { background: 'var(--color-danger-soft)',  color: 'var(--color-danger)' },
+    resolved:  { background: 'var(--color-success-soft)', color: 'var(--color-success)' },
+};
+
+function IncidentRow({ incident: i, expanded, onToggle, showInvolvement }) {
+    return (
+        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border-subtle)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ ...statusBase, ...SEVERITY_STYLES[i.severity] }}>{i.severity}</span>
+                        <span style={{ ...statusBase, ...STATUS_INCIDENT_STYLES[i.status] }}>{i.status}</span>
+                        <strong style={{ color: 'var(--cream)' }}>{i.type}</strong>
+                        {i.eventTitle && i.eventId && (
+                            <Link to={`/admin/events?id=${i.eventId}`} style={{ color: 'var(--orange)', fontSize: 12 }}>{i.eventTitle}</Link>
+                        )}
+                        {showInvolvement && i.involvement && (
+                            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>· {i.involvement}</span>
+                        )}
+                    </div>
+                    <p style={{ color: 'var(--color-text-muted)', fontSize: 11, margin: '4px 0 0' }}>
+                        Filed {new Date(i.filedAt).toLocaleString()}
+                        {i.location && <span> · at {i.location}</span>}
+                        {i.resolvedAt && <span> · resolved {new Date(i.resolvedAt).toLocaleDateString()}</span>}
+                    </p>
+                </div>
+                <button type="button" onClick={onToggle} style={{ padding: '4px 10px', fontSize: 11, background: 'transparent', border: '1px solid var(--color-border-strong)', color: 'var(--tan)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {expanded ? 'Hide' : 'Details'}
+                </button>
+            </div>
+            {expanded && (
+                <div style={{ marginTop: 12, padding: 12, background: 'var(--color-bg-sunken)', fontSize: 12, color: 'var(--cream)' }}>
+                    {i.narrative && (
+                        <div style={{ marginBottom: 8 }}>
+                            <div style={{ color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Narrative</div>
+                            <div style={{ whiteSpace: 'pre-wrap' }}>{i.narrative}</div>
+                        </div>
+                    )}
+                    {showInvolvement && i.involvementNotes && (
+                        <div style={{ marginBottom: 8 }}>
+                            <div style={{ color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Involvement notes</div>
+                            <div style={{ whiteSpace: 'pre-wrap' }}>{i.involvementNotes}</div>
+                        </div>
+                    )}
+                    {i.resolutionNote && (
+                        <div>
+                            <div style={{ color: 'var(--color-text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Resolution</div>
+                            <div style={{ whiteSpace: 'pre-wrap' }}>{i.resolutionNote}</div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
 
 function CertificationsTab({ personId, canEdit }) {
     const [certs, setCerts] = useState([]);
