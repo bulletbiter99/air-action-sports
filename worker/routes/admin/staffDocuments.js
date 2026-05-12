@@ -233,4 +233,143 @@ adminStaffDocuments.delete('/:id/role-tag/:tagId', requireCapability('staff.docu
     return c.json({ ok: true });
 });
 
+// ────────────────────────────────────────────────────────────────────
+// GET /api/admin/staff-documents/for-person/:personId
+// Returns docs grouped by required-vs-available status. Status per doc:
+//   required_pending — required for one of this person's primary roles,
+//                      not yet acknowledged at the current version
+//   required_acked   — required + acknowledged at current version
+//   required_stale   — required + acknowledged at an older version
+//                      (doc was re-versioned since)
+//   optional_acked   — not required for this person but ack on file
+//   available        — not required + not acknowledged
+// ────────────────────────────────────────────────────────────────────
+adminStaffDocuments.get('/for-person/:personId', requireCapability('staff.documents.read'), async (c) => {
+    const personId = c.req.param('personId');
+
+    const personRow = await c.env.DB.prepare('SELECT id FROM persons WHERE id = ?').bind(personId).first();
+    if (!personRow) return c.json({ error: 'Person not found' }, 404);
+
+    // Person's currently-active role IDs (effective_to IS NULL).
+    const roleRows = await c.env.DB.prepare(
+        `SELECT DISTINCT pr.role_id, r.key, r.name
+         FROM person_roles pr
+         INNER JOIN roles r ON r.id = pr.role_id
+         WHERE pr.person_id = ? AND pr.effective_to IS NULL`
+    ).bind(personId).all();
+    const roleIdSet = new Set((roleRows.results || []).map((r) => r.role_id));
+
+    // All non-retired docs.
+    const docsRows = await c.env.DB.prepare(
+        `SELECT id, kind, slug, title, version, body_sha256, description
+         FROM staff_documents
+         WHERE retired_at IS NULL
+         ORDER BY kind, title COLLATE NOCASE`
+    ).all();
+
+    // Role-tag map for required docs (only those tagged to roles the person has).
+    const requiredRows = await c.env.DB.prepare(
+        `SELECT sdr.staff_document_id, sdr.role_id, r.key, r.name
+         FROM staff_document_roles sdr
+         INNER JOIN roles r ON r.id = sdr.role_id
+         WHERE sdr.required = 1`
+    ).all();
+    const requiredByDocId = new Map();
+    for (const rr of requiredRows.results || []) {
+        if (!roleIdSet.has(rr.role_id)) continue;
+        if (!requiredByDocId.has(rr.staff_document_id)) requiredByDocId.set(rr.staff_document_id, []);
+        requiredByDocId.get(rr.staff_document_id).push({ roleId: rr.role_id, key: rr.key, name: rr.name });
+    }
+
+    // Latest ack per doc for this person.
+    const ackRows = await c.env.DB.prepare(
+        `SELECT staff_document_id, document_version, acknowledged_at, source
+         FROM staff_document_acknowledgments
+         WHERE person_id = ?
+         ORDER BY acknowledged_at DESC`
+    ).bind(personId).all();
+    const ackByDocId = new Map();
+    for (const a of ackRows.results || []) {
+        if (!ackByDocId.has(a.staff_document_id)) ackByDocId.set(a.staff_document_id, a);
+    }
+
+    const documents = (docsRows.results || []).map((d) => {
+        const requiredForRoles = requiredByDocId.get(d.id) || [];
+        const ack = ackByDocId.get(d.id);
+        const isRequired = requiredForRoles.length > 0;
+        let status;
+        if (ack) {
+            if (ack.document_version === d.version) status = isRequired ? 'required_acked' : 'optional_acked';
+            else status = isRequired ? 'required_stale' : 'optional_acked';
+        } else {
+            status = isRequired ? 'required_pending' : 'available';
+        }
+        return {
+            staffDocumentId: d.id,
+            kind: d.kind,
+            slug: d.slug,
+            title: d.title,
+            version: d.version,
+            description: d.description,
+            requiredForRoles,
+            acknowledged: ack ? {
+                version: ack.document_version,
+                at: ack.acknowledged_at,
+                source: ack.source,
+            } : null,
+            status,
+        };
+    });
+
+    return c.json({ documents });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// POST /api/admin/staff-documents/:id/acknowledge-for-person
+// Admin override: mark a document as acknowledged on behalf of a person
+// (vs the normal portal-self-serve flow). Records source='admin_assigned'
+// and pins the snapshot to the current doc body_sha256 + version.
+// ────────────────────────────────────────────────────────────────────
+adminStaffDocuments.post('/:id/acknowledge-for-person', requireCapability('staff.documents.assign'), async (c) => {
+    const staffDocumentId = c.req.param('id');
+    const body = await c.req.json().catch(() => ({}));
+    const personId = body.personId ? String(body.personId) : null;
+    if (!personId) return c.json({ error: 'personId required' }, 400);
+
+    const doc = await c.env.DB.prepare(
+        'SELECT id, version, body_sha256, retired_at FROM staff_documents WHERE id = ?'
+    ).bind(staffDocumentId).first();
+    if (!doc) return c.json({ error: 'Document not found' }, 404);
+    if (doc.retired_at) return c.json({ error: 'Document is retired' }, 409);
+
+    const person = await c.env.DB.prepare('SELECT id FROM persons WHERE id = ?').bind(personId).first();
+    if (!person) return c.json({ error: 'Person not found' }, 404);
+
+    // UNIQUE(person, doc, version) — refuse duplicates.
+    const existing = await c.env.DB.prepare(
+        `SELECT id FROM staff_document_acknowledgments
+         WHERE person_id = ? AND staff_document_id = ? AND document_version = ?`
+    ).bind(personId, staffDocumentId, doc.version).first();
+    if (existing) return c.json({ error: 'Already acknowledged at this version', ackId: existing.id }, 409);
+
+    const ackId = randomDocId('ack');
+    const now = Date.now();
+    await c.env.DB.prepare(
+        `INSERT INTO staff_document_acknowledgments
+           (id, person_id, staff_document_id, document_version, body_sha256_snapshot, acknowledged_at, source)
+         VALUES (?, ?, ?, ?, ?, ?, 'admin_assigned')`
+    ).bind(ackId, personId, staffDocumentId, doc.version, doc.body_sha256, now).run();
+
+    const user = c.get('user');
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'staff.document.acknowledged_by_admin',
+        targetType: 'person',
+        targetId: personId,
+        meta: { staffDocumentId, version: doc.version },
+    });
+
+    return c.json({ ok: true, ackId, version: doc.version, acknowledgedAt: now });
+});
+
 export default adminStaffDocuments;
