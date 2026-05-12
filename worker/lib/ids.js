@@ -85,3 +85,32 @@ export function fieldId() {
 export function blackoutId() {
     return `blk_${randomId(12)}`;
 }
+
+// M5.5 B7a — Field rental records + related entities
+export function fieldRentalId() {
+    return `fr_${randomId(12)}`;
+}
+
+export function recurrenceId() {
+    return `frr_${randomId(12)}`;
+}
+
+export function rentalContactId() {
+    return `frc_${randomId(12)}`;
+}
+
+export function rentalDocumentId() {
+    return `frd_${randomId(12)}`;
+}
+
+export function rentalPaymentId() {
+    return `frp_${randomId(12)}`;
+}
+
+export function customerContactId() {
+    return `cc_${randomId(12)}`;
+}
+
+export function suaDocumentId() {
+    return `sua_${randomId(12)}`;
+}
