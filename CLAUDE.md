@@ -735,3 +735,44 @@ Long-lived branch: `milestone/4-bookings-ia-completion` (off `main` at `87da972`
 - Coverage on any gated file drops from M3 + B3a baseline
 - Visual regression on a public baseline after a non-public-touching batch (would indicate a regression we missed)
 - Migration syntax issue (M3 D1 quirks: BEGIN/COMMIT keywords rejected; FK enforcement on table-rebuild — use column-rename pattern)
+
+---
+
+### Post-M5.5 fix — staff create flow + missing M5 wiring (2026-05-12)
+
+Surfaced when the operator reported the "+ New Person" button on `/admin/staff` led to a blank page. Diagnosis uncovered **four** layered M5 gaps that all shipped at close but never worked end-to-end:
+
+1. **`persons` table was empty in production** — the M5 B3 backfill (`scripts/backfill-persons.js`) was never run on remote. CLAUDE.md M5 section had no operator-applies entry for it.
+2. **`createPersonForUser` runtime hook was dead code** — `worker/routes/admin/personsHelpers.js` exported the helper meant to fire from invite-accept, but nothing imported it. Brand-new admins would get a `users` row but no matching `persons` row.
+3. **`/admin/staff/new` route didn't exist** — neither a route, a form, nor a `POST /api/admin/staff` endpoint. The button shipped without its destination.
+4. **`users.role_preset_key` was NULL for all 4 admins**, so the M5 cap system fell through to `LEGACY_ROLE_CAPABILITIES.owner` (5 booking-only caps from M4) — none of `staff.read`, `staff.write`, `staff.invite`, etc. were granted. Every admin route in M5+ (`/admin/staff`, `/admin/staff/*`, `/admin/booking-charges`, `/admin/event-staffing`) returned 403 in production. CLAUDE.md M5 R12 narrative claimed all 4 admin rows had been backfilled — they hadn't.
+
+Compounding (1) and (2): both `scripts/backfill-persons.js` and `personsHelpers.js` had hard-coded `INSERT INTO audit_log (id, action, actor_user_id, target_type, target_id, meta, ...)` statements — production schema is `(user_id, action, target_type, target_id, meta_json, created_at)` with `id INTEGER PRIMARY KEY AUTOINCREMENT`. The script would have failed even if run. `backfill-persons.js` also pre-dated the M5.5 B2 discovery of wrangler's `--json --file` SUMMARY-row quirk on `--remote` reads.
+
+**What this fix landed:**
+
+- **A (data restoration)** — Fixed `scripts/backfill-persons.js`: split `exec()` into `wranglerQuery()` (`--command` for SELECT reads, M5.5 D1 quirk #4) and `wranglerExecute()` (`--file` for multi-statement writes); rewrote the audit_log INSERT to the production 6-col shape. Ran `node scripts/backfill-persons.js --remote` → minted 4 persons + 4 person_roles + 4 audit_log rows for the existing admins (Paul, Rebecca, Adam, Bradley); all assigned primary role `role_event_director`. `/admin/staff` now lists the team.
+- **B (runtime hook)** — `worker/routes/admin/personsHelpers.js` audit emission now goes through `writeAudit()` (correct shape). Imported + called from `worker/routes/admin/auth.js` in both the `/setup` (first-owner bootstrap) and `/accept-invite` handlers inside try/catch so the user-creation flow doesn't fail if person creation hits an unexpected issue. Future admin invites auto-mint their person row.
+- **C (create flow)** — Added `POST /api/admin/staff` (gated by `staff.write`) and `GET /api/admin/staff/roles-catalog` (gated by `staff.read`) in `worker/routes/admin/staff.js`. New form at `src/admin/AdminStaffNew.jsx`, route registered at `/admin/staff/new` before `staff/:id` in `src/App.jsx`. Roles-catalog endpoint also retires the "endpoint not yet implemented" fallback in the AdminStaffDetail Roles-tab modal.
+- **D (role-preset backfill)** — Direct SQL: `UPDATE users SET role_preset_key = 'owner' WHERE role = 'owner' AND role_preset_key IS NULL` (4 rows changed). The 4 admins are the literal platform owners, so the `owner` preset is the right call (26 caps incl. all `staff.*` + `staff.notes.write_sensitive`) — not `event_director` (which is what `legacyRoleToRolePreset()` in `worker/lib/users.js` would have mapped them to, but which lacks `staff.notes.write_sensitive`). Verified via dev-server browser: `/admin/staff` now returns 200 with all 4 names + `viewerCanSeePii=true`.
+
+**Tests added (+25):**
+- `tests/unit/admin/personsHelpers.test.js` — 14 tests: input guards, idempotency, role-mapping per legacy role, full_name fallback chain, audit emission with correct shape.
+- `tests/unit/admin/staff/create.test.js` — 11 tests: 403 without `staff.write`, 6 validation 400s, 2 happy paths (minimal + full), 2 roles-catalog (403 + 200 ordered list).
+
+**Gate map** updated: `worker/routes/admin/staff.js` and `worker/routes/admin/personsHelpers.js` both promoted to gated entries.
+
+**Carry-forward lessons** (durable, apply to any future milestone):
+
+1. **A helper-without-an-import is a tripwire.** If a file's docstring says "called from X for Y purpose," grep for the import in X — if there's none, the feature is dead in production. The runtime hook + the schema mismatch went undetected because both lived only in code that was never exercised.
+2. **Backfill scripts authored before D1 quirk #4 (M5.5 B2) are quietly broken on `--remote` reads.** Any script that uses `wrangler d1 execute ... --json --file=` for a SELECT will see a summary row, not data — the `users=1 existing=1` dry-run looks plausible while actually doing nothing. Audit such scripts before running.
+3. **`audit_log` schema in production has 6 columns + AUTOINCREMENT id, not 7 + TEXT id.** Any new INSERT must go through `writeAudit()` (worker/lib/auditLog.js), not raw SQL. Two prior bugs (this and the M5 hotfix PR #143 email_templates issue) had the same shape: a feature shipped against a schema that never matched production.
+4. **Pure-helper tests catch shape bugs but not wire-up bugs.** `tests/unit/scripts/backfillPersons.test.js` tested `legacyRoleToPersonRoleId` + `planBackfill` + `randomId` — all pure — and stayed green while the CLI portion was broken in two independent ways. Future-state: integration smokes for the I/O surface, not just pure helpers.
+
+**Operator-applies status:**
+- ✅ Backfill ran 2026-05-12; 4 persons + 4 person_roles minted to remote.
+- ✅ `users.role_preset_key='owner'` SQL UPDATE applied 2026-05-12; 4 rows changed. All staff.* caps now resolve via the M5 capability path (no longer falling through to LEGACY_ROLE_CAPABILITIES).
+- ⏳ Deploy this branch (Workers Builds auto-deploys from main on merge, or manual `npm run build && wrangler deploy`).
+- ⏳ Manual verification post-deploy: visit `/admin/staff`, see the 4 people. Click "+ New Person" — form loads with role catalog populated. Submit a test person → redirected to detail page. (Dev-server smoke against production data confirmed all of this except the catalog-populated dropdown, which only works once the new endpoint is deployed.)
+
+**No new D1 migrations** in this fix — code-only + 2 remote D1 data mutations (4 person inserts + 4 user role_preset_key updates) already applied.

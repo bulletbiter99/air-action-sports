@@ -146,31 +146,39 @@ if (isMain) {
 
     console.log(`[backfill-persons] target=${target} dry-run=${dryRun}`);
 
-    // Build a single SQL file with all the planning queries upfront, then
-    // execute statements one by one. The wrangler stdout JSON parsing is
-    // brittle — we strip everything before first '[' or '{' (M3 D1 quirk).
+    // Two wrangler invocations:
+    //   wranglerQuery — uses --command for SELECT reads (M5.5 D1 quirk #4:
+    //                   --file returns a SUMMARY row on --remote, not real data).
+    //   wranglerExecute — uses --file for multi-statement writes (--command
+    //                     can't handle multi-statement SQL reliably).
+    // Both strip wrangler's upload-progress UI chars before JSON.parse
+    // (M3 D1 quirk #3).
 
-    function exec(sql, kind = 'query') {
+    function wranglerQuery(sql) {
+        const cmd = `npx wrangler d1 execute ${DB} ${target} --json --command=${JSON.stringify(sql)}`;
+        const raw = execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+        const idxBracket = raw.search(/[[{]/);
+        if (idxBracket === -1) return [];
+        const parsed = JSON.parse(raw.slice(idxBracket));
+        return parsed?.[0]?.results || [];
+    }
+
+    function wranglerExecute(sql) {
         const tmpFile = join(tmpdir(), `aas-backfill-persons-${randomBytes(4).toString('hex')}.sql`);
         writeFileSync(tmpFile, sql);
         try {
             const cmd = `npx wrangler d1 execute ${DB} ${target} --json --file=${tmpFile}`;
             const stdout = execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
-            // M3 D1 quirk: strip upload-progress UI chars before JSON
             const idxBracket = stdout.search(/[[{]/);
             if (idxBracket === -1) return null;
-            const jsonStr = stdout.slice(idxBracket);
-            return JSON.parse(jsonStr);
+            return JSON.parse(stdout.slice(idxBracket));
         } finally {
             try { unlinkSync(tmpFile); } catch { /* ignore */ }
         }
     }
 
-    const usersResult = exec('SELECT id, role, email, display_name, created_at FROM users;');
-    const users = usersResult?.[0]?.results || [];
-
-    const personsResult = exec('SELECT user_id FROM persons WHERE user_id IS NOT NULL;');
-    const existingPersons = personsResult?.[0]?.results || [];
+    const users = wranglerQuery('SELECT id, role, email, display_name, created_at FROM users');
+    const existingPersons = wranglerQuery('SELECT user_id FROM persons WHERE user_id IS NOT NULL');
 
     const plan = planBackfill(users, existingPersons);
 
@@ -193,6 +201,8 @@ if (isMain) {
 
     let created = 0;
     for (const c of plan.toCreate) {
+        // audit_log shape per production schema: AUTOINCREMENT id, user_id (not actor_user_id),
+        // meta_json (not meta). No id column in the INSERT (auto-generated).
         const sqlBatch = `
 INSERT INTO persons (id, user_id, full_name, email, status, created_at, updated_at)
   VALUES ('${c.person_id}', '${c.user_id}', ${escapeSql(c.full_name)}, ${escapeSql(c.email)}, 'active', ${c.created_at}, ${c.now});
@@ -200,12 +210,12 @@ INSERT INTO persons (id, user_id, full_name, email, status, created_at, updated_
 INSERT INTO person_roles (id, person_id, role_id, is_primary, effective_from, created_at)
   VALUES ('${c.person_role_id}', '${c.person_id}', '${c.role_id}', 1, ${c.now}, ${c.now});
 
-INSERT INTO audit_log (id, action, actor_user_id, target_type, target_id, meta, created_at)
-  VALUES ('${randomId('al')}', 'person.created_via_backfill', NULL, 'person', '${c.person_id}',
+INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+  VALUES (NULL, 'person.created_via_backfill', 'person', '${c.person_id}',
           ${escapeSql(JSON.stringify({ user_id: c.user_id, primary_role: c.role_id }))}, ${c.now});
 `;
         try {
-            exec(sqlBatch, 'mutation');
+            wranglerExecute(sqlBatch);
             created += 1;
             console.log(`  [+] person=${c.person_id} user_id=${c.user_id} primary_role=${c.role_id}`);
         } catch (err) {
