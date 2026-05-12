@@ -4,68 +4,95 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — M5.5 mid-milestone (2026-05-11; B7 next)
+## ⚠ NEW SESSION — M5.5 CLOSED + DEPLOYED (2026-05-12)
 
-**M5.5 (Field Rentals) is IN FLIGHT.** B1 through B6.5 have shipped on `milestone/5.5-field-rentals`. The milestone branch + main are about to be brought up to the same state via a rolling-brings-up merge (M4 pattern). The next session opens **B7 plan-mode (field rentals backend — 8 files at cap)**.
+**M5.5 (Field Rentals) is CLOSED.** All 11 batches (B1-B11 + B2-hotfix + B6.5) merged to milestone; milestone merged to `main` as `8decacc` via PR [#162](https://github.com/bulletbiter99/air-action-sports/pull/162). Workers Builds auto-deployed from main. **Operator next step:** apply migration 0053 to remote + run 6-item smoke checklist per [docs/runbooks/m55-deploy.md](docs/runbooks/m55-deploy.md).
 
-**Copy the prompt at [docs/m55-next-session.md](docs/m55-next-session.md) into the fresh session.** It hands the new session everything needed to resume cleanly.
+**Copy the prompt at [docs/m55-next-session.md](docs/m55-next-session.md) into the fresh session.** It opens with the post-M5.5 polish backlog (6 items) and an explicit fork: ship the polish vs. start M6 (Stripe live cutover + invoice integration for field rentals).
 
-### M5.5 state at handoff
+### M5.5 state at close
 
 | Metric | Value |
 |---|---|
-| Tests | **1634 across 150 files** (M5 baseline 1538 → +96 / +4) |
-| Lint | 0 errors / ~405 warnings |
-| Build | clean (~263ms) |
-| Migrations on remote | **0030-0049 all applied** (M5 close + M5.5 B1/B2/B3/B4/B5/B6 = 6 new in M5.5) |
-| Milestone branch | `milestone/5.5-field-rentals` at SHA-after-merge (see CLAUDE.md M5.5 batch table) |
-| `main` | snapshot of milestone via the mid-milestone merge (this PR) |
+| Tests | **1997 across 161 files** (M5 baseline 1538 → +459 / +15 over the milestone) |
+| Lint | 0 errors / 440 warnings (advisory; mostly `react-refresh/only-export-components` on JSX pure-helper exports) |
+| Build | clean (~270ms) |
+| Migrations on remote | **0044-0052 applied** (9 of 10 M5.5 migrations); **0053 queued for post-deploy operator apply** |
+| Milestone branch | `milestone/5.5-field-rentals` at `8fc2a1a` (retained for reference) |
+| `main` | `8decacc` — M5.5 close merge |
 | Open PRs on milestone | 0 |
+| Cron sweeps | 8 total at 03:00 UTC (5 pre-M5.5 + 3 new: recurrenceGen, coiAlerts, leadStale) |
+| Email templates | 5 new in M5.5 (4 cron + 1 inquiry) |
+| Routes added | 1 public (`POST /api/inquiry`) + 27 admin endpoints across 4 router files |
+| Frontend pages added | 6 admin + 1 public page edit (`/contact`) |
 
-### M5.5 batches completed so far (B1-B6.5)
+### All 11 M5.5 batches
 
 | Batch | PR | What shipped |
 |---|---|---|
-| B1 | [#145](https://github.com/bulletbiter99/air-action-sports/pull/145) | Migration 0044 (sites/site_fields/site_blackouts) + inquiry-form audit doc |
-| B2 | [#146](https://github.com/bulletbiter99/air-action-sports/pull/146) | Migration 0045 (`events.site_id`) + seed-sites.js + backfill script + `worker/lib/ids.js` helpers + 46 tests |
-| B2-hotfix | [#147](https://github.com/bulletbiter99/air-action-sports/pull/147) | wrangler `--json --file` quirk fix (returns summary, not rows, on remote) — captured as D1 quirk #4 |
-| B3 | [#148](https://github.com/bulletbiter99/air-action-sports/pull/148) | Migration 0046 (customers.client_type + business_* cols) + `worker/lib/eventConflicts.js` + AdminEvents conflict UI + 26 tests |
-| B4 | [#149](https://github.com/bulletbiter99/air-action-sports/pull/149) | Migration 0047 (field_rentals + recurrences + contacts + customer_contacts; 4 tables, ~90 cols, 14 indexes) |
-| B5 | [#150](https://github.com/bulletbiter99/air-action-sports/pull/150) | Migration 0048 (field_rental_documents + field_rental_payments + site_use_agreement_documents) |
-| B6 | [#151](https://github.com/bulletbiter99/air-action-sports/pull/151) | Migration 0049 (17 new caps + site_coordinator role_preset + 45 bindings) |
-| B6.5 | [#152](https://github.com/bulletbiter99/air-action-sports/pull/152) | AdminSites CRUD UI — 10-endpoint worker route + AdminSites + AdminSiteDetail + 24 tests |
+| B1 | [#145](https://github.com/bulletbiter99/air-action-sports/pull/145) | Migration 0044 (sites/site_fields/site_blackouts) + inquiry-form audit |
+| B2 | [#146](https://github.com/bulletbiter99/air-action-sports/pull/146) | Migration 0045 (events.site_id) + seed-sites.js + backfill + 46 tests |
+| B2-hotfix | [#147](https://github.com/bulletbiter99/air-action-sports/pull/147) | wrangler `--json --file` quirk → use `--command` (D1 quirk #4) |
+| B3 | [#148](https://github.com/bulletbiter99/air-action-sports/pull/148) | Migration 0046 + eventConflicts lib + AdminEvents conflict UI |
+| B4 | [#149](https://github.com/bulletbiter99/air-action-sports/pull/149) | Migration 0047 (field_rentals core schema: 4 tables, ~90 cols) |
+| B5 | [#150](https://github.com/bulletbiter99/air-action-sports/pull/150) | Migration 0048 (documents + payments + SUA templates) |
+| B6 | [#151](https://github.com/bulletbiter99/air-action-sports/pull/151) | Migration 0049 (17 caps + site_coordinator role + 45 bindings) |
+| B6.5 | [#152](https://github.com/bulletbiter99/air-action-sports/pull/152) | AdminSites CRUD UI (10 endpoints + list/detail pages) |
+| B7a | [#155](https://github.com/bulletbiter99/air-action-sports/pull/155) | Field rentals backend — list/detail/lifecycle (8 endpoints) |
+| B7b | [#156](https://github.com/bulletbiter99/air-action-sports/pull/156) | Documents + payments backend (9 endpoints) + gate map |
+| B8 | [#157](https://github.com/bulletbiter99/air-action-sports/pull/157) | Field rentals frontend (3 pages + 5 modals) + /me capabilities |
+| B9 | [#158](https://github.com/bulletbiter99/air-action-sports/pull/158) | Migration 0050 (client_type NOT NULL) + customer detail FR tab |
+| B10a | [#159](https://github.com/bulletbiter99/air-action-sports/pull/159) | Recurrence-generation cron + sentinel column (migration 0051) |
+| B10b | [#160](https://github.com/bulletbiter99/air-action-sports/pull/160) | COI + lead-stale crons + 4 email templates (migration 0052) |
+| B11 | [#161](https://github.com/bulletbiter99/air-action-sports/pull/161) | Public /api/inquiry + Contact.jsx + 3 closing runbooks |
+| milestone→main | [#162](https://github.com/bulletbiter99/air-action-sports/pull/162) | Final M5.5 close merge (regular merge; preserves per-batch SHAs) |
 
-### What's live in production after this mid-milestone merge
+### What's live in production after the M5.5 close merge
 
-- **D1 schema:** sites + site_fields + site_blackouts; events.site_id; customers.client_type + 4 business_* cols; field_rentals + field_rental_recurrences + field_rental_contacts + customer_contacts; field_rental_documents + field_rental_payments + site_use_agreement_documents; 17 new capabilities + site_coordinator role_preset
-- **Data:** Ghost Town (Hiawatha UT 84545) + Foxtrot (Kaysville UT 84037) seeded with one field each; the 1 production event (operation-nightfall) backfilled to site_id of Ghost Town
-- **UI:** `/admin/sites` (list with stats: events / rentals per site) + `/admin/sites/:id` (detail with metadata edit + fields CRUD + blackouts CRUD)
-- **API:** 10 endpoints under `/api/admin/sites` covering sites + fields + blackouts with capability gating (Owner / Manager via Operations Director role; Site Coordinator role-preset ready for B7+)
+- **Schema:** Surface 7 fully implemented — sites + site_fields + site_blackouts + field_rentals + field_rental_recurrences + field_rental_contacts + field_rental_documents + field_rental_payments + site_use_agreement_documents + customer_contacts + customers.client_type (NOT NULL) + 5 business_* nullable cols
+- **Data:** Ghost Town (Hiawatha UT 84545) + Foxtrot (Kaysville UT 84037); 1 event (operation-nightfall) linked to Ghost Town; **0 field_rentals records** (awaits first inquiry)
+- **UI:** /admin/sites + /admin/field-rentals (list/detail/new wizard) + /admin/customers/:id Field Rentals tab + /contact form wired to /api/inquiry
+- **API:** 27 new admin endpoints + 1 public (/api/inquiry); /me extended with capabilities[]
+- **Crons:** 8 sweeps at 03:00 UTC (recurrenceGen + coiAlerts + leadStale new in M5.5)
+- **Capabilities:** 92 total (17 new in M5.5); site_coordinator role_preset live
 
-### What B7 starts with
+### Operator action queued post-deploy
 
-- **All schema in place** (B1-B5 + B6 capabilities)
-- **AdminSites UI live** (B6.5) for operator to manage Ghost Town + Foxtrot
-- **No field_rentals records yet** — B7's create flow will populate the table
-- **`worker/lib/ids.js`** has `siteId()` / `fieldId()` / `blackoutId()` helpers from B2; B7 will add `fieldRentalId()` / `fieldRentalContactId()` / `fieldRentalRecurrenceId()` / etc.
+```bash
+# Apply migration 0053 (inquiry_notification email template)
+source .claude/.env
+CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
 
-### M5.5 operating rules (preserved for B7-B11)
+# Verify
+wrangler d1 execute air-action-sports-db --remote \
+  --command="SELECT slug FROM email_templates WHERE slug='inquiry_notification'"
+# expected: 1 row
+```
 
-1. **Plan-mode-first per batch.** Write a plan, post it, wait for "proceed" before editing.
-2. **Branch off `milestone/5.5-field-rentals`** with flat `m55-batch-N-slug` naming.
-3. **8-file cap per PR.** Tighter than the M3/M4 10-file standard.
-4. **Conventional Commits** with `m55-<area>` scope.
-5. **No `--force` ever, no rebases on shared branches, no direct commits to `main` or milestone.**
-6. **Spot-check production schema BEFORE every migration** (per Lesson #7).
-7. **Every email_templates seed includes `id='tpl_<slug>'` and `created_at=updated_at`** (Lesson #7).
-8. **Between-batch handoff required** — 5-bullet summary; operator confirms before next batch.
+Then run the 6-item smoke checklist in [docs/runbooks/m55-deploy.md](docs/runbooks/m55-deploy.md) (verify /contact submission both paths + honeypot guard + rate limit + cron summary log).
 
-### Lessons captured during M5.5 so far
+### Post-M5.5 polish backlog (queued for next batch when ready)
 
-1. **wrangler `--json --file` returns a SUMMARY row on remote, not actual SELECT data** (it works correctly on local). Use `--command` (not `--file`) for read queries against remote D1. Captured as **D1 quirk #4** in CLAUDE.md. Surfaced when B2's seed-sites + backfill scripts reported phantom counts.
-2. **M5 pre-seeded many M5.5 capabilities** in 0031_capabilities_seed.sql. B6 had to spot-check existing caps + bindings to avoid duplicates. Use `field_rentals.create.bypass_conflict` (existing) instead of duplicating as `field_rentals.override_conflict` (prompt name).
-3. **`formatEvent` is DNT-listed** — B3 had to plumb the conflict API without modifying it (the form doesn't yet expose `site_id`; B7+ may need a side endpoint that doesn't touch formatEvent).
-4. **Production schema rarely matches Surface 7 drafts perfectly.** B4 used the M5.5 prompt's column list over the surface-7-schema.md doc. B5 verified `version INTEGER UNIQUE` + `effective_from INTEGER` + `created_by TEXT` (NOT `created_by_user_id`) as canonical pattern. Always spot-check `waiver_documents` + `vendor_contract_documents` before writing versioned-document tables.
+(Full context in [docs/runbooks/m55-baseline-coverage.txt](docs/runbooks/m55-baseline-coverage.txt).)
+
+1. **AES decryption surface for business_tax_id (EIN) + business_billing_address** — columns + caps exist; route + render + edit modal needed. AdminCustomerDetail stub messages currently still say "lands in M5.5 B10" — polish corrects.
+2. **Admin POST /api/admin/customers + create modal** — phone-intake operator currently has no UI.
+3. **Monthly day_of_month recurrence pattern** — schema accepts it; generator only handles nth_weekday.
+4. **/status route clearing `lead_stale_at` on transition** — current 7-day silence after revert; minor polish.
+5. **UNIQUE constraint on (recurrence_id, recurrence_instance_index)** — stronger idempotency on recurrence cron.
+6. **AdminScan + AdminRoster `?event=` deep-link parsing** — M5 carryover; ~10 lines per file.
+
+### Lessons captured during M5.5 (durable; preserved as carry-forward to M6+)
+
+1. **wrangler `--json --file` returns a SUMMARY row on remote** — use `--command` for SELECT against remote D1 (D1 quirk #4).
+2. **M5 pre-seeded many M5.5 capabilities** in 0031 — spot-check existing caps + bindings to avoid duplicates.
+3. **`formatEvent` is DNT** — extend conflict-detection without modifying it; future polish may need a side endpoint.
+4. **Production schema rarely matches design drafts** — spot-check waiver_documents + vendor_contract_documents before writing versioned-document tables.
+5. **Sidebar entry additions shift index assertions** — update `tests/unit/admin/sidebarConfig.test.js` in the same PR.
+6. **Pure-helper exports from JSX raise react-refresh advisory warnings** — accepted trade-off vs. extracting separate helpers.js.
+7. **`Number(null) === 0` quirk** — always check `value == null` BEFORE coercing to Number for nullable inputs.
+8. **D1 column-rename pattern** with DEFAULT + UPDATE COALESCE is the safe path for nullable→NOT NULL promotions (e.g. B9 migration 0050).
+9. **/me capabilities surface** — frontend gates UI affordances client-side; server still enforces.
 
 ---
 
