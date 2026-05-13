@@ -4,7 +4,91 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — Post-M5.5 staff-wiring fix DEPLOYED (2026-05-12 late)
+## ⚠ NEW SESSION — Admin staff suite at 100% + email-bound promo codes DEPLOYED (2026-05-12 late evening)
+
+**M5.5 closed earlier today; the admin staff suite is now functional on every tab, and email-bound single-use promo codes shipped on top.** Production worker version `6b680a02-966b-4056-af5b-3e7d2fce9c1f` deployed ~22:55 UTC from `main` SHA `eb89f13` (merge of PR [#175](https://github.com/bulletbiter99/air-action-sports/pull/175)). Migration 0054 applied to remote D1 same session.
+
+**Copy the prompt at [docs/m55-next-session.md](docs/m55-next-session.md) into the fresh session.**
+
+### What shipped this session (10 PRs in chronological order)
+
+| # | PR | Headline | Merge SHA |
+|---|---|---|---|
+| 1 | [#165](https://github.com/bulletbiter99/air-action-sports/pull/165) | Post-M5.5 staff-wiring fix (5 prongs: persons backfill + invite-accept hook + create flow + role_preset backfill + nav CSS scoping) | `d70952a` |
+| 2 | [#166](https://github.com/bulletbiter99/air-action-sports/pull/166) | Follow-up deploy-fix (Cloudflare bundle node:* leak) + docs refresh | `a32b29c` |
+| 3 | [#167](https://github.com/bulletbiter99/air-action-sports/pull/167) | **P1** — Profile edit modal + Notes sensitive-textarea gating | `ed9a0a5` |
+| 4 | [#168](https://github.com/bulletbiter99/air-action-sports/pull/168) | **P3** — Access tab: portal sessions list + revoke + invite | `cc5d2e9` |
+| 5 | [#169](https://github.com/bulletbiter99/air-action-sports/pull/169) | **P2** — Documents tab: per-person ack list + admin override | `c1fa2ff` |
+| 6 | [#170](https://github.com/bulletbiter99/air-action-sports/pull/170) | **P4** — Issues tab: incidents filed-by + involving lists | `116577b` |
+| 7 | [#171](https://github.com/bulletbiter99/air-action-sports/pull/171) | Portal invite confirm modal (UX fix) | `396006a` |
+| 8 | [#172](https://github.com/bulletbiter99/air-action-sports/pull/172) | Gate portal invite on `staff.invite` capability (not role hierarchy); remove cap from booking_coordinator preset | `7eb2e70` |
+| 9 | [#173](https://github.com/bulletbiter99/air-action-sports/pull/173) | Home hero headline: "Lock & Load Up." → "Live Airsoft Events" | `342d654` |
+| 10 | [#174](https://github.com/bulletbiter99/air-action-sports/pull/174) | Event create: normalize slug input (no more rejection on apostrophes/spaces/capitals) | `19e1a78` |
+| 11 | [#175](https://github.com/bulletbiter99/air-action-sports/pull/175) | Email-bound single-use promo codes + batch-create with chip parser + confirm modal (migration 0054) | `eb89f13` |
+
+### State at close
+
+| Metric | Value |
+|---|---|
+| Tests | **2073 across 168 files** (M5.5 close baseline 1997/161 → +76) |
+| Lint | 0 errors / 448 warnings (advisory, all `react-refresh/only-export-components`) |
+| Build | clean ~265ms |
+| Migrations on remote | All 11 (0044–0054) applied. 0054 (this session) added `promo_codes.restricted_to_email` + seeded `promo_code_issued` template |
+| `main` | `eb89f13` |
+| Production Worker version | `6b680a02-966b-4056-af5b-3e7d2fce9c1f` |
+| Open PRs | 0 (PR #1 stale config-rename from April; safe to close or ignore) |
+| Cron sweeps | 8 at 03:00 UTC (unchanged from M5.5 close) |
+| Email templates total | **33** in production (32 pre-session + `promo_code_issued`) |
+
+### Admin staff suite — all 8 tabs at 100%
+
+`/admin/staff/:id` was a placeholder maze pre-session. Now:
+
+| Tab | State at session start | State at close |
+|---|---|---|
+| **Profile** | view-only ("inline edit form coming in follow-up batch") | Edit modal with 8 fields (PR #167) |
+| **Roles** | functional | functional + role catalog dropdown wired (existed; just unblocked by post-M5.5 fix) |
+| **Documents** | "coming in Batch 5" placeholder | Per-person ack list (required-pending / acknowledged / available) + admin manual-ack override (PR #169) |
+| **Notes** | half-broken (sensitive textarea hidden when value null; wrong capability check) | Both textareas work, gated on correct caps (PR #167) |
+| **Access** | "coming in Batch 6" placeholder | Portal sessions table (pending/active/expired/revoked) + send-invite confirm modal + revoke action; gated on `staff.invite` capability (PRs #168, #171, #172) |
+| **Issues** | "coming in Batch 14" placeholder | Incidents filed-by + involving lists with inline narrative expand (PR #170) |
+| **Certifications** | functional | functional (unchanged) |
+| **Schedule** | functional | functional (unchanged) |
+
+### New capabilities surface added this session
+
+- `staff.invite` binding refined — removed from `booking_coordinator` preset; now bound to `owner` + `event_director` only. HR coordinator preset doesn't exist yet (queued for follow-up).
+- `AdminContext` plumbs `capabilities[]` from `/api/admin/auth/me` and exposes `hasCapability(cap)`; AccessTab uses this instead of `hasRole('manager')`.
+
+### Email-bound single-use promo codes (PR #175)
+
+- New `promo_codes.restricted_to_email` column. When set, `/api/bookings/checkout` hard-rejects a code if the booking email doesn't match (case-insensitive). `/quote` previews soft when no email is provided yet.
+- New `POST /api/admin/promo-codes/batch` endpoint: takes a list of recipients (max 500), generates one single-use code per email, optionally fires `promo_code_issued` email per recipient. Supports a `sendToSelfFirst` dry-run flag.
+- Admin UI: new "+ Batch Create" button next to "+ New Code" on `/admin/promo-codes`. Modal parses pasted email lists into chips (with X-to-remove, plus invalid/duplicate warnings), then opens a confirm modal showing "**This cannot be undone**" before any emails fire.
+
+### Other small fixes shipped this session
+
+- **Home hero headline** — `/` shows "LIVE AIRSOFT" / "EVENTS" (cream + orange) instead of "LOCK & LOAD UP."
+- **Event slug normalization** — typing `'68` or `Operation '68` in the New Event slug field no longer 400s; the system silently slugifies to `68` / `operation-68`.
+- **Email templates table renders correctly** in production (verified end-to-end after a stale-session false alarm — was a browser cache issue, not a code bug).
+
+### Carry-forward lessons (durable; from this session's work)
+
+1. **Capability-based gating > role hierarchy.** Frontend gates that use `hasRole('manager')` are quick but coarse; switching to `hasCapability('staff.invite')` lets the operator tune access via the role_preset_capabilities table without touching code. The backend already enforces caps — frontend should mirror.
+2. **Hard confirmation before destructive irreversible action.** The batch-promo-code modal pattern (show preview + ⚠ warning + "Yes, send N emails" button) prevents accidental click-throughs on emails or other one-way operations. Re-use the pattern for any future bulk action.
+3. **Single-email-per-code beats list-per-code.** When you need single-use + recipient-bound, generate N codes (one per recipient, each with its own random suffix) — cleaner audit trail than one shared code with a list of allowed emails.
+4. **Send-to-self-first dry-run is cheap insurance.** A toggle that prepends the admin's own email as recipient #0 gives them a way to preview the actual email content before fanning out to 50 strangers. Trivial to wire, big confidence boost.
+5. **CI polling: don't background-spawn `until ... do sleep` loops.** Use `gh pr checks <N>` for a one-shot read; reach for Monitor only when actual back-pressure matters. Background polling loops accumulate harmlessly but visually noisy.
+
+### Operator follow-ups (queued; not blocking next session)
+
+- **HR coordinator role_preset doesn't exist yet.** When you onboard an HR person, two SQL statements give them invite access: `INSERT INTO role_presets ('hr_coordinator', 'HR Coordinator');` + `INSERT INTO role_preset_capabilities (role_preset_key, capability_key) VALUES ('hr_coordinator', 'staff.invite'), ...;` + `UPDATE users SET role_preset_key='hr_coordinator' WHERE email='...';`
+- **Past-games / event archive page** discussed but deferred. The recommended scope: public archive + external video/photo links (YouTube embeds + Drive shared links) as first phase; R2-hosted images as a follow-up batch. ~6 files for phase 1 if approved.
+- **M5.5 polish backlog** unchanged from the [docs/m55-next-session.md](docs/m55-next-session.md) Fork A list: AES decryption for business_tax_id (EIN) + business_billing_address; Admin POST customers (create modal); monthly day_of_month recurrence pattern; `/status` route clearing `lead_stale_at`; UNIQUE constraint on (recurrence_id, recurrence_instance_index); AdminScan + AdminRoster `?event=` deep-link parsing.
+
+---
+
+### Earlier today: Post-M5.5 staff-wiring fix DEPLOYED (2026-05-12 ~18:11 UTC)
 
 **M5.5 closed earlier today; the post-M5.5 staff-wiring fix is now live on top.** Production worker version `866dd1ef-106a-4373-8051-bfe27d45c3f4` deployed ~18:11 UTC, from `main` SHA `d70952a` (merge of PR [#165](https://github.com/bulletbiter99/air-action-sports/pull/165)) + a follow-up deploy-fix commit `cd27867`. **/admin/staff is functional end-to-end** for the first time since M5: 4 admins listed, profile tabs inline, "+ New Person" form renders the role-catalog dropdown.
 

@@ -1,48 +1,53 @@
 # Post-M5.5 next-session prompt
 
-**Status:** M5.5 (Field Rentals) is **CLOSED + DEPLOYED 2026-05-12**. Late on the same day, a post-M5.5 **staff-wiring fix** also shipped (PR [#165](https://github.com/bulletbiter99/air-action-sports/pull/165) merged as `d70952a` + follow-up deploy-fix `cd27867`; production Worker version `866dd1ef-106a-4373-8051-bfe27d45c3f4`). The fix closed 4 dormant M5 wiring gaps + 1 global-CSS leak that together made `/admin/staff` non-functional. The polish backlog below is unchanged — the staff-wiring fix was outside that backlog.
+**Status:** M5.5 (Field Rentals) is **CLOSED + DEPLOYED 2026-05-12**. Through the rest of the same day, **11 follow-up PRs** shipped on top: the post-M5.5 staff-wiring fix (PR #165–#166), the per-tab build-out of `/admin/staff/:id` (P1 #167, P3 #168, P2 #169, P4 #170), three Access-tab UX/security follow-ups (#171, #172, capability gating), two public-side fixes (home hero #173, event slug normalize #174), and one new feature (email-bound batch promo codes with migration 0054 — PR #175). **Production Worker version `6b680a02-966b-4056-af5b-3e7d2fce9c1f`** at session close. **All 8 staff detail tabs are at 100%.**
 
-This file remains the **post-M5.5 next-session prompt** that decides between two forks: ship the 6-item polish backlog, or move to **M6 (Stripe live cutover + invoice integration for field rentals)**.
+The Fork-A polish backlog is unchanged (none of those items were touched this session). Fork B (M6 Stripe live) also unchanged.
 
-The fresh session should read this file first, then read [HANDOFF.md](../HANDOFF.md) §NEW SESSION + the closed-M5.5 + post-M5.5-fix sections in [CLAUDE.md](../CLAUDE.md) for the full context.
+The fresh session should read this file first, then read [HANDOFF.md](../HANDOFF.md) §NEW SESSION + the closed-M5.5 + post-M5.5-fix + Continued-post-M5.5-work sections in [CLAUDE.md](../CLAUDE.md) for full context.
 
 ---
 
 ```
 You are starting a fresh session on the Air Action Sports project.
-M5.5 (Field Rentals) shipped + closed 2026-05-12. A post-M5.5 staff-
-wiring fix also shipped the same day. Production worker version
-866dd1ef-106a-4373-8051-bfe27d45c3f4; main at d70952a + cd27867.
+M5.5 (Field Rentals) shipped + closed 2026-05-12; the same operator
+session continued through 11 follow-up PRs the rest of that day.
+Production worker version 6b680a02-966b-4056-af5b-3e7d2fce9c1f;
+main at eb89f13 (PR #175 merge).
 
 ═══════════════════════════════════════════════════════════════════════
-STATE AT HANDOFF (2026-05-12 late)
+STATE AT HANDOFF (2026-05-12 late evening)
 ═══════════════════════════════════════════════════════════════════════
 
-main: d70952a (PR #165 staff-wiring fix merge) + cd27867 (deploy-fix
-  follow-up). Cumulative on top of the M5.5 close (8decacc).
-Tests: 2022 / 163 files (M5.5 close was 1997 / 161 → +25 from new
-  staff-create + personsHelpers tests).
-Lint: 0 errors / 441 warnings (one new advisory: react-refresh on
-  src/admin/AdminStaffNew.jsx).
-Build: clean (~270ms).
-Open PRs: 0 (PR #165 merged; deploy-fix on main).
+main:    eb89f13 (PR #175 — email-bound promo codes — most recent merge).
+Tests:   2073 / 168 files (M5.5 close was 1997 / 161 → +76).
+Lint:    0 errors / 448 warnings (all react-refresh advisory).
+Build:   clean (~265ms).
+Open PRs: 0 active (PR #1 is a stale April config-rename; safe to close).
 
-Post-M5.5 wiring fix in summary — 5 layered M5 gaps fixed in one batch:
-  A. persons table was empty in prod (backfill-persons.js was never run
-     AND was broken: pre-dated M5.5 D1 quirk #4, plus wrong audit_log
-     column shape). Fixed + ran. 4 persons + 4 person_roles minted.
-  B. createPersonForUser was dead code in worker/routes/admin/auth.js.
-     Wired into /setup + /accept-invite.
-  C. + New Person button had no route/form/POST endpoint. Added
-     POST /api/admin/staff, GET /roles-catalog, AdminStaffNew.jsx,
-     /admin/staff/new route.
-  D. All 4 users had role_preset_key=NULL → fell through to legacy fallback
-     (5 booking-only caps from M4, no staff.*). SQL UPDATE → 'owner'.
-  E. global.css `nav { position: fixed }` bled onto every <nav> in the
-     app, breaking profile tab nav layout. Scoped to .site-nav.
-  Deploy-fix. The B wiring transitively imported scripts/backfill-persons.js
-     which has top-level `import 'node:child_process'` — Cloudflare can't
-     load node:*. Inlined the 13-line pure helper in personsHelpers.js.
+Migrations on remote D1 (cumulative, all applied):
+  0044-0053  M5.5 milestone (applied 2026-05-11 / 2026-05-12)
+  0054       promo_codes_email_binding (applied this session, 2026-05-12)
+
+Continued post-M5.5 work — what shipped in this session (11 PRs total):
+  PR #165  Post-M5.5 staff-wiring fix (5 prongs: persons backfill +
+           createPersonForUser wiring + + New Person flow + role_preset
+           backfill + nav-CSS scoping).
+  PR #166  Follow-up deploy-fix + docs refresh.
+  PR #167  P1 — Profile edit modal + Notes sensitive-textarea gating.
+  PR #168  P3 — Access tab: portal sessions list + revoke + invite.
+  PR #169  P2 — Documents tab: per-person ack list + admin override.
+  PR #170  P4 — Issues tab: incidents filed-by + involving.
+  PR #171  Portal invite confirm modal (UX fix).
+  PR #172  Gate portal invite on staff.invite capability (not role
+           hierarchy); remove cap from booking_coordinator preset.
+  PR #173  Home hero headline: "Lock & Load Up." → "Live Airsoft Events".
+  PR #174  Event create: normalize slug input (apostrophes/spaces/
+           uppercase silently slugified; no rejection).
+  PR #175  Email-bound single-use promo codes + batch-create modal with
+           chip parser + hard confirmation modal. Migration 0054 adds
+           promo_codes.restricted_to_email + seeds promo_code_issued
+           email template. New POST /api/admin/promo-codes/batch endpoint.
 
 D1 migrations applied to remote (M5.5 portion — all 10 applied):
   0044 sites_schema                       (B1, applied 2026-05-11)
@@ -55,13 +60,44 @@ D1 migrations applied to remote (M5.5 portion — all 10 applied):
   0051 cron_sentinels_and_business_caps   (B10a, applied 2026-05-12 post-deploy)
   0052 field_rental_cron_email_templates  (B10b, applied 2026-05-12 post-deploy)
   0053 inquiry_notification_email_template (B11, applied 2026-05-12 post-deploy)
+  0054 promo_codes_email_binding           (PR #175, applied 2026-05-12 evening)
+
+Admin staff suite — all 8 tabs at 100% on /admin/staff/:id:
+  Profile        Edit modal w/ 8 fields (PR #167)
+  Roles          functional (existed; unblocked by post-M5.5 wiring fix)
+  Documents      Per-person ack list + admin override (PR #169)
+  Notes          Public + sensitive textareas (PR #167)
+  Access         Portal sessions + revoke + invite confirm (PRs #168 #171)
+  Issues         Filed-by + involving incidents (PR #170)
+  Certifications functional
+  Schedule       functional
+
+Capability gate refinements (PR #172):
+- Frontend AccessTab.canInvite now reads hasCapability('staff.invite')
+  instead of hasRole('manager'). AdminContext plumbs capabilities[]
+  from /api/admin/auth/me + exposes hasCapability(cap).
+- DELETE FROM role_preset_capabilities WHERE capability_key='staff.invite'
+  AND role_preset_key='booking_coordinator';  → bound only to
+  owner + event_director presets now.
+- HR coordinator role_preset doesn't exist yet (see follow-ups below).
+
+Email-bound single-use promo codes (PR #175, the new feature):
+- promo_codes.restricted_to_email column. /checkout hard-rejects when
+  booking email mismatches (case-insensitive). /quote previews soft
+  when buyer email not yet provided.
+- POST /api/admin/promo-codes/batch generates N codes (max 500),
+  each single-use + bound to one recipient email. Optional
+  sendToSelfFirst dry-run flag prepends admin's email.
+- Admin UI: + Batch Create button next to + New Code. Modal parses
+  email list to chips with X-to-remove + invalid/duplicate warnings;
+  confirmation modal shows ⚠ "This cannot be undone" before any
+  emails fire.
 
 Verified post-apply:
-- 5 new email templates seeded (coi_alert_60d/30d/7d + field_rental_lead_stale + inquiry_notification)
+- 33 email templates in production (32 pre-session + promo_code_issued)
 - 2 existing customers backfilled to client_type='individual'
-- site_coordinator binding for customers.read.business_fields seeded
-  (5 role-presets total now: owner / event_director / booking_coordinator
-  / bookkeeper / site_coordinator)
+- 4 persons rows for the 4 admin users (Paul, Rebecca, Adam, Bradley)
+  all on role_preset_key='owner' (96 caps)
 - /api/health returns 200
 
 Production data state:
@@ -156,6 +192,36 @@ After smoke passes, the operator picks one of two directions:
    Recommended split: items 1+2 (largest, customer-facing), then 3+4
    (recurrence + lead-stale polish), then 5+6 (small carryover items).
 
+── Newly-queued admin follow-ups (from the 2026-05-12 evening session)
+   ───────────────────────────────────────────────────────────────────
+
+   7. HR coordinator role_preset doesn't exist yet.
+      Two SQL statements give an HR person invite access:
+        INSERT INTO role_presets (key, name)
+          VALUES ('hr_coordinator', 'HR Coordinator');
+        INSERT INTO role_preset_capabilities
+          (role_preset_key, capability_key)
+          VALUES ('hr_coordinator', 'staff.invite'),
+                 ('hr_coordinator', 'staff.read'),
+                 ('hr_coordinator', 'staff.read.pii'),
+                 ('hr_coordinator', 'staff.notes.read_sensitive'),
+                 ('hr_coordinator', 'staff.notes.write_sensitive');
+        UPDATE users SET role_preset_key='hr_coordinator'
+          WHERE email='<hr_email>';
+      Decision needed: which staff.* capabilities should HR get?
+
+   8. Past-games / event archive page (DISCUSSED, DEFERRED).
+      Scope: customer-facing "Past Games" index + per-event archive
+      page with video embeds + image gallery + downloadable files.
+      Recommended phased approach:
+        Phase 1 (~6 files, no R2 plumbing): public index + detail
+          page + admin UI to paste YouTube/Drive links into an
+          event_media table.
+        Phase 2: R2-hosted images + bulk admin upload tooling.
+        Phase 3: optional video hosting in R2.
+      Operator preferred public-archive over attendee-gated, and
+      external-links over R2 for phase 1.
+
 ── Fork B: M6 (Stripe live + invoice integration)
    ──────────────────────────────────
 
@@ -185,15 +251,19 @@ PRE-FLIGHT (before any code change)
   git checkout main
   git pull origin main
   npm install
-  npm test                # expect 2022 passed across 163 files
-  npm run lint            # expect 0 errors / 441 warnings
-  npm run build           # expect clean
+  npm test                # expect 2073 passed across 168 files
+  npm run lint            # expect 0 errors / 448 warnings
+  npm run build           # expect clean (~265ms)
   curl https://airactionsport.com/api/health
                           # expect {"ok":true,...}
   # Optional admin smokes (need a logged-in browser session):
-  #   /admin/staff           — 4 admin rows visible
-  #   /admin/staff/<id>      — profile tabs render INLINE (not floating top band)
-  #   /admin/staff/new       — form renders with all 22 roles in dropdown
+  #   /admin/staff/<id>             — all 8 tabs render
+  #   /admin/staff/<id> Profile     — Edit profile button opens modal
+  #   /admin/staff/<id> Documents   — empty state links to library
+  #   /admin/staff/<id> Access      — + Send portal invite opens confirm modal
+  #   /admin/staff/<id> Issues      — empty state ("no incidents on file")
+  #   /admin/promo-codes            — + Batch Create button opens chip-parser modal
+  #   /                              — hero shows "LIVE AIRSOFT / EVENTS"
 
 If any of these fails or numbers differ materially, STOP and investigate.
 

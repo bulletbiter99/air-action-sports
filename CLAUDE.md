@@ -781,3 +781,81 @@ Compounding (1) and (2): both `scripts/backfill-persons.js` and `personsHelpers.
 - ✅ Browser smoke (Claude_in_Chrome MCP): `/admin/staff` returns 200 with 4 admins listed; `/admin/staff/<id>` renders 8 tabs inline (the E nav-fix); `/admin/staff/new` renders the create form with all 22 roles in the catalog dropdown.
 
 **No new D1 migrations** in this fix — code-only + 2 remote D1 data mutations (4 person inserts + 4 user role_preset_key updates) already applied.
+
+---
+
+### Continued post-M5.5 work — 2026-05-12 (late afternoon → evening)
+
+Same operator session continued after the wiring-fix above. Nine more PRs landed, covering: the per-tab fill-out for `/admin/staff/:id` (P1 → P4), three UX/security follow-ups, two small public-side fixes, and one new feature (email-bound batch promo codes with migration 0054).
+
+**Production at session close: Worker version `6b680a02-966b-4056-af5b-3e7d2fce9c1f` at ~22:55 UTC, from `main` SHA `eb89f13`.**
+
+| # | PR | Headline | Merge SHA |
+|---|---|---|---|
+| 1 | [#167](https://github.com/bulletbiter99/air-action-sports/pull/167) | **P1** — Profile edit modal + Notes sensitive-textarea gating | `ed9a0a5` |
+| 2 | [#168](https://github.com/bulletbiter99/air-action-sports/pull/168) | **P3** — Access tab: portal sessions list + revoke + invite | `cc5d2e9` |
+| 3 | [#169](https://github.com/bulletbiter99/air-action-sports/pull/169) | **P2** — Documents tab: per-person ack list + admin override | `c1fa2ff` |
+| 4 | [#170](https://github.com/bulletbiter99/air-action-sports/pull/170) | **P4** — Issues tab: incidents filed-by + involving | `116577b` |
+| 5 | [#171](https://github.com/bulletbiter99/air-action-sports/pull/171) | Portal invite confirm modal (UX fix) | `396006a` |
+| 6 | [#172](https://github.com/bulletbiter99/air-action-sports/pull/172) | Gate portal invite on `staff.invite` capability (not role hierarchy); remove cap from booking_coordinator preset | `7eb2e70` |
+| 7 | [#173](https://github.com/bulletbiter99/air-action-sports/pull/173) | Home hero headline: "Lock & Load Up." → "Live Airsoft Events" | `342d654` |
+| 8 | [#174](https://github.com/bulletbiter99/air-action-sports/pull/174) | Event create: normalize slug input (no rejection on apostrophes/spaces/capitals) | `19e1a78` |
+| 9 | [#175](https://github.com/bulletbiter99/air-action-sports/pull/175) | Email-bound single-use promo codes + batch-create modal (migration 0054) | `eb89f13` |
+
+**Cumulative test count: 2073 across 168 files** (M5.5 close baseline 1997/161 → +76). Lint 0 errors. Build clean.
+
+#### Admin staff suite — all 8 tabs at 100%
+
+PRs #167-#170 closed the placeholder gap on `/admin/staff/:id`. State transition:
+
+| Tab | Before | After |
+|---|---|---|
+| Profile | view-only ("inline edit form coming…") | Edit modal with 8 fields (full_name, preferred_name, pronouns, email, phone, status, hired_at, separated_at). Existing PUT endpoint was already wired; UI now exposes it. |
+| Roles | functional | functional (unchanged, but unblocked by post-M5.5 wiring fix above) |
+| Documents | "coming in Batch 5" placeholder | `GET /api/admin/staff-documents/for-person/:personId` (server-computes 5 statuses: required_pending / required_acked / required_stale / optional_acked / available) + `POST /:id/acknowledge-for-person` for admin override acks (gated on `staff.documents.assign`). |
+| Notes | half-broken (sensitive textarea hidden when null; wrong cap) | Both textareas render when `staff.notes.read_sensitive` granted; write enabled when `staff.notes.write_sensitive` granted. `formatPerson()` now exposes `viewerCanSeeSensitiveNotes` + `viewerCanWriteSensitiveNotes` flags. |
+| Access | "coming in Batch 6" placeholder | `GET /api/admin/staff/:id/portal-sessions` (status: pending/active/expired/revoked) + `POST /:id/portal-sessions/:sid/revoke`. UI: table + confirm modal before send-invite + revoke action. |
+| Issues | "coming in Batch 14" placeholder | `GET /api/admin/staff/:id/incidents` joining `incidents` + `incident_persons`. UI: two sections (filed-by / involving) with inline narrative expand. |
+| Certifications | functional | functional (unchanged) |
+| Schedule | functional | functional (unchanged) |
+
+#### Capability-based gating swap (PR #172)
+
+Previously `AccessTab.canInvite = hasRole('manager')` — coarse 3-level role hierarchy. Now:
+
+- `AdminContext` plumbs `capabilities[]` from `/api/admin/auth/me` (was already returned by the backend; just unwired). Exposes `hasCapability(cap)` from `useAdmin()`.
+- `AccessTab.canInvite = hasCapability('staff.invite')`.
+- SQL on remote D1: `DELETE FROM role_preset_capabilities WHERE capability_key='staff.invite' AND role_preset_key='booking_coordinator';` — now bound to `owner` + `event_director` only.
+- HR coordinator preset doesn't exist yet. When onboarding HR, operator runs: `INSERT INTO role_presets (key, name) VALUES ('hr_coordinator', 'HR Coordinator');` + appropriate `role_preset_capabilities` bindings + `UPDATE users SET role_preset_key='hr_coordinator' WHERE email='…';`
+
+#### Migration 0054 — promo_codes_email_binding (PR #175, APPLIED TO REMOTE this session)
+
+- `ALTER TABLE promo_codes ADD COLUMN restricted_to_email TEXT NULL` — when set, `resolvePromoCode()` in `worker/routes/bookings.js` rejects the code at `/checkout` if `buyer.email` doesn't match (case-insensitive). `/quote` previews soft when no email provided. `pricing.js` (Critical DNT) NOT touched.
+- Seed `promo_code_issued` email template (with id + created_at per Lesson #7).
+- New endpoint `POST /api/admin/promo-codes/batch` (manager+, capped at 500 recipients) generates N single-use codes, each bound to one recipient email + random 6-char Crockford-style suffix (no 0/O/1/I). Optional `sendToSelfFirst` prepends admin's email as a dry-run preview.
+- New helper module `src/admin/promoCodeBatchHelpers.js` (pure): `parseEmailList(text)` returns `{ valid, invalid, duplicates }` with case-insensitive dedup; `formatDiscountDisplay(type, value)` for the confirm modal.
+- New `BatchPromoModal` in `AdminPromoCodes.jsx` with chip parser, send-to-self toggle, send-emails toggle (default on), and a **hard confirmation modal** before any emails fire (⚠ "This cannot be undone").
+
+#### Public-side tweaks
+
+- **Home hero headline** (PR #173): `<h1>Lock &amp;<span>Load Up.</span></h1>` → `<h1>Live Airsoft<span>Events</span></h1>`. No CSS changes — span retains `color: var(--orange); display: block;`. Visual regression passed under 1% diff threshold.
+- **Event slug normalization** (PR #174): `parseEventBody()` now calls `slugify()` transparently instead of regex-rejecting non-conforming input. `Operation '68` → `operation-68`. Only rejects when the input slugifies to empty (`!!!` etc.). Same code path covers POST + PUT.
+
+#### Carry-forward lessons (durable additions)
+
+7. **Capability-based gating > role hierarchy.** `hasRole('manager')` is a quick proxy but coarse; capabilities (`hasCapability('staff.invite')`) let the operator tune access via SQL on `role_preset_capabilities` without code changes. Backend already enforces — frontend should mirror.
+8. **Hard confirmation before destructive irreversible action.** The batch-promo-code modal pattern (preview + ⚠ warning + explicit "Yes, send N emails" button) prevents accidental click-throughs on email blasts. Re-use for any future bulk action that touches recipients or external services.
+9. **Single-email-per-code beats list-per-code.** When you need single-use + recipient-bound, generate N codes (one per recipient with its own random suffix) — cleaner audit trail than one shared code with a list of allowed emails. The redemption check stays trivial (single column lookup), and "Bob shares his code with Alice" gets rejected naturally.
+10. **Send-to-self-first dry-run is cheap insurance.** A toggle that prepends the admin's email as recipient #0 lets them preview the actual email content before fanning out. Trivial to wire; big confidence boost.
+
+#### Operator follow-ups queued for the next session
+
+- **HR coordinator role_preset** doesn't exist yet — see the SQL pattern above.
+- **Past-games / event archive page** discussed in this session but deferred. Phased plan in conversation: phase 1 = public archive + external video/photo links (YouTube embeds + Drive shared links) without R2 plumbing; phase 2 = R2-hosted images + bulk admin upload tooling; phase 3 = optional video hosting in R2. Recommend phase 1 first (~6 files).
+- **Original M5.5 polish backlog** from [docs/m55-next-session.md](docs/m55-next-session.md) Fork A unchanged: AES decryption surface for `business_tax_id` (EIN) + `business_billing_address`; Admin POST customers (create modal); monthly day_of_month recurrence pattern; `/status` route clearing `lead_stale_at`; UNIQUE constraint on (recurrence_id, recurrence_instance_index); AdminScan + AdminRoster `?event=` deep-link parsing.
+
+#### Gate map additions
+
+`scripts/test-gate-mapping.json` updated to reflect the new tests added this session:
+- `worker/routes/admin/staff.js` gate extended: `access.test.js`, `profile-edit.test.js`, `issues.test.js` added alongside existing list/detail/typeahead/roles/notes/archive/create.
+- `worker/routes/admin/staffDocuments.js` promoted to a gated entry with tests: `create.test.js`, `list.test.js`, `retire.test.js`, `role-tag.test.js`, `for-person.test.js`.
