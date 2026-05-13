@@ -223,9 +223,13 @@
         "PUT /api/admin/staff/:id (edit profile)",
         "POST /api/admin/staff/:id/role-assign",
         "PUT /api/admin/staff/:id/notes",
-        "POST /api/admin/staff/:id/archive"
+        "POST /api/admin/staff/:id/archive",
+        "POST /api/admin/staff/:id/invite",
+        "GET /api/admin/staff/:id/portal-sessions",
+        "POST /api/admin/staff/:id/portal-sessions/:sid/revoke",
+        "GET /api/admin/staff/:id/incidents"
       ],
-      "audit_group": "(M5 R4 + R17 + post-M5.5 create-flow fix)",
+      "audit_group": "(M5 R4 + R17 + post-M5.5 create-flow fix + P1/P3/P4 tabs)",
       "tests": [
         "tests/unit/admin/staff/list.test.js",
         "tests/unit/admin/staff/detail.test.js",
@@ -233,7 +237,31 @@
         "tests/unit/admin/staff/roles.test.js",
         "tests/unit/admin/staff/notes.test.js",
         "tests/unit/admin/staff/archive.test.js",
-        "tests/unit/admin/staff/create.test.js"
+        "tests/unit/admin/staff/create.test.js",
+        "tests/unit/admin/staff/profile-edit.test.js",
+        "tests/unit/admin/staff/access.test.js",
+        "tests/unit/admin/staff/issues.test.js"
+      ]
+    },
+    "worker/routes/admin/staffDocuments.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/staff-documents (list)",
+        "GET /api/admin/staff-documents/:id (detail)",
+        "POST /api/admin/staff-documents (new doc or new version)",
+        "POST /api/admin/staff-documents/:id/retire",
+        "POST /api/admin/staff-documents/:id/role-tag",
+        "DELETE /api/admin/staff-documents/:id/role-tag/:tagId",
+        "GET /api/admin/staff-documents/for-person/:personId",
+        "POST /api/admin/staff-documents/:id/acknowledge-for-person"
+      ],
+      "audit_group": "(M5 B5 library + post-M5.5 P2 per-person ack)",
+      "tests": [
+        "tests/unit/admin/staffDocuments/list.test.js",
+        "tests/unit/admin/staffDocuments/create.test.js",
+        "tests/unit/admin/staffDocuments/retire.test.js",
+        "tests/unit/admin/staffDocuments/role-tag.test.js",
+        "tests/unit/admin/staffDocuments/for-person.test.js"
       ]
     },
     "worker/routes/admin/personsHelpers.js": {
