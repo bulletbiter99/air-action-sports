@@ -452,3 +452,41 @@ export async function sendStaffPortalInvite(env, { person, inviterName, magicLin
         ],
     });
 }
+
+// Post-M5.5 — single-use promo code emailed to a specific recipient via the
+// admin batch-create flow. Used by worker/routes/admin/promoCodes.js
+// POST /batch when sendEmails=true.
+export async function sendPromoCodeIssued(env, {
+    toEmail, recipientName, code, discountDisplay, expiresAtMs, eventName,
+}) {
+    if (!toEmail) return { skipped: 'no_recipient_email' };
+    const template = await loadTemplate(env.DB, 'promo_code_issued');
+    if (!template) return { skipped: 'template_missing' };
+
+    const expiresStr = Number.isFinite(Number(expiresAtMs))
+        ? new Date(Number(expiresAtMs)).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Denver' })
+        : 'no expiration';
+
+    const vars = {
+        code,
+        discount_display: discountDisplay,
+        expires_at: expiresStr,
+        event_name: eventName || 'any event',
+        site_url: env.SITE_URL || 'https://airactionsport.com',
+        recipient_name: recipientName || 'there',
+    };
+    const rendered = renderTemplate(template, vars);
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: toEmail,
+        replyTo: env.REPLY_TO_EMAIL,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: 'promo_code_issued' },
+            { name: 'code', value: code },
+        ],
+    });
+}
