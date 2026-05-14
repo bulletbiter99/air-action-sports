@@ -133,7 +133,13 @@ adminAnalytics.get('/sales-series', async (c) => {
     start.setDate(start.getDate() - (days - 1));
     start.setHours(0, 0, 0, 0);
 
-    const clauses = [`status IN ('paid', 'comp')`, `paid_at IS NOT NULL`, `paid_at >= ?`, `paid_at <= ?`];
+    // Include refunded bookings — their paid_at attributes them to the day
+    // they were originally paid, and their total_cents represents money
+    // that actually flowed in on that day. Same bookkeeping convention as
+    // the overview/per-event endpoints: gross = lifetime received. Without
+    // this, refunding a booking from N days ago silently erased that day's
+    // bar from the chart.
+    const clauses = [`status IN ('paid', 'comp', 'refunded')`, `paid_at IS NOT NULL`, `paid_at >= ?`, `paid_at <= ?`];
     const binds = [start.getTime(), end.getTime()];
     if (eventId) { clauses.push(`event_id = ?`); binds.push(eventId); }
 
@@ -141,7 +147,7 @@ adminAnalytics.get('/sales-series', async (c) => {
         `SELECT date(paid_at / 1000, 'unixepoch') AS d,
                 COUNT(*) AS bookings,
                 COALESCE(SUM(player_count), 0) AS players,
-                COALESCE(SUM(CASE WHEN status = 'paid' THEN total_cents ELSE 0 END), 0) AS gross_cents
+                COALESCE(SUM(CASE WHEN status IN ('paid', 'refunded') THEN total_cents ELSE 0 END), 0) AS gross_cents
          FROM bookings
          WHERE ${clauses.join(' AND ')}
          GROUP BY d
