@@ -168,7 +168,11 @@ function EventTable({ events, label }) {
               </td>
               <td style={td}>
                 <strong>{$(e.netCents)}</strong>
-                {e.refundedCents > 0 && <div style={{ fontSize: 10, color: '#e74c3c' }}>−{$(e.refundedCents)}</div>}
+                {e.refundedCents > 0 && (
+                  <div style={{ fontSize: 10, color: '#e74c3c' }}>
+                    {$(e.refundedCents)} refunded
+                  </div>
+                )}
               </td>
               <td style={td}>{e.attendees}</td>
               <td style={td}>
