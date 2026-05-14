@@ -64,14 +64,16 @@ export default function EventDetail() {
         ogImage="https://airactionsport.com/images/og-image.jpg"
       />
 
-      {/* Event Hero Banner */}
+      {/* Event Hero Banner — blurred-backdrop + contained-foreground so
+          poster-shape (~1.7:1) AND landscape (~3:1+) source images both
+          render cleanly without crop-mangling. CSS variable on the
+          parent is consumed by ::before (blur backdrop, cover) +
+          ::after (visible foreground, contain). See event-detail.css. */}
       <div
-        className="event-hero"
-        style={(event.heroImageUrl || event.coverImageUrl) ? {
-          backgroundImage: `linear-gradient(rgba(20,20,20,0.55), rgba(20,20,20,0.75)), url("${event.heroImageUrl || event.coverImageUrl}")`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        } : undefined}
+        className={`event-hero${(event.heroImageUrl || event.coverImageUrl) ? ' event-hero--has-image' : ''}`}
+        style={(event.heroImageUrl || event.coverImageUrl)
+          ? { '--hero-bg-image': `url("${event.heroImageUrl || event.coverImageUrl}")` }
+          : undefined}
       >
         <div className="event-hero-content">
           <div className="event-hero-meta">
