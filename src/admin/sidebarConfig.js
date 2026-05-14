@@ -20,6 +20,7 @@
 // from the Customers item; M5+ may reintroduce flag-gated items).
 
 export const SIDEBAR = [
+    // ─── Daily entry points ───
     { type: 'item', to: '/admin', label: 'Home', end: true },
     {
         type: 'item',
@@ -27,25 +28,27 @@ export const SIDEBAR = [
         label: 'Today',
         dynamic: 'todayActive',
     },
+    { type: 'separator' },
+    // ─── Bookings flow ───
     { type: 'item', to: '/admin/events', label: 'Events' },
     { type: 'item', to: '/admin/bookings', label: 'Bookings' },
     { type: 'item', to: '/admin/customers', label: 'Customers' },
-    // M5.5 B6.5 — Sites + Fields directory (capability-gated). Backed by
-    // worker/routes/admin/sites.js; powers field rentals (M5.5 B7+).
+    { type: 'separator' },
+    // ─── B2B / Sites (M5.5 B6.5 + B8) ───
     { type: 'item', to: '/admin/sites', label: 'Sites', capability: 'sites.read' },
-    // M5.5 B8 — Field rentals (B2B field bookings). Conceptually adjacent to
-    // Sites (Sites = the where, Field Rentals = what's happening at the where).
     { type: 'item', to: '/admin/field-rentals', label: 'Field Rentals', capability: 'field_rentals.read' },
-    // M5 B0 (D10) — restored from the M4 B5 D09 collapse. Capability-gated
-    // so non-owner roles only see what their persona needs. The /admin/today
-    // page continues to surface these as quick-action tiles when an event
-    // is live; this sidebar entry serves the standing-time use case
-    // (between events).
+    { type: 'separator' },
+    // ─── Event-day ops (M5 B0 D10) ───
+    // Capability-gated so non-owner roles only see what their persona
+    // needs. /admin/today also surfaces these as quick-action tiles when
+    // an event is live; the sidebar entry serves the standing-time use
+    // case (between events).
     { type: 'item', to: '/admin/rentals', label: 'Rentals', capability: 'rentals.read' },
     { type: 'item', to: '/admin/roster', label: 'Roster', capability: 'roster.read' },
     { type: 'item', to: '/admin/scan', label: 'Scan', capability: 'scan.use' },
-    // Operational dashboards + tools — promoted from the Settings group
-    // so it can be configuration-only. Order: insights (Analytics /
+    { type: 'separator' },
+    // ─── Operational dashboards + tools (promoted from Settings group
+    // so it can stay configuration-only). Order: insights (Analytics /
     // Feedback) before marketing/partner ops (Promo Codes / Vendors).
     { type: 'item', to: '/admin/analytics', label: 'Analytics' },
     {
@@ -150,10 +153,12 @@ export function getVisibleItems(config, ctx = {}) {
     const flags = ctx.flags || {};
     const userRole = ctx.userRole;
 
-    return config.filter((entry) => {
+    const filtered = config.filter((entry) => {
         if (!entry || typeof entry !== 'object') return false;
 
-        // Separators always pass; consumers decide whether to render them.
+        // Separators always pass at this stage; we collapse adjacent /
+        // leading / trailing ones in the post-process step below so the
+        // visual chunking stays clean when capability-gated items hide.
         if (entry.type === 'separator') return true;
 
         // Groups always pass; their items are filtered at render time
@@ -178,6 +183,26 @@ export function getVisibleItems(config, ctx = {}) {
         // Default: visible
         return true;
     });
+
+    // Collapse consecutive separators + drop leading/trailing ones.
+    // Without this, hiding a whole capability-gated chunk (e.g. Sites +
+    // Field Rentals for a staff role) leaves two dividers butting up
+    // against each other, creating an oversized visual gap.
+    const collapsed = [];
+    for (const entry of filtered) {
+        if (entry.type === 'separator') {
+            const prev = collapsed[collapsed.length - 1];
+            // Skip leading separators and any directly after another separator.
+            if (!prev || prev.type === 'separator') continue;
+        }
+        collapsed.push(entry);
+    }
+    // Drop trailing separator if the last visible entry is one.
+    while (collapsed.length && collapsed[collapsed.length - 1].type === 'separator') {
+        collapsed.pop();
+    }
+
+    return collapsed;
 }
 
 // ────────────────────────────────────────────────────────────────────

@@ -16,82 +16,58 @@ import {
 } from '../../../src/admin/sidebarConfig.js';
 
 describe('SIDEBAR config', () => {
-    it('starts with Home, then Today (dynamic), then Events / Bookings / Customers', () => {
+    it('starts with Home, Today (dynamic), separator, then Events / Bookings / Customers', () => {
         expect(SIDEBAR[0]).toMatchObject({ type: 'item', to: '/admin', label: 'Home', end: true });
         expect(SIDEBAR[1]).toMatchObject({ type: 'item', to: '/admin/today', label: 'Today', dynamic: 'todayActive' });
-        expect(SIDEBAR[2]).toMatchObject({ type: 'item', to: '/admin/events', label: 'Events' });
-        expect(SIDEBAR[3]).toMatchObject({ type: 'item', to: '/admin/bookings', label: 'Bookings' });
-        expect(SIDEBAR[4]).toMatchObject({
-            type: 'item',
-            to: '/admin/customers',
-            label: 'Customers',
-        });
-        // M4 B12b: Customers no longer carries `requiresFlag` —
-        // customers_entity flag was deleted after the rollout.
-        expect(SIDEBAR[4].requiresFlag).toBeUndefined();
+        // Visual chunk divider between daily-entry and bookings-flow.
+        expect(SIDEBAR[2]).toMatchObject({ type: 'separator' });
+        expect(SIDEBAR[3]).toMatchObject({ type: 'item', to: '/admin/events', label: 'Events' });
+        expect(SIDEBAR[4]).toMatchObject({ type: 'item', to: '/admin/bookings', label: 'Bookings' });
+        expect(SIDEBAR[5]).toMatchObject({ type: 'item', to: '/admin/customers', label: 'Customers' });
+        // M4 B12b: Customers no longer carries `requiresFlag`.
+        expect(SIDEBAR[5].requiresFlag).toBeUndefined();
     });
 
-    it('Sites at index 5 (M5.5 B6.5) — capability-gated', () => {
-        expect(SIDEBAR[5]).toMatchObject({
-            type: 'item',
-            to: '/admin/sites',
-            label: 'Sites',
-            capability: 'sites.read',
-        });
-    });
-
-    it('Field Rentals at index 6 (M5.5 B8) — capability-gated', () => {
-        expect(SIDEBAR[6]).toMatchObject({
-            type: 'item',
-            to: '/admin/field-rentals',
-            label: 'Field Rentals',
-            capability: 'field_rentals.read',
-        });
-    });
-
-    it('continues with Rentals / Roster / Scan as capability-gated standing items (M5 B0 D10)', () => {
-        // M5.5 B8 bumped indices again: Sites (5) + Field Rentals (6) added,
-        // so the trio shifted to 7/8/9.
+    it('chunks the sidebar into visual groups with separators between functional clusters', () => {
+        // Daily entry: Home (0) · Today (1) · sep (2)
+        expect(SIDEBAR[2]).toMatchObject({ type: 'separator' });
+        // Bookings flow: Events (3) · Bookings (4) · Customers (5) · sep (6)
+        expect(SIDEBAR[6]).toMatchObject({ type: 'separator' });
+        // B2B: Sites (7) · Field Rentals (8) · sep (9)
         expect(SIDEBAR[7]).toMatchObject({
-            type: 'item',
-            to: '/admin/rentals',
-            label: 'Rentals',
-            capability: 'rentals.read',
+            type: 'item', to: '/admin/sites', label: 'Sites', capability: 'sites.read',
         });
         expect(SIDEBAR[8]).toMatchObject({
-            type: 'item',
-            to: '/admin/roster',
-            label: 'Roster',
-            capability: 'roster.read',
+            type: 'item', to: '/admin/field-rentals', label: 'Field Rentals', capability: 'field_rentals.read',
         });
-        expect(SIDEBAR[9]).toMatchObject({
-            type: 'item',
-            to: '/admin/scan',
-            label: 'Scan',
-            capability: 'scan.use',
+        expect(SIDEBAR[9]).toMatchObject({ type: 'separator' });
+        // Event-day ops: Rentals (10) · Roster (11) · Scan (12) · sep (13)
+        expect(SIDEBAR[10]).toMatchObject({
+            type: 'item', to: '/admin/rentals', label: 'Rentals', capability: 'rentals.read',
         });
-    });
-
-    it('Analytics / Feedback / Promo Codes / Vendors at indices 10-13 (promoted from Settings group)', () => {
-        expect(SIDEBAR[10]).toMatchObject({ type: 'item', to: '/admin/analytics', label: 'Analytics' });
         expect(SIDEBAR[11]).toMatchObject({
-            type: 'item',
-            to: '/admin/feedback',
-            label: 'Feedback',
-            badgeKey: 'newFeedback',
+            type: 'item', to: '/admin/roster', label: 'Roster', capability: 'roster.read',
         });
-        expect(SIDEBAR[12]).toMatchObject({ type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' });
-        expect(SIDEBAR[13]).toMatchObject({ type: 'item', to: '/admin/vendors', label: 'Vendors' });
+        expect(SIDEBAR[12]).toMatchObject({
+            type: 'item', to: '/admin/scan', label: 'Scan', capability: 'scan.use',
+        });
+        expect(SIDEBAR[13]).toMatchObject({ type: 'separator' });
+        // Operational: Analytics (14) · Feedback (15) · Promo Codes (16) · Vendors (17) · sep (18)
+        expect(SIDEBAR[14]).toMatchObject({ type: 'item', to: '/admin/analytics', label: 'Analytics' });
+        expect(SIDEBAR[15]).toMatchObject({
+            type: 'item', to: '/admin/feedback', label: 'Feedback', badgeKey: 'newFeedback',
+        });
+        expect(SIDEBAR[16]).toMatchObject({ type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' });
+        expect(SIDEBAR[17]).toMatchObject({ type: 'item', to: '/admin/vendors', label: 'Vendors' });
+        expect(SIDEBAR[18]).toMatchObject({ type: 'separator' });
     });
 
-    it('has a separator between top-level items and the Settings group', () => {
-        const sepIdx = SIDEBAR.findIndex((e) => e.type === 'separator');
+    it('Settings group sits at the end, separated by a divider', () => {
         const groupIdx = SIDEBAR.findIndex((e) => e.type === 'group');
-        expect(sepIdx).toBeGreaterThan(0);
-        expect(groupIdx).toBeGreaterThan(sepIdx);
-        // Separator now sits at index 14 (after Analytics / Feedback /
-        // Promo Codes / Vendors were promoted out of the Settings group).
-        expect(SIDEBAR[14]).toMatchObject({ type: 'separator' });
+        expect(groupIdx).toBe(19);
+        expect(SIDEBAR[groupIdx]).toMatchObject({ type: 'group', label: 'Settings' });
+        // The separator immediately precedes the group.
+        expect(SIDEBAR[groupIdx - 1]).toMatchObject({ type: 'separator' });
     });
 
     it('Settings group is configuration-only — 6 sub-items: Overview / Taxes / Email / Team / Audit / Waivers', () => {
@@ -181,15 +157,18 @@ describe('userHasCapabilityStub (M5 B0)', () => {
 });
 
 describe('getVisibleItems', () => {
-    it('owner with today active sees all 14 top-level items + sep + group = 16', () => {
+    it('owner with today active sees all 14 items + 5 separators + Settings group = 20', () => {
         // 14 top-level items: Home, Today, Events, Bookings, Customers,
         // Sites, Field Rentals, Rentals, Roster, Scan, Analytics, Feedback,
-        // Promo Codes, Vendors. Plus separator + Settings group = 16.
+        // Promo Codes, Vendors. Plus 5 visual-chunk separators + Settings
+        // group = 20 entries (no collapse triggered — all chunks have at
+        // least one visible item).
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: true, eventId: 'evt_1', checkInOpen: false },
             userRole: 'owner',
         });
-        expect(visible).toHaveLength(16);
+        expect(visible).toHaveLength(20);
+        expect(visible.filter((e) => e.type === 'separator')).toHaveLength(5);
         expect(visible.find((e) => e.label === 'Today')).toBeDefined();
         expect(visible.find((e) => e.label === 'Customers')).toBeDefined();
         expect(visible.find((e) => e.label === 'Sites')).toBeDefined();
@@ -201,6 +180,25 @@ describe('getVisibleItems', () => {
         expect(visible.find((e) => e.label === 'Feedback')).toBeDefined();
         expect(visible.find((e) => e.label === 'Promo Codes')).toBeDefined();
         expect(visible.find((e) => e.label === 'Vendors')).toBeDefined();
+    });
+
+    it('collapses consecutive separators when capability-gated chunks are hidden (staff role)', () => {
+        // Staff can't see Sites / Field Rentals / Rentals — that's a
+        // full chunk + part of another. Without collapse logic, two
+        // separators would end up adjacent.
+        const visible = getVisibleItems(SIDEBAR, {
+            todayState: { activeEventToday: false },
+            userRole: 'staff',
+        });
+        // Walk through the result and confirm no two separators are
+        // ever adjacent. Also confirm no leading/trailing separator.
+        for (let i = 0; i < visible.length - 1; i++) {
+            if (visible[i].type === 'separator') {
+                expect(visible[i + 1].type).not.toBe('separator');
+            }
+        }
+        expect(visible[0].type).not.toBe('separator');
+        expect(visible[visible.length - 1].type).not.toBe('separator');
     });
 
     it('staff role hides Rentals + Sites + Field Rentals (all manager+) but keeps Roster + Scan', () => {
@@ -268,14 +266,45 @@ describe('getVisibleItems', () => {
         expect(labels).not.toContain('Today');
     });
 
-    it('separators always pass through unchanged', () => {
+    it('drops leading + trailing separators (visual-chunking hygiene)', () => {
         const cfg = [
             { type: 'separator' },
             { type: 'item', to: '/x', label: 'X' },
             { type: 'separator' },
         ];
         const visible = getVisibleItems(cfg, {});
-        expect(visible.filter((e) => e.type === 'separator')).toHaveLength(2);
+        expect(visible).toHaveLength(1);
+        expect(visible[0].label).toBe('X');
+    });
+
+    it('preserves separators between visible items', () => {
+        const cfg = [
+            { type: 'item', to: '/a', label: 'A' },
+            { type: 'separator' },
+            { type: 'item', to: '/b', label: 'B' },
+        ];
+        const visible = getVisibleItems(cfg, {});
+        expect(visible).toHaveLength(3);
+        expect(visible[1].type).toBe('separator');
+    });
+
+    it('collapses consecutive separators when an item between them is filtered out', () => {
+        // Use requiresFlag (without the flag enabled) to reliably hide the
+        // middle item. capability-based hiding wouldn't work here because
+        // userHasCapabilityStub defaults unknown capabilities to visible.
+        const cfg = [
+            { type: 'item', to: '/a', label: 'A' },
+            { type: 'separator' },
+            { type: 'item', to: '/hidden', label: 'Hidden', requiresFlag: 'never_set' },
+            { type: 'separator' },
+            { type: 'item', to: '/b', label: 'B' },
+        ];
+        const visible = getVisibleItems(cfg, { flags: {} });
+        // After filter: A, sep, sep, B. After collapse: A, sep, B.
+        expect(visible).toHaveLength(3);
+        expect(visible[0].label).toBe('A');
+        expect(visible[1].type).toBe('separator');
+        expect(visible[2].label).toBe('B');
     });
 
     it('groups always pass through unchanged regardless of filter state', () => {
