@@ -73,10 +73,20 @@ adminAnalytics.get('/overview', async (c) => {
          WHERE ${attClauses.join(' AND ')}`
     ).bind(...attBinds).first();
 
-    // Revenue — paid only (comp is $0)
+    // Revenue — bookkeeping shape:
+    //   Gross = all money that flowed in historically (paid + refunded bookings'
+    //           original totals, since refunding flips status='paid' → 'refunded'
+    //           but the total_cents is preserved on the row).
+    //   Refunded = totals on currently-refunded rows.
+    //   Net = Gross − Refunded = paidGross (what's still on the books).
+    // Subtracting refundedGross from paidGross directly would double-count,
+    // because the two CASE WHEN buckets are mutually exclusive — a refund
+    // already removed the booking from paidGross, so subtracting it again
+    // makes net go negative (showed as -$320 with $0 paid / $320 refunded).
     const paidGross = status.paid?.grossCents || 0;
     const refundedGross = status.refunded?.grossCents || 0;
-    const netRevenueCents = paidGross - refundedGross;
+    const grossRevenueCents = paidGross + refundedGross;
+    const netRevenueCents = paidGross;
 
     const paidCount = status.paid?.count || 0;
     const refundedCount = status.refunded?.count || 0;
@@ -96,7 +106,7 @@ adminAnalytics.get('/overview', async (c) => {
             bookings: totalBookings,
             paidCount,
             netRevenueCents,
-            grossRevenueCents: paidGross,
+            grossRevenueCents,
             refundedCents: refundedGross,
             taxCents: paidTax + compTax,
             feeCents: paidFee + compFee,
@@ -175,11 +185,16 @@ adminAnalytics.get('/per-event', async (c) => {
 
     const [bookingStats, attendeeStats, capacityStats] = await Promise.all([
         c.env.DB.prepare(
+            // gross_cents includes refunded rows' original totals — refunding
+            // flips status='paid' → 'refunded' but preserves total_cents. This
+            // keeps gross showing the lifetime money received, so the
+            // gross − refunded = paid math at the consumer downstream stays
+            // correct (instead of going negative when everything is refunded).
             `SELECT event_id,
                     SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) AS paid_count,
                     SUM(CASE WHEN status = 'comp' THEN 1 ELSE 0 END) AS comp_count,
                     SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END) AS refunded_count,
-                    SUM(CASE WHEN status = 'paid' THEN total_cents ELSE 0 END) AS gross_cents,
+                    SUM(CASE WHEN status IN ('paid', 'refunded') THEN total_cents ELSE 0 END) AS gross_cents,
                     SUM(CASE WHEN status = 'refunded' THEN total_cents ELSE 0 END) AS refunded_cents,
                     SUM(CASE WHEN status IN ('paid', 'comp') THEN player_count ELSE 0 END) AS seats_sold
              FROM bookings WHERE event_id IN (${placeholders})

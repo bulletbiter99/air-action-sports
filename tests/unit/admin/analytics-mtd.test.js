@@ -268,3 +268,58 @@ describe('GET /api/admin/analytics/overview — tax + fee totals (M4 B4f)', () =
         expect(json.totals.feeCents).toBe(870);
     });
 });
+
+// Regression — refund math previously double-counted: netRevenueCents
+// was paidGross - refundedGross, but the two CASE WHEN buckets are
+// mutually exclusive (a refund flips status='paid' → 'refunded'), so
+// refundedGross was already excluded from paidGross. Result: an
+// all-refunded scenario showed Net = -$320 instead of $0.
+describe('GET /api/admin/analytics/overview — refund accounting', () => {
+    it('all-refunded scenario: Net = $0, Gross = lifetime received, Refunded = total returned', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        // 2 bookings totaling $320 → both refunded. No currently-paid rows.
+        env.DB.__on(/FROM bookings[\s\S]*?GROUP BY status/, {
+            results: [
+                { status: 'refunded', n: 2, gross_cents: 32000, tax_cents: 0, fee_cents: 0 },
+            ],
+        }, 'all');
+        env.DB.__on(/FROM attendees a/, { n: 0, checked_in: 0, waivers_signed: 0 }, 'first');
+
+        const res = await worker.fetch(
+            makeReq(PATH, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.totals.netRevenueCents).toBe(0);       // not -32000
+        expect(json.totals.grossRevenueCents).toBe(32000); // lifetime received
+        expect(json.totals.refundedCents).toBe(32000);     // sent back
+    });
+
+    it('mixed paid + refunded: Net = paidGross only, Gross includes both', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        // $500 paid + $200 refunded → net $500, gross $700, refunded $200.
+        env.DB.__on(/FROM bookings[\s\S]*?GROUP BY status/, {
+            results: [
+                { status: 'paid', n: 5, gross_cents: 50000, tax_cents: 0, fee_cents: 0 },
+                { status: 'refunded', n: 2, gross_cents: 20000, tax_cents: 0, fee_cents: 0 },
+            ],
+        }, 'all');
+        env.DB.__on(/FROM attendees a/, { n: 5, checked_in: 0, waivers_signed: 0 }, 'first');
+
+        const res = await worker.fetch(
+            makeReq(PATH, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        const json = await res.json();
+        expect(json.totals.netRevenueCents).toBe(50000);   // paid only
+        expect(json.totals.grossRevenueCents).toBe(70000); // paid + refunded
+        expect(json.totals.refundedCents).toBe(20000);
+    });
+});
