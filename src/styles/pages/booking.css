@@ -38,17 +38,54 @@
   .booking-stepper .step:last-child { border-bottom: none; }
 }
 
-/* ----- Selected-event banner (top of step 1) ----- */
+/* ----- Selected-event banner (top of step 1) -----
+ * Same blur-backdrop + contained-foreground pattern as .event-hero so
+ * the banner accepts both poster-shape and panoramic source images
+ * without crop-mangling. See event-detail.css for the rationale.
+ * Modifier class .booking-event-banner--has-image gates the image
+ * layers; without it, the panel falls back to the plain orange gradient. */
 .booking-event-banner {
   position: relative;
   margin-bottom: 1.5rem;
   padding: 1.75rem 1.75rem 1.5rem;
   background: linear-gradient(135deg, rgba(212, 84, 26, 0.12) 0%, rgba(0, 0, 0, 0.5) 100%);
   border-left: 4px solid var(--orange);
+  overflow: hidden;
+  isolation: isolate;
+}
+.booking-event-banner--has-image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: var(--banner-bg-image);
   background-size: cover;
   background-position: center;
+  filter: blur(28px) brightness(0.55);
+  transform: scale(1.15);
+}
+.booking-event-banner--has-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--banner-bg-image);
+  background-size: contain;
+  background-position: center;
   background-repeat: no-repeat;
-  overflow: hidden;
+}
+/* Dark gradient overlay between image layer and text for legibility. */
+.booking-event-banner--has-image > .booking-event-banner-meta {
+  position: relative;
+  z-index: 1;
+}
+.booking-event-banner--has-image > .booking-event-banner-meta::before {
+  content: '';
+  position: absolute;
+  inset: -1.75rem -1.75rem -1.5rem -1.75rem;
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.80) 100%);
+  pointer-events: none;
 }
 .booking-event-banner-date {
   font-size: 12px;

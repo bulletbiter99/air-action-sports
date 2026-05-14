@@ -391,10 +391,10 @@ function StepTicketsAndAddons({
           so the user always sees what they're booking. */}
       {selectedEvent && (
         <div
-          className="booking-event-banner"
+          className={`booking-event-banner${(selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl) ? ' booking-event-banner--has-image' : ''}`}
           style={
             (selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl)
-              ? { backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.85) 100%), url(${selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl})` }
+              ? { '--banner-bg-image': `url("${selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl}")` }
               : undefined
           }
         >

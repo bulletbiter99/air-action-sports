@@ -2,7 +2,59 @@
    EVENT DETAIL PAGE — Page-specific styles
    ============================================================ */
 
-.event-hero { background: var(--mid); padding: 5rem 2rem 3rem; margin-top: 60px; border-bottom: 3px solid var(--orange); }
+.event-hero {
+  background: var(--mid);
+  padding: 5rem 2rem 3rem;
+  margin-top: 60px;
+  border-bottom: 3px solid var(--orange);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Blur-backdrop + contained-foreground image strategy. The hero accepts
+ * either a panoramic landscape (3:1+) or a poster-shape image (~1.7:1)
+ * without crop-mangling. ::before is a blurred cover-cropped copy of
+ * the image filling the panel. ::after is a contained un-cropped copy
+ * showing the whole image, centered. ::before z-index < ::after.
+ *
+ * Only activates when JSX sets --hero-bg-image (modifier class added).
+ * Without an image, the panel falls back to the plain var(--mid) bg. */
+.event-hero--has-image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: var(--hero-bg-image);
+  background-size: cover;
+  background-position: center;
+  filter: blur(28px) brightness(0.55);
+  /* Scale up to hide the blur's faded edges from showing through. */
+  transform: scale(1.15);
+}
+.event-hero--has-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--hero-bg-image);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* Soft top→bottom dark overlay over both layers so the title text stays
+ * legible regardless of the image's brightness in any region. */
+.event-hero--has-image > .event-hero-content {
+  position: relative;
+  z-index: 1;
+}
+.event-hero--has-image > .event-hero-content::before {
+  content: '';
+  position: absolute;
+  inset: -5rem -2rem -3rem -2rem;
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(20,22,18,0.30) 0%, rgba(20,22,18,0.70) 100%);
+  pointer-events: none;
+}
 .event-hero-content { max-width: 1100px; margin: 0 auto; }
 .event-hero-meta { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .event-hero-date { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--orange); }
