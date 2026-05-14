@@ -24,7 +24,7 @@
 }
 .hero-bg-photo--has-image::after {
   content: ''; position: absolute; inset: 0;
-  background: rgba(20,22,18,0.78);
+  background: rgba(20,22,18, var(--hero-overlay-alpha, 0.78));
 }
 .hero-grid-overlay {
   position: absolute; inset: 0; z-index: 1;

@@ -238,6 +238,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
     timeRange: '', checkIn: '', firstGame: '', endTime: '',
     basePriceCents: 8000, totalSlots: 100,
     coverImageUrl: '', cardImageUrl: '', heroImageUrl: '', bannerImageUrl: '', ogImageUrl: '',
+    cardOverlayOpacity: '', heroOverlayOpacity: '', bannerOverlayOpacity: '',
     shortDescription: '',
     published: false, past: false, featured: false,
     addons: [], gameModes: [], customQuestions: [],
@@ -268,6 +269,9 @@ function EventEditor({ eventId, onClose, onSaved }) {
           heroImageUrl: event.heroImageUrl || '',
           bannerImageUrl: event.bannerImageUrl || '',
           ogImageUrl: event.ogImageUrl || '',
+          cardOverlayOpacity: event.cardOverlayOpacity ?? '',
+          heroOverlayOpacity: event.heroOverlayOpacity ?? '',
+          bannerOverlayOpacity: event.bannerOverlayOpacity ?? '',
           shortDescription: event.shortDescription || '',
           published: !!event.published, past: !!event.past, featured: !!event.featured,
           addons: event.addons || [], gameModes: event.gameModes || [],
@@ -367,6 +371,12 @@ function EventEditor({ eventId, onClose, onSaved }) {
             value={form.cardImageUrl}
             onChange={(v) => updateField('cardImageUrl', v)}
             fallback={form.coverImageUrl}
+            overlay={{
+              value: form.cardOverlayOpacity,
+              onChange: (v) => updateField('cardOverlayOpacity', v),
+              defaultValue: 0.65,
+              help: 'Darkens the bottom of the card so the title stays legible. Higher = darker.',
+            }}
           />
           <EventImagePicker
             label="Event hero"
@@ -376,6 +386,12 @@ function EventEditor({ eventId, onClose, onSaved }) {
             value={form.heroImageUrl}
             onChange={(v) => updateField('heroImageUrl', v)}
             fallback={form.coverImageUrl}
+            overlay={{
+              value: form.heroOverlayOpacity,
+              onChange: (v) => updateField('heroOverlayOpacity', v),
+              defaultValue: 0.78,
+              help: 'Drives both the home hero (flat dim) and event detail hero (gradient peak). Higher = darker.',
+            }}
           />
           <EventImagePicker
             label="Booking banner"
@@ -385,6 +401,12 @@ function EventEditor({ eventId, onClose, onSaved }) {
             value={form.bannerImageUrl}
             onChange={(v) => updateField('bannerImageUrl', v)}
             fallback={form.coverImageUrl}
+            overlay={{
+              value: form.bannerOverlayOpacity,
+              onChange: (v) => updateField('bannerOverlayOpacity', v),
+              defaultValue: 0.80,
+              help: 'Darkens the bottom of the banner on the booking page. Higher = darker.',
+            }}
           />
           <EventImagePicker
             label="Social / OG"
@@ -654,7 +676,7 @@ function AddonEditor({ addons, onChange }) {
   );
 }
 
-function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChange, fallback }) {
+function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChange, fallback, overlay }) {
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -732,6 +754,41 @@ function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChang
             {usingFallback
               ? 'Showing fallback (Cover) cropped to this surface — upload a dedicated image to fix any awkward crops.'
               : `Cropped preview at ${ratioHint.split('·')[0].trim()}`}
+          </div>
+        </div>
+      )}
+      {overlay && (
+        <div style={{ marginTop: 'var(--space-12)', paddingTop: 'var(--space-12)', borderTop: '1px solid var(--color-border)' }}>
+          <div style={imagePickerLabel}>Overlay opacity</div>
+          <div style={imagePickerHint}>{overlay.help}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-8)', marginTop: 'var(--space-8)' }}>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={overlay.value === '' || overlay.value == null ? overlay.defaultValue : overlay.value}
+              onChange={(e) => overlay.onChange(e.target.value)}
+              style={{ flex: 1 }}
+              aria-label={`${label} overlay opacity`}
+            />
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step="0.05"
+              value={overlay.value}
+              onChange={(e) => overlay.onChange(e.target.value)}
+              placeholder={String(overlay.defaultValue)}
+              style={{ ...input, width: 80, marginBottom: 0 }}
+              aria-label={`${label} overlay opacity (numeric)`}
+            />
+            {overlay.value !== '' && overlay.value != null && (
+              <button type="button" onClick={() => overlay.onChange('')} style={qSubtle}>Reset</button>
+            )}
+          </div>
+          <div style={{ ...imagePickerHint, marginTop: 'var(--space-4)' }}>
+            Leave blank to use the page default ({overlay.defaultValue}).
           </div>
         </div>
       )}

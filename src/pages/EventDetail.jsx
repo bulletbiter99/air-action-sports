@@ -72,7 +72,10 @@ export default function EventDetail() {
       <div
         className={`event-hero${(event.heroImageUrl || event.coverImageUrl) ? ' event-hero--has-image' : ''}`}
         style={(event.heroImageUrl || event.coverImageUrl)
-          ? { '--hero-bg-image': `url("${event.heroImageUrl || event.coverImageUrl}")` }
+          ? {
+              '--hero-bg-image': `url("${event.heroImageUrl || event.coverImageUrl}")`,
+              '--hero-overlay-alpha': event.heroOverlayOpacity ?? 0.70,
+            }
           : undefined}
       >
         <div className="event-hero-content">

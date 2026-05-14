@@ -18,6 +18,9 @@ const EVENT_STRING_FIELDS = [
 const EVENT_INT_FIELDS = [
     'base_price_cents', 'total_slots', 'sales_close_at',
 ];
+const EVENT_OPACITY_FIELDS = [
+    'card_overlay_opacity', 'hero_overlay_opacity', 'banner_overlay_opacity',
+];
 
 function parseEventBody(body, { partial = false } = {}) {
     const patch = {};
@@ -30,6 +33,9 @@ function parseEventBody(body, { partial = false } = {}) {
         coverImageUrl: 'cover_image_url',
         cardImageUrl: 'card_image_url', heroImageUrl: 'hero_image_url',
         bannerImageUrl: 'banner_image_url', ogImageUrl: 'og_image_url',
+        cardOverlayOpacity: 'card_overlay_opacity',
+        heroOverlayOpacity: 'hero_overlay_opacity',
+        bannerOverlayOpacity: 'banner_overlay_opacity',
         shortDescription: 'short_description',
         basePriceCents: 'base_price_cents', totalSlots: 'total_slots',
         salesCloseAt: 'sales_close_at',
@@ -37,7 +43,17 @@ function parseEventBody(body, { partial = false } = {}) {
     };
     for (const [k, col] of Object.entries(map)) {
         if (body[k] === undefined) continue;
-        if (EVENT_STRING_FIELDS.includes(col)) {
+        if (EVENT_OPACITY_FIELDS.includes(col)) {
+            // Empty string / null → NULL (use page default). Anything else
+            // must parse to a finite number; clamp to [0, 1].
+            if (body[k] === null || body[k] === '') {
+                patch[col] = null;
+            } else {
+                const n = Number(body[k]);
+                if (!Number.isFinite(n)) return { error: `${k} must be a number between 0 and 1` };
+                patch[col] = Math.max(0, Math.min(1, n));
+            }
+        } else if (EVENT_STRING_FIELDS.includes(col)) {
             let v = body[k] === null ? null : String(body[k]).trim();
             // slug must be URL-safe. Instead of rejecting non-conforming
             // input, transparently normalize it via slugify() so an operator
@@ -360,6 +376,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         'base_price_cents', 'total_slots', 'addons_json', 'game_modes_json', 'details_json',
         'sales_close_at', 'published', 'past', 'featured',
         'cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url',
+        'card_overlay_opacity', 'hero_overlay_opacity', 'banner_overlay_opacity',
         'short_description', 'slug', 'created_at', 'updated_at',
     ];
     const vals = {
@@ -391,6 +408,9 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         hero_image_url: patch.hero_image_url || null,
         banner_image_url: patch.banner_image_url || null,
         og_image_url: patch.og_image_url || null,
+        card_overlay_opacity: patch.card_overlay_opacity ?? null,
+        hero_overlay_opacity: patch.hero_overlay_opacity ?? null,
+        banner_overlay_opacity: patch.banner_overlay_opacity ?? null,
         short_description: patch.short_description || null,
         slug: patch.slug,
         created_at: now,

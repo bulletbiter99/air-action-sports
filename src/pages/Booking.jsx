@@ -394,7 +394,10 @@ function StepTicketsAndAddons({
           className={`booking-event-banner${(selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl) ? ' booking-event-banner--has-image' : ''}`}
           style={
             (selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl)
-              ? { '--banner-bg-image': `url("${selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl}")` }
+              ? {
+                  '--banner-bg-image': `url("${selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl}")`,
+                  '--banner-overlay-alpha': selectedEvent.bannerOverlayOpacity ?? 0.80,
+                }
               : undefined
           }
         >
