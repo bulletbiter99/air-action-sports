@@ -13,11 +13,16 @@
 }
 .hero-bg-photo {
   position: absolute; inset: 0; z-index: 0;
-  background-image: url('/images/ghost-town.jpg');
-  background-size: cover; background-position: center;
+  background-image: url('/images/logo-hero-fallback.png');
+  background-size: contain; background-position: center;
+  background-repeat: no-repeat;
+  background-color: #000;
+}
+.hero-bg-photo--has-image {
+  background-size: cover;
   background-color: #1a1c18;
 }
-.hero-bg-photo::after {
+.hero-bg-photo--has-image::after {
   content: ''; position: absolute; inset: 0;
   background: rgba(20,22,18,0.78);
 }
