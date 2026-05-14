@@ -94,7 +94,7 @@ export default function Home() {
           ============================================================ */}
       <div className="hero">
         <div
-          className="hero-bg-photo"
+          className={`hero-bg-photo${(featuredEvent?.heroImageUrl || featuredEvent?.coverImageUrl) ? ' hero-bg-photo--has-image' : ''}`}
           style={(featuredEvent?.heroImageUrl || featuredEvent?.coverImageUrl) ? {
             backgroundImage: `url("${featuredEvent.heroImageUrl || featuredEvent.coverImageUrl}")`,
           } : undefined}
