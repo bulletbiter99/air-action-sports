@@ -93,7 +93,12 @@ export default function Home() {
           HERO SECTION
           ============================================================ */}
       <div className="hero">
-        <div className="hero-bg-photo"></div>
+        <div
+          className="hero-bg-photo"
+          style={(featuredEvent?.heroImageUrl || featuredEvent?.coverImageUrl) ? {
+            backgroundImage: `url("${featuredEvent.heroImageUrl || featuredEvent.coverImageUrl}")`,
+          } : undefined}
+        ></div>
         <div className="hero-grid-overlay"></div>
         <div className="hero-content">
           <div className="hero-badge">&#9632; Live Field Operations &#9632;</div>
