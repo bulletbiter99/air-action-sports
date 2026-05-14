@@ -72,21 +72,34 @@ describe('SIDEBAR config', () => {
         });
     });
 
+    it('Analytics / Feedback / Promo Codes / Vendors at indices 10-13 (promoted from Settings group)', () => {
+        expect(SIDEBAR[10]).toMatchObject({ type: 'item', to: '/admin/analytics', label: 'Analytics' });
+        expect(SIDEBAR[11]).toMatchObject({
+            type: 'item',
+            to: '/admin/feedback',
+            label: 'Feedback',
+            badgeKey: 'newFeedback',
+        });
+        expect(SIDEBAR[12]).toMatchObject({ type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' });
+        expect(SIDEBAR[13]).toMatchObject({ type: 'item', to: '/admin/vendors', label: 'Vendors' });
+    });
+
     it('has a separator between top-level items and the Settings group', () => {
         const sepIdx = SIDEBAR.findIndex((e) => e.type === 'separator');
         const groupIdx = SIDEBAR.findIndex((e) => e.type === 'group');
         expect(sepIdx).toBeGreaterThan(0);
         expect(groupIdx).toBeGreaterThan(sepIdx);
-        // M5.5 B8: separator now sits at index 10 (after Sites + Field Rentals).
-        expect(SIDEBAR[10]).toMatchObject({ type: 'separator' });
+        // Separator now sits at index 14 (after Analytics / Feedback /
+        // Promo Codes / Vendors were promoted out of the Settings group).
+        expect(SIDEBAR[14]).toMatchObject({ type: 'separator' });
     });
 
-    it('Settings group has 10 sub-items including Overview / Taxes / Email / Team / Audit / Waivers / Vendors / Promo Codes / Analytics / Feedback', () => {
+    it('Settings group is configuration-only — 6 sub-items: Overview / Taxes / Email / Team / Audit / Waivers', () => {
         const group = SIDEBAR.find((e) => e.type === 'group' && e.label === 'Settings');
         expect(group).toBeDefined();
         expect(group.key).toBe('settings');
         expect(group.defaultExpanded).toBe(false);
-        expect(group.items).toHaveLength(10);
+        expect(group.items).toHaveLength(6);
         const labels = group.items.map((i) => i.label);
         expect(labels).toEqual([
             'Overview',
@@ -95,17 +108,22 @@ describe('SIDEBAR config', () => {
             'Team',
             'Audit',
             'Waivers',
-            'Vendors',
-            'Promo Codes',
-            'Analytics',
-            'Feedback',
         ]);
     });
 
-    it('Feedback sub-item carries the newFeedback badge key (preserved from legacy)', () => {
-        const group = SIDEBAR.find((e) => e.type === 'group');
-        const feedback = group.items.find((i) => i.label === 'Feedback');
+    it('Feedback (top-level) carries the newFeedback badge key', () => {
+        const feedback = SIDEBAR.find((e) => e.type === 'item' && e.to === '/admin/feedback');
+        expect(feedback).toBeDefined();
         expect(feedback.badgeKey).toBe('newFeedback');
+    });
+
+    it('Operational items (Analytics / Feedback / Promo Codes / Vendors) NOT in the Settings group', () => {
+        const group = SIDEBAR.find((e) => e.type === 'group');
+        const groupTos = group.items.map((i) => i.to);
+        expect(groupTos).not.toContain('/admin/analytics');
+        expect(groupTos).not.toContain('/admin/feedback');
+        expect(groupTos).not.toContain('/admin/promo-codes');
+        expect(groupTos).not.toContain('/admin/vendors');
     });
 
     it('Roster / Scan / Rentals NOT in the Settings group (still standing top-level after M5 B0 D10)', () => {
@@ -163,15 +181,15 @@ describe('userHasCapabilityStub (M5 B0)', () => {
 });
 
 describe('getVisibleItems', () => {
-    it('owner with today active sees all 10 top-level items + sep + group = 12', () => {
-        // M5.5 B8: Field Rentals entry added → 10 top-level items (Home, Today,
-        // Events, Bookings, Customers, Sites, Field Rentals, Rentals, Roster,
-        // Scan) + separator + Settings group = 12.
+    it('owner with today active sees all 14 top-level items + sep + group = 16', () => {
+        // 14 top-level items: Home, Today, Events, Bookings, Customers,
+        // Sites, Field Rentals, Rentals, Roster, Scan, Analytics, Feedback,
+        // Promo Codes, Vendors. Plus separator + Settings group = 16.
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: true, eventId: 'evt_1', checkInOpen: false },
             userRole: 'owner',
         });
-        expect(visible).toHaveLength(12);
+        expect(visible).toHaveLength(16);
         expect(visible.find((e) => e.label === 'Today')).toBeDefined();
         expect(visible.find((e) => e.label === 'Customers')).toBeDefined();
         expect(visible.find((e) => e.label === 'Sites')).toBeDefined();
@@ -179,6 +197,10 @@ describe('getVisibleItems', () => {
         expect(visible.find((e) => e.label === 'Rentals')).toBeDefined();
         expect(visible.find((e) => e.label === 'Roster')).toBeDefined();
         expect(visible.find((e) => e.label === 'Scan')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Analytics')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Feedback')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Promo Codes')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Vendors')).toBeDefined();
     });
 
     it('staff role hides Rentals + Sites + Field Rentals (all manager+) but keeps Roster + Scan', () => {

@@ -24,17 +24,18 @@ describe('commandsFromSidebar', () => {
         expect(labels).toContain('Events');
         expect(labels).toContain('Bookings');
         expect(labels).toContain('Customers');
-        // Settings sub-items rendered as "Settings · X"
+        // Operational items promoted out of the Settings group (top-level)
+        expect(labels).toContain('Analytics');
+        expect(labels).toContain('Feedback');
+        expect(labels).toContain('Promo Codes');
+        expect(labels).toContain('Vendors');
+        // Settings sub-items rendered as "Settings · X" — configuration only
         expect(labels).toContain('Settings · Overview');
         expect(labels).toContain('Settings · Taxes');
         expect(labels).toContain('Settings · Email');
         expect(labels).toContain('Settings · Team');
         expect(labels).toContain('Settings · Audit');
         expect(labels).toContain('Settings · Waivers');
-        expect(labels).toContain('Settings · Vendors');
-        expect(labels).toContain('Settings · Promo Codes');
-        expect(labels).toContain('Settings · Analytics');
-        expect(labels).toContain('Settings · Feedback');
     });
 
     it('hides Today when activeEventToday=false', () => {

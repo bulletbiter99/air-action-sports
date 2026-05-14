@@ -44,12 +44,27 @@ export const SIDEBAR = [
     { type: 'item', to: '/admin/rentals', label: 'Rentals', capability: 'rentals.read' },
     { type: 'item', to: '/admin/roster', label: 'Roster', capability: 'roster.read' },
     { type: 'item', to: '/admin/scan', label: 'Scan', capability: 'scan.use' },
+    // Operational dashboards + tools — promoted from the Settings group
+    // so it can be configuration-only. Order: insights (Analytics /
+    // Feedback) before marketing/partner ops (Promo Codes / Vendors).
+    { type: 'item', to: '/admin/analytics', label: 'Analytics' },
+    {
+        type: 'item',
+        to: '/admin/feedback',
+        label: 'Feedback',
+        badgeKey: 'newFeedback',
+    },
+    { type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' },
+    { type: 'item', to: '/admin/vendors', label: 'Vendors' },
     { type: 'separator' },
     {
         type: 'group',
         key: 'settings',
         label: 'Settings',
         defaultExpanded: false,
+        // Configuration-only: things that change how the system works.
+        // Operational tools (Analytics, Feedback, Promo Codes, Vendors)
+        // are top-level entries above the separator.
         items: [
             { type: 'item', to: '/admin/settings', label: 'Overview' },
             { type: 'item', to: '/admin/settings/taxes-fees', label: 'Taxes' },
@@ -57,17 +72,6 @@ export const SIDEBAR = [
             { type: 'item', to: '/admin/staff', label: 'Team' },
             { type: 'item', to: '/admin/audit-log', label: 'Audit' },
             { type: 'item', to: '/admin/waivers', label: 'Waivers' },
-            { type: 'item', to: '/admin/vendors', label: 'Vendors' },
-            { type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' },
-            // Analytics + Feedback land here temporarily; final home decided
-            // pre-Reports M7 per the audit.
-            { type: 'item', to: '/admin/analytics', label: 'Analytics' },
-            {
-                type: 'item',
-                to: '/admin/feedback',
-                label: 'Feedback',
-                badgeKey: 'newFeedback',
-            },
         ],
     },
 ];
