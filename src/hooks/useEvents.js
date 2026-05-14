@@ -58,6 +58,9 @@ export function adaptEvent(apiEvent) {
         heroImageUrl: apiEvent.heroImageUrl || null,
         bannerImageUrl: apiEvent.bannerImageUrl || null,
         ogImageUrl: apiEvent.ogImageUrl || null,
+        cardOverlayOpacity: apiEvent.cardOverlayOpacity ?? null,
+        heroOverlayOpacity: apiEvent.heroOverlayOpacity ?? null,
+        bannerOverlayOpacity: apiEvent.bannerOverlayOpacity ?? null,
         dateIso: apiEvent.dateIso || '',
         ticketTypes: apiEvent.ticketTypes || [],
     };

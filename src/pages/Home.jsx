@@ -97,6 +97,7 @@ export default function Home() {
           className={`hero-bg-photo${(featuredEvent?.heroImageUrl || featuredEvent?.coverImageUrl) ? ' hero-bg-photo--has-image' : ''}`}
           style={(featuredEvent?.heroImageUrl || featuredEvent?.coverImageUrl) ? {
             backgroundImage: `url("${featuredEvent.heroImageUrl || featuredEvent.coverImageUrl}")`,
+            '--hero-overlay-alpha': featuredEvent.heroOverlayOpacity ?? 0.78,
           } : undefined}
         ></div>
         <div className="hero-grid-overlay"></div>

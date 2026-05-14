@@ -93,7 +93,7 @@ export default function Events() {
                 <Link
                   to={`/events/${ev.slug}`}
                   className="event-cover"
-                  style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.65) 100%), url(${ev.cardImageUrl || ev.coverImageUrl})` }}
+                  style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,${ev.cardOverlayOpacity ?? 0.65}) 100%), url(${ev.cardImageUrl || ev.coverImageUrl})` }}
                   aria-label={`${ev.title} — view details`}
                 >
                   {ev.featured && <span className="event-featured-pill">Featured</span>}
