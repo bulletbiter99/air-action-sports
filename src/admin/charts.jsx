@@ -18,41 +18,51 @@ export function BarChart({
   const values = data.map((d) => d[valueKey] || 0);
   const max = Math.max(1, ...values);
   const padTop = 8;
-  const padBottom = 22;
-  const padRight = 16; // reserve room for the last x-axis label so it isn't clipped
-  const chartH = height - padTop - padBottom;
+  const labelAreaHeight = 22; // reserved BELOW the SVG for HTML axis labels
+  const chartH = height - padTop - labelAreaHeight;
   const stride = labelEvery || Math.max(1, Math.ceil(data.length / 6));
   const chartW = data.length * 10;
+  const totalW = Math.max(chartW, 300);
+
+  // Bars whose labels to render. Always include the last bar so the most
+  // recent day is visible (matches the original behavior).
+  const labelIndices = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i % stride === 0 || i === data.length - 1) labelIndices.push(i);
+  }
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       <div style={{ display: 'flex' }}>
         <YAxis max={max} height={chartH} padTop={padTop} formatValue={formatValue} width={yAxisWidth} />
-        <svg
-          viewBox={`0 0 ${Math.max(chartW + padRight, 300)} ${height}`}
-          preserveAspectRatio="none"
-          style={{ width: '100%', height, display: 'block' }}
-        >
-          {/* Faint gridlines */}
-          {[0.25, 0.5, 0.75].map((frac) => (
-            <line
-              key={frac}
-              x1={0}
-              x2={chartW}
-              y1={padTop + chartH * (1 - frac)}
-              y2={padTop + chartH * (1 - frac)}
-              stroke="rgba(200,184,154,0.08)"
-              strokeWidth="0.5"
-            />
-          ))}
-          {/* Bars */}
-          {data.map((d, i) => {
-            const v = d[valueKey] || 0;
-            const h = (v / max) * chartH;
-            const x = i * 10 + 1;
-            return (
-              <g key={i}>
+        {/* Bar SVG + HTML x-axis labels share a column so the % positions
+            below align with the bars above regardless of container width. */}
+        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+          <svg
+            viewBox={`0 0 ${totalW} ${padTop + chartH}`}
+            preserveAspectRatio="none"
+            style={{ width: '100%', height: padTop + chartH, display: 'block' }}
+          >
+            {/* Faint gridlines */}
+            {[0.25, 0.5, 0.75].map((frac) => (
+              <line
+                key={frac}
+                x1={0}
+                x2={chartW}
+                y1={padTop + chartH * (1 - frac)}
+                y2={padTop + chartH * (1 - frac)}
+                stroke="rgba(200,184,154,0.08)"
+                strokeWidth="0.5"
+              />
+            ))}
+            {/* Bars */}
+            {data.map((d, i) => {
+              const v = d[valueKey] || 0;
+              const h = (v / max) * chartH;
+              const x = i * 10 + 1;
+              return (
                 <rect
+                  key={i}
                   x={x}
                   y={padTop + chartH - h}
                   width={8}
@@ -62,27 +72,36 @@ export function BarChart({
                 >
                   <title>{`${formatLabel(d[labelKey])}: ${formatValue(v)}`}</title>
                 </rect>
-              </g>
-            );
-          })}
-          {/* X-axis labels — sparse, anchored via text. Last label uses end-anchor so it can't clip past viewBox. */}
-          {data.map((d, i) => {
-            if (i % stride !== 0 && i !== data.length - 1) return null;
-            const isLast = i === data.length - 1;
-            return (
-              <text
-                key={`lbl-${i}`}
-                x={isLast ? chartW + padRight : i * 10 + 5}
-                y={height - 6}
-                textAnchor={isLast ? 'end' : 'middle'}
-                fill="var(--olive-light)"
-                fontSize="7"
-              >
-                {formatLabel(d[labelKey])}
-              </text>
-            );
-          })}
-        </svg>
+              );
+            })}
+          </svg>
+          {/* X-axis labels — rendered as HTML so they don't get horizontally
+              stretched by the SVG's preserveAspectRatio="none". Positioned
+              by % over the same width as the bars above. */}
+          <div style={{ position: 'relative', height: labelAreaHeight, marginTop: 4 }}>
+            {labelIndices.map((i) => {
+              const isLast = i === data.length - 1;
+              const centerLeftPct = ((i * 10 + 5) / totalW) * 100;
+              return (
+                <div
+                  key={`lbl-${i}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${centerLeftPct}%`,
+                    transform: isLast ? 'translateX(-100%)' : 'translateX(-50%)',
+                    top: 0,
+                    fontSize: 11,
+                    color: 'var(--tan)',
+                    fontVariantNumeric: 'tabular-nums',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {formatLabel(data[i][labelKey])}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -91,7 +110,9 @@ export function BarChart({
 function YAxis({ max, height, padTop, formatValue, width }) {
   const ticks = [0, 0.5, 1];
   return (
-    <div style={{ width, flexShrink: 0, position: 'relative', height: height + padTop + 22 }}>
+    // height matches the bar SVG (padTop + chartH); x-axis labels live in
+    // a sibling HTML row, not inside this column.
+    <div style={{ width, flexShrink: 0, position: 'relative', height: height + padTop }}>
       {ticks.map((frac) => {
         const v = max * frac;
         return (
