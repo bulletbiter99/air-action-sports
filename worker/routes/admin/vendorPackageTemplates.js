@@ -19,21 +19,13 @@ import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
 import { randomId } from '../../lib/ids.js';
 import { writeAudit } from '../../lib/auditLog.js';
+import { parseSections, normalizeSections, cloneTemplateSections } from '../../lib/vendorPackageTemplates.js';
 
 const adminVendorPackageTemplates = new Hono();
 adminVendorPackageTemplates.use('*', requireAuth);
 
 function templateId() { return `vtpl_${randomId(12)}`; }
-
-function parseSections(json) {
-    if (!json) return [];
-    try {
-        const parsed = JSON.parse(json);
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
-}
+function evndId() { return `evnd_${randomId(12)}`; }
 
 function formatTemplate(r) {
     if (!r) return null;
@@ -50,23 +42,6 @@ function formatTemplate(r) {
         createdAt: r.created_at,
         updatedAt: r.updated_at,
     };
-}
-
-function isValidSection(s) {
-    return s && typeof s === 'object'
-        && typeof s.title === 'string';
-}
-
-function normalizeSections(input) {
-    if (!Array.isArray(input)) return [];
-    return input
-        .filter(isValidSection)
-        .map((s, idx) => ({
-            kind: typeof s.kind === 'string' ? s.kind : 'text',
-            title: String(s.title).slice(0, 200),
-            body_html: typeof s.body_html === 'string' ? s.body_html : '',
-            sort_order: Number.isFinite(s.sort_order) ? s.sort_order : idx,
-        }));
 }
 
 // ───── GET / — list templates ─────
@@ -151,6 +126,169 @@ adminVendorPackageTemplates.post('/', requireRole('owner', 'manager'), async (c)
     ).bind(id).first();
 
     return c.json({ template: formatTemplate(row) }, 201);
+});
+
+// ───── PUT /:id — update template (B2) ─────
+// Partial update: any field omitted is left unchanged. Body shape:
+//   { name?, description?, sections?, requiresSignature? }
+adminVendorPackageTemplates.put('/:id', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: 'Invalid body' }, 400);
+
+    const existing = await c.env.DB.prepare(
+        `SELECT * FROM vendor_package_templates WHERE id = ?`
+    ).bind(id).first();
+    if (!existing) return c.json({ error: 'Template not found' }, 404);
+    if (existing.deleted_at) return c.json({ error: 'Cannot edit an archived template' }, 409);
+
+    // Build the partial update — only set the columns the caller provided.
+    const sets = [];
+    const binds = [];
+    const changedFields = [];
+
+    if (body.name !== undefined) {
+        const name = String(body.name || '').trim();
+        if (!name) return c.json({ error: 'name cannot be empty' }, 400);
+        if (name.length > 200) return c.json({ error: 'name too long (max 200 chars)' }, 400);
+        sets.push('name = ?');
+        binds.push(name);
+        changedFields.push('name');
+    }
+
+    if (body.description !== undefined) {
+        const description = body.description === null
+            ? null
+            : String(body.description).trim().slice(0, 2000);
+        sets.push('description = ?');
+        binds.push(description);
+        changedFields.push('description');
+    }
+
+    if (body.sections !== undefined) {
+        const sections = normalizeSections(body.sections);
+        sets.push('sections_json = ?');
+        binds.push(JSON.stringify(sections));
+        changedFields.push('sections');
+    }
+
+    if (body.requiresSignature !== undefined) {
+        sets.push('requires_signature = ?');
+        binds.push(body.requiresSignature ? 1 : 0);
+        changedFields.push('requiresSignature');
+    }
+
+    if (sets.length === 0) {
+        return c.json({ error: 'No fields to update' }, 400);
+    }
+
+    const now = Date.now();
+    sets.push('updated_at = ?');
+    binds.push(now);
+    binds.push(id);
+
+    await c.env.DB.prepare(
+        `UPDATE vendor_package_templates SET ${sets.join(', ')} WHERE id = ?`
+    ).bind(...binds).run();
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'vendor_template.updated',
+        targetType: 'vendor_package_template',
+        targetId: id,
+        meta: { changedFields },
+    });
+
+    const row = await c.env.DB.prepare(
+        `SELECT * FROM vendor_package_templates WHERE id = ?`
+    ).bind(id).first();
+    return c.json({ template: formatTemplate(row) });
+});
+
+// ───── POST /:id/clone-to-event — instantiate template as event_vendor (B2) ─────
+// Body: { eventId, vendorId, primaryContactId? }
+// Creates a new event_vendors row with template_id + contract_required from
+// the template's requires_signature, then INSERTs vendor_package_sections
+// for each section in the template's sections_json (via cloneTemplateSections).
+// Refuses if a (event, vendor) row already exists — 409 with the existing
+// event_vendor id so the caller can deep-link there.
+adminVendorPackageTemplates.post('/:id/clone-to-event', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const templateRowId = c.req.param('id');
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: 'Invalid body' }, 400);
+
+    const eventId = String(body.eventId || '').trim();
+    const vendorId = String(body.vendorId || '').trim();
+    if (!eventId) return c.json({ error: 'eventId required' }, 400);
+    if (!vendorId) return c.json({ error: 'vendorId required' }, 400);
+
+    // Verify the template exists and isn't archived
+    const template = await c.env.DB.prepare(
+        `SELECT * FROM vendor_package_templates WHERE id = ?`
+    ).bind(templateRowId).first();
+    if (!template) return c.json({ error: 'Template not found' }, 404);
+    if (template.deleted_at) return c.json({ error: 'Cannot clone an archived template' }, 409);
+
+    // Verify event + vendor exist
+    const event = await c.env.DB.prepare(`SELECT id FROM events WHERE id = ?`).bind(eventId).first();
+    if (!event) return c.json({ error: 'Event not found' }, 404);
+    const vendor = await c.env.DB.prepare(`SELECT id, deleted_at FROM vendors WHERE id = ?`).bind(vendorId).first();
+    if (!vendor) return c.json({ error: 'Vendor not found' }, 404);
+    if (vendor.deleted_at) return c.json({ error: 'Vendor is archived' }, 409);
+
+    // event_vendors has UNIQUE(event_id, vendor_id) — preempt the constraint
+    // with a clean 409 + the existing id so the UI can route to it.
+    const existing = await c.env.DB.prepare(
+        `SELECT id FROM event_vendors WHERE event_id = ? AND vendor_id = ?`
+    ).bind(eventId, vendorId).first();
+    if (existing) {
+        return c.json({
+            error: 'This vendor is already attached to that event',
+            eventVendorId: existing.id,
+        }, 409);
+    }
+
+    const id = evndId();
+    const now = Date.now();
+    const primaryContactId = body.primaryContactId ? String(body.primaryContactId).trim() : null;
+    const contractRequired = template.requires_signature ? 1 : 0;
+
+    // Create the event_vendor row including template_id (M5.5-era col from
+    // migration 0012) + contract_required (also 0012). Status defaults to
+    // 'draft' / token_version 1, matching adminEventVendors.post('/') intent.
+    await c.env.DB.prepare(
+        `INSERT INTO event_vendors
+         (id, event_id, vendor_id, primary_contact_id, status, token_version,
+          template_id, contract_required, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'draft', 1, ?, ?, NULL, ?, ?)`
+    ).bind(id, eventId, vendorId, primaryContactId, templateRowId, contractRequired, now, now).run();
+
+    // Clone the template's sections into per-event-vendor section rows.
+    const sections = parseSections(template.sections_json);
+    const cloneResult = await cloneTemplateSections(c.env, id, sections, now);
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'event_vendor.created_from_template',
+        targetType: 'event_vendor',
+        targetId: id,
+        meta: {
+            templateId: templateRowId,
+            templateName: template.name,
+            eventId,
+            vendorId,
+            sectionsCloned: cloneResult.inserted,
+            contractRequired: !!contractRequired,
+        },
+    });
+
+    return c.json({
+        eventVendorId: id,
+        sectionsCloned: cloneResult.inserted,
+        contractRequired: !!contractRequired,
+    }, 201);
 });
 
 // ───── DELETE /:id — soft-delete template ─────

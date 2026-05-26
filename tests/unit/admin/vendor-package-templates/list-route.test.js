@@ -288,10 +288,16 @@ describe('POST /api/admin/vendor-package-templates — create', () => {
         const sectionsJsonArg = insertedBinds[3];
         const sections = JSON.parse(sectionsJsonArg);
         expect(sections).toHaveLength(2); // invalid one filtered
+        // M6 B2: kind values are coerced to the
+        // vendor_package_sections CHECK enum ('overview', 'schedule',
+        // 'map', 'contact', 'custom') so templates are always
+        // cloneable. Both 'text' (input section[0]) and missing kind
+        // (input section[1]) coerce to 'custom'. Pre-B2 this defaulted
+        // to 'text' which would have failed at clone time.
         expect(sections[0].title).toBe('Setup');
-        expect(sections[0].kind).toBe('text');
+        expect(sections[0].kind).toBe('custom');
         expect(sections[1].title).toBe('Cleanup');
-        expect(sections[1].kind).toBe('text'); // default
+        expect(sections[1].kind).toBe('custom');
         expect(insertedBinds[4]).toBe(1); // requires_signature: true → 1
     });
 });
