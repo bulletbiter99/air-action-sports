@@ -1,20 +1,30 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 
 export default function AdminLogin() {
   const { login, isAuthenticated, setupNeeded, loading } = useAdmin();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Where to send the user after a successful login. AdminShell appends
+  // ?returnTo=<originalPath> when a session-expired redirect lands them
+  // here. Only paths starting with /admin are allowed — guards against
+  // an open-redirect (a phishing link like ?returnTo=https://evil.com).
+  const returnTo = useMemo(() => {
+    const r = new URLSearchParams(location.search).get('returnTo');
+    return r && r.startsWith('/admin') ? r : '/admin';
+  }, [location.search]);
+
   useEffect(() => {
     if (loading) return;
-    if (isAuthenticated) navigate('/admin', { replace: true });
+    if (isAuthenticated) navigate(returnTo, { replace: true });
     else if (setupNeeded) navigate('/admin/setup', { replace: true });
-  }, [loading, isAuthenticated, setupNeeded, navigate]);
+  }, [loading, isAuthenticated, setupNeeded, navigate, returnTo]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,7 +32,7 @@ export default function AdminLogin() {
     setSubmitting(true);
     const res = await login(email, password);
     setSubmitting(false);
-    if (res.ok) navigate('/admin', { replace: true });
+    if (res.ok) navigate(returnTo, { replace: true });
     else setError(res.error);
   };
 
