@@ -19,7 +19,7 @@ Last updated: 2026-05-26 (post-B5 merge; pre-B5 live cutover).
 | **B7** | Damage charge Option A activation (off-session) | — | — | — | — | — | — |
 | **B8** | Damage charge admin UI polish | — | — | — | — | — | — |
 | **B9** | Admin action: remove saved payment method | — | — | — | — | — | — |
-| **B10** | booking_confirmation template update with "additional charges may apply" copy | — | — | — | — | — | — |
+| **B10** | booking_confirmation template update with "additional charges may apply" copy | _pending_ | _pending_ | n/a (D1 data change only) | ✓ (admin preview renders new "Heads-up" section + Stripe + damage mention; text version includes HEADS-UP block) | ✓ | ✓ |
 | **B11** | Closing runbooks + decision-register updates | — | — | — | — | — | — |
 
 ## Live cutover blocker (B5 → B7 chain)
