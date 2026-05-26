@@ -2,6 +2,14 @@
 
 **Status:** M6 is **IN PROGRESS** — 5 batches landed today (B3, B4, B5, B6, B10). Remaining (B7, B8, B9, B11) are gated on operator-only live Stripe cutover items. The fresh session should read this file first, then [HANDOFF.md](../HANDOFF.md) top-of-doc + [CLAUDE.md](../CLAUDE.md) Milestone 6 section + [docs/m6-batch-tracker.md](m6-batch-tracker.md) + [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md).
 
+## Operator decisions captured at session close (2026-05-26 ~14:50 UTC)
+
+The fresh session does NOT need to re-ask these:
+
+1. **B7/B8/B9 sequencing** → **(a) Stacked sandbox dev, merge later.** Develop B7→B8→B9 against sandbox in sequential PRs (or stack if needed). Live verification waits for operator cutover regardless; queue the sandbox-tested code now so the cutover is the only gate left.
+2. **Sandbox verification acceptance** → **Confirmed.** When live e2e is operator-gated (live disputes, live damage charges, $1 live booking), accept sandbox CLI / sandbox booking / mock-tested verification as proof of code correctness. Operator runs the live verification post-cutover.
+3. **Doc cadence** → **Per-batch.** Every batch's PR includes its doc updates (CLAUDE.md M6 table row, tracker, gate map). No batch-end-only doc PRs.
+
 ---
 
 ## Copy-paste prompt for fresh session
