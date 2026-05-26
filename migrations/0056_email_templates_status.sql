@@ -1,0 +1,48 @@
+-- Email template draft state — adds a `status` column to email_templates
+-- so admins can author + iterate on templates without them being send-eligible
+-- until explicitly published.
+--
+-- PRE-MIGRATION SPOT-CHECK (2026-05-25, captured in docs/m6-discovery/spot-check-log.md)
+-- ============================================================
+-- - email_templates exists on remote with the exact M5.5-close shape:
+--     CREATE TABLE email_templates (
+--         id TEXT PRIMARY KEY,
+--         slug TEXT NOT NULL UNIQUE,
+--         subject TEXT NOT NULL,
+--         body_html TEXT NOT NULL,
+--         body_text TEXT,
+--         variables_json TEXT,
+--         updated_by TEXT REFERENCES users(id),
+--         updated_at INTEGER NOT NULL,
+--         created_at INTEGER NOT NULL
+--     )
+-- - Lesson #7 prereqs MET (id TEXT PRIMARY KEY + created_at INTEGER NOT NULL).
+-- - 33 existing rows in production (per HANDOFF.md tally); all backfill
+--   to status='published' automatically via the DEFAULT below.
+--
+-- DESIGN NOTES
+-- ============================================================
+-- - status values: 'draft' | 'published'. No CHECK constraint at the SQL
+--   layer — validation lives in worker/lib/emailTemplates.js so the
+--   enum can evolve (e.g. 'archived' in a later milestone) without a
+--   schema-touch.
+-- - Filtering happens at the template-fetch layer (worker/lib/templates.js
+--   loadTemplate gains an optional { includeDrafts } arg). All 13+ named
+--   senders in worker/lib/emailSender.js continue to call loadTemplate
+--   without modification — drafts return null → senders return their
+--   existing `{ skipped: 'template_missing' }` shape.
+-- - The admin /preview endpoint passes { includeDrafts: true } so drafts
+--   can be visually previewed before publish; the /send-test endpoint
+--   refuses to send when status='draft'.
+-- - No admin UI in this batch — B4 ships the status toggle + draft badge.
+--
+-- D1 quirks observed
+-- ============================================================
+-- - Additive only (single ADD COLUMN). No table-rebuild → no D1
+--   FK-during-DROP issue (quirk #2 N/A).
+-- - No BEGIN/COMMIT (D1 parser rejects them anyway — quirk #1).
+-- - No email_templates seed in this migration; Lesson #7 N/A.
+-- - SQLite 3.35+ supports ADD COLUMN with NOT NULL + literal DEFAULT in
+--   a single statement. D1 runs SQLite 3.45+, so the constraint is safe.
+
+ALTER TABLE email_templates ADD COLUMN status TEXT NOT NULL DEFAULT 'published';

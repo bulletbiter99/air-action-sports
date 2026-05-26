@@ -3,6 +3,12 @@ import { requireAuth, requireRole } from '../../lib/auth.js';
 import { sendEmail, isValidEmail } from '../../lib/email.js';
 import { renderTemplate } from '../../lib/templates.js';
 import { writeAudit } from '../../lib/auditLog.js';
+import {
+    DEFAULT_STATUS,
+    STATUS_VALUES,
+    isPublishedTemplate,
+    normalizeStatus,
+} from '../../lib/emailTemplates.js';
 
 const adminEmailTemplates = new Hono();
 adminEmailTemplates.use('*', requireAuth);
@@ -17,6 +23,7 @@ function formatTemplate(r) {
         bodyHtml: r.body_html,
         bodyText: r.body_text,
         variables,
+        status: r.status || DEFAULT_STATUS,
         updatedAt: r.updated_at,
         updatedBy: r.updated_by,
         createdAt: r.created_at,
@@ -48,10 +55,16 @@ function sampleVars() {
 }
 
 // GET /api/admin/email-templates — list (manager+)
+// Optional ?status=draft|published filter; omitted returns all.
 adminEmailTemplates.get('/', requireRole('owner', 'manager'), async (c) => {
-    const rows = await c.env.DB.prepare(
-        `SELECT * FROM email_templates ORDER BY slug ASC`
-    ).all();
+    const statusFilter = normalizeStatus(c.req.query('status'));
+    const rows = statusFilter
+        ? await c.env.DB.prepare(
+            `SELECT * FROM email_templates WHERE status = ? ORDER BY slug ASC`
+        ).bind(statusFilter).all()
+        : await c.env.DB.prepare(
+            `SELECT * FROM email_templates ORDER BY slug ASC`
+        ).all();
     return c.json({ templates: (rows.results || []).map(formatTemplate) });
 });
 
@@ -96,6 +109,15 @@ adminEmailTemplates.put('/:slug', requireRole('owner'), async (c) => {
     if (body.bodyText !== undefined) {
         patch.body_text = body.bodyText ? String(body.bodyText) : null;
     }
+    if (body.status !== undefined) {
+        const normalized = normalizeStatus(body.status);
+        if (!normalized) {
+            return c.json({
+                error: `status must be one of ${STATUS_VALUES.join(', ')}`,
+            }, 400);
+        }
+        patch.status = normalized;
+    }
 
     const keys = Object.keys(patch);
     if (!keys.length) return c.json({ error: 'No changes' }, 400);
@@ -133,6 +155,14 @@ adminEmailTemplates.post('/:slug/send-test', requireRole('owner'), async (c) => 
     }
     const row = await c.env.DB.prepare(`SELECT * FROM email_templates WHERE slug = ?`).bind(slug).first();
     if (!row) return c.json({ error: 'Template not found' }, 404);
+
+    // M6 B3 — refuse to send a test of a draft. Drafts can still be
+    // visually previewed via /preview, but we never push them through
+    // Resend (operator wouldn't want a half-edited template leaking out
+    // even to their own inbox during iteration).
+    if (!isPublishedTemplate(row)) {
+        return c.json({ success: false, skipped: 'template_draft' }, 200);
+    }
 
     const rendered = renderTemplate(row, sampleVars());
     try {

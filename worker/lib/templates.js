@@ -4,11 +4,22 @@
 // Security: variables are always CRLF-stripped (header-injection guard).
 // HTML bodies additionally get HTML-entity-escaped — any attacker-controlled
 // string (booker name, email, event title, custom answers) is untrusted.
+//
+// M6 B3: `status` column added by migration 0056. `loadTemplate` now
+// silently skips drafts unless the caller passes { includeDrafts: true }.
+// This is the single template-fetch chokepoint used by every sender in
+// worker/lib/emailSender.js — drafts return null, so the existing
+// `if (!template) return { skipped: 'template_missing' }` guard in each
+// sender fires without any sender-side change. Admin preview opts in
+// to includeDrafts so authors can iterate before publishing.
 
-export async function loadTemplate(db, slug) {
-    return db.prepare(
+export async function loadTemplate(db, slug, { includeDrafts = false } = {}) {
+    const row = await db.prepare(
         `SELECT * FROM email_templates WHERE slug = ?`
     ).bind(slug).first();
+    if (!row) return null;
+    if (!includeDrafts && row.status === 'draft') return null;
+    return row;
 }
 
 export function renderTemplate(template, vars) {
