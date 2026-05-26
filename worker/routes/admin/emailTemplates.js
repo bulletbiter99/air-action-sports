@@ -9,6 +9,11 @@ import {
     isPublishedTemplate,
     normalizeStatus,
 } from '../../lib/emailTemplates.js';
+import {
+    getSpecForSlug,
+    fetchEntityForPreview,
+    buildVarsFromEntity,
+} from '../../lib/emailTemplatePreview.js';
 
 const adminEmailTemplates = new Hono();
 adminEmailTemplates.use('*', requireAuth);
@@ -77,12 +82,41 @@ adminEmailTemplates.get('/:slug', requireRole('owner', 'manager'), async (c) => 
     return c.json({ template: formatTemplate(row) });
 });
 
-// GET /api/admin/email-templates/:slug/preview — render with sample vars
+// GET /api/admin/email-templates/:slug/preview — render with sample vars by
+// default. When a query param matching the template's spec is supplied
+// (e.g. ?bookingId=bk_X for booking-flavored templates), fetch the entity
+// and render with REAL vars instead — lets the admin preview exactly what
+// a specific booking would receive before publishing.
+//
+// Response shape:
+//   { rendered, source: 'sample' | 'real', entityId?: string }
+// Error shape (200 with source still set, OR 4xx for hard errors):
+//   400 { error: 'missing_entity_id' }            — query param empty
+//   404 { error: 'booking_not_found' | 'event_not_found' }
+// For unsupported slugs (no TEMPLATE_SPEC), the query param is silently
+// ignored — drops back to sample-vars path so the UI never hard-errors
+// when previewing a non-booking template.
 adminEmailTemplates.get('/:slug/preview', requireRole('owner', 'manager'), async (c) => {
-    const row = await c.env.DB.prepare(`SELECT * FROM email_templates WHERE slug = ?`).bind(c.req.param('slug')).first();
+    const slug = c.req.param('slug');
+    const row = await c.env.DB.prepare(`SELECT * FROM email_templates WHERE slug = ?`).bind(slug).first();
     if (!row) return c.json({ error: 'Template not found' }, 404);
+
+    const spec = getSpecForSlug(slug);
+    const entityId = spec ? c.req.query(spec.queryParam) : null;
+
+    if (spec && entityId !== undefined && entityId !== null && entityId !== '') {
+        const result = await fetchEntityForPreview(c.env, slug, entityId);
+        if (result.error) {
+            const status = result.error === 'missing_entity_id' ? 400 : 404;
+            return c.json({ error: result.error, source: 'real' }, status);
+        }
+        const realVars = buildVarsFromEntity(slug, result.entity, c.env);
+        const rendered = renderTemplate(row, realVars);
+        return c.json({ rendered, source: 'real', entityId: entityId.trim() });
+    }
+
     const rendered = renderTemplate(row, sampleVars());
-    return c.json({ rendered });
+    return c.json({ rendered, source: 'sample' });
 });
 
 // PUT /api/admin/email-templates/:slug — update (owner only; these control real transactional email)

@@ -527,6 +527,58 @@
       "tests": [
         "tests/unit/lib/vendor-package-templates.test.js"
       ]
+    },
+    "worker/lib/emailTemplates.js": {
+      "tier": "m6_new_surface",
+      "covers": [
+        "STATUS_VALUES enum + DEFAULT_STATUS constant",
+        "isPublishedTemplate (legacy null + draft + published predicate)",
+        "isValidStatus (strict enum check)",
+        "normalizeStatus (trim + lowercase + validate)"
+      ],
+      "audit_group": "(M6 B3 new — email_templates.status column helpers)",
+      "tests": [
+        "tests/unit/lib/emailTemplates-helpers.test.js"
+      ]
+    },
+    "worker/lib/emailTemplatePreview.js": {
+      "tier": "m6_new_surface",
+      "covers": [
+        "TEMPLATE_SPECS (booking-flavored slug→spec map)",
+        "getSpecForSlug (null for unsupported)",
+        "supportedSlugs",
+        "fetchEntityForPreview (booking + event + attendees JOIN; error codes)",
+        "buildVarsFromEntity (per-template var construction mirroring senders)"
+      ],
+      "audit_group": "(M6 B4 new — admin preview-with-real-data helper)",
+      "tests": [
+        "tests/unit/lib/emailTemplatePreview.test.js"
+      ]
+    },
+    "worker/lib/templates.js (loadTemplate draft filter)": {
+      "tier": "high",
+      "covers": [
+        "loadTemplate { includeDrafts } option — drafts return null by default; opt-in for admin preview"
+      ],
+      "audit_group": "(M6 B3 surgical extension of High-DNT chokepoint; existing renderTemplate behavior unchanged)",
+      "tests": [
+        "tests/unit/lib/templates-load-status-filter.test.js"
+      ]
+    },
+    "worker/routes/admin/emailTemplates.js": {
+      "tier": "m6_new_surface",
+      "covers": [
+        "GET /api/admin/email-templates (with ?status= filter)",
+        "GET /api/admin/email-templates/:slug",
+        "GET /api/admin/email-templates/:slug/preview (with ?bookingId= real-data path)",
+        "PUT /api/admin/email-templates/:slug (with status validation)",
+        "POST /api/admin/email-templates/:slug/send-test (refuses drafts)"
+      ],
+      "audit_group": "(M6 B3+B4 — email-templates admin surface)",
+      "tests": [
+        "tests/unit/admin/email-templates-status.test.js",
+        "tests/unit/admin/email-templates-preview-with-data.test.js"
+      ]
     }
   },
   "uncovered": {
