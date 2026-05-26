@@ -649,6 +649,106 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 
 ---
 
+### Milestone 6 — Stripe Live Flow + Damage Charge Option A + Vendor Templates + Email Drafts (IN PROGRESS, B0-B2 closed + deployed)
+
+**Status:** IN PROGRESS as of 2026-05-26. Batches 0 / 0-followup / 1 / 2 merged + deployed; **B3 plan parked at [docs/m6-next-session.md](docs/m6-next-session.md) awaiting ack.** No long-lived milestone branch — sequential feature PRs to main (per-batch rolling brings-up, same working mode as recent post-M5.5 work).
+
+Operator acknowledgment in effect: schema migrations + the public booking flow change in B5 are tested only via local `wrangler dev` against a local D1 file before being run against production. Recovery from a migration mishap requires reverting + restoring D1 from a Cloudflare 24-hour automated backup.
+
+**Per-batch operating rules** (tightened from M5):
+
+- Plan-mode-first per batch — write plan, post it, wait for ack before edits.
+- **8-file operating target, 10-file hard ceiling** (tightened from M1-M5's 10-file target).
+- **Mandatory between-batch 5-bullet closing summary.** No exceptions.
+- **Claude Code never executes `wrangler d1 execute --remote` for MUTATIONS.** Read-only `.schema` / `SELECT sql FROM sqlite_master` queries — operator was permissive at B0-followup (4 tables); default remains operator-runs-it.
+- **Pre-migration spot-check mandatory** for any batch creating or altering a table. Spot-check output → batch closing summary.
+- Conventional Commits with `m6-<area>` scope. Flat `m6-batch-N-slug` sub-branch naming.
+
+**M6 do-not-touch surfaces touched by design** (no other Critical surfaces in scope):
+
+| Surface | Batch | Note |
+|---|---|---|
+| `worker/routes/bookings.js` | **B5** | `setup_future_usage: 'off_session'` on Checkout Session creation. Live cutover + $1 e2e test required BEFORE B5 merges to main. |
+| `worker/lib/stripe.js` | **B5** | Helper updates. Group B characterization stays gated throughout (138/138 at M6 start). |
+| `worker/routes/webhooks.js` | **B6** | `charge.dispute.created` consumer added. Existing handlers untouched. |
+
+`worker/services/waiverService.js` (cited in the M6 prompt's DNT list) **does not exist** — verified at B0. The real waiver DNT surfaces are `worker/routes/waivers.js` and `worker/lib/waiverLookup.js`; M6 doesn't touch either.
+
+**Batch sequence:**
+
+| Batch | What | Status | PR / SHA |
+|---|---|---|---|
+| **B0** | Cutover runbook + spot-check log scaffold + staff labeling polish (Team → Staff, + New Person → + Add Staff, browser tab titles) | ✓ Closed + deployed | [#188](https://github.com/bulletbiter99/air-action-sports/pull/188) / `0206120` |
+| **B0-followup** | Spot-check log POPULATED with 4 captured schemas (email_templates, bookings, audit_log, customers); cutover runbook column-name fix | ✓ Closed (docs only) | [#191](https://github.com/bulletbiter99/air-action-sports/pull/191) / `9da716a` |
+| **B1** | Vendor package templates — admin library UI (list + create + soft-delete + sidebar entry under Settings) | ✓ Closed + deployed | [#189](https://github.com/bulletbiter99/air-action-sports/pull/189) / `f0cd431` |
+| **B2** | Vendor package templates — detail/edit composer + clone-to-event + latent-bug fix (kind default `'text'` → `'custom'`) | ✓ Closed + deployed | [#190](https://github.com/bulletbiter99/air-action-sports/pull/190) / `fd1e3ba` |
+| **B3** | Email template draft state (schema + worker send-path filter) — migration 0056 introduces `status` column | 🟡 Plan parked at [docs/m6-next-session.md](docs/m6-next-session.md) | — |
+| **B4** | Email template draft state — admin UI (status toggle, preview-against-real-data, draft badge) | ⏳ Not started | — |
+| **B5** | Stripe `setup_future_usage` change ⚠ highest risk; Critical DNT files | ⏳ Not started; cutover before merge | — |
+| **B6** | `charge.dispute.created` webhook consumer | ⏳ Not started | — |
+| **B7** | Damage charge Option A activation (off-session) | ⏳ Not started | — |
+| **B8** | Damage charge admin UI + email polish | ⏳ Not started | — |
+| **B9** | Admin remove-saved-PM action (privacy compliance) | ⏳ Not started | — |
+| **B10** | booking_confirmation update + email polish pass | ⏳ Not started | — |
+| **B11** | Closing runbooks + decision register updates | ⏳ Not started | — |
+
+**Cumulative state at handoff (after B0/B0-followup/B1/B2):**
+- Main HEAD: `9da716a` (PR #191)
+- Worker version: `a6c147db-8299-45e8-82ab-d0ee1e0ac115`
+- Tests: 2135 across 173 files (was 2073/168 at M5.5+post-M5.5 close → +62 / +5)
+- Lint: 0 errors / 448 warnings
+- Build: clean (~260ms)
+- Migrations on remote: 0001–0055 (no M6 migrations yet — B3 introduces 0056)
+- Sidebar Settings group: **7 sub-items** (Overview / Taxes / Email / Staff / Audit / Waivers / **Vendor Templates** [B1])
+
+**Schema spot-checks captured 2026-05-25** (in [docs/m6-discovery/spot-check-log.md](docs/m6-discovery/spot-check-log.md)):
+
+- ✅ `email_templates` — Lesson #7 prereqs MET (`id TEXT PRIMARY KEY`, `created_at INTEGER NOT NULL`). B3's planned ALTER is safe.
+- ✅ `audit_log` — production has **7 columns** including `ip_address` (NOT 6 as the M5 post-deploy carry-forward note in this file claims — see Lessons section below). M2 `writeAudit()` handles both shapes; no code change needed.
+- ✅ `customers` — M5.5 B3+B9 shape; no `stripe_customer_id` column (B7 may add).
+- ✅ `bookings` — column is `stripe_payment_intent` (no `_id` suffix); cutover runbook updated.
+
+**Operator-side pre-flight items STILL PENDING from B0** (not blocking B3 code, but DMARC at minimum should land before B3 merges since B3 leads into deliverability-sensitive sends):
+
+1. M5.5 smoke checklist (6 items in `docs/runbooks/m55-deploy.md`)
+2. Overnight cron 8-key summary check
+3. **DMARC + Resend DKIM/SPF DNS records**
+4. Cloudflare Always-Use-HTTPS toggle confirmation
+5. Vendor/charge table existence query (gates B6/B7, not B3)
+
+**Lessons captured during M6 work** (durable across future milestones):
+
+1. **`.schema` is a sqlite3 shell command, not real SQL.** D1's HTTP API rejects `wrangler d1 execute --remote --command=".schema X"` with `near ".": syntax error`. Use `SELECT sql FROM sqlite_master WHERE tbl_name='X' AND sql IS NOT NULL` to query CREATE TABLE statements directly. (Discovered at B0-followup.)
+
+2. **Audit log is 7-col, not 6.** Production `audit_log` includes `ip_address` (nullable TEXT). The M5 post-deploy carry-forward note further down this file says "6 columns" — that was inaccurate. M2 `writeAudit()` in `worker/lib/auditLog.js` already handles both shapes via the `ipAddress` argument presence (6-col INSERT if undefined, 7-col INSERT if provided including null). No code change needed.
+
+3. **vendor_package_sections.kind has a CHECK enum** (`'overview', 'schedule', 'map', 'contact', 'custom'`). Templates store kind as plaintext JSON, but downstream INSERTs into the sections table will violate the CHECK if kind isn't in the enum. B1's `normalizeSections` defaulted kind to `'text'` which would have failed at clone time. B2 fixed: kind defaults to `'custom'` and unknown values coerce to `'custom'`. Pattern lesson: when designing a JSON-stored field that downstream code INSERTs into a CHECK-constrained column, the JSON normalizer must produce values inside the enum.
+
+4. **Helper extraction can be deferred to a later batch as a budget lever.** B1 deferred `worker/lib/vendorPackageTemplates.js` (helper module) to stay within the file target; B2 then created it and reused parseSections / normalizeSections / cloneTemplateSections in both PUT and clone routes. Clean pattern when two batches share logic.
+
+**Stop-and-ask triggers** (durable, from the M6 prompt):
+
+1. Stripe live cutover not confirmed before B5 merge.
+2. Any change to `worker/routes/bookings.js` causes Group A or B test fail.
+3. `setup_future_usage` breaks webhook signature verification.
+4. Email template seed missing `id='tpl_<slug>'` or `created_at=updated_at` (Lesson #7).
+5. DNT file needs modification beyond documented B5/B6 changes.
+6. Pre-migration spot-check reveals production schema differs from local fixture.
+7. 8-file operating target exceeded.
+8. Damage charge Option A hits a Stripe edge case not covered by fixtures.
+
+**Resume M6 in a fresh session:**
+
+1. `git checkout main && git pull origin main` (`9da716a` post-B0-followup)
+2. `npm install`
+3. `npm test` → confirm **2135 / 173** passing
+4. `npm run lint` → confirm 0 errors / 448 warnings
+5. `npm run build` → confirm clean
+6. `curl https://airactionsport.com/api/health` → `{"ok":true,...}`
+7. **Read [docs/m6-next-session.md](docs/m6-next-session.md) for the parked B3 plan.** If operator wants to proceed: ack the plan, then I execute. If pivoting: see the "Alternative tracks" section in that file (Native Marketing milestone OR Post-M5.5 polish backlog Fork A OR newly-queued admin follow-ups).
+
+---
+
 ### Milestone 4 — Bookings + Detail Workspace + New Admin Shell (✓ CLOSED 2026-05-07)
 
 Long-lived branch: `milestone/4-bookings-ia-completion` (off `main` at `87da972`, M3 close). Sub-branches use **flat `m4-batch-N-slug` naming** — same git ref-collision workaround M1/M2/M3 used. Per-batch rolling brings-up to main (every batch goes live on main soon after milestone-merge, not held until close).

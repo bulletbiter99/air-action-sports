@@ -4,11 +4,88 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — Admin staff suite at 100% + email-bound promo codes DEPLOYED (2026-05-12 late evening)
+## ⚠ NEW SESSION — M6 IN PROGRESS: B0/B1/B2 closed + deployed; B3 plan parked (2026-05-26)
 
-**M5.5 closed earlier today; the admin staff suite is now functional on every tab, and email-bound single-use promo codes shipped on top.** Production worker version `6b680a02-966b-4056-af5b-3e7d2fce9c1f` deployed ~22:55 UTC from `main` SHA `eb89f13` (merge of PR [#175](https://github.com/bulletbiter99/air-action-sports/pull/175)). Migration 0054 applied to remote D1 same session.
+**M6 (Stripe live + damage charge Option A + vendor templates + email drafts) is in progress.** Four PRs merged + deployed during the 2026-05-25/26 session: B0 (kickoff), B0-followup (spot-check capture), B1 (vendor template list/create), B2 (vendor template detail/edit composer + clone-to-event). **B3 plan was presented but not yet ack'd or executed — parked at [docs/m6-next-session.md](docs/m6-next-session.md) for the fresh session to pick up.**
 
-**Copy the prompt at [docs/m55-next-session.md](docs/m55-next-session.md) into the fresh session.**
+**Copy the prompt at [docs/m6-next-session.md](docs/m6-next-session.md) into the fresh session.**
+
+Production worker version `a6c147db-8299-45e8-82ab-d0ee1e0ac115` (post-B2 deploy; B0-followup was docs-only, no deploy). main at `9da716a` (PR [#191](https://github.com/bulletbiter99/air-action-sports/pull/191) merge — the docs-only follow-up).
+
+### M6 PRs shipped this session (in order)
+
+| # | PR | Headline | Merge SHA | Deploy |
+|---|---|---|---|---|
+| 1 | [#188](https://github.com/bulletbiter99/air-action-sports/pull/188) | **m6(b0)** — cutover runbook draft + spot-check log scaffold + staff labeling polish (Team → Staff, + New Person → + Add Staff, browser tab titles) | `0206120` | post-B0 |
+| 2 | [#189](https://github.com/bulletbiter99/air-action-sports/pull/189) | **m6(b1)** — vendor package templates admin library (list + create + soft-delete + sidebar entry) | `f0cd431` | post-B1 |
+| 3 | [#190](https://github.com/bulletbiter99/air-action-sports/pull/190) | **m6(b2)** — vendor package templates detail/edit composer + clone-to-event (`POST /:id/clone-to-event`); latent-bug fix (kind default `'text'` → `'custom'` to satisfy CHECK constraint) | `fd1e3ba` | post-B2 (Worker `a6c147db`) |
+| 4 | [#191](https://github.com/bulletbiter99/air-action-sports/pull/191) | **m6(b0-followup)** — spot-check log POPULATED with 4 captured schemas; cutover runbook column-name fix (`stripe_payment_intent_id` → `stripe_payment_intent`) | `9da716a` | docs only, no deploy |
+
+### State at close
+
+| Metric | Value |
+|---|---|
+| Tests | **2135 across 173 files** (was 2073/168 at M5.5 close → +62 / +5) |
+| Lint | 0 errors / 448 warnings (advisory) |
+| Build | clean (~260ms) |
+| Migrations on remote | All 55 (0001–0055) applied. **No M6 migrations yet — B3 introduces 0056.** |
+| `main` | `9da716a` |
+| Production Worker version | `a6c147db-8299-45e8-82ab-d0ee1e0ac115` |
+| Open PRs | 0 |
+| Cron sweeps | 8 at 03:00 UTC (unchanged from M5.5 close) |
+| Email templates total | 33 in production (unchanged from previous session) |
+| Sidebar Settings group | **7 sub-items** (added "Vendor Templates" in B1): Overview / Taxes / Email / Staff / Audit / Waivers / Vendor Templates |
+
+### Spot-check schemas captured (2026-05-25, operator-authorized direct query)
+
+Stored in [docs/m6-discovery/spot-check-log.md](docs/m6-discovery/spot-check-log.md). Key findings:
+
+- ✅ **`email_templates`** — Lesson #7 prereqs MET: `id TEXT PRIMARY KEY`, `created_at INTEGER NOT NULL`. B3's planned ALTER is safe.
+- ✅ **`audit_log`** — 7 cols including `ip_address` (NOT 6 as CLAUDE.md M5 carry-forward note claims). M2 `writeAudit()` already handles both shapes; no code fix needed.
+- ✅ **`customers`** — M5.5 B3+B9 shape; no `stripe_customer_id` column (B7 may need to add).
+- ✅ **`bookings`** — confirms column is `stripe_payment_intent` (no `_id` suffix). Cutover runbook fixed in B0-followup.
+
+### Vendor package templates feature — newly live in production
+
+- **Schema** was already in place since migration 0012 (M5-era); B1+B2 closed the deferred admin UI gap called out in [docs/audit/07-admin-surface-map.md](docs/audit/07-admin-surface-map.md) line 38+55.
+- **B1** ships `/admin/vendor-package-templates` (list + filter + search + "+ New Template" modal + soft-delete). Backend route at `/api/admin/vendor-package-templates` with GET list / GET :id / POST create / DELETE soft-delete.
+- **B2** ships the detail/edit composer (view → edit toggle, sections editor with add/remove/move-up/move-down + kind dropdown constrained to the 5 valid enum values) + the clone-to-event flow (button on template detail opens a modal with event/vendor pickers; calls `POST /:id/clone-to-event` which creates a new `event_vendors` row with `template_id` + clones the template's sections via `env.DB.batch()`; redirects to `/admin/vendor-packages/:newEventVendorId`). Audit actions: `vendor_template.created`, `vendor_template.updated`, `vendor_template.archived`, `event_vendor.created_from_template`.
+
+### B3 plan parked — ack to execute
+
+Full plan in [docs/m6-next-session.md](docs/m6-next-session.md) "B3 PARKED PLAN" section. Summary:
+
+- Migration `0056_email_templates_status.sql` (`ALTER TABLE email_templates ADD COLUMN status TEXT NOT NULL DEFAULT 'published'`). Existing rows backfill automatically.
+- Worker side: send paths filter drafts; `formatTemplate` exposes the new status field.
+- 5-6 files. Within target.
+- **No admin UI changes** — that's B4.
+- **No new email templates seeded.**
+- **No DNT modifications** — filtering at the template-fetch layer, not in `worker/lib/email.js` or the named senders.
+
+### Operator-side pre-flight items STILL PENDING (B0 deferred)
+
+These don't block B3 code but should land before B3 merges:
+
+1. M5.5 smoke checklist (6 items in [docs/runbooks/m55-deploy.md](docs/runbooks/m55-deploy.md))
+2. Overnight cron 8-key summary (Cloudflare Workers logs)
+3. **DMARC + Resend DKIM/SPF DNS records** — most material; gates deliverability for B3+ email work
+4. Cloudflare Always-Use-HTTPS toggle confirmation
+5. Vendor/charge table existence query (gates B6/B7, not B3)
+
+### Carry-forward lessons (durable, from M6 work)
+
+1. **`.schema` is a sqlite3 shell command, not real SQL.** D1's HTTP API rejects `wrangler d1 execute --remote --command=".schema X"` with `near ".": syntax error`. Use `SELECT sql FROM sqlite_master WHERE tbl_name='X' AND sql IS NOT NULL` to query CREATE TABLE statements directly.
+2. **Audit log is 7-col, not 6.** Production has `ip_address` as a nullable TEXT column. CLAUDE.md's M5 carry-forward note saying "6 columns" was inaccurate. M2 `writeAudit()` handles both shapes via the `ipAddress` argument presence — no code change needed.
+3. **vendor_package_sections.kind has a CHECK enum** (`'overview', 'schedule', 'map', 'contact', 'custom'`). B1's `normalizeSections` defaulted kind to `'text'` which would have failed at clone time. B2 fixed this — kind defaults to `'custom'` and unknown values coerce to `'custom'`. Lesson: when designing a JSON-stored field that downstream code INSERTs into a CHECK-constrained column, the JSON normalizer must produce values inside the enum.
+4. **Helpers deferred during a tight-budget batch can become a lever in the next batch.** B1 deferred the `worker/lib/vendorPackageTemplates.js` helper to stay at file target; B2 then created it and reused the primitives in both PUT and clone routes. Useful pattern when two batches share logic.
+
+---
+
+### Earlier (M5.5 close + post-M5.5 wiring fix + admin staff suite — 2026-05-12)
+
+**M5.5 closed 2026-05-12 (`8decacc`).** Through that same day, **11 follow-up PRs** shipped: post-M5.5 staff-wiring fix (PR #165–#166), per-tab build-out of `/admin/staff/:id` (P1 #167, P3 #168, P2 #169, P4 #170), three Access-tab UX/security follow-ups (#171, #172), two public-side fixes (home hero #173, event slug normalize #174), and email-bound batch promo codes with migration 0054 (PR #175).
+
+Production worker version `6b680a02-966b-4056-af5b-3e7d2fce9c1f` at end of that session; `main` at `eb89f13`. Migration 0054 applied to remote.
 
 ### What shipped this session (10 PRs in chronological order)
 
