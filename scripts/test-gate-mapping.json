@@ -497,6 +497,36 @@
       "tests": [
         "tests/unit/admin/fieldRentals/payments.test.js"
       ]
+    },
+    "worker/routes/admin/vendorPackageTemplates.js": {
+      "tier": "m6_new_surface",
+      "covers": [
+        "GET /api/admin/vendor-package-templates (list)",
+        "GET /api/admin/vendor-package-templates/:id (detail)",
+        "POST /api/admin/vendor-package-templates (create)",
+        "PUT /api/admin/vendor-package-templates/:id (partial update)",
+        "DELETE /api/admin/vendor-package-templates/:id (soft delete)",
+        "POST /api/admin/vendor-package-templates/:id/clone-to-event (clone)"
+      ],
+      "audit_group": "(M6 B1+B2 new — closes deferred admin UI from migration 0012)",
+      "tests": [
+        "tests/unit/admin/vendor-package-templates/list-route.test.js",
+        "tests/unit/admin/vendor-package-templates/edit-route.test.js",
+        "tests/unit/admin/vendor-package-templates/clone-route.test.js"
+      ]
+    },
+    "worker/lib/vendorPackageTemplates.js": {
+      "tier": "m6_new_surface",
+      "covers": [
+        "VALID_SECTION_KINDS",
+        "parseSections",
+        "normalizeSections (with kind-enum coercion to 'custom')",
+        "cloneTemplateSections (env.DB.batch atomic insert)"
+      ],
+      "audit_group": "(M6 B2 new helper)",
+      "tests": [
+        "tests/unit/lib/vendor-package-templates.test.js"
+      ]
     }
   },
   "uncovered": {
