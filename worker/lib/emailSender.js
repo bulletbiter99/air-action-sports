@@ -453,6 +453,64 @@ export async function sendStaffPortalInvite(env, { person, inviterName, magicLin
     });
 }
 
+// M6 B6 — Stripe dispute notification (admin-facing). Fired from
+// worker/routes/webhooks.js when Stripe sends charge.dispute.created.
+// Sends to env.ADMIN_NOTIFY_EMAIL; skipped silently if not configured
+// (consistent with sendAdminNotify's posture).
+//
+// `dispute` is the Stripe Dispute object as delivered in the webhook
+// payload — fields used: id, amount, reason, status, evidence_details.due_by.
+// `booking` is our internal row joined on stripe_payment_intent (may be
+// null for orphan disputes — the email still fires with "unknown" defaults).
+export async function sendDisputeAlert(env, { booking, dispute }) {
+    const adminEmail = env.ADMIN_NOTIFY_EMAIL;
+    if (!adminEmail) return { skipped: 'no_admin_email' };
+
+    const template = await loadTemplate(env.DB, 'dispute_received');
+    if (!template) return { skipped: 'template_missing' };
+
+    const dueByMs = dispute.evidence_details?.due_by
+        ? Number(dispute.evidence_details.due_by) * 1000  // Stripe gives seconds; we render ms
+        : null;
+    const dueByDisplay = Number.isFinite(dueByMs)
+        ? new Date(dueByMs).toLocaleString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit',
+            timeZoneName: 'short',
+            timeZone: 'America/Denver',
+        })
+        : 'see Stripe dashboard';
+
+    const vars = {
+        dispute_id: dispute.id,
+        dispute_reason: dispute.reason || 'unspecified',
+        dispute_status: dispute.status || 'unknown',
+        amount_display: `$${money(dispute.amount || 0)}`,
+        booking_id: booking?.id || 'unknown',
+        buyer_name: booking?.full_name || booking?.fullName || 'unknown',
+        buyer_email: booking?.email || 'unknown',
+        evidence_due_by: dueByDisplay,
+        admin_link: booking?.id
+            ? `${env.SITE_URL || ''}/admin/bookings/${booking.id}`
+            : `${env.SITE_URL || ''}/admin/bookings`,
+    };
+    const rendered = renderTemplate(template, vars);
+
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: adminEmail,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: 'dispute_received' },
+            { name: 'dispute_id', value: dispute.id },
+            ...(booking?.id ? [{ name: 'booking_id', value: booking.id }] : []),
+        ],
+    });
+}
+
 // Post-M5.5 — single-use promo code emailed to a specific recipient via the
 // admin batch-create flow. Used by worker/routes/admin/promoCodes.js
 // POST /batch when sendEmails=true.

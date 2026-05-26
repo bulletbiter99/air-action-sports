@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { verifyWebhookSignature } from '../lib/stripe.js';
 import { attendeeId, qrToken } from '../lib/ids.js';
 import { safeJson } from '../lib/formatters.js';
-import { sendBookingConfirmation, sendAdminNotify, sendWaiverRequest } from '../lib/emailSender.js';
+import { sendBookingConfirmation, sendAdminNotify, sendWaiverRequest, sendDisputeAlert } from '../lib/emailSender.js';
 import { findExistingValidWaiver } from '../lib/waiverLookup.js';
 import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../lib/customers.js';
 
@@ -35,10 +35,105 @@ webhooks.post('/stripe', async (c) => {
         if (result?.emailContext && c.executionCtx?.waitUntil) {
             c.executionCtx.waitUntil(sendBookingEmails(c.env, result.emailContext));
         }
+    } else if (event.type === 'charge.dispute.created') {
+        // M6 B6 — dispute consumer. Records the dispute against the booking
+        // (via stripe_payment_intent join) and notifies admin. Critical-DNT
+        // additive surface; the existing checkout.session.completed handler
+        // above is byte-equivalent to pre-B6.
+        const result = await handleDisputeCreated(c.env.DB, event.data.object);
+        if (result?.emailContext && c.executionCtx?.waitUntil) {
+            c.executionCtx.waitUntil(sendDisputeEmail(c.env, result.emailContext));
+        }
     }
 
     return c.json({ received: true });
 });
+
+// M6 B6 — dispute event handler. Logs the dispute against the related
+// booking (resolved via stripe_payment_intent) and queues admin email.
+//
+// Idempotency: Stripe may redeliver any webhook (delivery retries on 5xx,
+// or operator-initiated resends). To avoid duplicate audit rows + duplicate
+// admin emails, we check the audit_log for an existing 'dispute.received'
+// row with the same dispute.id in meta_json. If found, return without
+// re-recording.
+//
+// Orphan disputes (no booking for that payment_intent): log to console,
+// still write an audit row with target_type='unknown'/target_id=dispute.id
+// so the operator sees it, but no email is queued (no booking context to
+// render). This handles the edge case where a payment_intent existed in
+// our system briefly (e.g., abandoned) and we don't have full booking
+// context anymore.
+async function handleDisputeCreated(db, dispute) {
+    const disputeId = dispute.id;
+    const paymentIntent = dispute.payment_intent || null;
+
+    // Idempotency check first — Stripe redeliveries are common.
+    const existingAudit = await db.prepare(
+        `SELECT id FROM audit_log
+         WHERE action = 'dispute.received'
+           AND meta_json LIKE ?
+         LIMIT 1`
+    ).bind(`%"dispute_id":"${disputeId}"%`).first();
+    if (existingAudit) {
+        console.log(`Webhook: dispute ${disputeId} already recorded — skipping (idempotent)`);
+        return;
+    }
+
+    const bookingRow = paymentIntent
+        ? await db.prepare(
+            `SELECT * FROM bookings WHERE stripe_payment_intent = ?`
+        ).bind(paymentIntent).first()
+        : null;
+
+    const now = Date.now();
+    const meta = {
+        dispute_id: disputeId,
+        amount_cents: dispute.amount || 0,
+        reason: dispute.reason || null,
+        status: dispute.status || null,
+        currency: dispute.currency || 'usd',
+        evidence_due_by: dispute.evidence_details?.due_by || null,
+        charge_id: dispute.charge || null,
+        payment_intent: paymentIntent,
+    };
+
+    if (!bookingRow) {
+        console.error(`Webhook: dispute ${disputeId} arrived without a matching booking (payment_intent=${paymentIntent})`);
+        // Still record an audit row so the operator sees the event even
+        // when we can't link to a booking — keeps the dispute log complete.
+        // Direct INSERT matches the existing `booking.paid` pattern below;
+        // raw-db handlers don't have env available for the M2 writeAudit helper.
+        await db.prepare(
+            `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+             VALUES (NULL, 'dispute.received', 'unknown', ?, ?, ?)`
+        ).bind(disputeId, JSON.stringify(meta), now).run();
+        return;
+    }
+
+    // Linked dispute — audit + queue admin email.
+    await db.prepare(
+        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+         VALUES (NULL, 'dispute.received', 'booking', ?, ?, ?)`
+    ).bind(bookingRow.id, JSON.stringify(meta), now).run();
+
+    console.log(`Booking ${bookingRow.id}: dispute ${disputeId} recorded (reason=${dispute.reason}, amount=${dispute.amount}c)`);
+
+    return {
+        emailContext: { booking: bookingRow, event: null, dispute },
+    };
+}
+
+async function sendDisputeEmail(env, { booking, event, dispute }) {
+    try {
+        const r = await sendDisputeAlert(env, { booking, event, dispute });
+        console.log('Dispute email sent:', JSON.stringify(r));
+        return r;
+    } catch (err) {
+        console.error('sendDisputeAlert failed:', err.message);
+        return { error: err.message };
+    }
+}
 
 async function sendBookingEmails(env, { booking, event, attendees }) {
     const out = { confirmation: null, admin: null, waivers: [] };

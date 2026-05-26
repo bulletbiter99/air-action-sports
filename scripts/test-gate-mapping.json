@@ -57,9 +57,10 @@
       "tier": "critical",
       "covers": [
         "POST /api/webhooks/stripe",
-        "handleCheckoutCompleted"
+        "handleCheckoutCompleted",
+        "handleDisputeCreated (M6 B6 — charge.dispute.created consumer)"
       ],
-      "audit_group": "B",
+      "audit_group": "B + M6 B6 dispute handler",
       "tests": [
         "tests/unit/webhook/idempotency-already-paid.test.js",
         "tests/unit/webhook/unknown-event-type.test.js",
@@ -69,7 +70,8 @@
         "tests/unit/webhook/audit-log-emission.test.js",
         "tests/unit/webhook/email-send-confirmation.test.js",
         "tests/unit/webhook/email-send-admin-notify.test.js",
-        "tests/unit/webhook/waiver-auto-link-on-paid.test.js"
+        "tests/unit/webhook/waiver-auto-link-on-paid.test.js",
+        "tests/unit/webhook/dispute-created-handler.test.js"
       ]
     },
     "worker/lib/waiverLookup.js": {
