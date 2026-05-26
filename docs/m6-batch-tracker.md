@@ -14,8 +14,8 @@ Last updated: 2026-05-26 (post-B5 merge; pre-B5 live cutover).
 | **B2** | Vendor package templates — detail/edit composer + clone-to-event | [#190](https://github.com/bulletbiter99/air-action-sports/pull/190) | `fd1e3ba` | post-B2 (`a6c147db`) | ✓ | n/a | ✓ |
 | **B3** | Email template draft state — schema + worker send-path filter | [#193](https://github.com/bulletbiter99/air-action-sports/pull/193) | `65a6c83` | post-B3 + B4 (`09c58ed1`) | ✓ | n/a | ✓ |
 | **B4** | Email template draft state — admin UI + preview-with-real-data | [#194](https://github.com/bulletbiter99/air-action-sports/pull/194) | `f3b845f` | `09c58ed1` | ✓ (12-point matrix passed) | n/a | ✓ |
-| **B5** | Stripe `setup_future_usage` off_session on public checkout | [#195](https://github.com/bulletbiter99/air-action-sports/pull/195) | `8a9d3dd` | _pending Workers Builds post-merge_ | ⏳ | ⏳ (operator $1 e2e — gated on live cutover items #1-5 below) | ✓ |
-| **B6** | `charge.dispute.created` webhook consumer | — | — | — | — | — | — |
+| **B5** | Stripe `setup_future_usage` off_session on public checkout | [#195](https://github.com/bulletbiter99/air-action-sports/pull/195) | `8a9d3dd` | `ba6545c2` | ✓ (public /booking page renders; flow unchanged) | ⏳ (operator $1 e2e gated on cutover items 1-5) | ✓ |
+| **B6** | `charge.dispute.created` webhook consumer | _pending_ | _pending_ | _pending_ | ✓ (17/17 tests; idempotency + orphan paths) | ⏳ (no on-demand dispute creation; first real disputed payment is live verify) | ✓ |
 | **B7** | Damage charge Option A activation (off-session) | — | — | — | — | — | — |
 | **B8** | Damage charge admin UI polish | — | — | — | — | — | — |
 | **B9** | Admin action: remove saved payment method | — | — | — | — | — | — |

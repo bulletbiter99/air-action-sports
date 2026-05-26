@@ -1,15 +1,13 @@
 // (milestone-only behavior, not in audit Group B)
 //
-// The webhook handler only acts on `checkout.session.completed`. All other
-// event types are accepted (signature still validated → 200 {received:true})
-// but trigger NO handler logic, NO DB activity, NO email queue.
+// The webhook handler acts on `checkout.session.completed` (M1+) and
+// `charge.dispute.created` (M6 B6). All other event types are accepted
+// (signature still validated → 200 {received:true}) but trigger NO handler
+// logic, NO DB activity, NO email queue. This test pins the "unhandled"
+// list — when a new event handler lands (e.g. B6 added dispute handling),
+// remove that event type from NON_COMPLETION_EVENTS below.
 //
-// Source: worker/routes/webhooks.js lines 58-63:
-//   if (event.type === 'checkout.session.completed') {
-//       const result = await handleCheckoutCompleted(...);
-//       ...
-//   }
-//   return c.json({ received: true });
+// Source: worker/routes/webhooks.js webhooks.post('/stripe', ...).
 
 import { describe, it, expect } from 'vitest';
 import worker from '../../../worker/index.js';
@@ -23,7 +21,12 @@ import {
 
 const NON_COMPLETION_EVENTS = [
     'charge.refunded',
-    'charge.dispute.created',
+    // 'charge.dispute.created' was here pre-M6 B6; now handled — see
+    // tests/unit/webhook/dispute-created-handler.test.js.
+    'charge.dispute.closed',
+    'charge.dispute.updated',
+    'charge.dispute.funds_withdrawn',
+    'charge.dispute.funds_reinstated',
     'payment_intent.payment_failed',
     'invoice.paid',
     'customer.subscription.created',
