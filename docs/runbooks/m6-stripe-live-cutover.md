@@ -74,13 +74,15 @@ Verify the deploy completed (capture the new Version ID) and `curl https://airac
 6. **Confirm in production D1**:
 
    ```bash
-   CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, status, total_cents, stripe_payment_intent_id, created_at FROM bookings ORDER BY created_at DESC LIMIT 1"
+   CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, status, total_cents, stripe_payment_intent, created_at FROM bookings ORDER BY created_at DESC LIMIT 1"
    ```
 
    The most recent booking row should have:
    - `status = 'paid'`
    - `total_cents = 100`
-   - A non-null `stripe_payment_intent_id` starting with `pi_` (live PI IDs share the prefix with test ones — the difference is in Stripe's data; check the Stripe dashboard Live mode to confirm the PI exists there, not in test mode)
+   - A non-null `stripe_payment_intent` starting with `pi_` (live PI IDs share the prefix with test ones — the difference is in Stripe's data; check the Stripe dashboard Live mode to confirm the PI exists there, not in test mode)
+
+   **Column name note**: the column is `stripe_payment_intent` (no `_id` suffix) per the production schema captured in `docs/m6-discovery/spot-check-log.md`.
 
 7. **Confirm the booking confirmation email arrived** at the test purchase email address.
 8. **Confirm the admin notification email arrived** at `actionairsport@gmail.com` (or whatever `ADMIN_NOTIFY_EMAIL` is set to).
