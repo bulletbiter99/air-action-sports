@@ -1,8 +1,11 @@
-// Post-M5.5 wiring fix — new-person create form.
+// Staff create form.
 //
-// /admin/staff → "+ New Person" → /admin/staff/new lands here. Posts to
-// POST /api/admin/staff (added in the same patch) and redirects to the
-// freshly-created person's detail page on success.
+// /admin/staff → "+ Add Staff" → /admin/staff/new lands here. Posts to
+// POST /api/admin/staff (added in the post-M5.5 wiring patch) and redirects
+// to the freshly-created person's detail page on success.
+//
+// M6 B0: page header + button copy unified to "Add Staff" (user-facing
+// strings only; the underlying persons/users/staff table split is unchanged).
 
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -19,6 +22,13 @@ const STATUS_OPTIONS = [
 export default function AdminStaffNew() {
     const { isAuthenticated, hasRole } = useAdmin();
     const navigate = useNavigate();
+
+    // Browser-tab title for the staff create page (M6 B0 labeling polish).
+    useEffect(() => {
+        const prev = document.title;
+        document.title = 'Add Staff — Air Action Sports';
+        return () => { document.title = prev; };
+    }, []);
 
     const [form, setForm] = useState({
         fullName: '',
@@ -102,7 +112,7 @@ export default function AdminStaffNew() {
         return (
             <div style={page}>
                 <Link to="/admin/staff" style={breadcrumb}>← Staff</Link>
-                <h1 style={h1}>New Person</h1>
+                <h1 style={h1}>Add Staff</h1>
                 <p style={errorBox}>You don&apos;t have permission to create staff records. Ask an owner or manager.</p>
             </div>
         );

@@ -33,7 +33,7 @@ describe('commandsFromSidebar', () => {
         expect(labels).toContain('Settings · Overview');
         expect(labels).toContain('Settings · Taxes');
         expect(labels).toContain('Settings · Email');
-        expect(labels).toContain('Settings · Team');
+        expect(labels).toContain('Settings · Staff');
         expect(labels).toContain('Settings · Audit');
         expect(labels).toContain('Settings · Waivers');
     });

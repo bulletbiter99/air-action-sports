@@ -44,6 +44,13 @@ export default function AdminStaff() {
     const [loading, setLoading] = useState(false);
     const [viewerCanSeePii, setViewerCanSeePii] = useState(false);
 
+    // Browser-tab title for the staff list page (M6 B0 labeling polish).
+    useEffect(() => {
+        const prev = document.title;
+        document.title = 'Staff — Air Action Sports';
+        return () => { document.title = prev; };
+    }, []);
+
     useEffect(() => { setOffset(0); }, [filters, search]);
 
     const queryParams = useMemo(() => {
@@ -84,7 +91,7 @@ export default function AdminStaff() {
             <header style={header}>
                 <h1 style={h1}>Staff</h1>
                 {hasRole?.('manager') && (
-                    <Link to="/admin/staff/new" style={cta}>+ New Person</Link>
+                    <Link to="/admin/staff/new" style={cta}>+ Add Staff</Link>
                 )}
             </header>
 

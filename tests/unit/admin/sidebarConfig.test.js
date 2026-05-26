@@ -70,7 +70,7 @@ describe('SIDEBAR config', () => {
         expect(SIDEBAR[groupIdx - 1]).toMatchObject({ type: 'separator' });
     });
 
-    it('Settings group is configuration-only — 6 sub-items: Overview / Taxes / Email / Team / Audit / Waivers', () => {
+    it('Settings group is configuration-only — 6 sub-items: Overview / Taxes / Email / Staff / Audit / Waivers', () => {
         const group = SIDEBAR.find((e) => e.type === 'group' && e.label === 'Settings');
         expect(group).toBeDefined();
         expect(group.key).toBe('settings');
@@ -81,7 +81,7 @@ describe('SIDEBAR config', () => {
             'Overview',
             'Taxes',
             'Email',
-            'Team',
+            'Staff',
             'Audit',
             'Waivers',
         ]);
