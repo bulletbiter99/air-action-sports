@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AdminProvider, useAdmin } from './AdminContext';
 import FeedbackModal from '../components/FeedbackModal';
 import { useFeatureFlag } from './useFeatureFlag';
@@ -28,9 +28,20 @@ export default function AdminLayout() {
 }
 
 function AdminShell() {
-  const { isAuthenticated, user } = useAdmin();
+  const { isAuthenticated, loading, user } = useAdmin();
   const loc = useLocation();
-  const onAuthPage = loc.pathname.endsWith('/login') || loc.pathname.endsWith('/setup');
+  const navigate = useNavigate();
+  // Paths that don't require auth — the redirect must NOT fire on these,
+  // or login / forgot-password / accept-invite would loop.
+  // /reset-password and /accept-invite use startsWith because they have a
+  // token in the URL (/admin/reset-password/:token, /admin/accept-invite/:token).
+  const path = loc.pathname;
+  const onAuthPage =
+    path.endsWith('/login') ||
+    path.endsWith('/setup') ||
+    path.endsWith('/forgot-password') ||
+    path.startsWith('/admin/reset-password') ||
+    path.startsWith('/admin/accept-invite');
   const showChrome = isAuthenticated && !onAuthPage;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -38,6 +49,19 @@ function AdminShell() {
   const [cmdkOpen, setCmdkOpen] = useState(false);
 
   useEffect(() => { setDrawerOpen(false); }, [loc.pathname]);
+
+  // Auto-redirect to /admin/login when session expires (or user is
+  // signed out) AND they're on a non-auth admin page. Without this,
+  // every widget on the page renders HTTP 401 errors instead of
+  // sending them to log back in. Wait for `loading` to finish so we
+  // don't redirect during the initial /auth/me roundtrip.
+  useEffect(() => {
+    if (loading) return;
+    if (!isAuthenticated && !onAuthPage) {
+      const returnTo = path + loc.search;
+      navigate(`/admin/login?returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
+    }
+  }, [loading, isAuthenticated, onAuthPage, path, loc.search, navigate]);
 
   // Global Cmd+K / Ctrl+K opens the command palette. preventDefault
   // wins the race against browser bindings (Firefox uses Cmd+K for
@@ -53,6 +77,12 @@ function AdminShell() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // During the initial auth check OR while we're about to redirect,
+  // render nothing — prevents the "HTTP 401" error widgets from
+  // flashing on a session-expired page before the navigate runs.
+  if (loading) return null;
+  if (!isAuthenticated && !onAuthPage) return null;
 
   if (!showChrome) {
     return (
