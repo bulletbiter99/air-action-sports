@@ -36,6 +36,7 @@ describe('commandsFromSidebar', () => {
         expect(labels).toContain('Settings · Staff');
         expect(labels).toContain('Settings · Audit');
         expect(labels).toContain('Settings · Waivers');
+        expect(labels).toContain('Settings · Vendor Templates');
     });
 
     it('hides Today when activeEventToday=false', () => {
