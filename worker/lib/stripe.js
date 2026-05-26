@@ -42,8 +42,15 @@ async function stripeFetch(path, { method = 'POST', apiKey, body, idempotencyKey
  * @param {string} args.cancelUrl
  * @param {string} args.customerEmail
  * @param {Record<string,string>} [args.metadata]
+ * @param {'off_session'|'on_session'} [args.setupFutureUsage] — M6 B5. When supplied,
+ *   sets `payment_intent_data[setup_future_usage]=<value>`. With 'off_session',
+ *   Stripe records the payment method against the auto-created Customer
+ *   (resolved from customer_email) and authorizes future off-session charges
+ *   without re-authentication. This is the substrate B7's damage-charge
+ *   Option A depends on. Omit to preserve the pre-M6 Checkout behavior
+ *   exactly — the field is purely additive.
  */
-export async function createCheckoutSession({ apiKey, lineItems, successUrl, cancelUrl, customerEmail, metadata = {} }) {
+export async function createCheckoutSession({ apiKey, lineItems, successUrl, cancelUrl, customerEmail, metadata = {}, setupFutureUsage }) {
     const body = {
         mode: 'payment',
         'payment_method_types[]': 'card',
@@ -51,6 +58,12 @@ export async function createCheckoutSession({ apiKey, lineItems, successUrl, can
         cancel_url: cancelUrl,
         customer_email: customerEmail,
     };
+
+    if (setupFutureUsage) {
+        // Nested under payment_intent_data because mode='payment' creates a
+        // PaymentIntent (not a SetupIntent). Form-encoded as a bracketed key.
+        body['payment_intent_data[setup_future_usage]'] = setupFutureUsage;
+    }
 
     lineItems.forEach((item, i) => {
         body[`line_items[${i}][price_data][currency]`] = 'usd';

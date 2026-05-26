@@ -332,6 +332,12 @@ bookings.post('/checkout', rateLimit('RL_CHECKOUT'), async (c) => {
             cancelUrl: `${c.env.SITE_URL}/booking/cancelled?token=${id}`,
             customerEmail: buyer.email.trim(),
             metadata: { booking_id: id, event_id: body.eventId },
+            // M6 B5 — authorize off-session re-charge so B7's damage-charge
+            // flow can capture additional fees (broken equipment, late fees,
+            // etc.) without the customer re-entering card details. Stripe
+            // shows a consent line on the hosted Checkout page; existing
+            // pricing semantics + line items + success/cancel URLs unchanged.
+            setupFutureUsage: 'off_session',
         });
     } catch (err) {
         // Mark the booking as failed so it doesn't hold inventory

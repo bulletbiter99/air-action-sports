@@ -29,14 +29,28 @@
     },
     "worker/lib/stripe.js": {
       "tier": "critical",
-      "covers": ["verifyWebhookSignature"],
-      "audit_group": "B (signature subset)",
+      "covers": [
+        "verifyWebhookSignature",
+        "createCheckoutSession (M6 B5 — optional setupFutureUsage adds payment_intent_data[setup_future_usage] form field)"
+      ],
+      "audit_group": "B (signature subset) + M6 B5 createCheckoutSession",
       "tests": [
         "tests/unit/webhook/signature-verify-valid.test.js",
         "tests/unit/webhook/signature-verify-invalid.test.js",
         "tests/unit/webhook/signature-verify-stale.test.js",
         "tests/unit/webhook/signature-verify-multi-v1.test.js",
-        "tests/unit/webhook/signature-constant-time.test.js"
+        "tests/unit/webhook/signature-constant-time.test.js",
+        "tests/unit/lib/stripe-setup-future-usage.test.js"
+      ]
+    },
+    "worker/routes/bookings.js": {
+      "tier": "critical",
+      "covers": [
+        "POST /api/bookings/checkout — public Stripe Checkout Session creation; pricing pinned by Group A + setupFutureUsage='off_session' (M6 B5) authorizing future off-session damage charges (B7+)"
+      ],
+      "audit_group": "(M6 B5 promoted from `uncovered`)",
+      "tests": [
+        "tests/unit/bookings/checkout-setup-future-usage.test.js"
       ]
     },
     "worker/routes/webhooks.js": {
@@ -582,12 +596,12 @@
     }
   },
   "uncovered": {
-    "worker/routes/bookings.js": {
+    "worker/routes/bookings.js (quote endpoint)": {
       "tier": "critical",
-      "covers": ["POST /api/bookings/checkout", "POST /api/bookings/quote"],
-      "audit_group": "(public-side checkout)",
+      "covers": ["POST /api/bookings/quote"],
+      "audit_group": "(public-side quote — POST /checkout was promoted to gates in M6 B5)",
       "audit_tests_prescribed": [],
-      "status": "no dedicated tests; quote pricing covered indirectly via Group A"
+      "status": "quote pricing covered indirectly via Group A; no dedicated quote-endpoint integration tests yet"
     },
     "worker/index.js": {
       "tier": "critical",
