@@ -25,13 +25,21 @@ const FILTER_SCHEMA = [
     },
 ];
 
+// Section kinds align with the CHECK constraint on
+// vendor_package_sections.kind (migration 0010). The template editor
+// constrains kind to this set so a template is always cloneable into
+// per-event-vendor sections without a CHECK violation.
+const SECTION_KINDS = [
+    { value: 'overview', label: 'Overview' },
+    { value: 'schedule', label: 'Schedule' },
+    { value: 'map', label: 'Map' },
+    { value: 'contact', label: 'Contact' },
+    { value: 'custom', label: 'Custom' },
+];
+
 export default function AdminVendorPackageTemplates() {
     const { id } = useParams();
-    // B1 ships list view only. Detail/edit lands in B2; the route is
-    // pre-registered in App.jsx so the "+ New Template" CTA's navigate
-    // target doesn't 404 at the routing layer (the placeholder below
-    // surfaces a "Composer coming in B2" message until B2 ships).
-    return id ? <DetailPlaceholder id={id} /> : <ListView />;
+    return id ? <Detail id={id} /> : <ListView />;
 }
 
 function ListView() {
@@ -251,24 +259,393 @@ function ListView() {
     );
 }
 
-// B1 placeholder for /admin/vendor-package-templates/:id — B2 ships the
-// real composer. The route is registered in App.jsx so the "+ New Template"
-// navigate doesn't 404 at the router level.
-function DetailPlaceholder({ id }) {
+// M6 Batch 2 — Template detail/edit composer with sections editor +
+// clone-to-event flow.
+function Detail({ id }) {
+    const { isAuthenticated, loading, hasRole } = useAdmin();
+    const navigate = useNavigate();
+    const [template, setTemplate] = useState(null);
+    const [loadingDetail, setLoadingDetail] = useState(true);
+    const [error, setError] = useState(null);
+    const [editing, setEditing] = useState(false);
+    const [cloning, setCloning] = useState(false);
+
+    useEffect(() => {
+        const prev = document.title;
+        document.title = 'Vendor Template — Air Action Sports';
+        return () => { document.title = prev; };
+    }, []);
+
+    useEffect(() => {
+        if (loading) return;
+        if (!isAuthenticated) navigate('/admin/login');
+    }, [loading, isAuthenticated, navigate]);
+
+    const load = useCallback(async () => {
+        setLoadingDetail(true);
+        setError(null);
+        const res = await fetch(`/api/admin/vendor-package-templates/${id}`, {
+            credentials: 'include',
+            cache: 'no-store',
+        });
+        if (res.ok) {
+            const data = await res.json();
+            setTemplate(data.template);
+        } else if (res.status === 404) {
+            setError('Template not found.');
+        } else {
+            const d = await res.json().catch(() => ({}));
+            setError(d.error || `Failed to load (${res.status})`);
+        }
+        setLoadingDetail(false);
+    }, [id]);
+
+    useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
+
+    if (loading || !isAuthenticated || loadingDetail) {
+        return <div style={pageWrap}><EmptyState variant="loading" title="Loading template…" /></div>;
+    }
+
+    if (error) {
+        return (
+            <div style={pageWrap}>
+                <AdminPageHeader
+                    title="Template Not Found"
+                    breadcrumb={[
+                        { label: 'Settings', to: '/admin/settings' },
+                        { label: 'Vendor Templates', to: '/admin/vendor-package-templates' },
+                    ]}
+                />
+                <EmptyState title={error} />
+            </div>
+        );
+    }
+
     return (
         <div style={pageWrap}>
             <AdminPageHeader
-                title="Template Composer"
+                title={template?.name || 'Template'}
                 breadcrumb={[
                     { label: 'Settings', to: '/admin/settings' },
                     { label: 'Vendor Templates', to: '/admin/vendor-package-templates' },
-                    { label: 'Composer' },
+                    { label: template?.name || 'Template' },
                 ]}
+                secondaryActions={
+                    template?.deletedAt ? <span style={archivedPill}>Archived</span> : null
+                }
+                primaryAction={hasRole('manager') && !template?.deletedAt && !editing && (
+                    <>
+                        <button onClick={() => setCloning(true)} style={subtleBtn}>Use for event…</button>
+                        <button onClick={() => setEditing(true)} style={primaryBtn}>Edit</button>
+                    </>
+                )}
             />
-            <EmptyState
-                title="Composer ships in M6 Batch 2."
-                description={`Template ${id} was created; sections + edit UI lands next. Until then, the template is empty and won't appear cleanly in the per-event vendor composer.`}
-            />
+
+            {editing ? (
+                <EditForm
+                    template={template}
+                    onCancel={() => setEditing(false)}
+                    onSaved={(updated) => { setTemplate(updated); setEditing(false); }}
+                />
+            ) : (
+                <ViewMode template={template} />
+            )}
+
+            {cloning && (
+                <CloneModal
+                    template={template}
+                    onClose={() => setCloning(false)}
+                    onCloned={(eventVendorId) => {
+                        setCloning(false);
+                        navigate(`/admin/vendor-packages/${eventVendorId}`);
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+function ViewMode({ template }) {
+    return (
+        <div>
+            <section style={detailSection}>
+                <div style={detailRow}>
+                    <span style={detailLabel}>Description</span>
+                    <span style={detailValue}>
+                        {template?.description || <em style={emMuted}>(none)</em>}
+                    </span>
+                </div>
+                <div style={detailRow}>
+                    <span style={detailLabel}>Requires signature</span>
+                    <span style={detailValue}>{template?.requiresSignature ? 'Yes' : 'No'}</span>
+                </div>
+                <div style={detailRow}>
+                    <span style={detailLabel}>Sections</span>
+                    <span style={detailValue}>{template?.sections?.length || 0}</span>
+                </div>
+            </section>
+
+            <h3 style={sectionsHeading}>Sections</h3>
+            {(!template?.sections || template.sections.length === 0) ? (
+                <EmptyState title="No sections yet." description="Click Edit to add sections to this template." />
+            ) : (
+                <div style={sectionsList}>
+                    {template.sections.map((s, idx) => (
+                        <div key={idx} style={sectionCard}>
+                            <div style={sectionCardHeader}>
+                                <span style={kindPill}>{s.kind}</span>
+                                <strong>{s.title}</strong>
+                            </div>
+                            {s.body_html && (
+                                <div style={sectionPreview} dangerouslySetInnerHTML={{ __html: s.body_html }} />
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function EditForm({ template, onCancel, onSaved }) {
+    const [name, setName] = useState(template?.name || '');
+    const [description, setDescription] = useState(template?.description || '');
+    const [requiresSignature, setRequiresSignature] = useState(!!template?.requiresSignature);
+    const [sections, setSections] = useState(() => (template?.sections || []).map((s) => ({ ...s })));
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState(null);
+
+    const updateSection = (idx, patch) => {
+        setSections((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+    };
+    const addSection = () => {
+        setSections((prev) => [
+            ...prev,
+            { kind: 'custom', title: '', body_html: '', sort_order: prev.length },
+        ]);
+    };
+    const removeSection = (idx) => {
+        setSections((prev) => prev.filter((_, i) => i !== idx));
+    };
+    const moveSection = (idx, direction) => {
+        setSections((prev) => {
+            const next = [...prev];
+            const target = idx + direction;
+            if (target < 0 || target >= next.length) return next;
+            [next[idx], next[target]] = [next[target], next[idx]];
+            // Re-normalize sort_order to match new array position.
+            return next.map((s, i) => ({ ...s, sort_order: i }));
+        });
+    };
+
+    const save = async () => {
+        setSubmitting(true);
+        setError(null);
+        try {
+            const res = await fetch(`/api/admin/vendor-package-templates/${template.id}`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name.trim(),
+                    description: description.trim() || null,
+                    requiresSignature,
+                    sections,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setError(data.error || `Save failed (${res.status})`);
+                return;
+            }
+            onSaved(data.template);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div>
+            {error && <div style={errorBox}>{error}</div>}
+
+            <section style={detailSection}>
+                <label style={lblBlock}>
+                    Name <span style={req}>*</span>
+                    <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        style={input}
+                        required
+                        maxLength={200}
+                    />
+                </label>
+
+                <label style={lblBlock}>
+                    Description
+                    <textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        rows={3}
+                        style={input}
+                        maxLength={2000}
+                    />
+                </label>
+
+                <label style={inlineCheckbox}>
+                    <input
+                        type="checkbox"
+                        checked={requiresSignature}
+                        onChange={(e) => setRequiresSignature(e.target.checked)}
+                    />
+                    Requires signature
+                </label>
+            </section>
+
+            <h3 style={sectionsHeading}>Sections ({sections.length})</h3>
+            {sections.map((s, idx) => (
+                <div key={idx} style={sectionEditCard}>
+                    <div style={sectionEditHeader}>
+                        <select
+                            value={s.kind}
+                            onChange={(e) => updateSection(idx, { kind: e.target.value })}
+                            style={kindSelect}
+                        >
+                            {SECTION_KINDS.map((k) => (
+                                <option key={k.value} value={k.value}>{k.label}</option>
+                            ))}
+                        </select>
+                        <input
+                            type="text"
+                            value={s.title}
+                            onChange={(e) => updateSection(idx, { title: e.target.value })}
+                            placeholder="Section title"
+                            style={{ ...input, marginTop: 0, flex: 1 }}
+                            maxLength={200}
+                        />
+                        <button type="button" onClick={() => moveSection(idx, -1)} style={ghostBtn} disabled={idx === 0}>↑</button>
+                        <button type="button" onClick={() => moveSection(idx, 1)} style={ghostBtn} disabled={idx === sections.length - 1}>↓</button>
+                        <button type="button" onClick={() => removeSection(idx)} style={dangerBtnSmall}>Remove</button>
+                    </div>
+                    <textarea
+                        value={s.body_html || ''}
+                        onChange={(e) => updateSection(idx, { body_html: e.target.value })}
+                        rows={4}
+                        style={input}
+                        placeholder="Body HTML (will be sanitized at clone time on the per-event side)"
+                    />
+                </div>
+            ))}
+            <button type="button" onClick={addSection} style={subtleBtn}>+ Add section</button>
+
+            <div style={actions}>
+                <button type="button" onClick={onCancel} style={cancelBtn}>Cancel</button>
+                <button type="button" onClick={save} disabled={submitting || !name.trim()} style={primaryBtn}>
+                    {submitting ? 'Saving…' : 'Save changes'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function CloneModal({ template, onClose, onCloned }) {
+    const [events, setEvents] = useState([]);
+    const [vendors, setVendors] = useState([]);
+    const [eventId, setEventId] = useState('');
+    const [vendorId, setVendorId] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState(null);
+    const [duplicateLink, setDuplicateLink] = useState(null);
+
+    useEffect(() => {
+        (async () => {
+            const [e, v] = await Promise.all([
+                fetch('/api/admin/events', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()).catch(() => ({ events: [] })),
+                fetch('/api/admin/vendors', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()).catch(() => ({ vendors: [] })),
+            ]);
+            setEvents(e.events || []);
+            setVendors((v.vendors || []).filter((vendor) => !vendor.deletedAt));
+        })();
+    }, []);
+
+    const submit = async () => {
+        setSubmitting(true);
+        setError(null);
+        setDuplicateLink(null);
+        try {
+            const res = await fetch(`/api/admin/vendor-package-templates/${template.id}/clone-to-event`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eventId, vendorId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 409 && data.eventVendorId) {
+                setDuplicateLink(data.eventVendorId);
+                setError(data.error || 'Already attached');
+                return;
+            }
+            if (!res.ok) {
+                setError(data.error || `Clone failed (${res.status})`);
+                return;
+            }
+            onCloned(data.eventVendorId);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div style={modalBackdrop} onClick={onClose}>
+            <div onClick={(e) => e.stopPropagation()} style={modal}>
+                <h2 style={modalTitle}>Use this template for an event</h2>
+                <p style={modalHint}>
+                    Clones <strong>{template?.name}</strong> ({template?.sections?.length || 0} sections) into a new per-event-vendor package. You'll be redirected to the composer to finish setup.
+                </p>
+
+                {error && (
+                    <div style={errorBox}>
+                        {error}
+                        {duplicateLink && (
+                            <>
+                                {' '}
+                                <Link to={`/admin/vendor-packages/${duplicateLink}`} style={{ color: '#ff8a7e', textDecoration: 'underline' }}>
+                                    Open existing →
+                                </Link>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                <label style={lblBlock}>
+                    Event <span style={req}>*</span>
+                    <select value={eventId} onChange={(e) => setEventId(e.target.value)} style={input}>
+                        <option value="">— pick an event —</option>
+                        {events.map((ev) => (
+                            <option key={ev.id} value={ev.id}>
+                                {ev.title} {ev.dateIso ? `· ${ev.dateIso.slice(0, 10)}` : ''}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+
+                <label style={lblBlock}>
+                    Vendor <span style={req}>*</span>
+                    <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} style={input}>
+                        <option value="">— pick a vendor —</option>
+                        {vendors.map((v) => (
+                            <option key={v.id} value={v.id}>{v.companyName}</option>
+                        ))}
+                    </select>
+                </label>
+
+                <div style={modalActions}>
+                    <button type="button" onClick={onClose} style={cancelBtn}>Cancel</button>
+                    <button type="button" onClick={submit} disabled={submitting || !eventId || !vendorId} style={primaryBtn}>
+                        {submitting ? 'Cloning…' : 'Clone & open composer'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
@@ -301,3 +678,21 @@ const lblBlock = { display: 'block', fontSize: 12, color: 'var(--tan-light)', fo
 const input = { width: '100%', padding: '10px 12px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginTop: 4, resize: 'vertical' };
 const req = { color: 'var(--orange)' };
 const errorBox = { background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', color: '#ff8a7e', padding: 12, fontSize: 13 };
+
+// Detail / Edit-mode styles (M6 B2)
+const detailSection = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: 14, marginTop: 'var(--space-16)' };
+const detailRow = { display: 'flex', gap: 16, alignItems: 'flex-start' };
+const detailLabel = { minWidth: 160, fontSize: 12, color: 'var(--tan-light)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 };
+const detailValue = { color: 'var(--cream)', fontSize: 14, flex: 1 };
+const sectionsHeading = { fontSize: 14, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--tan-light)', marginTop: 'var(--space-24)' };
+const sectionsList = { display: 'flex', flexDirection: 'column', gap: 12 };
+const sectionCard = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1rem 1.25rem' };
+const sectionCardHeader = { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 };
+const kindPill = { display: 'inline-block', background: 'rgba(212,84,26,0.15)', color: 'var(--orange)', padding: '2px 8px', fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase' };
+const sectionPreview = { color: 'var(--color-text-muted)', fontSize: 13, lineHeight: 1.5, marginTop: 4 };
+const sectionEditCard = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1rem 1.25rem', marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 };
+const sectionEditHeader = { display: 'flex', gap: 8, alignItems: 'center' };
+const kindSelect = { padding: '8px 10px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, minWidth: 120 };
+const inlineCheckbox = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--cream)', cursor: 'pointer' };
+const ghostBtn = { background: 'transparent', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', minWidth: 32 };
+const actions = { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 'var(--space-24)' };
