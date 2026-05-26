@@ -50,6 +50,7 @@ const AdminSettings = lazy(() => import('./admin/AdminSettings'));
 const AdminEmailTemplates = lazy(() => import('./admin/AdminEmailTemplates'));
 const AdminVendors = lazy(() => import('./admin/AdminVendors'));
 const AdminVendorPackages = lazy(() => import('./admin/AdminVendorPackages'));
+const AdminVendorPackageTemplates = lazy(() => import('./admin/AdminVendorPackageTemplates'));
 const AdminVendorContracts = lazy(() => import('./admin/AdminVendorContracts'));
 const AdminWaivers = lazy(() => import('./admin/AdminWaivers'));
 const AdminFeedback = lazy(() => import('./admin/AdminFeedback'));
@@ -166,6 +167,8 @@ export default function App() {
             <Route path="vendors" element={<AdminVendors />} />
             <Route path="vendor-packages" element={<AdminVendorPackages />} />
             <Route path="vendor-packages/:id" element={<AdminVendorPackages />} />
+            <Route path="vendor-package-templates" element={<AdminVendorPackageTemplates />} />
+            <Route path="vendor-package-templates/:id" element={<AdminVendorPackageTemplates />} />
             <Route path="vendor-contracts" element={<AdminVendorContracts />} />
             <Route path="waivers" element={<AdminWaivers />} />
             <Route path="feedback" element={<AdminFeedback />} />
