@@ -4,13 +4,83 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — M6 IN PROGRESS: B0/B1/B2 closed + deployed; B3 plan parked (2026-05-26)
+## ⚠ NEW SESSION — M6 ROLLED THROUGH B3/B4/B5/B6/B10 + PAUSED FOR LIVE CUTOVER (2026-05-26)
 
-**M6 (Stripe live + damage charge Option A + vendor templates + email drafts) is in progress.** Four PRs merged + deployed during the 2026-05-25/26 session: B0 (kickoff), B0-followup (spot-check capture), B1 (vendor template list/create), B2 (vendor template detail/edit composer + clone-to-event). **B3 plan was presented but not yet ack'd or executed — parked at [docs/m6-next-session.md](docs/m6-next-session.md) for the fresh session to pick up.**
+**M6 progressed through 5 batches in one extended session.** Status table in [docs/m6-batch-tracker.md](docs/m6-batch-tracker.md). The remaining work (B7/B8/B9/B11) is gated on the operator completing 5 live-Stripe cutover items in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md). Code can keep developing against sandbox in parallel, but live verification of B5+B6 and the dependent B7+ batches needs the operator's hands on the Stripe dashboard.
 
 **Copy the prompt at [docs/m6-next-session.md](docs/m6-next-session.md) into the fresh session.**
 
-Production worker version `a6c147db-8299-45e8-82ab-d0ee1e0ac115` (post-B2 deploy; B0-followup was docs-only, no deploy). main at `9da716a` (PR [#191](https://github.com/bulletbiter99/air-action-sports/pull/191) merge — the docs-only follow-up).
+Production worker version `954964c3-56f3-4f08-9c97-47cd54b85c35` (post-B10 deploy 2026-05-26 14:46 UTC). `main` at `<B10 merge commit>` ([PR #197](https://github.com/bulletbiter99/air-action-sports/pull/197)).
+
+### M6 PRs shipped this multi-batch session (in order)
+
+| # | PR | Batch | Headline | Merge SHA | Live deploy |
+|---|---|---|---|---|---|
+| 1 | [#193](https://github.com/bulletbiter99/air-action-sports/pull/193) | **B3** | email_templates.status column + worker send-path filter (migration 0056) | `65a6c83` | `09c58ed1` |
+| 2 | [#194](https://github.com/bulletbiter99/air-action-sports/pull/194) | **B4** | Admin UI: status toggle + draft badge + filter chips + preview-with-real-data | `f3b845f` | `09c58ed1` |
+| 3 | [#195](https://github.com/bulletbiter99/air-action-sports/pull/195) | **B5** | Stripe `setup_future_usage: 'off_session'` on public checkout (Critical DNT touched additively) | `8a9d3dd` | `ba6545c2` |
+| 4 | [#196](https://github.com/bulletbiter99/air-action-sports/pull/196) | **B6** | `charge.dispute.created` webhook consumer + sendDisputeAlert + migration 0057 | `db7e7b8` | `518af64a` |
+| 5 | [#197](https://github.com/bulletbiter99/air-action-sports/pull/197) | **B10** | booking_confirmation template gains "Heads-up — Additional Charges May Apply" section (migration 0058) | (this session) | `954964c3` |
+
+Plus two docs-only commits on main:
+- `82fca54` — `docs(m6): batch tracker + operator cutover checklist`
+
+### State at session close
+
+| Metric | Value |
+|---|---|
+| Tests | **2251 / 182 files** (was 2135 / 173 at session start → +116 / +9) |
+| Lint | 0 errors / 460 warnings (advisory) |
+| Build | clean (~265 ms) |
+| Group A + Group B regression | **138 / 138** preserved (Critical DNT pin intact) |
+| Migrations on remote | 0001–0058 applied (M6 added 0056 / 0057 / 0058) |
+| Cron sweeps | 8 at 03:00 UTC (unchanged) |
+| Email templates total | **34** in production (added `dispute_received` in B6) |
+| Production worker version | `954964c3-56f3-4f08-9c97-47cd54b85c35` |
+
+### M6 batch status (at session close)
+
+| Batch | What | Status |
+|---|---|---|
+| B0 / B0-followup | Cutover runbook + spot-check log + staff labeling polish | ✓ Closed (prev session) |
+| B1 | Vendor package templates admin library | ✓ Closed (prev session) |
+| B2 | Vendor templates detail/edit + clone-to-event | ✓ Closed (prev session) |
+| **B3** | Email template draft state (schema + worker) | ✓ Closed |
+| **B4** | Email template admin UI + preview-with-real-data | ✓ Closed |
+| **B5** | Stripe setup_future_usage on public checkout | ✓ Code closed; ⏳ live $1 e2e operator-gated |
+| **B6** | charge.dispute.created webhook consumer | ✓ Code closed; ⏳ live verify on first real disputed payment |
+| B7 | Damage charge Option A activation | ⏳ Not started — recommend after operator cutover |
+| B8 | Damage charge admin UI polish | ⏳ Not started — recommend after B7 |
+| B9 | Admin remove-saved-PM | ⏳ Not started — recommend after operator cutover |
+| **B10** | booking_confirmation template update (charges notice) | ✓ Closed (D1 data only) |
+| B11 | Closing runbooks + M6 close | ⏳ Not started — recommend last |
+
+### Operator-only blockers (B7+ gate)
+
+Five items in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md):
+1. `wrangler secret put STRIPE_SECRET_KEY` with live key
+2. `wrangler secret put STRIPE_WEBHOOK_SECRET` with live whsec
+3. Configure live Stripe webhook endpoint at `https://airactionsport.com/api/webhooks/stripe`
+4. Verify DMARC + SPF + DKIM DNS records
+5. $1 live e2e test: book → confirm saved PM on Customer → refund
+
+### Browser-verified surfaces this session
+
+- **B4**: `/admin/settings/email-templates` filter chips (ALL 33 / PUBLISHED 33 / DRAFTS 0), status toggle, preview-with-real-data using `bk_d5k8ld7qvD8x3m` → real "Ghost Town II" event + "Paul Keddington" rendering
+- **B5**: `/booking` page renders + checkout flow unchanged (deeper verify gated on Stripe sandbox $1)
+- **B10**: `/api/admin/email-templates/booking_confirmation/preview` returns body with "Heads-up — Additional Charges May Apply" section + Stripe mention + damage mention; text body has matching HEADS-UP block
+
+### Carry-forward observations (added this session)
+
+1. **`worker/routes/bookings.js` POST /checkout returns `{ stripeUrl, bookingId }`** (not `{ url }`). Test fixtures must match.
+2. **`rateLimit` middleware no-ops without `CF-Connecting-IP` header** — tests that exercise the rate-limit must set the header.
+3. **`worker/lib/templates.js` `loadTemplate` now accepts `{ includeDrafts }` option** — B3's surgical extension. All existing callers default to filtering drafts; admin preview opts in.
+4. **`unknown-event-type.test.js` is a milestone-only pin** — when a new event handler lands, remove that event from `NON_COMPLETION_EVENTS` and add it to the handler's dedicated test file (B6 demonstrated the pattern with `charge.dispute.created`).
+5. **`useWidgetData` cadence primitive + `useTodayActive` shared subscription** make admin pages never go network-idle, which breaks Claude_in_Chrome's screenshot/read_page tools. Workaround: use `javascript_tool` for inspection (memory `feedback_browser_verification.md` updated this session).
+6. **`wrangler d1 execute --json --command=` returns row data** on both local and remote; `--file=` returns SUMMARY on remote (M5.5 quirk #4 — confirmed valid in B6/B10 verifications).
+7. **Migration 0058 used a pure UPDATE** to change `body_html` + `body_text` content on an existing seed row — works for templates because the renderer reads body from D1 each fetch; no code redeploy needed when only template content changes.
+
+---
 
 ### M6 PRs shipped this session (in order)
 

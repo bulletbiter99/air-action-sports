@@ -2,7 +2,7 @@
 
 Single-source-of-truth status board for Milestone 6 (Stripe live + damage charge Option A + vendor templates + email drafts). Updated after every PR merge + post-deploy browser-verify.
 
-Last updated: 2026-05-26 (post-B5 merge; pre-B5 live cutover).
+Last updated: 2026-05-26 (post-B6 + B10 merge; awaiting operator live cutover for B5/B6/B7+ live verification).
 
 ## Status table
 
@@ -15,11 +15,11 @@ Last updated: 2026-05-26 (post-B5 merge; pre-B5 live cutover).
 | **B3** | Email template draft state — schema + worker send-path filter | [#193](https://github.com/bulletbiter99/air-action-sports/pull/193) | `65a6c83` | post-B3 + B4 (`09c58ed1`) | ✓ | n/a | ✓ |
 | **B4** | Email template draft state — admin UI + preview-with-real-data | [#194](https://github.com/bulletbiter99/air-action-sports/pull/194) | `f3b845f` | `09c58ed1` | ✓ (12-point matrix passed) | n/a | ✓ |
 | **B5** | Stripe `setup_future_usage` off_session on public checkout | [#195](https://github.com/bulletbiter99/air-action-sports/pull/195) | `8a9d3dd` | `ba6545c2` | ✓ (public /booking page renders; flow unchanged) | ⏳ (operator $1 e2e gated on cutover items 1-5) | ✓ |
-| **B6** | `charge.dispute.created` webhook consumer | _pending_ | _pending_ | _pending_ | ✓ (17/17 tests; idempotency + orphan paths) | ⏳ (no on-demand dispute creation; first real disputed payment is live verify) | ✓ |
+| **B6** | `charge.dispute.created` webhook consumer | [#196](https://github.com/bulletbiter99/air-action-sports/pull/196) | `db7e7b8` | `518af64a` | ✓ (17/17 tests; idempotency + orphan paths) | ⏳ (no on-demand dispute creation; first real disputed payment is live verify) | ✓ |
 | **B7** | Damage charge Option A activation (off-session) | — | — | — | — | — | — |
 | **B8** | Damage charge admin UI polish | — | — | — | — | — | — |
 | **B9** | Admin action: remove saved payment method | — | — | — | — | — | — |
-| **B10** | booking_confirmation template update with "additional charges may apply" copy | _pending_ | _pending_ | n/a (D1 data change only) | ✓ (admin preview renders new "Heads-up" section + Stripe + damage mention; text version includes HEADS-UP block) | ✓ | ✓ |
+| **B10** | booking_confirmation template update with "additional charges may apply" copy | [#197](https://github.com/bulletbiter99/air-action-sports/pull/197) | `<merge>` | `954964c3` | ✓ (admin preview renders new "Heads-up" section + Stripe + damage mention; text version includes HEADS-UP block) | ⏳ (next real customer booking exercises live email) | ✓ |
 | **B11** | Closing runbooks + decision-register updates | — | — | — | — | — | — |
 
 ## Live cutover blocker (B5 → B7 chain)
@@ -46,7 +46,9 @@ Every B-batch close must hit:
 | M6 B2 close (2026-05-25) | 2135 / 173 |
 | M6 B3 close | 2175 / 176 |
 | M6 B4 close | 2212 / 178 |
-| M6 B5 close | **2231 / 180** |
+| M6 B5 close | 2231 / 180 |
+| M6 B6 close | 2251 / 182 |
+| M6 B10 close | **2251 / 182** (no code change in B10) |
 
 ## Quirks + lessons specific to M6 (cumulative)
 

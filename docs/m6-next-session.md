@@ -1,176 +1,148 @@
 # M6 next-session prompt
 
-**Status:** M6 (Stripe live flow + damage charge Option A + vendor templates + email drafts) is **IN PROGRESS**. Batches 0 / 0-followup / 1 / 2 are merged + deployed to main. **B3 plan is parked below — ack to execute.** All operator-side pre-flight items from B0 (M5.5 smoke, overnight cron, DNS, HTTPS) still pending capture; they do NOT block B3 code shipping, but DMARC/SPF/DKIM verification should land before B3 merges since B3 is the lead-in to deliverability-sensitive email work.
-
-The fresh session should read this file first, then [HANDOFF.md](../HANDOFF.md) top-of-doc + [CLAUDE.md](../CLAUDE.md) Milestone 6 section for full context.
+**Status:** M6 is **IN PROGRESS** — 5 batches landed today (B3, B4, B5, B6, B10). Remaining (B7, B8, B9, B11) are gated on operator-only live Stripe cutover items. The fresh session should read this file first, then [HANDOFF.md](../HANDOFF.md) top-of-doc + [CLAUDE.md](../CLAUDE.md) Milestone 6 section + [docs/m6-batch-tracker.md](m6-batch-tracker.md) + [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md).
 
 ---
 
 ## Copy-paste prompt for fresh session
 
 ```
-I'm resuming work on the Air Action Sports booking system, mid-M6.
-Read in order:
+I'm resuming M6 on Air Action Sports. Read in order:
 
-  1. docs/m6-next-session.md (this file) — current B3 plan + pre-flight
-     status + decisions parked
-  2. HANDOFF.md top-of-doc — production state, what shipped in the
-     previous session
-  3. CLAUDE.md Milestone 6 section — batch-by-batch detail with PR
-     numbers and SHAs
+  1. docs/m6-next-session.md (this file)
+  2. HANDOFF.md top-of-doc
+  3. CLAUDE.md Milestone 6 section
+  4. docs/m6-batch-tracker.md (live status table)
+  5. docs/m6-operator-cutover-checklist.md (5 operator-only items
+     gating B5/B6/B7+ live verification)
 
-M6 batches done (4 PRs merged + deployed):
-  - B0:           cutover runbook + spot-check scaffold + staff
-                  labeling polish (PR #188, 0206120)
-  - B0-followup:  spot-check populated, runbook fix (PR #191, 9da716a)
-  - B1:           vendor package templates library — list/create/
-                  soft-delete (PR #189, f0cd431)
-  - B2:           vendor package templates — detail/edit composer +
-                  clone-to-event (PR #190, fd1e3ba)
+M6 batches done (10 PRs over two sessions):
+  - B0:           cutover runbook + spot-check + staff labeling (#188)
+  - B0-followup:  spot-check populated, runbook fix (#191)
+  - B1:           vendor package templates list (#189)
+  - B2:           vendor templates composer + clone (#190)
+  - B3:           email_templates.status column + filter (#193)
+  - B4:           admin UI status toggle + preview-with-real-data (#194)
+  - B5:           Stripe setup_future_usage on /checkout (#195)
+  - B6:           charge.dispute.created webhook consumer (#196)
+  - B10:          booking_confirmation template charges notice (#197)
 
-B3 is plan-mode parked — see the "B3 PARKED PLAN" section in
-docs/m6-next-session.md for the full plan to ack.
+Production worker version: 954964c3-56f3-4f08-9c97-47cd54b85c35
+main:                      post-PR #197 merge
+Tests:                     2251 / 182
+Group A + B regression:    138 / 138 preserved
+Migrations on remote:      0001-0058 (M6 added 0056, 0057, 0058)
+Email templates in prod:   34
+Cron sweeps:               8 at 03:00 UTC
 
-Production state at handoff:
-  main:    9da716a (PR #191 — docs-only B0-followup)
-  Worker:  a6c147db-8299-45e8-82ab-d0ee1e0ac115 (post-B2 deploy)
-  Tests:   2135 / 173 files
-  Lint:    0 errors / 448 warnings
-  Build:   clean (~260ms)
-  Migrations on remote: 0001-0055 (no M6 migrations yet)
+WHAT BLOCKS B7+ FROM LIVE VERIFICATION
+Five operator-only items in docs/m6-operator-cutover-checklist.md:
+  1. wrangler secret put STRIPE_SECRET_KEY (live)
+  2. wrangler secret put STRIPE_WEBHOOK_SECRET (live)
+  3. Configure live Stripe webhook endpoint + events
+     (must include checkout.session.completed AND
+     charge.dispute.created — B6 added the dispute listener)
+  4. Verify DMARC + SPF + DKIM DNS records
+  5. $1 live e2e: book → confirm saved PM on Customer → refund
 
-When acking B3:
-- I'll write the migration first (operator-applies-remote per
-  M6 prompt rule — provide the command, operator runs, output
-  captured for the closing summary).
-- email_templates schema already verified safe via the B0-followup
-  spot-check.
-- Group A + Group B regression must stay 138/138.
+Until items 1-5 land, B5 + B6 are CODE-LIVE on sandbox keys; the live
+behavior (real saved PMs, real dispute events) doesn't engage. B7/B8/B9
+can be coded against sandbox in parallel, but their live verification
+also waits on the cutover.
 
-If the operator wants to pivot to a different track instead of B3,
-the alternatives are:
-  (a) Native Marketing milestone (planned, not started — see
-      memory project_marketing_milestone.md)
-  (b) Post-M5.5 polish backlog Fork A — 6 small items in
-      docs/m55-next-session.md
-  (c) Continue M6 from B3 (this file's parked plan)
+ALTERNATIVE TRACKS IF OPERATOR ISN'T READY
+  (a) Native Marketing milestone (parallel, planned, not started)
+  (b) Post-M5.5 polish backlog Fork A — 6 small items
+      (AES decryption EIN, admin POST customers, monthly recurrence,
+       /status lead_stale_at clear, recurrence UNIQUE, deep-link parsing)
+  (c) HR coordinator role_preset (3 SQL statements)
+  (d) Past-games / event archive page phase 1 (~6 files)
 
 Workflow rules in effect for M6:
   - Plan-mode-first per batch. No edits before ack.
   - 8-file operating target, 10-file hard ceiling.
   - Mandatory 5-bullet closing summary between batches.
-  - Claude Code never executes `wrangler d1 execute --remote`
-    for MUTATIONS. Read-only schema queries — operator was
-    permissive at B0-followup; the default is still
-    operator-runs-it.
+  - Claude Code never executes `wrangler d1 execute --remote` for
+    MUTATIONS except migrations (operator authorized 2026-05-25).
   - Conventional Commits with m6-<area> scope; flat
     m6-batch-N-slug sub-branches.
   - Browser-verify in production after every deploy via
-    Claude_in_Chrome (not just /api/health).
+    Claude_in_Chrome (use javascript_tool — admin pages never go
+    network-idle for the screenshot helper).
 ```
 
 ---
 
-## B3 PARKED PLAN — Email template draft state (schema + worker)
+## Remaining M6 batches
 
-### What's shipping
-A `status` column on `email_templates` (`'draft' | 'published'`) so admins can author email templates without them being live-eligible until explicitly published. Worker-side: send paths filter out drafts; only previewable in admin.
+### B7 — Damage charge Option A activation
 
-### Pre-migration spot-check status
-✅ **Cleared.** Schema captured 2026-05-25 (in `docs/m6-discovery/spot-check-log.md`):
-- `id TEXT PRIMARY KEY` ✓
-- `created_at INTEGER NOT NULL` ✓
-- `slug TEXT NOT NULL UNIQUE` ✓
-- Other cols as expected; no surprises
+**Goal:** Wire up off-session charging against a customer's saved PM (from B5). Used by /admin/booking-charges queue + equipment-return flow.
 
-### Files (5-6 of 8 target; final count depends on whether a helper extracts cleanly)
+**Touches:**
+- `worker/lib/stripe.js` — new `chargeOffSession({ apiKey, customer, paymentMethod, amountCents, idempotencyKey, metadata })` helper (Critical DNT — additive)
+- `worker/lib/bookingCharges.js` (already gated) — extend the existing charge-flow with an "Option A: off-session" branch alongside the existing "Option B: email-link" fallback
+- `worker/routes/admin/bookingCharges.js` — POST /:id/approve uses Option A by default when the booking has a saved PM, falls back to Option B otherwise
+- Tests: extend `tests/unit/admin/bookingCharges/route.test.js` + new lib tests
 
-1. **`migrations/0056_email_templates_status.sql`** (NEW) — single-statement ALTER:
+**Pre-flight:**
+- B7 retrieves session.customer + payment_method via Stripe API to charge. Decision: cache stripe_customer_id on bookings table at first off-session attempt (avoids round-trip), OR retrieveSession on-demand. Both work. Discuss in plan-mode.
 
-   ```sql
-   ALTER TABLE email_templates ADD COLUMN status TEXT NOT NULL DEFAULT 'published';
-   ```
+**Risk:** **High.** Real money movement. Mitigations: Idempotency-Key required on every charge. Option B fallback preserved.
 
-   D1 quirk #2 doesn't apply (no table rebuild). Existing rows backfill to `'published'` automatically.
+**Live verification:** sandbox $1 booking → admin marks damage → off-session charge succeeds via sandbox. Real verification = first live damage charge after operator cutover.
 
-2. **`worker/lib/emailTemplates.js`** (NEW OR EDIT — investigate at exec time) — fetch-by-slug with `requirePublished=true` default. Used by every email-send call site so drafts are silently skipped.
+### B8 — Damage charge admin UI polish
 
-3. **`worker/routes/admin/emailTemplates.js`** (EDIT) — `formatTemplate` exposes the new `status` field; send / test-send paths return `{skipped: 'template_draft'}` instead of attempting Resend when the template is `'draft'`. Preview endpoint UNAFFECTED.
+**Goal:** Polish the /admin/booking-charges queue (M5 R16 ships the basic page). Add:
+- Indicator showing whether each charge will use Option A (off-session) vs Option B (email-link)
+- "Force Option B" toggle for cases where the operator wants email-link even with a saved PM
+- Better empty states + filtering
 
-4. **`tests/unit/admin/email-templates-status.test.js`** (NEW) — list returns status field, draft excluded from send paths, published proceeds normally, default `'published'` on insert.
+**Touches:** `src/admin/AdminBookingChargeQueue.jsx` + accompanying CSS. No worker changes if B7 surfaces the right fields on the existing API response.
 
-5. **`tests/unit/lib/emailTemplates-status.test.js`** (NEW — if a pure helper extracts cleanly) — `isPublishedTemplate(row)` tests.
+**Risk:** **Low.** Admin-only UI polish.
 
-### What B3 does NOT do
-- **No admin UI changes** — that's B4.
-- **No new email templates seeded.**
-- **No changes to `worker/lib/email.js`** (High DNT) or the 9 named senders in `worker/lib/emailSender.js` (Critical DNT). All filtering at the template-fetch layer.
+### B9 — Admin remove-saved-PM action
 
-### Gates
-- Group A + Group B regression (must stay 138/138)
-- Existing `email_templates` route + admin test files unchanged in behavior
-- Migration applies cleanly (operator-applies-remote — Claude provides the command, operator runs it, paste output)
+**Goal:** Admin can detach a saved PM from a Stripe Customer (privacy compliance — customer asks for removal).
 
-### Operator handoff at B3 close
-- Migration apply command provided in the closing summary
-- After operator runs, paste output back to me
-- Confirm row count: every existing template row should show `status='published'`
-- Then move to B4 (admin UI for status toggle + preview-against-real-data)
+**Touches:**
+- `worker/lib/stripe.js` — new `detachPaymentMethod({ apiKey, paymentMethod })` helper
+- `worker/routes/admin/customers.js` — new POST /:id/detach-payment-method endpoint, gated on `customers.write` cap
+- `src/admin/AdminCustomerDetail.jsx` — new "Remove saved payment method" button + confirm modal
+- Audit row `customer.payment_method_detached`
 
-### Risk
-**Medium** — touches a Lesson #7 table. Mitigations: spot-check captured (clear), ALTER syntax verified safe, no existing send-path semantics change for already-published templates.
+**Risk:** **Medium.** Irreversible (Stripe doesn't allow re-attach). Mitigations: hard confirmation modal, audit log.
 
----
+### B11 — Closing runbooks + M6 close
 
-## Pre-flight items STILL PENDING from B0 (operator-side)
+**Goal:** Ship the closing docs and flip CLAUDE.md M6 section to CLOSED.
 
-These don't block B3 code from shipping but should land before B3 merges to main:
+**Files (4-5):**
+- `docs/runbooks/m6-deploy.md` — capture the actual deploy sequence used in this milestone (per-batch rolling brings-up, operator-applied migrations 0056-0058, the live cutover sequence)
+- `docs/runbooks/m6-rollback.md` — decision tree per batch (data rollback for 0056/0057/0058; code rollback via Workers Builds dashboard; live-Stripe-only-half-rollback)
+- `docs/runbooks/m6-baseline-coverage.txt` — coverage snapshot post-M6 close (test count + gated paths)
+- CLAUDE.md M6 section + HANDOFF.md top-of-doc → M6 CLOSED status
 
-1. **M5.5 smoke checklist** — 6 items in `docs/runbooks/m55-deploy.md`. Paste results into `docs/m6-discovery/spot-check-log.md` "M5.5 smoke checklist" section.
-2. **Overnight cron 8-key summary verification** — Cloudflare Workers logs → most recent 03:00 UTC invocation → confirm `tags / certs / staffReminders / staffAutoDecline / taxYearAutoLock / recurrenceGen / coiAlerts / leadStale` all present. Paste line into the spot-check log.
-3. **DMARC + Resend DKIM/SPF DNS records** — Cloudflare DNS → `airactionsport.com` zone. Verify the 3 TXT records. **Most material for B3+** since email-template work is the lead-in to deliverability-sensitive sends.
-4. **Cloudflare Always-Use-HTTPS toggle** — verify ON in Cloudflare → SSL/TLS → Edge Certificates.
-5. **Vendor/charge table existence query** — gates B6/B7, not B3:
-   ```bash
-   CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 execute air-action-sports-db --remote --command="SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE '%vendor%' OR name LIKE '%charge%' OR name LIKE '%dispute%') ORDER BY name"
-   ```
-   Paste results into spot-check log.
+**Risk:** **None.** Pure docs.
 
 ---
 
-## Alternative tracks the operator may pick instead of B3
+## Why this session paused at B6/B10
 
-### Native Marketing milestone (parallel, planned)
+Two reasons:
+1. **Context budget** — at ~80% context after 5 batches in one session. Clean cut at a stable boundary (B10 merged, B7 not started) prevents mid-batch context exhaustion.
+2. **Operator cutover gate** — B7's live verification (the most valuable batch to bring live) needs the 5 cutover items. Continuing past B6/B10 in this session without operator presence means burning context on sandbox-only verification of B7/B8/B9 that you can't sign off until live.
 
-See memory `project_marketing_milestone.md`. ~6 batches. Independent of M6 (different surfaces; no scope overlap). Operator chose M6 first but can switch if priorities shift.
+The natural next-session pattern: operator works through items 1-5 between sessions → fresh session resumes with cutover complete → B7+B8+B9 + B11 in a coordinated push.
 
-### Post-M5.5 polish backlog (Fork A)
+## Carry-forward observations (added this session — durable)
 
-6 items from `docs/m55-next-session.md`:
-- AES decryption surface for `business_tax_id` (EIN) + `business_billing_address`
-- Admin POST customers + create modal
-- Monthly day_of_month recurrence pattern
-- `/status` route clears `lead_stale_at` on transition
-- UNIQUE constraint on (recurrence_id, recurrence_instance_index)
-- AdminScan + AdminRoster `?event=` deep-link parsing
-
-These could ship as small batches between M6 batches if the operator wants to interleave.
-
-### Newly-queued admin follow-ups (from previous session 2026-05-12)
-
-- HR coordinator role_preset doesn't exist yet (3 SQL statements)
-- Past-games / event archive page (phase 1: public archive + external video/photo links)
-
----
-
-## Why M6 was paused at B3 plan-mode
-
-Operator asked for clean session-handoff prep at 2026-05-26 (post-B2). The B3 plan was presented earlier in the session but never ack'd or executed — parked here verbatim. The fresh session can resume by ack'ing the B3 plan, OR pivoting to one of the alternatives above.
-
-## Carry-forward observations (durable across sessions)
-
-- **Audit log is 7-col, not 6.** CLAUDE.md's M5 post-deploy carry-forward note states "audit_log has 6 columns" — production has 7 (includes `ip_address`). M2 `writeAudit()` handles both shapes via the `ipAddress` branch. No code fix needed; CLAUDE.md correction logged in `docs/m6-discovery/spot-check-log.md` for the next docs-only sweep.
-- **bookings column name is `stripe_payment_intent`** (no `_id` suffix). Fixed in the M6 cutover runbook in B0-followup.
-- **`worker/services/waiverService.js` doesn't exist.** The M6 prompt's DNT callout was citing a phantom path. Real waiver DNT surfaces are `worker/routes/waivers.js` and `worker/lib/waiverLookup.js`.
-- **Vendor package templates table was already shipped (migration 0012)** — B1+B2 built the admin UI for the existing table, did NOT create a new one.
-- **Sections kind enum**: `vendor_package_sections.kind IN ('overview', 'schedule', 'map', 'contact', 'custom')`. Templates store kind as plaintext JSON; B2's `normalizeSections` coerces unknown kinds to `'custom'` so any template is always cloneable.
+1. **`worker/routes/bookings.js` POST /checkout returns `{ stripeUrl, bookingId }`** (not `{ url }`).
+2. **`rateLimit` middleware no-ops without `CF-Connecting-IP` header** — tests must set it.
+3. **`worker/lib/templates.js` `loadTemplate(db, slug, { includeDrafts })`** — B3's surgical extension. Drafts return null by default.
+4. **`unknown-event-type.test.js` is a milestone-only pin** — remove handled events from `NON_COMPLETION_EVENTS` when a new handler lands.
+5. **Idempotency pattern for Stripe webhooks: LIKE on `audit_log.meta_json`** — see B6's `handleDisputeCreated`.
+6. **Migration UPDATE on existing seed rows works without code redeploy** — pure content changes are zero-code zero-risk.
+7. **Admin pages never go network-idle** — Claude_in_Chrome `screenshot`/`read_page`/`get_page_text` time out. Use `javascript_tool` instead.
