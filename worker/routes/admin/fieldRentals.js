@@ -728,7 +728,8 @@ adminFieldRentals.post('/:id/status', requireCapability('field_rentals.write'), 
     const now = Date.now();
     const reason = body.reason ? String(body.reason) : null;
     await c.env.DB.prepare(
-        `UPDATE field_rentals SET status = ?, status_changed_at = ?, status_change_reason = ?, updated_at = ?
+        `UPDATE field_rentals SET status = ?, status_changed_at = ?, status_change_reason = ?,
+                lead_stale_at = NULL, updated_at = ?
          WHERE id = ?`,
     ).bind(to, now, reason, now, id).run();
 
@@ -773,7 +774,7 @@ adminFieldRentals.post('/:id/cancel', requireCapability('field_rentals.cancel'),
         `UPDATE field_rentals
          SET status = 'cancelled', status_changed_at = ?, status_change_reason = ?,
              cancelled_at = ?, cancellation_reason = ?, cancellation_deposit_retained = ?,
-             updated_at = ?
+             lead_stale_at = NULL, updated_at = ?
          WHERE id = ?`,
     ).bind(now, reason, now, reason, depositRetained, now, id).run();
 
@@ -811,7 +812,7 @@ adminFieldRentals.post('/:id/archive', requireCapability('field_rentals.archive'
 
     const now = Date.now();
     await c.env.DB.prepare(
-        `UPDATE field_rentals SET archived_at = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE field_rentals SET archived_at = ?, lead_stale_at = NULL, updated_at = ? WHERE id = ?`,
     ).bind(now, now, id).run();
 
     await writeAudit(c.env, {
@@ -865,7 +866,7 @@ adminFieldRentals.post('/:id/reschedule', requireCapability('field_rentals.resch
         `UPDATE field_rentals
          SET scheduled_starts_at = ?, scheduled_ends_at = ?,
              arrival_window_starts_at = ?, cleanup_buffer_ends_at = ?,
-             updated_at = ?
+             lead_stale_at = NULL, updated_at = ?
          WHERE id = ?`,
     ).bind(schedule.startsAt, schedule.endsAt, arrivalAt, cleanupAt, now, id).run();
 
