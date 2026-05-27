@@ -43,6 +43,10 @@ export default function AdminBookingChargeQueue() {
     const [paidOpen, setPaidOpen] = useState(null);     // { chargeId } | null
     const [paymentMethod, setPaymentMethod] = useState('venmo');
     const [paymentReference, setPaymentReference] = useState('');
+    // M6 B8 — charge-card confirm modal + outcome banner
+    const [chargeCardOpen, setChargeCardOpen] = useState(null);    // { chargeId, amountCents, customerName, item } | null
+    const [chargeCardError, setChargeCardError] = useState(null);  // { kind, message } | null
+    const [chargeCardSuccess, setChargeCardSuccess] = useState(''); // success message banner text
 
     const canManage = typeof hasRole === 'function' && hasRole('manager');
 
@@ -115,6 +119,61 @@ export default function AdminBookingChargeQueue() {
         }
     }
 
+    // M6 B8 — submit the off-session charge confirm modal
+    async function submitChargeCard() {
+        if (!chargeCardOpen) return;
+        setChargeCardError(null);
+        setChargeCardSuccess('');
+        setBusyId(chargeCardOpen.chargeId);
+        try {
+            const res = await fetch(
+                `/api/admin/booking-charges/${encodeURIComponent(chargeCardOpen.chargeId)}/charge-card`,
+                { method: 'POST', credentials: 'include' },
+            );
+            const body = await res.json().catch(() => ({}));
+            if (res.ok && body.ok) {
+                setChargeCardOpen(null);
+                setChargeCardSuccess(
+                    `Charged ${formatUsd(body.amountCents)} via saved card (PaymentIntent ${body.paymentIntentId}). Receipt email sent.`,
+                );
+                await load(activeTab);
+                return;
+            }
+            // Translate the worker's structured error into UI copy.
+            if (res.status === 422 && body.error === 'no_saved_payment_method') {
+                setChargeCardError({
+                    kind: 'no_saved_pm',
+                    message:
+                        'No saved payment method on this booking. This booking was created before the saved-PM feature shipped, OR the card was never saved. Fall back to "Approve" (email link) or "Mark paid" (Venmo / cash).',
+                });
+            } else if (res.status === 402 && body.error === 'stripe_declined') {
+                const codeLabel = ({
+                    card_declined: 'Card declined',
+                    authentication_required: '3D Secure required (off-session cannot proceed)',
+                    insufficient_funds: 'Insufficient funds',
+                    expired_card: 'Card expired',
+                    non_succeeded_status: 'Card needed extra confirmation (off-session blocked)',
+                }[body.code] || `Stripe error: ${body.code}`);
+                setChargeCardError({
+                    kind: 'stripe_declined',
+                    message: `${codeLabel}. ${body.message || ''} Fall back to "Approve" (email link) or "Mark paid".`,
+                });
+            } else if (res.status === 502) {
+                setChargeCardError({
+                    kind: 'stripe_down',
+                    message: 'Stripe API request failed (5xx). Try again in a moment, or fall back to "Approve" / "Mark paid".',
+                });
+            } else {
+                setChargeCardError({
+                    kind: 'unknown',
+                    message: body.error || `Charge failed (${res.status})`,
+                });
+            }
+        } finally {
+            setBusyId(null);
+        }
+    }
+
     async function submitMarkPaid() {
         if (!paidOpen || !paymentMethod.trim()) return;
         setBusyId(paidOpen.chargeId);
@@ -166,6 +225,19 @@ export default function AdminBookingChargeQueue() {
             </nav>
 
             {errorText && <div style={errorBanner}>{errorText}</div>}
+            {chargeCardSuccess && (
+                <div style={successBanner} role="status">
+                    <strong>✓</strong> {chargeCardSuccess}
+                    <button
+                        type="button"
+                        onClick={() => setChargeCardSuccess('')}
+                        style={bannerDismiss}
+                        aria-label="Dismiss"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
 
             {loading && charges.length === 0 && <p style={muted}>Loading…</p>}
 
@@ -228,6 +300,26 @@ export default function AdminBookingChargeQueue() {
                                                 Waive
                                             </button>
                                         )}
+                                        {canManage && (c.status === 'pending' || c.status === 'sent') && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setChargeCardError(null);
+                                                    setChargeCardSuccess('');
+                                                    setChargeCardOpen({
+                                                        chargeId: c.id,
+                                                        amountCents: c.amountCents,
+                                                        customerName: c.booking?.fullName || '—',
+                                                        item: c.item?.name || c.reasonKind,
+                                                    });
+                                                }}
+                                                disabled={busyId === c.id}
+                                                style={btnAccent}
+                                                title="Charge the customer's saved card (off-session, no email round-trip)"
+                                            >
+                                                Charge card
+                                            </button>
+                                        )}
                                         {canManage && c.status === 'sent' && (
                                             <button
                                                 type="button"
@@ -279,6 +371,58 @@ export default function AdminBookingChargeQueue() {
                                 style={btnPrimary}
                             >
                                 Waive charge
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {chargeCardOpen && (
+                <div style={modalBackdrop} onClick={() => !busyId && setChargeCardOpen(null)}>
+                    <div style={modal} onClick={(e) => e.stopPropagation()}>
+                        <h2 style={modalTitle}>Charge saved card?</h2>
+                        <p style={modalCopy}>
+                            This will <strong>immediately charge</strong> the customer&apos;s saved payment method
+                            via Stripe off-session — no email link, no further customer action required.
+                        </p>
+                        <div style={chargeSummary}>
+                            <div style={summaryRow}>
+                                <span style={summaryKey}>Customer</span>
+                                <span>{chargeCardOpen.customerName}</span>
+                            </div>
+                            <div style={summaryRow}>
+                                <span style={summaryKey}>Reason</span>
+                                <span>{chargeCardOpen.item}</span>
+                            </div>
+                            <div style={summaryRow}>
+                                <span style={summaryKey}>Amount</span>
+                                <span style={summaryAmount}>{formatUsd(chargeCardOpen.amountCents)}</span>
+                            </div>
+                        </div>
+                        {chargeCardError && (
+                            <div style={chargeErrorBanner}>{chargeCardError.message}</div>
+                        )}
+                        <p style={modalFootnote}>
+                            On decline / 3DS / missing PM: this won&apos;t charge. Fall back to{' '}
+                            <strong>Approve</strong> (email link) or <strong>Mark paid</strong>{' '}
+                            (Venmo / cash).
+                        </p>
+                        <div style={modalActions}>
+                            <button
+                                type="button"
+                                onClick={() => setChargeCardOpen(null)}
+                                disabled={!!busyId}
+                                style={btnSecondary}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={submitChargeCard}
+                                disabled={!!busyId}
+                                style={btnAccent}
+                            >
+                                {busyId === chargeCardOpen.chargeId ? 'Charging…' : `Charge ${formatUsd(chargeCardOpen.amountCents)}`}
                             </button>
                         </div>
                     </div>
@@ -357,6 +501,17 @@ const td = { padding: '10px 12px', fontSize: 13, color: 'var(--cream)', vertical
 const tdRight = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
 const btnPrimary = { padding: '6px 12px', background: 'var(--orange)', color: 'white', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 3, marginRight: 6 };
 const btnSecondary = { padding: '6px 12px', background: 'transparent', color: 'var(--cream)', border: '1px solid var(--color-border-strong)', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 3, marginRight: 6 };
+// M6 B8 — Charge-card button uses success-green so it's visually distinct
+// from Approve (orange — sends email link) and Mark paid (subtle outline).
+const btnAccent = { padding: '6px 12px', background: '#16a34a', color: 'white', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 3, marginRight: 6 };
+const successBanner = { padding: '10px 14px', background: 'rgba(22, 163, 74, 0.12)', border: '1px solid #16a34a', color: 'var(--cream)', fontSize: 13, borderRadius: 4, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, position: 'relative' };
+const bannerDismiss = { position: 'absolute', right: 12, top: 8, background: 'transparent', border: 'none', color: 'var(--cream)', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 4 };
+const chargeSummary = { background: 'var(--dark)', border: '1px solid var(--color-border-subtle)', padding: '12px 14px', borderRadius: 4, marginBottom: 14 };
+const summaryRow = { display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: 'var(--cream)', fontSize: 13 };
+const summaryKey = { color: 'var(--olive-light, #888)', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 700 };
+const summaryAmount = { fontWeight: 800, color: '#16a34a', fontVariantNumeric: 'tabular-nums' };
+const chargeErrorBanner = { padding: '10px 12px', background: 'var(--color-error-soft, rgba(220, 38, 38, 0.12))', border: '1px solid var(--color-error, #dc2626)', color: 'var(--cream)', fontSize: 12, borderRadius: 4, marginBottom: 12, lineHeight: 1.5 };
+const modalFootnote = { fontSize: 11, color: 'var(--olive-light, #888)', lineHeight: 1.5, marginBottom: 14 };
 const pillNeed = { fontSize: 10, color: 'var(--color-warning, #d97706)', marginLeft: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 };
 const modalBackdrop = { position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 };
 const modal = { background: 'var(--mid)', border: '1px solid var(--color-border-strong)', padding: '1.75rem', borderRadius: 6, maxWidth: 480, width: '100%' };
