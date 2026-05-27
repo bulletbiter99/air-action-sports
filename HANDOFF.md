@@ -4,13 +4,72 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — M6 CLOSED (2026-05-27); live Stripe cutover remains operator-pending
+## ⚠ NEW SESSION — M7 IN PROGRESS (Batches 0/1a/1b shipped; Batch 2 next)
 
-**M6 is fully CLOSED.** All 13 batches (B0/B0-followup/B1/B2/B3/B4/B5/B6/B7/B8/B9/B10/B11) merged + deployed to production. Sandbox-mode verification complete for every batch. Closing runbooks landed in B11. The **only remaining work is operator-side**: live Stripe cutover items 1-5 in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md), which gate the live e2e verification of B5 (setup_future_usage), B6 (real dispute alerts), B7 (real off-session captures), and B9 (real PM detach).
+**M7 (Reports + Audit Log FTS + Virtualized Tables) is the active milestone.** 3 of 12 batches complete on the milestone branch; **Batch 2 (Owner reports backend + UI, 5 reports) is the next step**.
 
-**For the next session prompt, use [docs/m6-next-session.md](docs/m6-next-session.md).**
+**For the next session prompt, use [docs/next-session.md](docs/next-session.md)** — it contains the copy-paste prompt and current state.
 
-Production worker version `e8372102-d9e3-4799-9678-261912192ab1` (post-B9 deploy). `main` at the B11 merge commit (see `git log`).
+| Metric | Value |
+|---|---|
+| Active milestone | **M7 — Reports + Audit Log FTS + Virtualized Tables** (in progress) |
+| Milestone branch | `milestone/7-reports-search-virtualized` |
+| Milestone branch HEAD | `652276f` (Merge #214 Batch 1b) |
+| `main` HEAD | `1e6062b` (Merge #208 Marketing B1) |
+| Tests on milestone | **2437 / 193 passing** |
+| Tests on main | **2424 / 192** (M6 baseline + 9 post-M6 polish PRs) |
+| Build | clean (~254-264ms) |
+| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` |
+| Latest worker | `1e6062b` deploy (post-Marketing-B1; M7 work stays on milestone, not yet in prod) |
+| D1 migrations on remote | 0001–0061 (M7's 0062 **PENDING operator-apply**) |
+| Open PRs | 0 (all 3 M7 batches + 9 polish PRs merged) |
+
+### M7 batches complete (merged to milestone branch)
+
+| Batch | PR | Status |
+|---|---|---|
+| 0 — Pre-flight verification + reports scope summary | [#212](https://github.com/bulletbiter99/air-action-sports/pull/212) | ✓ merged |
+| 1a — Reports shell backend (caps + 16-endpoint stub + sidebar) | [#213](https://github.com/bulletbiter99/air-action-sports/pull/213) | ✓ merged (operator-applies migration 0062) |
+| 1b — Reports shell UI (persona-aware tab strip + base components) | [#214](https://github.com/bulletbiter99/air-action-sports/pull/214) | ✓ merged |
+
+### Post-M6 polish session — 9 PRs all merged to main (2026-05-27)
+
+| PR | Track | Migration |
+|---|---|---|
+| [#202](https://github.com/bulletbiter99/air-action-sports/pull/202) | B — HR coordinator preset | 0059 applied |
+| [#203](https://github.com/bulletbiter99/air-action-sports/pull/203) | D-3 — Lead-stale clear + scan ?event= | — |
+| [#204](https://github.com/bulletbiter99/air-action-sports/pull/204) | D-1a — Customers AES decryption | — |
+| [#206](https://github.com/bulletbiter99/air-action-sports/pull/206) | D-2 — Recurrence + UNIQUE | 0060 applied |
+| [#207](https://github.com/bulletbiter99/air-action-sports/pull/207) | C — Past-games archive | 0061 applied |
+| [#208](https://github.com/bulletbiter99/air-action-sports/pull/208) | Marketing B1 — Customer Segments | — |
+| [#209](https://github.com/bulletbiter99/air-action-sports/pull/209) | Sidebar Event Archive entry | — |
+| [#210](https://github.com/bulletbiter99/air-action-sports/pull/210) | docs post-M6 session notes + D1 quirk #5 | — |
+| [#211](https://github.com/bulletbiter99/air-action-sports/pull/211) | D-1b — Customers POST + create modal (reopened from #205 after #204 merge) | — |
+
+### Operator action pending (gates Batch 2 LIVE smoke; not Batch 2 dev)
+
+```bash
+git checkout milestone/7-reports-search-virtualized && git pull
+source .claude/.env && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
+```
+
+Spot-check expectations:
+- `SELECT COUNT(*) FROM capabilities WHERE key LIKE 'reports.%'` → 6
+- `SELECT COUNT(*) FROM role_preset_capabilities WHERE capability_key LIKE 'reports.%'` → 16
+
+Until 0062 applies, the `/admin/reports` page shows "No reports available for your role" because `/me` won't return `reports.*` caps. Batch 2 dev (writing the 5 Owner reports) doesn't block on this — tests use mocks.
+
+### M6 operator cutover items — still pending (do NOT block M7 dev; land before M7 close)
+
+5 items in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md): Stripe live key/webhook config, DMARC/SPF/DKIM, $1 live e2e. Batch 12's deploy runbook bundles them as Section X.
+
+---
+
+## Historical: M6 close state (preserved for reference)
+
+The original "M6 CLOSED" section is preserved below for historical context. Skip to "M6 PRs shipped this multi-batch session" header for the M6 changelog.
+
+---
 
 ### M6 PRs shipped this multi-batch session (in order)
 

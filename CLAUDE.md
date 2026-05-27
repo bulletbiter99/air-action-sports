@@ -841,7 +841,119 @@ These have been in the working tree since before this session. PR commits explic
 7. #205 D-1b Customers POST (auto-bases on #204 merge)
 8. #208 Marketing B1 (no migration; sidebar conflict with #209 resolves trivially)
 
-**M7 scope: TBD** — operator deferred to next session. See [docs/next-session.md](docs/next-session.md) for the backlog menu.
+**Post-M6 polish merged 2026-05-27:** all 9 PRs (#202-#211 less #205-replaced-by-#211) landed on main. Test count on main: **2424 / 192**. Migrations on remote: 0001-0061.
+
+---
+
+### Milestone 7 — Reports + Audit Log Full-Text Search + Virtualized Tables (IN PROGRESS — Batches 0/1a/1b shipped 2026-05-27)
+
+**Long-lived branch:** `milestone/7-reports-search-virtualized` (off `main` at `1e6062b` Marketing B1 merge). Sub-branches use **flat `m7-batch-N-slug` naming** (same git ref-collision workaround M1-M5.5 used). PRs target the milestone branch; milestone merges to main at M7 close in Batch 12 per the M3-era pattern.
+
+**Status (as of 2026-05-27):** 3 of 12 batches complete + merged to milestone. **Batch 2 (Owner reports backend + UI) is next.**
+
+**Per-batch operating rules** (preserved from M7 prompt):
+- Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing
+- **8-file operating target, 10-file hard ceiling**. Split upfront (1a/1b) if larger
+- Conventional Commits with `m7-<area>` scope
+- No `--force`, no rebases on shared branches, no direct commits to `main` or milestone
+- All tests use M2 mock helpers + post-M5.5 personFixture/bindCapabilities
+- **No remote D1 mutations from Claude Code** — operator applies migrations after PR merges
+- **No `wrangler deploy` from Claude Code** — milestone branch doesn't auto-deploy; main auto-deploys via Workers Builds
+- DNT files extended additively only (new functions/endpoints/`else if` branches — never modify existing)
+- Mandatory between-batch 5-bullet closing summary; operator confirms before next batch
+- Every `email_templates` seed (Batch 10): `id='tpl_<slug>'` + `slug='<slug>'` + `created_at=updated_at` per Lesson #7
+- Pre-migration spot-check mandatory before any table-touching migration
+
+**M7 do-not-touch surfaces** (no Critical DNT crossings in M7):
+- `worker/routes/bookings.js` (public POST /checkout) — M6 ground, NOT modified
+- `worker/routes/waivers.js` — NOT modified
+- `worker/lib/stripe.js` — NOT modified
+- `worker/lib/auth.js` — NOT modified
+- The 10 existing email senders in `worker/lib/emailSender.js` — only APPEND new senders (Batch 10 adds sendBounceAlert + sendComplaintAlert as 11th + 12th)
+- `worker/routes/webhooks.js` extended additively in Batch 8 (new `else if` branches for `email.bounced` + `email.complained`, matching M6's `charge.dispute.created` pattern)
+
+**Batch status (3 done, 9 remaining):**
+
+| Batch | What | Migration | PR | Status |
+|---|---|---|---|---|
+| **0** | Pre-flight verification + reports scope summary | — | [#212](https://github.com/bulletbiter99/air-action-sports/pull/212) | ✓ merged to milestone |
+| **1a** | Reports shell backend (caps + 16-endpoint stub + sidebar) | 0062 (pending operator-apply) | [#213](https://github.com/bulletbiter99/air-action-sports/pull/213) | ✓ merged to milestone |
+| **1b** | Reports shell UI (4-tab strip + ReportLayout/EmptyState/Filters + route) | — | [#214](https://github.com/bulletbiter99/air-action-sports/pull/214) | ✓ merged to milestone |
+| **2** | **Owner reports backend + UI (5 reports)** | — | — | **← NEXT** |
+| 3 | Bookkeeper reports (3 reports; 1099 thresholds links to existing M5 page) | — | — | pending |
+| 4 | Marketing reports (4 reports) | — | — | pending |
+| 5 | Site Coordinator reports (4 reports — new persona from M5.5) | — | — | pending |
+| 6 | Audit log full-text search (FTS5) | 0063 + 0064 flag | — | pending |
+| 7 | Virtualized tables (TanStack Virtual on 4 admin lists) | — | — | pending |
+| 8 | Resend bounce/complaint webhook consumer | 0065 | — | pending |
+| 9 | Admin visual regression baselines (M4 B11 deferral resolved) | — | — | pending |
+| 10 | Email templates for bounce/complaint alerts | 0066 | — | pending |
+| 11 | Reports polish + virtualization perf tuning | — | — | pending |
+| 12 | Closing runbooks + baseline coverage + CLAUDE.md/HANDOFF.md flips | — | — | pending |
+
+**M7 cumulative through Batch 1b:** test count 2424 → **2437** (+13 from Batch 1a's reports-stub tests; Batch 1b adds 0 — JSX tests deferred per project no-RTL convention from M5 carry-forward).
+
+**Migration sequence:** M7 starts at 0062 because the post-M6 polish session consumed 0059 (HR preset) / 0060 (field_rentals UNIQUE) / 0061 (event_archive_links). All three are applied to remote and now on main via merged PRs.
+
+**Reports scope** (17 reports across 4 personas; full detail in `docs/m7-discovery/reports-scope.md`):
+- **Owner (5):** revenue trends MTD/QTD/YTD, retention by event series, refund rate by period, repeat customers, AOV trend
+- **Bookkeeper (3 + link):** payouts summary, tax/fee summary, period comparison; 1099 thresholds tab links to existing M5 `/admin/staff/1099-thresholds` (no duplication)
+- **Marketing (4):** conversion funnel by event, promo code performance, customer cohorts by acquisition month, channel attribution
+- **Site Coordinator (4):** field rental revenue by site, COI compliance status, lead-to-booking conversion rate, recurrence retention (90/180/365d)
+
+**Capability bundles** (seeded in migration 0062):
+- `owner`: all 5 `reports.read.*` + `reports.export` (6 caps)
+- `bookkeeper`: `reports.read` + bookkeeper tab + **owner tab** (financial overlap) + export (4 caps)
+- `marketing_manager`: `reports.read` + marketing tab + export (3 caps)
+- `site_coordinator`: `reports.read` + site_coordinator tab + export (3 caps)
+- Other presets (event_director, booking_coordinator, generic_manager, staff, read_only_auditor): no `reports.*` — nav entry hidden via sidebar gate
+
+**Sidebar gating note:** the legacy stub `CAPABILITY_TO_LEGACY_ROLE` in `src/admin/sidebarConfig.js` maps `reports.read: 'manager'` — coarse-grained. The Reports page itself uses the DB-backed `/me` capability array for accurate tab visibility. A future M8 refactor should consume `/me` capabilities directly in the sidebar so site_coordinator (not a "manager" in the legacy hierarchy) sees the nav entry.
+
+**Sidebar index after Batch 1a** (M5 R0c carry-forward — operator should expect sidebar test updates per new entry):
+- Operational cluster: Analytics (14), Reports (15), Segments (16), Feedback (17), Promo Codes (18), Vendors (19), sep (20)
+- Settings group index: 21
+- `getVisibleItems` owner test: 22 visible items
+
+**Operator action queued before Batch 2 live smoke:**
+
+```bash
+git checkout milestone/7-reports-search-virtualized && git pull
+source .claude/.env && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
+```
+
+Spot-check via:
+- `SELECT COUNT(*) FROM capabilities WHERE key LIKE 'reports.%'` → 6
+- `SELECT COUNT(*) FROM role_preset_capabilities WHERE capability_key LIKE 'reports.%'` → 16
+
+Batch 2 dev work proceeds without this (tests use mocks); only live smoke needs it.
+
+**Carry-forward observations / lessons** (added in Batches 0/1a/1b):
+
+1. **Batch 0 confirmed Lesson #7 prereqs** for `email_templates`: `id TEXT PRIMARY KEY` + `created_at INTEGER NOT NULL` both present. NO `name` column (CLAUDE.md uses informally for `slug`).
+2. **All 7 M7-relevant tables spot-checked** — no schema mismatches that would break planned report queries. See `docs/m7-pre-flight-verification.md`.
+3. **`audit_log` is 7-col** (M6 lesson confirmed; matters for Batch 6 FTS5 trigger). INSERT-only by design — Batch 6's FTS5 mirror needs only an INSERT trigger.
+4. **Migration numbering shifted** from M7 prompt's 0059-0063 to 0062-0066 because post-M6 polish session consumed 0059-0061.
+5. **Sidebar shifts in 1a follow M5 R0c pattern**: any sidebar entry addition triggers 3-5 line test updates. M7 sidebar test now expects 22 visible items for owner.
+6. **JSX shell components deferred unit tests** (1b) per project no-RTL convention. M8 candidate: install RTL + backfill tests for AdminReports, ReportLayout, ReportEmptyState, ReportFilters, plus older M3+ admin pages without coverage.
+
+**Resume the milestone in a fresh session:**
+1. `git checkout milestone/7-reports-search-virtualized && git pull origin milestone/7-reports-search-virtualized`
+2. `npm install`
+3. `npm test -- --run` — confirm **2437 / 193** passing
+4. `npm run build` — confirm clean (~254-264ms)
+5. `curl https://airactionsport.com/api/health` — confirm `{"ok":true,...}`
+6. **Read [`docs/next-session.md`](docs/next-session.md) for the copy-paste prompt** + this M7 section for batch status
+7. **Confirm operator-applies status** of migration 0062 (Batch 2 dev doesn't require, smoke does)
+8. **Plan-mode-first for Batch 2** per operating rule #1 — present plan (8-file target), await "proceed"
+
+**Stop-and-ask conditions during M7** (durable):
+- A do-not-touch file needs modification beyond appending a new branch/function/endpoint
+- A migration's local-test passes but a production schema spot-check reveals divergence (Lesson #7 / D1 quirk #5)
+- Audit log full-text search performance falls below 1s p95 at production volumes (Batch 6 gate)
+- Virtualized tables (Batch 7) produce visual diff against captured baselines — investigate before continuing
+- Coverage on any gated file drops from M6 baseline
+- A new admin visual regression baseline (Batch 9) reveals issues with cookie-injection auth in CI
 
 ---
 
