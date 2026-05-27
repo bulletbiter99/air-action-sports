@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
 import { formatBooking, formatEvent, safeJson } from '../../lib/formatters.js';
-import { issueRefund, createCheckoutSession } from '../../lib/stripe.js';
+import { issueRefund, createCheckoutSession, retrievePaymentIntent, detachPaymentMethod } from '../../lib/stripe.js';
 import { bookingId, attendeeId, qrToken } from '../../lib/ids.js';
 import { sendBookingConfirmation, sendWaiverRequest, sendRefundRecordedExternal } from '../../lib/emailSender.js';
 import { findExistingValidWaiver } from '../../lib/waiverLookup.js';
 import { loadActiveTaxesFees } from '../../lib/pricing.js';
 import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
 import { hasCapability } from '../../lib/capabilities.js';
+import { writeAudit } from '../../lib/auditLog.js';
 
 // Allowed manual booking payment methods.
 //   card   → admin creates pending booking + Stripe Checkout URL;
@@ -974,6 +975,99 @@ adminBookings.post('/:id/resend-confirmation', requireRole('owner', 'manager'), 
     ).bind(user.id, id, JSON.stringify({ to: booking.email }), Date.now()).run();
 
     return c.json({ success: true, sentTo: booking.email });
+});
+
+// M6 B9 — POST /:id/detach-saved-pm
+//
+// Privacy compliance: admin can detach the customer's saved PaymentMethod
+// from their Stripe Customer. Once detached, the PM stops being eligible
+// for the off-session damage charge (B7) — any future capture against
+// that PM is rejected by Stripe with `no_such_payment_method`.
+//
+// Owner-only. The action is irreversible from this UI (Stripe retains
+// the PM object for ~13 months for compliance, but it's no longer
+// attached to the Customer so we can't re-attach without buyer action).
+//
+// Returns:
+//   200 → { ok, bookingId, detachedPaymentMethodId }
+//   404 → booking_not_found
+//   422 → no_saved_payment_method (booking pre-B5 / no PM saved)
+//   502 → stripe_request_failed (Stripe API error)
+adminBookings.post('/:id/detach-saved-pm', requireRole('owner'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+
+    const booking = await c.env.DB.prepare(
+        `SELECT id, stripe_payment_intent, email, full_name FROM bookings WHERE id = ?`
+    ).bind(id).first();
+    if (!booking) return c.json({ error: 'booking_not_found' }, 404);
+    if (!booking.stripe_payment_intent) {
+        return c.json({
+            error: 'no_saved_payment_method',
+            detail: 'booking_has_no_payment_intent',
+        }, 422);
+    }
+
+    let originalPI;
+    try {
+        originalPI = await retrievePaymentIntent(booking.stripe_payment_intent, c.env.STRIPE_SECRET_KEY);
+    } catch (err) {
+        console.error('detach-saved-pm: retrieve PI failed', id, err?.message);
+        return c.json({ error: 'stripe_request_failed', message: err?.message }, 502);
+    }
+    const paymentMethodId = originalPI?.payment_method;
+    if (!paymentMethodId) {
+        return c.json({
+            error: 'no_saved_payment_method',
+            detail: 'no_payment_method_attached',
+        }, 422);
+    }
+
+    try {
+        await detachPaymentMethod(paymentMethodId, c.env.STRIPE_SECRET_KEY);
+    } catch (err) {
+        // If Stripe returns "no such payment method" or "not attached",
+        // treat as already-detached idempotent success.
+        const stripeCode = err?.stripe?.error?.code;
+        if (stripeCode === 'resource_missing' || stripeCode === 'payment_method_not_attached') {
+            await writeAudit(c.env, {
+                userId: user.id,
+                action: 'booking.saved_pm_detach_noop',
+                targetType: 'booking',
+                targetId: id,
+                meta: { paymentMethodId, reason: stripeCode },
+            });
+            return c.json({
+                ok: true,
+                bookingId: id,
+                detachedPaymentMethodId: paymentMethodId,
+                noop: true,
+            });
+        }
+        console.error('detach-saved-pm: detach failed', id, err?.message);
+        return c.json({
+            error: 'stripe_request_failed',
+            message: err?.stripe?.error?.message || err?.message,
+        }, 502);
+    }
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'booking.saved_pm_detached',
+        targetType: 'booking',
+        targetId: id,
+        meta: {
+            paymentMethodId,
+            customerId: originalPI.customer || null,
+            paymentIntent: booking.stripe_payment_intent,
+        },
+    });
+
+    return c.json({
+        ok: true,
+        bookingId: id,
+        detachedPaymentMethodId: paymentMethodId,
+    });
 });
 
 adminBookings.get('/stats/summary', async (c) => {

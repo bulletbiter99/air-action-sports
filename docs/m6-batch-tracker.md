@@ -18,7 +18,7 @@ Last updated: 2026-05-26 (post-B6 + B10 merge; awaiting operator live cutover fo
 | **B6** | `charge.dispute.created` webhook consumer | [#196](https://github.com/bulletbiter99/air-action-sports/pull/196) | `db7e7b8` | `518af64a` | ✓ (17/17 tests; idempotency + orphan paths) | ⏳ (no on-demand dispute creation; first real disputed payment is live verify) | ✓ |
 | **B7** | Damage charge Option A activation (off-session) | _pending_ | _pending_ | _pending_ | ✓ (28 tests: 10 stripe lib + 18 route; declined / 3DS / 422 fallback / 502 retrieval) | ⏳ (real off-session capture against live PM; needs B5 live cutover + a real saved PM) | ✓ |
 | **B8** | Damage charge admin UI polish — Charge card button + confirm modal + error/success banners on /admin/booking-charges | _pending_ | _pending_ | _pending_ | ✓ (build clean; existing 18 route tests cover the wire-up) | ⏳ (live verify needs B5 cutover + a real saved PM to test charge-card flow end-to-end in browser) | ✓ |
-| **B9** | Admin action: remove saved payment method | — | — | — | — | — | — |
+| **B9** | Admin action: remove saved payment method | _pending_ | _pending_ | _pending_ | ✓ (13 tests: 3 stripe lib + 10 route; idempotent on already-detached, owner-only 403, 422 fallback) | ⏳ (live verify needs a real saved PM to detach) | ✓ |
 | **B10** | booking_confirmation template update with "additional charges may apply" copy | [#197](https://github.com/bulletbiter99/air-action-sports/pull/197) | `<merge>` | `954964c3` | ✓ (admin preview renders new "Heads-up" section + Stripe + damage mention; text version includes HEADS-UP block) | ⏳ (next real customer booking exercises live email) | ✓ |
 | **B11** | Closing runbooks + decision-register updates | — | — | — | — | — | — |
 

@@ -32,10 +32,11 @@
       "covers": [
         "verifyWebhookSignature",
         "createCheckoutSession (M6 B5 — optional setupFutureUsage)",
-        "retrievePaymentIntent (M6 B7 — GET /v1/payment_intents/:id)",
-        "chargeOffSession (M6 B7 — POST /v1/payment_intents with off_session=true + confirm=true; idempotency-keyed)"
+        "retrievePaymentIntent (M6 B7)",
+        "chargeOffSession (M6 B7 — POST /v1/payment_intents with off_session=true + confirm=true; idempotency-keyed)",
+        "detachPaymentMethod (M6 B9 — POST /v1/payment_methods/:id/detach)"
       ],
-      "audit_group": "B (signature subset) + M6 B5 + M6 B7",
+      "audit_group": "B (signature subset) + M6 B5 + M6 B7 + M6 B9",
       "tests": [
         "tests/unit/webhook/signature-verify-valid.test.js",
         "tests/unit/webhook/signature-verify-invalid.test.js",
@@ -43,7 +44,8 @@
         "tests/unit/webhook/signature-verify-multi-v1.test.js",
         "tests/unit/webhook/signature-constant-time.test.js",
         "tests/unit/lib/stripe-setup-future-usage.test.js",
-        "tests/unit/lib/stripe-off-session-charge.test.js"
+        "tests/unit/lib/stripe-off-session-charge.test.js",
+        "tests/unit/lib/stripe-detach-pm.test.js"
       ]
     },
     "worker/routes/bookings.js": {
@@ -129,9 +131,10 @@
         "POST /api/admin/bookings/bulk/resend-waiver-request — M4 B2b",
         "GET /api/admin/bookings/export.csv — M4 B2b",
         "GET /api/admin/bookings/:id (detail with customer card + activity log + PII masking + audit) — M4 B3a",
-        "POST /api/admin/bookings/:id/refund-external (5 methods, always-notify customer per D06) — M4 B3a"
+        "POST /api/admin/bookings/:id/refund-external (5 methods, always-notify customer per D06) — M4 B3a",
+        "POST /api/admin/bookings/:id/detach-saved-pm (M6 B9 — privacy: detach Stripe PM from Customer)"
       ],
-      "audit_group": "E",
+      "audit_group": "E + M6 B9",
       "tests": [
         "tests/unit/admin/manual-cash.test.js",
         "tests/unit/admin/manual-comp.test.js",
@@ -144,7 +147,8 @@
         "tests/unit/admin/bookings/bulk-actions.test.js",
         "tests/unit/admin/bookings/export-csv.test.js",
         "tests/unit/admin/bookings/detail-view.test.js",
-        "tests/unit/admin/bookings/refund-external.test.js"
+        "tests/unit/admin/bookings/refund-external.test.js",
+        "tests/unit/admin/bookings/detach-saved-pm.test.js"
       ]
     },
     "worker/lib/capabilities.js": {
