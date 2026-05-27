@@ -6,6 +6,10 @@ const events = new Hono();
 events.get('/', async (c) => {
     const url = new URL(c.req.url);
     const includePast = url.searchParams.get('include_past') === '1';
+    // Post-M6 Track C — when archive=1, additionally JOIN event_archive_links
+    // and attach `archiveLinks[]` per event (with computed embedUrl). Cheap
+    // extra query bounded by the same event-id set already in scope.
+    const wantsArchive = url.searchParams.get('archive') === '1';
     const pastClause = includePast ? '' : 'AND past = 0';
 
     // Sort: featured first (so admin-picked headliner wins ties), then by date.
@@ -22,7 +26,7 @@ events.get('/', async (c) => {
 
     const placeholders = eventRows.map(() => '?').join(',');
     const ids = eventRows.map((e) => e.id);
-    const [ticketTypesResult, seatsResult] = await Promise.all([
+    const fetches = [
         c.env.DB.prepare(
             `SELECT * FROM ticket_types
              WHERE event_id IN (${placeholders}) AND active = 1
@@ -33,7 +37,21 @@ events.get('/', async (c) => {
              FROM bookings WHERE event_id IN (${placeholders}) AND status IN ('paid', 'comp')
              GROUP BY event_id`
         ).bind(...ids).all(),
-    ]);
+    ];
+    if (wantsArchive) {
+        fetches.push(
+            c.env.DB.prepare(
+                `SELECT id, event_id, kind, url, title, thumbnail_url, ordering
+                 FROM event_archive_links
+                 WHERE event_id IN (${placeholders})
+                 ORDER BY event_id, ordering ASC, created_at ASC`
+            ).bind(...ids).all().catch(() => ({ results: [] })),
+        );
+    }
+    const results = await Promise.all(fetches);
+    const ticketTypesResult = results[0];
+    const seatsResult = results[1];
+    const archiveLinksResult = wantsArchive ? results[2] : null;
 
     const typesByEvent = {};
     for (const tt of (ticketTypesResult.results || [])) {
@@ -42,12 +60,35 @@ events.get('/', async (c) => {
     const seatsByEvent = {};
     for (const s of (seatsResult.results || [])) seatsByEvent[s.event_id] = s.seats_sold;
 
+    let archiveByEvent = null;
+    if (archiveLinksResult) {
+        const { buildEmbedUrl } = await import('../lib/archiveLinks.js');
+        archiveByEvent = {};
+        for (const link of (archiveLinksResult.results || [])) {
+            (archiveByEvent[link.event_id] ||= []).push({
+                id: link.id,
+                kind: link.kind,
+                url: link.url,
+                title: link.title,
+                thumbnailUrl: link.thumbnail_url,
+                ordering: link.ordering,
+                embedUrl: buildEmbedUrl({ kind: link.kind, url: link.url }),
+            });
+        }
+    }
+
     return c.json({
-        events: eventRows.map((row) => ({
-            ...formatEvent(row),
-            ticketTypes: typesByEvent[row.id] || [],
-            seatsSold: seatsByEvent[row.id] || 0,
-        })),
+        events: eventRows.map((row) => {
+            const base = {
+                ...formatEvent(row),
+                ticketTypes: typesByEvent[row.id] || [],
+                seatsSold: seatsByEvent[row.id] || 0,
+            };
+            if (archiveByEvent) {
+                base.archiveLinks = archiveByEvent[row.id] || [];
+            }
+            return base;
+        }),
     });
 });
 
