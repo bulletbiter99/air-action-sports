@@ -16,7 +16,7 @@ Last updated: 2026-05-26 (post-B6 + B10 merge; awaiting operator live cutover fo
 | **B4** | Email template draft state — admin UI + preview-with-real-data | [#194](https://github.com/bulletbiter99/air-action-sports/pull/194) | `f3b845f` | `09c58ed1` | ✓ (12-point matrix passed) | n/a | ✓ |
 | **B5** | Stripe `setup_future_usage` off_session on public checkout | [#195](https://github.com/bulletbiter99/air-action-sports/pull/195) | `8a9d3dd` | `ba6545c2` | ✓ (public /booking page renders; flow unchanged) | ⏳ (operator $1 e2e gated on cutover items 1-5) | ✓ |
 | **B6** | `charge.dispute.created` webhook consumer | [#196](https://github.com/bulletbiter99/air-action-sports/pull/196) | `db7e7b8` | `518af64a` | ✓ (17/17 tests; idempotency + orphan paths) | ⏳ (no on-demand dispute creation; first real disputed payment is live verify) | ✓ |
-| **B7** | Damage charge Option A activation (off-session) | — | — | — | — | — | — |
+| **B7** | Damage charge Option A activation (off-session) | _pending_ | _pending_ | _pending_ | ✓ (28 tests: 10 stripe lib + 18 route; declined / 3DS / 422 fallback / 502 retrieval) | ⏳ (real off-session capture against live PM; needs B5 live cutover + a real saved PM) | ✓ |
 | **B8** | Damage charge admin UI polish | — | — | — | — | — | — |
 | **B9** | Admin action: remove saved payment method | — | — | — | — | — | — |
 | **B10** | booking_confirmation template update with "additional charges may apply" copy | [#197](https://github.com/bulletbiter99/air-action-sports/pull/197) | `<merge>` | `954964c3` | ✓ (admin preview renders new "Heads-up" section + Stripe + damage mention; text version includes HEADS-UP block) | ⏳ (next real customer booking exercises live email) | ✓ |

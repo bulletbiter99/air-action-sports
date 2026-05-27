@@ -31,16 +31,19 @@
       "tier": "critical",
       "covers": [
         "verifyWebhookSignature",
-        "createCheckoutSession (M6 B5 — optional setupFutureUsage adds payment_intent_data[setup_future_usage] form field)"
+        "createCheckoutSession (M6 B5 — optional setupFutureUsage)",
+        "retrievePaymentIntent (M6 B7 — GET /v1/payment_intents/:id)",
+        "chargeOffSession (M6 B7 — POST /v1/payment_intents with off_session=true + confirm=true; idempotency-keyed)"
       ],
-      "audit_group": "B (signature subset) + M6 B5 createCheckoutSession",
+      "audit_group": "B (signature subset) + M6 B5 + M6 B7",
       "tests": [
         "tests/unit/webhook/signature-verify-valid.test.js",
         "tests/unit/webhook/signature-verify-invalid.test.js",
         "tests/unit/webhook/signature-verify-stale.test.js",
         "tests/unit/webhook/signature-verify-multi-v1.test.js",
         "tests/unit/webhook/signature-constant-time.test.js",
-        "tests/unit/lib/stripe-setup-future-usage.test.js"
+        "tests/unit/lib/stripe-setup-future-usage.test.js",
+        "tests/unit/lib/stripe-off-session-charge.test.js"
       ]
     },
     "worker/routes/bookings.js": {
@@ -569,6 +572,32 @@
       "audit_group": "(M6 B4 new — admin preview-with-real-data helper)",
       "tests": [
         "tests/unit/lib/emailTemplatePreview.test.js"
+      ]
+    },
+    "worker/lib/bookingCharges.js": {
+      "tier": "high",
+      "covers": [
+        "createDamageCharge / approveCharge / waiveCharge / markChargePaid (M5 R16 lifecycle)",
+        "chargeOffSessionForCharge (M6 B7 — Option A activation via off-session PI)",
+        "signPaymentToken / verifyPaymentToken (HMAC payment-link signing)"
+      ],
+      "audit_group": "(M5 R16 + M6 B7 damage charge)",
+      "tests": [
+        "tests/unit/admin/bookingCharges/route.test.js",
+        "tests/unit/admin/bookingCharges/charge-card.test.js"
+      ]
+    },
+    "worker/routes/admin/bookingCharges.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/booking-charges (queue listing)",
+        "POST /:id/approve, /:id/waive, /:id/mark-paid (M5 R16)",
+        "POST /:id/charge-card (M6 B7 — Option A off-session capture)"
+      ],
+      "audit_group": "(M5 R16 + M6 B7)",
+      "tests": [
+        "tests/unit/admin/bookingCharges/route.test.js",
+        "tests/unit/admin/bookingCharges/charge-card.test.js"
       ]
     },
     "worker/lib/templates.js (loadTemplate draft filter)": {

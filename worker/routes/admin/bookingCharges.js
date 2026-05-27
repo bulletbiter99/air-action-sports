@@ -22,6 +22,7 @@ import {
     approveCharge,
     waiveCharge,
     markChargePaid,
+    chargeOffSessionForCharge,
 } from '../../lib/bookingCharges.js';
 
 const adminBookingCharges = new Hono();
@@ -99,6 +100,54 @@ adminBookingCharges.post('/:id/mark-paid', requireRole('owner', 'manager'), asyn
     if (result.error === 'charge_not_found') return c.json({ error: 'charge_not_found' }, 404);
     if (result.error === 'already_finalized') {
         return c.json({ error: 'already_finalized', currentStatus: result.currentStatus }, 409);
+    }
+    return c.json(result);
+});
+
+// ────────────────────────────────────────────────────────────────────
+// POST /api/admin/booking-charges/:id/charge-card  (M6 B7)
+//
+// Off-session capture against the saved payment method (B5 substrate).
+// Success → charge marked paid + receipt email. Failure → structured
+// error (4xx) so the operator can fall back to Option B (email link)
+// or "Mark paid" (Venmo/cash) without losing context.
+// ────────────────────────────────────────────────────────────────────
+
+adminBookingCharges.post('/:id/charge-card', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const chargeId = c.req.param('id');
+
+    const result = await chargeOffSessionForCharge(c.env, {
+        chargeId,
+        userId: user.id,
+    });
+
+    if (result.error === 'charge_not_found') return c.json({ error: 'charge_not_found' }, 404);
+    if (result.error === 'already_finalized') {
+        return c.json({ error: 'already_finalized', currentStatus: result.currentStatus }, 409);
+    }
+    if (result.error === 'booking_not_found') return c.json({ error: 'booking_not_found' }, 404);
+    if (result.error === 'no_saved_payment_method') {
+        // 422 = unprocessable — booking didn't go through B5's setup_future_usage
+        // so no PM is saved. Operator falls back to email link or manual mark-paid.
+        return c.json({
+            error: 'no_saved_payment_method',
+            detail: result.detail,
+            fallback: 'use_email_link_or_mark_paid',
+        }, 422);
+    }
+    if (result.error === 'stripe_declined') {
+        // 402 = payment required — card declined / 3DS required / etc.
+        return c.json({
+            error: 'stripe_declined',
+            code: result.code,
+            message: result.message,
+            paymentIntentId: result.paymentIntentId,
+            fallback: 'use_email_link_or_mark_paid',
+        }, 402);
+    }
+    if (result.error === 'stripe_request_failed') {
+        return c.json({ error: 'stripe_request_failed', message: result.message }, 502);
     }
     return c.json(result);
 });
