@@ -282,4 +282,54 @@ describe('runRecurrenceGenerationSweep', () => {
         const metaArg = createdAudit.args.find((a) => typeof a === 'string' && a.includes('"source":"recurrence_cron"'));
         expect(metaArg).toBeDefined();
     });
+
+    // ──────────────────────────────────────────────────────────────────
+    // Post-M6 D-2 — UNIQUE constraint race condition handling
+    // ──────────────────────────────────────────────────────────────────
+
+    it('treats SQLITE_CONSTRAINT_UNIQUE error as race-condition success (no failure audit)', async () => {
+        // Migration 0060 adds UNIQUE (recurrence_id, instance_index). Two
+        // parallel cron runs can race past the pre-check and both attempt
+        // INSERT — the loser gets a UNIQUE error. The catch should treat that
+        // as "row exists, continue" rather than logging as a failure.
+        env.DB.__on(/FROM field_rental_recurrences\s+WHERE active = 1/, {
+            results: [recurrenceRow({ max_occurrences: 1 })],
+        }, 'all');
+        env.DB.__on(/SELECT MAX\(recurrence_instance_index\)/, { max_idx: 0, cnt: 0 }, 'first');
+        env.DB.__on(/SELECT id FROM field_rentals\s+WHERE recurrence_id/, null, 'first');
+        bindNoConflicts(env.DB);
+
+        // Force the INSERT to throw the UNIQUE constraint error
+        env.DB.__on(/INSERT INTO field_rentals/, () => {
+            throw new Error('D1_ERROR: UNIQUE constraint failed: field_rentals.recurrence_id, field_rentals.recurrence_instance_index');
+        }, 'run');
+
+        await runRecurrenceGenerationSweep(env);
+
+        const writes = env.DB.__writes();
+        // No failure audit should fire on a UNIQUE collision
+        const failureAudit = writes.find((w) => /INSERT INTO audit_log/.test(w.sql)
+            && w.args.includes('field_rental.recurrence_generation_failed'));
+        expect(failureAudit).toBeUndefined();
+    });
+
+    it('still logs failure audit for NON-UNIQUE constraint failures (e.g. FK)', async () => {
+        env.DB.__on(/FROM field_rental_recurrences\s+WHERE active = 1/, {
+            results: [recurrenceRow({ max_occurrences: 1 })],
+        }, 'all');
+        env.DB.__on(/SELECT MAX\(recurrence_instance_index\)/, { max_idx: 0, cnt: 0 }, 'first');
+        env.DB.__on(/SELECT id FROM field_rentals\s+WHERE recurrence_id/, null, 'first');
+        bindNoConflicts(env.DB);
+
+        env.DB.__on(/INSERT INTO field_rentals/, () => {
+            throw new Error('D1_ERROR: FOREIGN KEY constraint failed: customer_id');
+        }, 'run');
+
+        await runRecurrenceGenerationSweep(env);
+
+        const writes = env.DB.__writes();
+        const failureAudit = writes.find((w) => /INSERT INTO audit_log/.test(w.sql)
+            && w.args.includes('field_rental.recurrence_generation_failed'));
+        expect(failureAudit).toBeDefined();
+    });
 });

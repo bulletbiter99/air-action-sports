@@ -182,9 +182,17 @@ export function parseWeekdayMask(mask) {
 }
 
 /**
- * Parse + validate monthly_pattern JSON. Supports only kind='nth_weekday' in
- * B10a (operator-confirmed plan-mode #2 / Option B). Returns the parsed
- * object on success or null on invalid/unsupported input.
+ * Parse + validate monthly_pattern JSON. Supports both kinds:
+ *   - 'nth_weekday' (B10a): {kind, n: 1-5, weekday: 0-6}
+ *   - 'day_of_month' (post-M6 D-2): {kind, day: 1-31}
+ *
+ * For day_of_month, months where the requested day doesn't exist
+ * (Feb 30, Apr 31, etc.) yield NOTHING for that month at enumeration
+ * time — operator's choice over fall-back-to-last-day or fall-forward.
+ * Matches conservative behavior of nth_weekday (5th Tuesday months
+ * without a 5th Tuesday yield nothing).
+ *
+ * Returns the parsed object on success or null on invalid/unsupported input.
  */
 export function parseMonthlyPattern(jsonOrObj) {
     let obj = jsonOrObj;
@@ -192,12 +200,22 @@ export function parseMonthlyPattern(jsonOrObj) {
         try { obj = JSON.parse(obj); } catch { return null; }
     }
     if (!obj || typeof obj !== 'object') return null;
-    if (obj.kind !== 'nth_weekday') return null;
-    const n = Number(obj.n);
-    const weekday = Number(obj.weekday);
-    if (!Number.isInteger(n) || n < 1 || n > 5) return null;
-    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return null;
-    return { kind: 'nth_weekday', n, weekday };
+
+    if (obj.kind === 'nth_weekday') {
+        const n = Number(obj.n);
+        const weekday = Number(obj.weekday);
+        if (!Number.isInteger(n) || n < 1 || n > 5) return null;
+        if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return null;
+        return { kind: 'nth_weekday', n, weekday };
+    }
+
+    if (obj.kind === 'day_of_month') {
+        const day = Number(obj.day);
+        if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+        return { kind: 'day_of_month', day };
+    }
+
+    return null;
 }
 
 /**
@@ -270,6 +288,47 @@ export function enumerateMonthlyNthWeekdayDates(fromDate, throughDate, n, weekda
 }
 
 /**
+ * Enumerate monthly day-of-month occurrences. Months where the requested
+ * day doesn't exist (Feb 30, Feb 31, Apr 31, etc.) yield NOTHING for that
+ * month — matches conservative behavior of nth_weekday (5th-Tuesday months
+ * without 5 Tuesdays yield nothing). Operator can use a custom_dates
+ * recurrence if they want explicit handling for edge months.
+ */
+export function enumerateMonthlyDayOfMonthDates(fromDate, throughDate, day) {
+    if (!fromDate || !throughDate) return [];
+    if (!Number.isInteger(day) || day < 1 || day > 31) return [];
+    const out = [];
+    const startMatch = fromDate.match(/^(\d{4})-(\d{2})-/);
+    const endMatch = throughDate.match(/^(\d{4})-(\d{2})-/);
+    if (!startMatch || !endMatch) return [];
+    let year = Number(startMatch[1]);
+    let month = Number(startMatch[2]);
+    const endYear = Number(endMatch[1]);
+    const endMonth = Number(endMatch[2]);
+    let safety = 0;
+    while ((year < endYear || (year === endYear && month <= endMonth)) && safety < 240) {
+        const candidate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        // Verify the date actually exists (Feb 30, Apr 31, etc. don't).
+        // new Date('2026-02-30T00:00:00Z') silently rolls over to March 2; we
+        // detect that by checking the round-tripped year/month/day match.
+        const parsed = new Date(candidate + 'T00:00:00Z');
+        if (
+            parsed.getUTCFullYear() === year
+            && parsed.getUTCMonth() + 1 === month
+            && parsed.getUTCDate() === day
+        ) {
+            if (candidate >= fromDate && candidate <= throughDate) {
+                out.push(candidate);
+            }
+        }
+        month++;
+        if (month > 12) { month = 1; year++; }
+        safety++;
+    }
+    return out;
+}
+
+/**
  * Dispatch: given a parent recurrence row + a [fromDate, throughDate]
  * window, return the list of YYYY-MM-DD strings the cron should
  * (idempotently) materialize as child rentals.
@@ -300,7 +359,16 @@ export function computeNextOccurrences(recurrence, fromDate, throughDate) {
         case 'monthly': {
             const parsed = parseMonthlyPattern(recurrence.monthly_pattern);
             if (!parsed) return [];
-            return enumerateMonthlyNthWeekdayDates(seriesStart, seriesEnd, parsed.n, parsed.weekday);
+            // Post-M6 D-2: dispatch by parsed.kind so day_of_month + nth_weekday
+            // are both supported. Future variants (day_of_year, last_day_of_month)
+            // wire in here.
+            if (parsed.kind === 'nth_weekday') {
+                return enumerateMonthlyNthWeekdayDates(seriesStart, seriesEnd, parsed.n, parsed.weekday);
+            }
+            if (parsed.kind === 'day_of_month') {
+                return enumerateMonthlyDayOfMonthDates(seriesStart, seriesEnd, parsed.day);
+            }
+            return [];
         }
         case 'custom': {
             const dates = parseCustomDates(recurrence.custom_dates_json);
@@ -456,14 +524,27 @@ export async function runRecurrenceGenerationSweep(env) {
                     now, now,
                 ).run();
             } catch (err) {
-                // Skip on insert failure (FK / constraint); don't break the
-                // whole sweep. Log via audit so ops can investigate.
+                const msg = String(err?.message || err);
+                // Post-M6 D-2: distinguish race-condition UNIQUE collision from
+                // other failures. The UNIQUE INDEX from migration 0060 on
+                // (recurrence_id, recurrence_instance_index) protects against two
+                // parallel cron runs racing past the pre-check above. When this
+                // fires, the row WAS successfully created by another run — bump
+                // the counters silently rather than logging as a failure.
+                if (/UNIQUE constraint failed|SQLITE_CONSTRAINT_UNIQUE/i.test(msg)) {
+                    lastGeneratedDate = dateIso;
+                    nextIdx++;
+                    alreadyGenerated++;
+                    continue;
+                }
+                // Other failures (FK / generic constraint): log via audit so
+                // ops can investigate, then continue. Don't break the whole sweep.
                 await writeAudit(env, {
                     userId: null,
                     action: 'field_rental.recurrence_generation_failed',
                     targetType: 'field_rental_recurrence',
                     targetId: recurrence.id,
-                    meta: { dateIso, instanceIndex: nextIdx, error: String(err?.message || err) },
+                    meta: { dateIso, instanceIndex: nextIdx, error: msg },
                 }).catch(() => {});
                 continue;
             }

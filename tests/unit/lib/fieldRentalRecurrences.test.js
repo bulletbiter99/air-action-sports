@@ -23,6 +23,7 @@ import {
     parseCustomDates,
     enumerateWeeklyDates,
     enumerateMonthlyNthWeekdayDates,
+    enumerateMonthlyDayOfMonthDates,
     computeNextOccurrences,
 } from '../../../worker/lib/fieldRentalRecurrences.js';
 
@@ -215,9 +216,8 @@ describe('parseMonthlyPattern', () => {
             .toEqual({ kind: 'nth_weekday', n: 3, weekday: 5 });
     });
 
-    it('rejects day_of_month kind (deferred per plan-mode Option B)', () => {
-        expect(parseMonthlyPattern({ kind: 'day_of_month', day: 15 })).toBeNull();
-    });
+    // Note: day_of_month was DEFERRED in M5.5 B10a but ADDED in post-M6 D-2.
+    // The new acceptance tests live in the "Post-M6 D-2" describe block below.
 
     it('rejects unknown kind', () => {
         expect(parseMonthlyPattern({ kind: 'whatever', n: 1, weekday: 0 })).toBeNull();
@@ -381,15 +381,9 @@ describe('computeNextOccurrences', () => {
         expect(dates).toEqual(['2026-06-09', '2026-07-14', '2026-08-11']);
     });
 
-    it('monthly with day_of_month kind → [] (deferred)', () => {
-        const rec = {
-            frequency: 'monthly',
-            monthly_pattern: { kind: 'day_of_month', day: 15 },
-            starts_on: '2026-06-01',
-            ends_on: null,
-        };
-        expect(computeNextOccurrences(rec, '2026-06-01', '2026-08-31')).toEqual([]);
-    });
+    // Note: day_of_month was DEFERRED in M5.5 B10a but ADDED in post-M6 D-2.
+    // The new dispatch tests live in the "Post-M6 D-2 — monthly day_of_month
+    // dispatch" describe block at the bottom of this file.
 
     it('custom: filters to window', () => {
         const rec = {
@@ -422,3 +416,124 @@ describe('computeNextOccurrences', () => {
         expect(computeNextOccurrences({}, '2026-06-01', null)).toEqual([]);
     });
 });
+
+// ────────────────────────────────────────────────────────────────────
+// Post-M6 D-2 — monthly day_of_month support
+// ────────────────────────────────────────────────────────────────────
+
+describe('parseMonthlyPattern — day_of_month', () => {
+    it('accepts {kind:"day_of_month", day:1}', () => {
+        expect(parseMonthlyPattern({ kind: 'day_of_month', day: 1 })).toEqual({ kind: 'day_of_month', day: 1 });
+    });
+
+    it('accepts {kind:"day_of_month", day:15}', () => {
+        expect(parseMonthlyPattern({ kind: 'day_of_month', day: 15 })).toEqual({ kind: 'day_of_month', day: 15 });
+    });
+
+    it('accepts {kind:"day_of_month", day:31}', () => {
+        expect(parseMonthlyPattern({ kind: 'day_of_month', day: 31 })).toEqual({ kind: 'day_of_month', day: 31 });
+    });
+
+    it('accepts the same shape passed as JSON string', () => {
+        expect(parseMonthlyPattern('{"kind":"day_of_month","day":10}')).toEqual({ kind: 'day_of_month', day: 10 });
+    });
+
+    it('rejects day:0', () => {
+        expect(parseMonthlyPattern({ kind: 'day_of_month', day: 0 })).toBeNull();
+    });
+
+    it('rejects day:32', () => {
+        expect(parseMonthlyPattern({ kind: 'day_of_month', day: 32 })).toBeNull();
+    });
+
+    it('rejects non-integer day', () => {
+        expect(parseMonthlyPattern({ kind: 'day_of_month', day: 15.5 })).toBeNull();
+        expect(parseMonthlyPattern({ kind: 'day_of_month', day: 'fifteen' })).toBeNull();
+    });
+
+    it('rejects missing day field', () => {
+        expect(parseMonthlyPattern({ kind: 'day_of_month' })).toBeNull();
+    });
+
+    it('still rejects fully unknown kinds', () => {
+        expect(parseMonthlyPattern({ kind: 'day_of_year', day: 5 })).toBeNull();
+        expect(parseMonthlyPattern({ kind: 'unknown' })).toBeNull();
+    });
+});
+
+describe('enumerateMonthlyDayOfMonthDates', () => {
+    it('returns one date per month for day=15 across a 3-month window', () => {
+        const dates = enumerateMonthlyDayOfMonthDates('2026-06-01', '2026-08-31', 15);
+        expect(dates).toEqual(['2026-06-15', '2026-07-15', '2026-08-15']);
+    });
+
+    it('returns nothing for Feb 30 (Feb has at most 29 days)', () => {
+        const dates = enumerateMonthlyDayOfMonthDates('2026-02-01', '2026-02-28', 30);
+        expect(dates).toEqual([]);
+    });
+
+    it('SKIPS months where the day does not exist (Feb 31, Apr 31)', () => {
+        // day=31 across Jan-Apr: only Jan + Mar have a 31st
+        const dates = enumerateMonthlyDayOfMonthDates('2026-01-01', '2026-04-30', 31);
+        expect(dates).toEqual(['2026-01-31', '2026-03-31']);
+    });
+
+    it('returns nothing when window starts after the day-of-month for that month', () => {
+        // Window starts 2026-06-20, day=15 — June is skipped because 06-15 < 06-20
+        const dates = enumerateMonthlyDayOfMonthDates('2026-06-20', '2026-07-31', 15);
+        expect(dates).toEqual(['2026-07-15']);
+    });
+
+    it('clamps to throughDate (excludes occurrences beyond it)', () => {
+        const dates = enumerateMonthlyDayOfMonthDates('2026-06-01', '2026-06-30', 15);
+        expect(dates).toEqual(['2026-06-15']);
+    });
+
+    it('handles year rollover correctly', () => {
+        const dates = enumerateMonthlyDayOfMonthDates('2026-11-01', '2027-02-28', 5);
+        expect(dates).toEqual(['2026-11-05', '2026-12-05', '2027-01-05', '2027-02-05']);
+    });
+
+    it('returns [] for invalid day (out of range)', () => {
+        expect(enumerateMonthlyDayOfMonthDates('2026-06-01', '2026-12-31', 0)).toEqual([]);
+        expect(enumerateMonthlyDayOfMonthDates('2026-06-01', '2026-12-31', 32)).toEqual([]);
+        expect(enumerateMonthlyDayOfMonthDates('2026-06-01', '2026-12-31', null)).toEqual([]);
+    });
+
+    it('returns [] for null/missing dates', () => {
+        expect(enumerateMonthlyDayOfMonthDates(null, '2026-12-31', 15)).toEqual([]);
+        expect(enumerateMonthlyDayOfMonthDates('2026-06-01', null, 15)).toEqual([]);
+    });
+
+    it('handles Feb 29 across leap year (2024) vs non-leap (2026)', () => {
+        // 2024 IS a leap year. 2026 is NOT.
+        expect(enumerateMonthlyDayOfMonthDates('2024-02-01', '2024-02-29', 29)).toEqual(['2024-02-29']);
+        expect(enumerateMonthlyDayOfMonthDates('2026-02-01', '2026-02-28', 29)).toEqual([]);
+    });
+});
+
+describe('computeNextOccurrences — monthly day_of_month dispatch', () => {
+    it('dispatches to day_of_month enumerator for monthly_pattern.kind=day_of_month', () => {
+        const rec = {
+            frequency: 'monthly',
+            monthly_pattern: { kind: 'day_of_month', day: 1 },
+            starts_on: '2026-06-01',
+            ends_on: null,
+        };
+        const dates = computeNextOccurrences(rec, '2026-06-01', '2026-08-31');
+        expect(dates).toEqual(['2026-06-01', '2026-07-01', '2026-08-01']);
+    });
+
+    it('skips months without the requested day_of_month', () => {
+        const rec = {
+            frequency: 'monthly',
+            monthly_pattern: { kind: 'day_of_month', day: 31 },
+            starts_on: '2026-01-01',
+            ends_on: null,
+        };
+        const dates = computeNextOccurrences(rec, '2026-01-01', '2026-06-30');
+        // Months with a 31st: Jan, Mar, May
+        expect(dates).toEqual(['2026-01-31', '2026-03-31', '2026-05-31']);
+    });
+});
+
