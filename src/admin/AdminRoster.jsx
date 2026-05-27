@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import EmptyState from '../components/admin/EmptyState.jsx';
@@ -14,6 +14,7 @@ const WAIVER_FILTER_OPTIONS = [
 export default function AdminRoster() {
   const { isAuthenticated, loading } = useAdmin();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [events, setEvents] = useState([]);
   const [filters, setFilters] = useState({ event_id: '', waiver_filter: '', q: '' });
@@ -31,17 +32,23 @@ export default function AdminRoster() {
     const data = await res.json();
     const list = data.events || [];
     setEvents(list);
-    // Auto-select the next upcoming event (earliest by date, not past).
-    // Falls back to the most recent event if there are no upcoming ones.
     setFilters((prev) => {
       if (prev.event_id || !list.length) return prev;
+      // Post-M6 D-3: prefer ?event= deep-link target when it matches a known
+      // event (used by CheckInBanner + PersonaWidgets quick-links).
+      const urlEventId = searchParams.get('event');
+      if (urlEventId && list.some((e) => e.id === urlEventId)) {
+        return { ...prev, event_id: urlEventId };
+      }
+      // Auto-select the next upcoming event (earliest by date, not past).
+      // Falls back to the most recent event if there are no upcoming ones.
       const upcoming = list
         .filter((e) => !e.past)
         .sort((a, b) => (a.dateIso || '').localeCompare(b.dateIso || ''));
       const pick = upcoming.length ? upcoming[0].id : list[0].id;
       return { ...prev, event_id: pick };
     });
-  }, []);
+  }, [searchParams]);
 
   const loadRoster = useCallback(async () => {
     if (!filters.event_id) return;
