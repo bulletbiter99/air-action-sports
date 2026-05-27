@@ -4,6 +4,71 @@ Closes audit open questions and operator-decision-pending placeholders as they'r
 
 ---
 
+## 2026-05-27 — D14: M6 sandbox-mode dev pattern — develop + ship past the live-cutover gate
+
+**Source:** Operator direction during M6 multi-batch session 2026-05-26/27 — "complete everything except what's needed in a live scenario."
+
+**Resolution:** All M6 batches that touch Stripe payment flow (B5 setup_future_usage, B6 dispute consumer, B7 off-session charge, B9 PM detach) shipped to production while production was still running on Stripe **sandbox** keys. Live verification of each (real saved PM, real dispute, real $1 e2e) is deferred to operator-completed cutover items 1–5 in `docs/m6-operator-cutover-checklist.md`.
+
+This pattern works because:
+- Stripe sandbox and live APIs are byte-equivalent for the request shapes M6 uses; the difference is what's behind the keys.
+- Sandbox-mode code paths exercise every error branch (declined, 3DS, no PM, retrieve-failed, etc.) via mocked test fixtures.
+- Workers Builds auto-deploys on `git push origin main` — there's no staging environment in which to "stage" the code, so production-on-sandbox IS the staging environment.
+
+**What this means for future milestones:** payment-flow features can ship to production as soon as the code is correct against sandbox. The "is this live yet" question is independent of "is this deployed yet" and depends solely on which Stripe keys the worker's secrets currently hold.
+
+**Status:** ✓ adopted as the M6 dev pattern; preserved as an option for future milestones that touch Stripe.
+
+---
+
+## 2026-05-27 — D13: Remove-saved-PM is owner-only (not manager+)
+
+**Source:** M6 B9 — privacy compliance feature scope.
+
+**Resolution:** `POST /api/admin/bookings/:id/detach-saved-pm` requires `requireRole('owner')` — manager-tier admins cannot detach a customer's saved payment method. Rationale:
+
+- Detaching a PM from a Stripe Customer is irreversible from our UI (Stripe retains the PM object for ~13 months but it's no longer chargeable through our flow).
+- Privacy-sensitive customer-data manipulation should sit at the highest privilege level by default.
+- Manager-tier admins can still issue refunds (`requireRole('owner', 'manager')`) — refund and PM-detach are different operations.
+
+The UI gate mirrors the API: the "Remove saved card" button in `/admin/bookings/:id` only renders when `hasRole('owner')` AND the booking has a non-synthetic Stripe payment intent (cash_/venmo_/etc. prefixes are excluded — there's no real Stripe PM to detach behind those).
+
+**Status:** ✓ resolved — implementation in B9 (PR [#200](https://github.com/bulletbiter99/air-action-sports/pull/200)).
+
+---
+
+## 2026-05-27 — D12: Off-session damage charge idempotency key format
+
+**Source:** M6 B7 — preventing double-charge on retry / double-click.
+
+**Resolution:** `chargeOffSessionForCharge` passes `idempotencyKey: charge_<chargeId>_offsession` to Stripe's `POST /v1/payment_intents`. Stripe deduplicates requests with the same Idempotency-Key for 24 hours — a retry or operator double-click within that window returns the same PaymentIntent without re-charging.
+
+The format is stable + derivable from the charge ID alone (no timestamp / nonce) so:
+- Re-running the same charge attempt is safe
+- Stripe dashboard can show the same key on retries
+- We never accidentally charge twice for the same damage incident
+
+**Status:** ✓ resolved — implementation in B7 lib (PR [#198](https://github.com/bulletbiter99/air-action-sports/pull/198)).
+
+---
+
+## 2026-05-27 — D11: Damage charge Option A retrieves customer + PM at charge time (no schema change)
+
+**Source:** M6 B7 — needed customer ID + PM ID to off-session-charge against B5's saved payment method.
+
+**Resolution:** `chargeOffSessionForCharge` calls Stripe's `retrievePaymentIntent` on the booking's `stripe_payment_intent` at charge time, reads `customer` + `payment_method` from the returned PI, and uses both for the new off-session charge. **No schema change required** — we don't persist `stripe_customer_id` on the bookings or customers table.
+
+Trade-offs considered:
+
+- **Path B (persist `stripe_customer_id` on bookings):** Would save one Stripe API call per off-session charge. Costs an additional migration + webhook handler change to populate the column on `checkout.session.completed`. Adds a column to a Critical-DNT table.
+- **Path A (retrieve on demand — chosen):** One extra Stripe API call per charge. No schema change. No DNT touches beyond the additive endpoint. Simpler to reason about.
+
+Damage charges are low-volume (one per damaged-equipment incident, not per booking), so the extra Stripe call is acceptable. If volume grows, we can revisit and add the column with a backfill migration.
+
+**Status:** ✓ resolved — implementation in B7 lib (PR [#198](https://github.com/bulletbiter99/air-action-sports/pull/198)).
+
+---
+
 ## 2026-05-08 — D10: Roster / Scan / Rentals restored to standing nav as capability-gated items (M5 B0)
 
 **Source:** M5 milestone prompt, Batch 0 spec — sidebar restoration directive. Reverses D09 partially.

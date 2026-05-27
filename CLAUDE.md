@@ -2,6 +2,8 @@
 
 This file is the entry point for any Claude session working in this repository. The full canonical onboarding lives in [HANDOFF.md](HANDOFF.md); this file gives you the short, durable rules.
 
+**For a fresh session post-M6 close (current state — 2026-05-27): use [`docs/next-session.md`](docs/next-session.md).** It has the menu of available work tracks + a copy-paste prompt template. The "Milestone 6 — Stripe Live Flow" section deep in this file documents what shipped; `docs/next-session.md` is the entry-point.
+
 ---
 
 ## 2026-05-06 — initial CLAUDE.md (Phase 1 audit close)

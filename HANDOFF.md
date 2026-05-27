@@ -29,35 +29,36 @@ Production worker version `e8372102-d9e3-4799-9678-261912192ab1` (post-B9 deploy
 Plus two docs-only commits on main:
 - `82fca54` — `docs(m6): batch tracker + operator cutover checklist`
 
-### State at session close
+### State at M6 close
 
 | Metric | Value |
 |---|---|
-| Tests | **2251 / 182 files** (was 2135 / 173 at session start → +116 / +9) |
-| Lint | 0 errors / 460 warnings (advisory) |
-| Build | clean (~265 ms) |
-| Group A + Group B regression | **138 / 138** preserved (Critical DNT pin intact) |
+| Tests | **2292 / 184 files** (was 2135 / 173 at M6 start → +157 / +11) |
+| Lint | 0 errors / ~462 warnings (advisory) |
+| Build | clean (~255–319 ms) |
+| Group A + Group B regression | **138 / 138** preserved (149/149 expanded with B6) |
 | Migrations on remote | 0001–0058 applied (M6 added 0056 / 0057 / 0058) |
 | Cron sweeps | 8 at 03:00 UTC (unchanged) |
-| Email templates total | **34** in production (added `dispute_received` in B6) |
-| Production worker version | `954964c3-56f3-4f08-9c97-47cd54b85c35` |
+| Email templates total | **34** in production (added `dispute_received` in B6; updated `booking_confirmation` in B10) |
+| Latest production worker version | `2ee51d5a-4702-4cca-b7a5-05d74100ec31` (post-B11 deploy) |
+| `main` HEAD | `84c2478` (B11 merge) |
 
-### M6 batch status (at session close)
+### M6 batch status — final
 
 | Batch | What | Status |
 |---|---|---|
-| B0 / B0-followup | Cutover runbook + spot-check log + staff labeling polish | ✓ Closed (prev session) |
-| B1 | Vendor package templates admin library | ✓ Closed (prev session) |
-| B2 | Vendor templates detail/edit + clone-to-event | ✓ Closed (prev session) |
+| B0 / B0-followup | Cutover runbook + spot-check log + staff labeling polish | ✓ Closed |
+| B1 | Vendor package templates admin library | ✓ Closed |
+| B2 | Vendor templates detail/edit + clone-to-event | ✓ Closed |
 | **B3** | Email template draft state (schema + worker) | ✓ Closed |
 | **B4** | Email template admin UI + preview-with-real-data | ✓ Closed |
 | **B5** | Stripe setup_future_usage on public checkout | ✓ Code closed; ⏳ live $1 e2e operator-gated |
 | **B6** | charge.dispute.created webhook consumer | ✓ Code closed; ⏳ live verify on first real disputed payment |
-| B7 | Damage charge Option A activation | ⏳ Not started — recommend after operator cutover |
-| B8 | Damage charge admin UI polish | ⏳ Not started — recommend after B7 |
-| B9 | Admin remove-saved-PM | ⏳ Not started — recommend after operator cutover |
+| **B7** | Damage charge Option A activation (off-session capture) | ✓ Code closed; ⏳ live capture needs operator cutover + real saved PM |
+| **B8** | Damage charge admin UI ("Charge card" + confirm modal + outcome banners) | ✓ Closed |
+| **B9** | Admin remove-saved-PM (Privacy controls) | ✓ Closed; ⏳ live verify needs real saved PM |
 | **B10** | booking_confirmation template update (charges notice) | ✓ Closed (D1 data only) |
-| B11 | Closing runbooks + M6 close | ⏳ Not started — recommend last |
+| **B11** | Closing runbooks (m6-baseline-coverage.txt / m6-deploy.md / m6-rollback.md) + M6 flips to CLOSED | ✓ Closed |
 
 ### Operator-only blockers (B7+ gate)
 
@@ -966,42 +967,51 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 
 ## Prompt for fresh session
 
-### ⚠ If you're finishing the M5 deploy — use [docs/m5-deploy-prompt.md](docs/m5-deploy-prompt.md) instead
+### ⚠ Post-M6 (current state — 2026-05-27)
 
-`milestone/5-staff-event-day` is code-complete (all 16 rework PRs merged; verify-m5 reports 15/15 · 95/95). The remaining work is **deploy: Phases 2-6** (verify milestone/5 → milestone-to-main merge → 14 D1 migrations to remote → Workers Builds redeploy → smoke-test). The deploy prompt at `docs/m5-deploy-prompt.md` is engineered with the same stop-and-ask gating that the rework prompt used; the verify gate before the milestone-to-main merge is the most important checkpoint. **Use that prompt, not the generic one below, for M5 deploy work.**
+**M6 is CLOSED. No in-flight milestone code work.** Production runs all M6 batches on Stripe sandbox keys; live cutover is the only outstanding item and is operator-only.
 
-The historical rework prompt is at [docs/m5-rework-prompt.md](docs/m5-rework-prompt.md) (preserved for reference; superseded since 2026-05-08).
+**Use [docs/next-session.md](docs/next-session.md) for the post-M6 entry point.** It has:
+- Current production state (test counts, deploy version, etc.)
+- Menu of available tracks (Native Marketing, HR coordinator, past-games archive, post-M5.5 polish, live Stripe cutover)
+- Copy-paste prompt below
+- Resume checklist (`git pull / npm test / lint / build / health`)
 
-After the M5 deploy completes (i.e., `main` is at the milestone-merge SHA, all 14 migrations applied to remote, smoke-test green), the generic prompt below applies again for ongoing work.
+### Historical pointers
 
-### Generic resumption prompt (for non-M5 work)
+- **M5 deploy** completed 2026-05-08 (`82fc839`). Prompt at `docs/m5-deploy-prompt.md` preserved for reference.
+- **M5 rework** prompt at `docs/m5-rework-prompt.md` (superseded since 2026-05-08).
+- **M5.5 deploy** completed 2026-05-12 (`8decacc`).
+- **M6** closed 2026-05-27 (`84c2478` — B11 merge).
+
+### Generic resumption prompt (use this when no specific milestone is in flight)
 
 Copy and paste the following into a new Claude Code session:
 
 ```
-I'm resuming work on the Air Action Sports booking system. Read these
-two files in the project root first, in order:
+I'm resuming work on the Air Action Sports booking system. M6 is closed
+(2026-05-27); production stable at main=84c2478, worker=2ee51d5a,
+tests 2292/184 passing. Read these in order:
 
-  1. HANDOFF.md — full context on the stack, deployed state, every
-     shipped phase (§10 — including Milestones 1, 2, and 3 all closed
-     2026-05-06/07 plus **Milestone 4 CLOSED 2026-05-07 with B12c** —
-     persona dashboard + sidebar IA + walk-up speed wins + Cmd+K
-     command palette all shipped AND flag-rolled-out (B8/B9) AND
-     legacy code removed (B12a) AND flag-check call sites removed
-     (B12b) AND `/admin/today` page live (B12c). Closing runbooks
-     at `docs/runbooks/m4-{baseline-coverage.txt,deploy.md,rollback.md}`),
-     every API and frontend route, the §11 pre-launch
-     checklist + deferred list, the cover-image surface reference
-     table in §12, and §13 known-issues.
-  2. CLAUDE.md — entry-point rules: the do-not-touch list (mirrored
+  1. docs/next-session.md — current state + available tracks to
+     work on next + copy-paste prompt template.
+  2. HANDOFF.md — top section has M6 close state; deeper history in
+     §10 covers M1-M5.5 closing details; §11 pre-launch checklist;
+     §12 cover-image table; §13 known-issues.
+  3. CLAUDE.md — entry-point rules: the do-not-touch list (mirrored
      from docs/audit/06-do-not-touch.md), stop-and-ask conditions,
      branch etiquette, run/build/lint/test/deploy commands, the
      **Carry-forward: D1 quirks** subsection (BEGIN/COMMIT keywords
      rejected, NOT NULL via column-rename pattern, wrangler --json
      prefix garbage), the **Test gate enforcement** subsection pointing
-     at scripts/test-gate-mapping.json, and the closed/in-progress
-     summaries for M1, M2, M3, and M4 (the M4 batch table includes
-     B0-B3b shipped + B3c-B12 remaining).
+     at scripts/test-gate-mapping.json, and the closed-state summaries
+     for M1 / M2 / M3 / M4 / M5 / M5.5 / **M6** (M6 batch table at
+     B0-B11 all ✓).
+  4. docs/m6-batch-tracker.md (if M6 cutover questions arise) and
+     docs/m6-operator-cutover-checklist.md (the 5 live-cutover items
+     that gate B5/B6/B7/B9 live verification).
+  5. memory/project_m6_milestone.md (auto-surfaces in fresh sessions)
+     for the durable M6 close-state board.
 
 If you're touching admin code or anything on the do-not-touch list,
 also skim docs/audit/00-overview.md and
