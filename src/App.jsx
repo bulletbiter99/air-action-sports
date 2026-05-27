@@ -72,6 +72,7 @@ const AdminStaffDetail = lazy(() => import('./admin/AdminStaffDetail'));
 const AdminStaffLibrary = lazy(() => import('./admin/AdminStaffLibrary'));
 const AdminStaffDocumentEditor = lazy(() => import('./admin/AdminStaffDocumentEditor'));
 const AdminStaff1099Thresholds = lazy(() => import('./admin/AdminStaff1099Thresholds'));
+const AdminSegments = lazy(() => import('./admin/AdminSegments'));
 const AdminEventArchive = lazy(() => import('./admin/AdminEventArchive'));
 
 // Portal (M5 Batch 6) — Tier 3 light-access magic-link portal
@@ -177,6 +178,7 @@ export default function App() {
             <Route path="feedback" element={<AdminFeedback />} />
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="customers/:id" element={<AdminCustomerDetail />} />
+            <Route path="segments" element={<AdminSegments />} />
             <Route path="event-archive" element={<AdminEventArchive />} />
             <Route path="sites" element={<AdminSites />} />
             <Route path="sites/:id" element={<AdminSiteDetail />} />
