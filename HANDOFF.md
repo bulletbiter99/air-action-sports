@@ -4,13 +4,13 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — M6 ROLLED THROUGH B3/B4/B5/B6/B10 + PAUSED FOR LIVE CUTOVER (2026-05-26)
+## ⚠ NEW SESSION — M6 CLOSED (2026-05-27); live Stripe cutover remains operator-pending
 
-**M6 progressed through 5 batches in one extended session.** Status table in [docs/m6-batch-tracker.md](docs/m6-batch-tracker.md). The remaining work (B7/B8/B9/B11) is gated on the operator completing 5 live-Stripe cutover items in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md). Code can keep developing against sandbox in parallel, but live verification of B5+B6 and the dependent B7+ batches needs the operator's hands on the Stripe dashboard.
+**M6 is fully CLOSED.** All 13 batches (B0/B0-followup/B1/B2/B3/B4/B5/B6/B7/B8/B9/B10/B11) merged + deployed to production. Sandbox-mode verification complete for every batch. Closing runbooks landed in B11. The **only remaining work is operator-side**: live Stripe cutover items 1-5 in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md), which gate the live e2e verification of B5 (setup_future_usage), B6 (real dispute alerts), B7 (real off-session captures), and B9 (real PM detach).
 
-**Copy the prompt at [docs/m6-next-session.md](docs/m6-next-session.md) into the fresh session.**
+**For the next session prompt, use [docs/m6-next-session.md](docs/m6-next-session.md).**
 
-Production worker version `954964c3-56f3-4f08-9c97-47cd54b85c35` (post-B10 deploy 2026-05-26 14:46 UTC). `main` at `<B10 merge commit>` ([PR #197](https://github.com/bulletbiter99/air-action-sports/pull/197)).
+Production worker version `e8372102-d9e3-4799-9678-261912192ab1` (post-B9 deploy). `main` at the B11 merge commit (see `git log`).
 
 ### M6 PRs shipped this multi-batch session (in order)
 
@@ -21,6 +21,10 @@ Production worker version `954964c3-56f3-4f08-9c97-47cd54b85c35` (post-B10 deplo
 | 3 | [#195](https://github.com/bulletbiter99/air-action-sports/pull/195) | **B5** | Stripe `setup_future_usage: 'off_session'` on public checkout (Critical DNT touched additively) | `8a9d3dd` | `ba6545c2` |
 | 4 | [#196](https://github.com/bulletbiter99/air-action-sports/pull/196) | **B6** | `charge.dispute.created` webhook consumer + sendDisputeAlert + migration 0057 | `db7e7b8` | `518af64a` |
 | 5 | [#197](https://github.com/bulletbiter99/air-action-sports/pull/197) | **B10** | booking_confirmation template gains "Heads-up — Additional Charges May Apply" section (migration 0058) | (this session) | `954964c3` |
+| 6 | [#198](https://github.com/bulletbiter99/air-action-sports/pull/198) | **B7** | Damage charge Option A activation — chargeOffSession + chargeOffSessionForCharge + POST /:id/charge-card | (this session) | `c02d00fc` |
+| 7 | [#199](https://github.com/bulletbiter99/air-action-sports/pull/199) | **B8** | Damage charge admin UI — "Charge card" button + confirm modal + outcome banners on /admin/booking-charges | (this session) | `c02d00fc` |
+| 8 | [#200](https://github.com/bulletbiter99/air-action-sports/pull/200) | **B9** | Admin remove-saved-PM (privacy) — POST /:id/detach-saved-pm + UI on /admin/bookings/:id | (this session) | `e8372102` |
+| 9 | (B11 PR) | **B11** | Closing runbooks (m6-baseline-coverage.txt / m6-deploy.md / m6-rollback.md) + CLAUDE.md M6 flips to CLOSED | (this session) | (this PR) |
 
 Plus two docs-only commits on main:
 - `82fca54` — `docs(m6): batch tracker + operator cutover checklist`
