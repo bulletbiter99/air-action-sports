@@ -51,6 +51,7 @@ export const SIDEBAR = [
     // so it can stay configuration-only). Order: insights (Analytics /
     // Feedback) before marketing/partner ops (Promo Codes / Vendors).
     { type: 'item', to: '/admin/analytics', label: 'Analytics' },
+    { type: 'item', to: '/admin/reports', label: 'Reports', capability: 'reports.read' },
     { type: 'item', to: '/admin/segments', label: 'Segments' },
     {
         type: 'item',
@@ -108,6 +109,12 @@ const CAPABILITY_TO_LEGACY_ROLE = {
     // finer-grained per-action permissions (deposit_record vs balance_record,
     // bypass_conflict, etc.).
     'field_rentals.read': 'manager',
+    // M7 B1a — Reports section. Manager + above see the nav entry; per-
+    // persona capability gates (reports.read.{owner,bookkeeper,marketing,
+    // site_coordinator}) live at the route layer. TODO M8: refactor sidebar
+    // to consume /me capabilities directly so non-owner non-manager personas
+    // with reports.* bindings (e.g. site_coordinator) see the nav too.
+    'reports.read': 'manager',
 };
 
 /**
