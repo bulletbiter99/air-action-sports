@@ -50,6 +50,9 @@ export default function AdminBookingsDetail() {
     const [refundOpen, setRefundOpen] = useState(false);
     const [externalRefundOpen, setExternalRefundOpen] = useState(false);
     const [resending, setResending] = useState(false);
+    // M6 B9 — detach-saved-PM confirm + busy state
+    const [detachPmOpen, setDetachPmOpen] = useState(false);
+    const [detaching, setDetaching] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -99,6 +102,40 @@ export default function AdminBookingsDetail() {
         }
     };
 
+    // M6 B9 — detach the customer's saved PM (irreversible from this UI).
+    const submitDetachPm = async () => {
+        setDetaching(true);
+        try {
+            const res = await fetch(`/api/admin/bookings/${encodeURIComponent(id)}/detach-saved-pm`, {
+                method: 'POST', credentials: 'include',
+            });
+            const j = await res.json().catch(() => ({}));
+            if (res.ok && j.ok) {
+                setDetachPmOpen(false);
+                flashMsg(
+                    'ok',
+                    j.noop
+                        ? 'Saved payment method was already detached — no action needed.'
+                        : `Detached saved payment method ${j.detachedPaymentMethodId} from this customer. Off-session damage charges against this card are no longer possible.`,
+                    6000,
+                );
+                await load();
+            } else if (res.status === 422) {
+                flashMsg('err', `No saved payment method on this booking (${j.detail || 'detail unknown'}).`);
+            } else if (res.status === 502) {
+                flashMsg('err', `Stripe error: ${j.message || 'request failed'}. Try again in a moment.`);
+            } else if (res.status === 403) {
+                flashMsg('err', 'Only owners can detach saved payment methods.');
+            } else {
+                flashMsg('err', j.error || `Detach failed (${res.status})`);
+            }
+        } catch (e) {
+            flashMsg('err', e?.message || 'Network error');
+        } finally {
+            setDetaching(false);
+        }
+    };
+
     if (!isAuthenticated) return null;
 
     if (loading) {
@@ -126,6 +163,7 @@ export default function AdminBookingsDetail() {
 
     const { booking, event, attendees, customer, activityLog, viewerCanSeePII } = data;
     const canManagerActions = hasRole?.('manager');
+    const canOwnerActions = hasRole?.('owner');
     // Stripe-refund eligibility mirrors the legacy modal's gate:
     //   paid + non-synthetic stripe_payment_intent (i.e. not cash_/venmo_/etc.)
     const stripeIntent = booking.stripePaymentIntent || '';
@@ -134,6 +172,9 @@ export default function AdminBookingsDetail() {
     // External refund: paid or comp, not already refunded.
     const canRefundExternal = ['paid', 'comp'].includes(booking.status) && !booking.refundedAt;
     const canResend = ['paid', 'comp'].includes(booking.status);
+    // M6 B9 — detach saved PM: owner-only, requires non-synthetic Stripe PI
+    // (synthetic prefixes are cash_/venmo_/etc., no real Stripe PM behind them).
+    const canDetachPM = canOwnerActions && stripeIntent && !isExternalIntent;
 
     return (
         <div className="abd">
@@ -311,10 +352,29 @@ export default function AdminBookingsDetail() {
                                         Record out-of-band refund
                                     </button>
                                 )}
-                                {!canRefundStripe && !canRefundExternal && !canResend && (
+                                {!canRefundStripe && !canRefundExternal && !canResend && !canDetachPM && (
                                     <p className="abd-empty">No actions available for this booking's status.</p>
                                 )}
                             </div>
+                            {canDetachPM && (
+                                <div className="abd-privacy-section">
+                                    <h3 className="abd-privacy-title">Privacy controls</h3>
+                                    <p className="abd-privacy-copy">
+                                        Detach the customer&apos;s saved payment method from their Stripe Customer.
+                                        Once detached, off-session damage charges (B7+) against this card are
+                                        no longer possible. Use this when a customer requests their card be
+                                        removed from your records. <strong>Irreversible from this UI.</strong>
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDetachPmOpen(true)}
+                                        disabled={detaching}
+                                        className="abd-action-btn abd-action-btn--danger"
+                                    >
+                                        Remove saved card
+                                    </button>
+                                </div>
+                            )}
                         </section>
                     )}
                 </div>
@@ -365,6 +425,42 @@ export default function AdminBookingsDetail() {
                         flashMsg('ok', `Out-of-band refund recorded (${method}); customer notified`);
                     }}
                 />
+            )}
+
+            {/* M6 B9 — Remove-saved-card confirm modal */}
+            {detachPmOpen && (
+                <div className="abd-modal-backdrop" onClick={() => !detaching && setDetachPmOpen(false)}>
+                    <div className="abd-modal" onClick={(e) => e.stopPropagation()}>
+                        <h2>Remove saved payment method?</h2>
+                        <p>
+                            This will detach the customer&apos;s saved card from their Stripe Customer.
+                            Once detached, <strong>off-session damage charges against this card are no longer possible</strong>{' '}
+                            — you can still issue Stripe refunds against the original charge.
+                        </p>
+                        <p className="abd-modal-footnote">
+                            This is irreversible from this UI. If the customer wants their card saved again,
+                            they will need to make a new booking. No customer email is sent.
+                        </p>
+                        <div className="abd-modal-actions">
+                            <button
+                                type="button"
+                                onClick={() => setDetachPmOpen(false)}
+                                disabled={detaching}
+                                className="abd-action-btn"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={submitDetachPm}
+                                disabled={detaching}
+                                className="abd-action-btn abd-action-btn--danger"
+                            >
+                                {detaching ? 'Detaching…' : 'Remove saved card'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

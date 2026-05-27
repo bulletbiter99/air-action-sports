@@ -123,6 +123,24 @@ export async function retrievePaymentIntent(paymentIntentId, apiKey) {
  *   handle each non-success outcome — typically: fall back to Option B
  *   (email link) and surface the error to the operator.
  */
+/**
+ * M6 B9 — detach a saved PaymentMethod from its Customer. Used by the
+ * admin "Remove saved card" privacy action so a customer's PM stops
+ * being re-chargeable for off-session damage charges (B7+).
+ *
+ * Stripe behavior: detaching from a Customer makes the PM unusable for
+ * any future `customer`-bound charge. Past charges with the PM remain
+ * in the dashboard for reconciliation. The PM object itself is NOT
+ * deleted (Stripe retains it for ~13 months for compliance).
+ *
+ * @param {string} paymentMethodId  Stripe PM id (pm_...)
+ * @param {string} apiKey
+ */
+export async function detachPaymentMethod(paymentMethodId, apiKey) {
+    if (!paymentMethodId) throw new Error('detachPaymentMethod: paymentMethodId required');
+    return stripeFetch(`/payment_methods/${paymentMethodId}/detach`, { apiKey, method: 'POST', body: {} });
+}
+
 export async function chargeOffSession({ apiKey, customer, paymentMethod, amount, currency = 'usd', idempotencyKey, metadata = {} }) {
     if (!customer) throw new Error('chargeOffSession: customer required');
     if (!paymentMethod) throw new Error('chargeOffSession: paymentMethod required');
