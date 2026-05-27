@@ -22,6 +22,7 @@
 import { writeAudit } from './auditLog.js';
 import { loadTemplate, renderTemplate } from './templates.js';
 import { sendEmail } from './email.js';
+import { retrievePaymentIntent, chargeOffSession } from './stripe.js';
 
 // ────────────────────────────────────────────────────────────────────
 // Constants
@@ -370,6 +371,173 @@ export async function waiveCharge(env, opts) {
     });
 
     return { ok: true, chargeId, status: 'waived' };
+}
+
+/**
+ * M6 B7 — Option A activation. Charges the customer's saved payment
+ * method off-session, completing the damage-charge flow without an
+ * email-link round trip.
+ *
+ * Requires the original booking to have been checked out POST B5 deploy
+ * (so `setup_future_usage: 'off_session'` saved the PM to a Stripe
+ * Customer). Bookings created before B5 deployed won't have the
+ * customer attached — caller falls back to Option B (email link).
+ *
+ * Flow:
+ *   1. Load the charge + booking
+ *   2. Retrieve original PaymentIntent → read customer + payment_method
+ *   3. POST off-session PaymentIntent (idempotency-keyed by chargeId)
+ *   4. On success: mark charge paid, audit, send paid email
+ *   5. On Stripe error (declined / 3DS / etc.): return structured error,
+ *      DON'T mark paid, audit the failure
+ *
+ * @param {object} env
+ * @param {object} opts
+ * @param {string} opts.chargeId
+ * @param {string} [opts.userId]    Admin user id for audit attribution
+ * @returns {Promise<
+ *   | { ok: true, chargeId, status: 'paid', paymentIntentId, amountCents }
+ *   | { error: 'charge_not_found' }
+ *   | { error: 'already_finalized', currentStatus }
+ *   | { error: 'booking_not_found' }
+ *   | { error: 'no_saved_payment_method', detail }
+ *   | { error: 'stripe_declined', code, message, paymentIntentId? }
+ *   | { error: 'stripe_request_failed', message }
+ * >}
+ */
+export async function chargeOffSessionForCharge(env, opts) {
+    const { chargeId, userId } = opts;
+    if (!chargeId) return { error: 'missing_charge_id' };
+
+    const charge = await getChargeFull(env, chargeId);
+    if (!charge) return { error: 'charge_not_found' };
+    if (charge.status === 'paid' || charge.status === 'waived' || charge.status === 'refunded') {
+        return { error: 'already_finalized', currentStatus: charge.status };
+    }
+
+    // Pull the originating booking row to get stripe_payment_intent + customer linkage.
+    const booking = await env.DB.prepare(
+        `SELECT id, stripe_payment_intent, stripe_session_id, email, full_name
+         FROM bookings WHERE id = ?`
+    ).bind(charge.booking_id).first();
+    if (!booking) return { error: 'booking_not_found' };
+    if (!booking.stripe_payment_intent) {
+        return { error: 'no_saved_payment_method', detail: 'booking_has_no_payment_intent' };
+    }
+
+    // Retrieve the original PI to read customer + payment_method.
+    let originalPI;
+    try {
+        originalPI = await retrievePaymentIntent(booking.stripe_payment_intent, env.STRIPE_SECRET_KEY);
+    } catch (err) {
+        console.error('chargeOffSessionForCharge: retrieve PI failed', chargeId, err?.message);
+        return { error: 'stripe_request_failed', message: err?.message || 'retrieve_payment_intent_failed' };
+    }
+    const customer = originalPI?.customer;
+    const paymentMethod = originalPI?.payment_method;
+    if (!customer || !paymentMethod) {
+        // Bookings created before B5 deploy don't have setup_future_usage,
+        // so Stripe didn't create a Customer or save the PM. Caller falls
+        // back to Option B (email link).
+        return {
+            error: 'no_saved_payment_method',
+            detail: customer ? 'no_payment_method' : 'no_customer',
+        };
+    }
+
+    // Off-session charge with stable idempotency key.
+    const idempotencyKey = `charge_${chargeId}_offsession`;
+    let newPI;
+    try {
+        newPI = await chargeOffSession({
+            apiKey: env.STRIPE_SECRET_KEY,
+            customer,
+            paymentMethod,
+            amount: charge.amount_cents,
+            currency: 'usd',
+            idempotencyKey,
+            metadata: {
+                booking_id: charge.booking_id,
+                charge_id: chargeId,
+                reason_kind: charge.reason_kind,
+                source: 'damage_charge_off_session',
+            },
+        });
+    } catch (err) {
+        // Stripe rejection — declined / 3DS / etc. Don't mark paid;
+        // audit the failure so the operator sees the chain in /admin/audit.
+        const stripeErr = err?.stripe?.error || {};
+        const code = stripeErr.code || 'unknown';
+        const message = stripeErr.message || err?.message || 'unknown_stripe_error';
+        const failedPI = stripeErr.payment_intent?.id || null;
+
+        console.error('chargeOffSessionForCharge: Stripe declined', chargeId, code, message);
+        await writeAudit(env, {
+            userId: userId || null,
+            action: 'charge.off_session_failed',
+            targetType: 'booking_charge',
+            targetId: chargeId,
+            meta: { code, message, amountCents: charge.amount_cents, paymentIntentId: failedPI },
+        });
+        return { error: 'stripe_declined', code, message, paymentIntentId: failedPI };
+    }
+
+    // Stripe accepts but status may still be requires_action / requires_payment_method
+    // (rare for confirmed=true off_session=true, but defensive). Treat anything
+    // other than 'succeeded' as a soft failure — DO NOT mark paid.
+    if (newPI.status !== 'succeeded') {
+        console.warn('chargeOffSessionForCharge: PI returned non-succeeded status', chargeId, newPI.status);
+        await writeAudit(env, {
+            userId: userId || null,
+            action: 'charge.off_session_failed',
+            targetType: 'booking_charge',
+            targetId: chargeId,
+            meta: { code: 'non_succeeded_status', status: newPI.status, paymentIntentId: newPI.id },
+        });
+        return {
+            error: 'stripe_declined',
+            code: 'non_succeeded_status',
+            message: `PaymentIntent landed in status=${newPI.status}; off-session cannot complete (3DS or similar required)`,
+            paymentIntentId: newPI.id,
+        };
+    }
+
+    // Success — mark paid + audit + send receipt email.
+    const now = Date.now();
+    await env.DB.prepare(
+        `UPDATE booking_charges
+         SET status = 'paid', paid_at = ?, payment_method = ?, payment_reference = ?, updated_at = ?
+         WHERE id = ?`,
+    ).bind(now, 'stripe_off_session', newPI.id, now, chargeId).run();
+
+    await writeAudit(env, {
+        userId: userId || null,
+        action: 'charge.off_session_succeeded',
+        targetType: 'booking_charge',
+        targetId: chargeId,
+        meta: {
+            amountCents: charge.amount_cents,
+            paymentIntentId: newPI.id,
+            customerId: customer,
+            paymentMethodId: paymentMethod,
+        },
+    });
+
+    await sendPaidEmail(env, {
+        chargeId,
+        paymentMethod: 'stripe_off_session',
+        paymentReference: newPI.id,
+    }).catch((err) => {
+        console.error('charge_paid send failed (after off-session)', chargeId, err?.message);
+    });
+
+    return {
+        ok: true,
+        chargeId,
+        status: 'paid',
+        paymentIntentId: newPI.id,
+        amountCents: charge.amount_cents,
+    };
 }
 
 export async function markChargePaid(env, opts) {

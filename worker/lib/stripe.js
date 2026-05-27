@@ -84,6 +84,68 @@ export async function retrieveSession(sessionId, apiKey) {
 }
 
 /**
+ * Retrieve a PaymentIntent — used by M6 B7's off-session damage-charge
+ * flow to read the original PI's `customer` + `payment_method` so we
+ * can re-charge the saved card without re-prompting the buyer.
+ * @param {string} paymentIntentId
+ * @param {string} apiKey
+ */
+export async function retrievePaymentIntent(paymentIntentId, apiKey) {
+    return stripeFetch(`/payment_intents/${paymentIntentId}`, { apiKey, method: 'GET' });
+}
+
+/**
+ * M6 B7 — off-session charge against a saved payment method.
+ *
+ * Requires that B5's `setup_future_usage: 'off_session'` was on the
+ * original Checkout Session (otherwise the PM isn't authorized for
+ * off-session re-use). Stripe rejects the charge with
+ * `authentication_required` when the bank demands 3DS or with
+ * `card_declined` on most other failures.
+ *
+ * Callers (worker/lib/bookingCharges.js chargeOffSessionForCharge) must
+ * pass a stable idempotencyKey (we use `charge_${chargeId}_offsession`)
+ * so retries / double-clicks don't double-bill.
+ *
+ * @param {object} args
+ * @param {string} args.apiKey
+ * @param {string} args.customer        Stripe Customer ID (cus_...)
+ * @param {string} args.paymentMethod   Saved PM ID (pm_...)
+ * @param {number} args.amount          Amount in cents
+ * @param {string} args.currency        e.g. 'usd' (defaults to 'usd')
+ * @param {string} args.idempotencyKey  REQUIRED — prevents double-charge
+ * @param {Record<string,string>} [args.metadata]
+ * @returns {Promise<{id, status, amount_received?, last_payment_error?}>}
+ *   Stripe returns the new PaymentIntent. On success, status='succeeded'
+ *   and amount_received equals amount. On failure, status may be
+ *   'requires_action' (3DS needed; off-session cannot proceed) or
+ *   'requires_payment_method' (card declined). Caller decides how to
+ *   handle each non-success outcome — typically: fall back to Option B
+ *   (email link) and surface the error to the operator.
+ */
+export async function chargeOffSession({ apiKey, customer, paymentMethod, amount, currency = 'usd', idempotencyKey, metadata = {} }) {
+    if (!customer) throw new Error('chargeOffSession: customer required');
+    if (!paymentMethod) throw new Error('chargeOffSession: paymentMethod required');
+    if (!Number.isInteger(amount) || amount <= 0) {
+        throw new Error('chargeOffSession: amount must be a positive integer (cents)');
+    }
+    if (!idempotencyKey) throw new Error('chargeOffSession: idempotencyKey required (prevents double-charge)');
+
+    const body = {
+        amount: String(amount),
+        currency,
+        customer,
+        payment_method: paymentMethod,
+        off_session: 'true',
+        confirm: 'true',
+    };
+    for (const [k, v] of Object.entries(metadata)) {
+        body[`metadata[${k}]`] = String(v);
+    }
+    return stripeFetch('/payment_intents', { apiKey, body, idempotencyKey });
+}
+
+/**
  * Issue a refund against a payment intent. Amount optional (full refund if omitted).
  * idempotencyKey is strongly recommended by callers — any concurrent or retried
  * call with the same key is deduped by Stripe server-side for 24h.
