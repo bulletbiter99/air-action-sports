@@ -649,9 +649,9 @@ The seed populates 50 bookings with deliberate email-distribution edge cases (Sa
 
 ---
 
-### Milestone 6 — Stripe Live Flow + Damage Charge Option A + Vendor Templates + Email Drafts (IN PROGRESS, B0-B6 + B10 closed + deployed)
+### Milestone 6 — Stripe Live Flow + Damage Charge Option A + Vendor Templates + Email Drafts (✓ CLOSED 2026-05-27; live cutover operator-pending)
 
-**Status:** IN PROGRESS as of 2026-05-26 (late afternoon). Five batches (B3, B4, B5, B6, B10) shipped + deployed in one extended session on top of the prior B0-B2 work. **Remaining (B7, B8, B9, B11) gated on operator-only live Stripe cutover items 1-5 in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md).** No long-lived milestone branch — sequential feature PRs to main (per-batch rolling brings-up).
+**Status: ✓ CLOSED** as of 2026-05-27. All 13 batches (B0/B0-followup/B1/B2/B3/B4/B5/B6/B7/B8/B9/B10/B11) merged + deployed to production. Sandbox-mode verification complete for all payment-flow batches; live verification (B5 $1 e2e, B6 real dispute, B7+B9 real saved PM) remains gated on operator-only cutover items 1-5 in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md). No long-lived milestone branch — sequential feature PRs to main (per-batch rolling brings-up).
 
 Operator acknowledgment in effect: schema migrations + the public booking flow change in B5 are tested only via local `wrangler dev` against a local D1 file before being run against production. Recovery from a migration mishap requires reverting + restoring D1 from a Cloudflare 24-hour automated backup.
 
@@ -686,23 +686,36 @@ Operator acknowledgment in effect: schema migrations + the public booking flow c
 | **B4** | Admin UI — status toggle + draft badge + filter chips + preview-with-real-data (booking-flavored templates) | ✓ Closed + deployed | [#194](https://github.com/bulletbiter99/air-action-sports/pull/194) / `f3b845f` |
 | **B5** | Stripe `setup_future_usage: 'off_session'` on POST /checkout — Critical DNT touched additively; verifyWebhookSignature unchanged | ✓ Code closed + deployed; ⏳ live $1 e2e operator-gated | [#195](https://github.com/bulletbiter99/air-action-sports/pull/195) / `8a9d3dd` |
 | **B6** | `charge.dispute.created` webhook consumer — idempotent + orphan-safe; migration 0057 seeds `dispute_received` template | ✓ Code closed + deployed; ⏳ live verify needs real disputed payment | [#196](https://github.com/bulletbiter99/air-action-sports/pull/196) / `db7e7b8` |
-| **B7** | Damage charge Option A activation (off-session against saved PM) — recommend after operator cutover for meaningful live e2e | ⏳ Not started | — |
-| **B8** | Damage charge admin UI polish on /admin/booking-charges queue and equipment-return flow | ⏳ Not started | — |
-| **B9** | Admin action: remove saved payment method (privacy compliance) | ⏳ Not started | — |
+| **B7** | Damage charge Option A activation (off-session against saved PM) — chargeOffSessionForCharge + POST /:id/charge-card endpoint + 28 tests | ✓ Code closed + deployed; ⏳ live capture needs B5 cutover | [#198](https://github.com/bulletbiter99/air-action-sports/pull/198) / `c02d00fc` (deploy) |
+| **B8** | Damage charge admin UI polish — "Charge card" button + confirm modal + outcome banners on /admin/booking-charges | ✓ Closed + deployed | [#199](https://github.com/bulletbiter99/air-action-sports/pull/199) / `c02d00fc` (deploy) |
+| **B9** | Admin action: remove saved payment method (privacy compliance) — POST /:id/detach-saved-pm + UI on /admin/bookings/:id | ✓ Closed + deployed; ⏳ live verify needs real saved PM | [#200](https://github.com/bulletbiter99/air-action-sports/pull/200) / `e8372102` (deploy) |
 | **B10** | booking_confirmation template gains "Heads-up — Additional Charges May Apply" section (migration 0058) | ✓ Closed + deployed | [#197](https://github.com/bulletbiter99/air-action-sports/pull/197) / `954964c3` (deploy) |
-| **B11** | Closing runbooks + decision register updates + CLAUDE.md M6 flips to CLOSED | ⏳ Not started — recommend last | — |
+| **B11** | Closing runbooks (m6-baseline-coverage.txt / m6-deploy.md / m6-rollback.md) + decision register + CLAUDE.md M6 flips to CLOSED | ✓ Closed | this PR |
 
-**Cumulative state at handoff (after B3/B4/B5/B6/B10 — 2026-05-26):**
-- Main HEAD: `<B10 merge>` (post-PR #197)
-- Worker version: `954964c3-56f3-4f08-9c97-47cd54b85c35`
-- Tests: **2251 across 182 files** (was 2135 / 173 at session start → +116 / +9)
-- Group A + Group B regression: **138 / 138** preserved (Critical DNT pin intact)
-- Lint: 0 errors / 460 warnings
-- Build: clean (~265ms)
+**Cumulative state at M6 CLOSE (2026-05-27):**
+- Main HEAD: see `git log` for B11 merge SHA
+- Latest production worker: `e8372102-d9e3-4799-9678-261912192ab1` (B9 deploy)
+- Tests: **2292 across 184 files** (was 2135 / 173 at session start → +157 / +11)
+- Group A + Group B regression: **138 / 138** preserved (Critical DNT pin intact; expanded to 149/149 with B6 additions)
+- Lint: 0 errors / ~462 warnings
+- Build: clean (~255-290ms)
 - Migrations on remote: 0001–**0058** applied (M6 added 0056 [B3 status column], 0057 [B6 dispute template], 0058 [B10 booking_confirmation update])
 - Email templates total in prod: **34** (added `dispute_received` in B6; updated `booking_confirmation` in B10)
 - Sidebar Settings group: 7 sub-items (unchanged from B2)
-- Live cutover blockers: **5 operator-only items still open** — see [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md). B5/B6 live verification + B7/B9 live functionality are gated until those land.
+- Live cutover blockers: **5 operator-only items remain** — see [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md). B5/B6 live verification + B7/B9 live functionality are gated until those land.
+
+**Cumulative state by batch:**
+| At close of | Tests / Files | Worker version | Notes |
+|---|---|---|---|
+| Pre-M6 baseline | 2073 / 168 | (M5.5 close + admin staff suite) | — |
+| B0/B1/B2 | 2135 / 173 | `a6c147db` | Vendor templates |
+| B3+B4 | 2212 / 178 | `09c58ed1` | Email draft state |
+| B5 | 2231 / 180 | `ba6545c2` | Stripe setup_future_usage |
+| B6 | 2251 / 182 | `518af64a` | Dispute consumer |
+| B10 | 2251 / 182 | `954964c3` | booking_confirmation copy |
+| B7+B8 | 2279 / 184 | `c02d00fc` | Damage charge Option A + UI |
+| B9 | 2292 / 184 | `e8372102` | Remove saved PM |
+| B11 | 2292 / 184 | (this PR) | Closing runbooks |
 
 **Schema spot-checks captured 2026-05-25** (in [docs/m6-discovery/spot-check-log.md](docs/m6-discovery/spot-check-log.md)):
 

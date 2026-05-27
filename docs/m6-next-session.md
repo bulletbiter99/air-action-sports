@@ -1,6 +1,6 @@
 # M6 next-session prompt
 
-**Status:** M6 is **IN PROGRESS** — 5 batches landed today (B3, B4, B5, B6, B10). Remaining (B7, B8, B9, B11) are gated on operator-only live Stripe cutover items. The fresh session should read this file first, then [HANDOFF.md](../HANDOFF.md) top-of-doc + [CLAUDE.md](../CLAUDE.md) Milestone 6 section + [docs/m6-batch-tracker.md](m6-batch-tracker.md) + [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md).
+**Status:** M6 is **✓ CLOSED** as of 2026-05-27. All 13 batches (B0/B0-followup/B1/B2/B3/B4/B5/B6/B7/B8/B9/B10/B11) merged + deployed to production. Sandbox-mode verification complete. **Live Stripe cutover items 1-5** (in [`docs/m6-operator-cutover-checklist.md`](m6-operator-cutover-checklist.md)) remain operator-only — they gate the live e2e verification of B5/B6/B7/B9 but not the code shipping itself. The fresh session should read this file first, then [HANDOFF.md](../HANDOFF.md) top-of-doc + [CLAUDE.md](../CLAUDE.md) Milestone 6 section + [docs/m6-batch-tracker.md](m6-batch-tracker.md) + [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md) + [docs/runbooks/m6-{baseline-coverage.txt, deploy.md, rollback.md}](runbooks/).
 
 ## Operator decisions captured at session close (2026-05-26 ~14:50 UTC)
 
