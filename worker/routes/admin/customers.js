@@ -27,6 +27,7 @@ import { requireCapability, hasCapability, listCapabilities } from '../../lib/ca
 import { writeAudit } from '../../lib/auditLog.js';
 import { recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
 import { encrypt, decryptSafely } from '../../lib/personEncryption.js';
+import { customerId } from '../../lib/ids.js';
 
 const adminCustomers = new Hono();
 
@@ -84,6 +85,125 @@ adminCustomers.get('/', async (c) => {
         offset,
         customers: (rowsResult.results || []).map(formatCustomer),
     });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// POST /api/admin/customers — create
+//
+// Post-M6 D-1b. Gated on customers.write. Phone-intake operator
+// workflow: create a customer record without waiting for them to book.
+// Required: email. Optional: name, phone, clientType (default
+// 'individual'), notes, business_* fields. Email is validated against
+// a simple format regex + duplicate-checked (case-insensitive). EIN
+// validated as XX-XXXXXXX and encrypted; billing address (when object)
+// is JSON-stringified and encrypted.
+//
+// Returns 409 { existingCustomerId } when an active customer already
+// has this email_normalized — the UI uses that to offer an "open
+// existing customer" affordance instead of refusing the operator.
+// ────────────────────────────────────────────────────────────────────
+adminCustomers.post('/', requireCapability('customers.write'), async (c) => {
+    const user = c.get('user');
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: 'Invalid body' }, 400);
+
+    const emailRaw = body.email ? String(body.email).trim() : '';
+    if (!emailRaw) return c.json({ error: 'email is required' }, 400);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
+        return c.json({ error: 'email is not a valid format' }, 400);
+    }
+    const emailNormalized = emailRaw.toLowerCase();
+
+    const clientType = body.clientType ?? 'individual';
+    if (clientType !== 'individual' && clientType !== 'business') {
+        return c.json({ error: 'clientType must be "individual" or "business"' }, 400);
+    }
+
+    // Encrypt business fields up-front so we can fail fast on format errors
+    // before the duplicate check + INSERT.
+    let encryptedTaxId = null;
+    let encryptedBillingAddress = null;
+    if (body.businessTaxId) {
+        const ein = String(body.businessTaxId).trim();
+        if (!/^\d{2}-\d{7}$/.test(ein)) {
+            return c.json({ error: 'businessTaxId must be in XX-XXXXXXX format' }, 400);
+        }
+        encryptedTaxId = await encrypt(ein, c.env.SESSION_SECRET);
+    }
+    if (body.businessBillingAddress) {
+        const addr = body.businessBillingAddress;
+        if (typeof addr !== 'object' || Array.isArray(addr)) {
+            return c.json({ error: 'businessBillingAddress must be an object' }, 400);
+        }
+        const cleaned = {};
+        for (const k of ['line1', 'line2', 'city', 'state', 'postal', 'country']) {
+            if (addr[k] !== undefined && addr[k] !== null) {
+                const t = String(addr[k]).trim();
+                if (t) cleaned[k] = t;
+            }
+        }
+        if (Object.keys(cleaned).length) {
+            encryptedBillingAddress = await encrypt(JSON.stringify(cleaned), c.env.SESSION_SECRET);
+        }
+    }
+
+    // Duplicate check against active rows only — an archived customer with
+    // the same email is fine (the operator may have archived in error
+    // earlier; let them resurface via the existing /admin/customers
+    // archive filter rather than blocking creation).
+    const existing = await c.env.DB.prepare(
+        'SELECT id FROM customers WHERE email_normalized = ? AND archived_at IS NULL',
+    ).bind(emailNormalized).first();
+    if (existing) {
+        return c.json({
+            error: 'Customer with this email already exists',
+            existingCustomerId: existing.id,
+        }, 409);
+    }
+
+    const id = customerId();
+    const now = Date.now();
+
+    await c.env.DB.prepare(
+        `INSERT INTO customers (
+            id, email, email_normalized, name, phone,
+            total_bookings, total_attendees, lifetime_value_cents, refund_count,
+            first_booking_at, last_booking_at,
+            email_transactional, email_marketing, sms_transactional, sms_marketing,
+            notes,
+            client_type, business_name, business_website,
+            business_tax_id, business_billing_address,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+        id,
+        emailRaw,
+        emailNormalized,
+        body.name ? String(body.name).trim() : null,
+        body.phone ? String(body.phone).trim() : null,
+        body.emailTransactional === false ? 0 : 1,
+        body.emailMarketing === false ? 0 : 1,
+        body.smsTransactional ? 1 : 0,
+        body.smsMarketing ? 1 : 0,
+        body.notes ? String(body.notes).trim() : null,
+        clientType,
+        body.businessName ? String(body.businessName).trim() : null,
+        body.businessWebsite ? String(body.businessWebsite).trim() : null,
+        encryptedTaxId,
+        encryptedBillingAddress,
+        now,
+        now,
+    ).run();
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'customer.created',
+        targetType: 'customer',
+        targetId: id,
+        meta: { email: emailNormalized, clientType },
+    });
+
+    return c.json({ success: true, customerId: id }, 201);
 });
 
 // ────────────────────────────────────────────────────────────────────
