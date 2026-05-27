@@ -23,8 +23,10 @@
 
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
+import { requireCapability, hasCapability, listCapabilities } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
+import { encrypt, decryptSafely } from '../../lib/personEncryption.js';
 
 const adminCustomers = new Hono();
 
@@ -86,13 +88,64 @@ adminCustomers.get('/', async (c) => {
 
 // ────────────────────────────────────────────────────────────────────
 // GET /api/admin/customers/:id — detail with bookings + tags
+//
+// Post-M6 D-1a: business fields (EIN + billing address) decrypt on the
+// fly when viewer has customers.read.business_fields. Unmask is audited
+// per call so we can trace who saw which customer's encrypted PII.
 // ────────────────────────────────────────────────────────────────────
 adminCustomers.get('/:id', async (c) => {
+    const user = c.get('user');
     const id = c.req.param('id');
     const row = await c.env.DB.prepare(
         `SELECT * FROM customers WHERE id = ?`,
     ).bind(id).first();
     if (!row) return c.json({ error: 'Not found' }, 404);
+
+    // Pre-load capabilities so the sync hasCapability checks below resolve
+    // against the M5 DB-backed cap set instead of falling through to the
+    // legacy role mapping (which lacks the customers.* caps).
+    if (!Array.isArray(user.capabilities)) {
+        user.capabilities = await listCapabilities(c.env, user.id);
+        c.set('user', user);
+    }
+
+    const canSeeBiz = hasCapability(user, 'customers.read.business_fields');
+    const canWriteBiz = hasCapability(user, 'customers.write.business_fields');
+
+    // Decrypt business fields when capable + present.
+    let decryptedTaxId = null;
+    let decryptedBillingAddress = null;
+    let unmaskAttempted = false;
+    if (canSeeBiz) {
+        if (row.business_tax_id) {
+            decryptedTaxId = await decryptSafely(row.business_tax_id, c.env.SESSION_SECRET);
+            unmaskAttempted = true;
+        }
+        if (row.business_billing_address) {
+            const raw = await decryptSafely(row.business_billing_address, c.env.SESSION_SECRET);
+            if (raw) {
+                try { decryptedBillingAddress = JSON.parse(raw); }
+                catch { decryptedBillingAddress = null; }
+            }
+            unmaskAttempted = true;
+        }
+    }
+
+    // Audit only when we actually attempted to surface encrypted data
+    // (capability present AND a value exists). A capable viewer hitting
+    // a customer with no encrypted business fields produces no audit.
+    if (unmaskAttempted) {
+        await writeAudit(c.env, {
+            userId: user.id,
+            action: 'customer.business_fields_unmasked',
+            targetType: 'customer',
+            targetId: id,
+            meta: {
+                hadTaxId: !!row.business_tax_id,
+                hadBillingAddress: !!row.business_billing_address,
+            },
+        });
+    }
 
     const bookingsResult = await c.env.DB.prepare(
         `SELECT b.id, b.event_id, b.full_name, b.email, b.status,
@@ -138,7 +191,12 @@ adminCustomers.get('/:id', async (c) => {
     }
 
     return c.json({
-        customer: formatCustomer(row),
+        customer: formatCustomer(row, {
+            decryptedTaxId,
+            decryptedBillingAddress,
+            viewerCanSeeBusinessFields: canSeeBiz,
+            viewerCanWriteBusinessFields: canWriteBiz,
+        }),
         bookings: (bookingsResult.results || []).map((b) => ({
             id: b.id,
             eventId: b.event_id,
@@ -174,6 +232,95 @@ adminCustomers.get('/:id', async (c) => {
             engagementType: fr.engagement_type,
         })),
     });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// PUT /api/admin/customers/:id/business — edit B2B fields
+//
+// Post-M6 D-1a. Gated on customers.write.business_fields (owner +
+// bookkeeper per 0031). EIN encrypted at write time after format
+// validation (XX-XXXXXXX). Billing address JSON-stringified then
+// encrypted. Each field is independently optional in the body — only
+// provided fields are touched, missing fields stay as-is.
+// ────────────────────────────────────────────────────────────────────
+adminCustomers.put('/:id/business', requireCapability('customers.write.business_fields'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: 'Invalid body' }, 400);
+
+    const row = await c.env.DB.prepare(
+        'SELECT id, archived_at FROM customers WHERE id = ?',
+    ).bind(id).first();
+    if (!row) return c.json({ error: 'Customer not found' }, 404);
+    if (row.archived_at) return c.json({ error: 'Cannot edit archived customer' }, 409);
+
+    const updates = {};
+
+    if (body.clientType !== undefined) {
+        if (body.clientType !== 'individual' && body.clientType !== 'business') {
+            return c.json({ error: 'clientType must be "individual" or "business"' }, 400);
+        }
+        updates.client_type = body.clientType;
+    }
+    if (body.businessName !== undefined) {
+        updates.business_name = body.businessName ? String(body.businessName).trim() : null;
+    }
+    if (body.businessWebsite !== undefined) {
+        updates.business_website = body.businessWebsite ? String(body.businessWebsite).trim() : null;
+    }
+
+    // EIN: validate XX-XXXXXXX before encrypt. Empty/null clears the column.
+    if (body.businessTaxId !== undefined) {
+        const ein = body.businessTaxId ? String(body.businessTaxId).trim() : '';
+        if (ein && !/^\d{2}-\d{7}$/.test(ein)) {
+            return c.json({ error: 'businessTaxId must be in XX-XXXXXXX format' }, 400);
+        }
+        updates.business_tax_id = ein ? await encrypt(ein, c.env.SESSION_SECRET) : null;
+    }
+
+    // Billing address: explicit null clears, object encrypts the JSON.
+    if (body.businessBillingAddress !== undefined) {
+        const addr = body.businessBillingAddress;
+        if (addr === null) {
+            updates.business_billing_address = null;
+        } else if (typeof addr === 'object' && !Array.isArray(addr)) {
+            const cleaned = {};
+            for (const k of ['line1', 'line2', 'city', 'state', 'postal', 'country']) {
+                if (addr[k] !== undefined && addr[k] !== null) {
+                    const trimmed = String(addr[k]).trim();
+                    if (trimmed) cleaned[k] = trimmed;
+                }
+            }
+            updates.business_billing_address = Object.keys(cleaned).length
+                ? await encrypt(JSON.stringify(cleaned), c.env.SESSION_SECRET)
+                : null;
+        } else {
+            return c.json({ error: 'businessBillingAddress must be an object or null' }, 400);
+        }
+    }
+
+    if (Object.keys(updates).length === 0) {
+        return c.json({ error: 'No fields to update' }, 400);
+    }
+
+    const now = Date.now();
+    updates.updated_at = now;
+    const keys = Object.keys(updates);
+    const sets = keys.map((k) => `${k} = ?`).join(', ');
+    const binds = keys.map((k) => updates[k]);
+    binds.push(id);
+    await c.env.DB.prepare(`UPDATE customers SET ${sets} WHERE id = ?`).bind(...binds).run();
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'customer.business_fields_updated',
+        targetType: 'customer',
+        targetId: id,
+        meta: { fields: keys.filter((k) => k !== 'updated_at') },
+    });
+
+    return c.json({ success: true, customerId: id });
 });
 
 // ────────────────────────────────────────────────────────────────────
@@ -367,8 +514,14 @@ adminCustomers.post('/:id/gdpr-delete', requireRole('owner'), async (c) => {
     return c.json({ success: true, customerId: id, archivedAt: now });
 });
 
-function formatCustomer(row) {
+function formatCustomer(row, opts = {}) {
     if (!row) return null;
+    const {
+        decryptedTaxId = null,
+        decryptedBillingAddress = null,
+        viewerCanSeeBusinessFields = false,
+        viewerCanWriteBusinessFields = false,
+    } = opts;
     return {
         id: row.id,
         email: row.email,
@@ -393,14 +546,21 @@ function formatCustomer(row) {
         createdAt: row.created_at,
         updatedAt: row.updated_at,
 
-        // M5.5 B3 columns surfaced post-B9 (migration 0050 made
-        // client_type NOT NULL with DEFAULT 'individual'). EIN +
-        // billing address stay encrypted at rest; their decrypted
-        // read surfaces land in B10 alongside the
-        // customers.read.business_fields capability seed.
+        // M5.5 B3 + post-M6 D-1a — business profile fields. EIN and
+        // billing address are encrypted at rest (AES-GCM via
+        // worker/lib/personEncryption.js). Caller passes decrypted
+        // values via opts when viewer has customers.read.business_fields;
+        // the has* booleans let UI distinguish "no value set" from
+        // "value present but you can't see it".
         clientType: row.client_type || 'individual',
         businessName: row.business_name || null,
         businessWebsite: row.business_website || null,
+        hasEncryptedTaxId: !!row.business_tax_id,
+        hasEncryptedBillingAddress: !!row.business_billing_address,
+        businessTaxId: decryptedTaxId,
+        businessBillingAddress: decryptedBillingAddress,
+        viewerCanSeeBusinessFields,
+        viewerCanWriteBusinessFields,
     };
 }
 

@@ -22,9 +22,12 @@
 // (lead_stale_at IS NULL OR lead_stale_at < now - 7*86400000).
 // After alert, set lead_stale_at = now.
 //
-// Per plan-mode #5, /status route does NOT clear lead_stale_at on
-// transition — a revert-to-draft has 7-day silence before re-alerting.
-// Operator can manually clear via SQL if a fresh alert is wanted.
+// As of post-M6 Track D-3 polish (2026-05-27): the /status, /cancel,
+// /archive, and /reschedule admin routes ALL clear lead_stale_at on
+// transition. Any movement on the rental resets the staleness clock —
+// a revert-to-draft becomes eligible for a fresh alert as soon as it
+// meets the 14-day idle threshold again. (Previous behavior was 7-day
+// silence after revert; that's been removed per operator preference.)
 
 import { sendCoiAlert, sendLeadStaleAlert } from './emailSender.js';
 import { writeAudit } from './auditLog.js';

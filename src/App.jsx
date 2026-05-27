@@ -25,6 +25,7 @@ const NewPlayers = lazy(() => import('./pages/NewPlayers'));
 const RulesOfEngagement = lazy(() => import('./pages/RulesOfEngagement'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Feedback = lazy(() => import('./pages/Feedback'));
+const GameArchive = lazy(() => import('./pages/GameArchive'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Admin
@@ -72,6 +73,7 @@ const AdminStaffLibrary = lazy(() => import('./admin/AdminStaffLibrary'));
 const AdminStaffDocumentEditor = lazy(() => import('./admin/AdminStaffDocumentEditor'));
 const AdminStaff1099Thresholds = lazy(() => import('./admin/AdminStaff1099Thresholds'));
 const AdminSegments = lazy(() => import('./admin/AdminSegments'));
+const AdminEventArchive = lazy(() => import('./admin/AdminEventArchive'));
 
 // Portal (M5 Batch 6) — Tier 3 light-access magic-link portal
 const PortalLayout = lazy(() => import('./portal/PortalLayout'));
@@ -117,6 +119,7 @@ export default function App() {
             <Route path="rules-of-engagement" element={<RulesOfEngagement />} />
             <Route path="privacy" element={<Privacy />} />
             <Route path="feedback" element={<Feedback />} />
+            <Route path="games" element={<GameArchive />} />
             <Route path="*" element={<NotFound />} />
           </Route>
           <Route path="v/:token" element={<VendorPackage />} />
@@ -176,6 +179,7 @@ export default function App() {
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="customers/:id" element={<AdminCustomerDetail />} />
             <Route path="segments" element={<AdminSegments />} />
+            <Route path="event-archive" element={<AdminEventArchive />} />
             <Route path="sites" element={<AdminSites />} />
             <Route path="sites/:id" element={<AdminSiteDetail />} />
             <Route path="field-rentals" element={<AdminFieldRentals />} />

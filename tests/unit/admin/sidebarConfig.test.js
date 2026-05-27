@@ -72,12 +72,12 @@ describe('SIDEBAR config', () => {
         expect(SIDEBAR[groupIdx - 1]).toMatchObject({ type: 'separator' });
     });
 
-    it('Settings group is configuration-only — 7 sub-items: Overview / Taxes / Email / Staff / Audit / Waivers / Vendor Templates', () => {
+    it('Settings group is configuration-only — 8 sub-items including Event Archive', () => {
         const group = SIDEBAR.find((e) => e.type === 'group' && e.label === 'Settings');
         expect(group).toBeDefined();
         expect(group.key).toBe('settings');
         expect(group.defaultExpanded).toBe(false);
-        expect(group.items).toHaveLength(7);
+        expect(group.items).toHaveLength(8);
         const labels = group.items.map((i) => i.label);
         expect(labels).toEqual([
             'Overview',
@@ -87,6 +87,7 @@ describe('SIDEBAR config', () => {
             'Audit',
             'Waivers',
             'Vendor Templates',
+            'Event Archive',
         ]);
     });
 

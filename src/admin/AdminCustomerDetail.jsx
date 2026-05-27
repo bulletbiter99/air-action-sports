@@ -18,6 +18,41 @@ import { formatMoney } from '../utils/money.js';
 import { classifyStatus as classifyFieldRentalStatus, classifyCoiStatus } from './AdminFieldRentals.jsx';
 import './AdminCustomers.css';
 
+// Post-M6 D-1a — helpers for the business-fields display surface.
+// "canSee" reflects whether the viewer has customers.read.business_fields
+// (server sends viewerCanSeeBusinessFields). "hasEncrypted" distinguishes
+// "no value set" from "value present but you can't see it".
+function renderEinField(canSee, hasEncrypted, decrypted) {
+    if (!canSee && hasEncrypted) {
+        return <em className="admin-customers__muted">●●●●●● (requires customers.read.business_fields)</em>;
+    }
+    if (!hasEncrypted) return <em className="admin-customers__muted">(not set)</em>;
+    if (decrypted) return <code>{decrypted}</code>;
+    return <em className="admin-customers__muted">(could not decrypt — contact admin)</em>;
+}
+
+function renderBillingAddressField(canSee, hasEncrypted, decrypted) {
+    if (!canSee && hasEncrypted) {
+        return <em className="admin-customers__muted">●●●●●● (requires customers.read.business_fields)</em>;
+    }
+    if (!hasEncrypted) return <em className="admin-customers__muted">(not set)</em>;
+    if (!decrypted || typeof decrypted !== 'object') {
+        return <em className="admin-customers__muted">(could not decrypt — contact admin)</em>;
+    }
+    const lines = [
+        decrypted.line1,
+        decrypted.line2,
+        [decrypted.city, decrypted.state, decrypted.postal].filter(Boolean).join(' ').trim(),
+        decrypted.country,
+    ].filter(Boolean);
+    if (lines.length === 0) return <em className="admin-customers__muted">(empty)</em>;
+    return (
+        <address style={{ fontStyle: 'normal' }}>
+            {lines.map((l, i) => <div key={i}>{l}</div>)}
+        </address>
+    );
+}
+
 export default function AdminCustomerDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -27,6 +62,7 @@ export default function AdminCustomerDetail() {
     const [err, setErr] = useState(null);
     const [mergeOpen, setMergeOpen] = useState(false);
     const [gdprOpen, setGdprOpen] = useState(false);
+    const [businessEditOpen, setBusinessEditOpen] = useState(false);
 
     const reload = useCallback(async () => {
         if (!id) return;
@@ -120,7 +156,18 @@ export default function AdminCustomerDetail() {
 
             {isBusiness && (
                 <section className="admin-customers__card">
-                    <h2>Business profile</h2>
+                    <header className="admin-customers__card-header">
+                        <h2>Business profile</h2>
+                        {customer.viewerCanWriteBusinessFields && !archived && (
+                            <button
+                                type="button"
+                                className="admin-customers__btn"
+                                onClick={() => setBusinessEditOpen(true)}
+                            >
+                                Edit
+                            </button>
+                        )}
+                    </header>
                     <dl className="admin-customers__dl">
                         <dt>Business name</dt>
                         <dd>{customer.businessName || <em className="admin-customers__muted">(not set)</em>}</dd>
@@ -137,19 +184,9 @@ export default function AdminCustomerDetail() {
                             ) : <em className="admin-customers__muted">(not set)</em>}
                         </dd>
                         <dt>EIN / Tax ID</dt>
-                        <dd>
-                            <em className="admin-customers__muted">
-                                Encrypted at rest. Decryption requires <code>customers.read.business_fields</code>{' '}
-                                (lands in M5.5 B10).
-                            </em>
-                        </dd>
+                        <dd>{renderEinField(customer.viewerCanSeeBusinessFields, customer.hasEncryptedTaxId, customer.businessTaxId)}</dd>
                         <dt>Billing address</dt>
-                        <dd>
-                            <em className="admin-customers__muted">
-                                Encrypted at rest. Decryption requires <code>customers.read.business_fields</code>{' '}
-                                (lands in M5.5 B10).
-                            </em>
-                        </dd>
+                        <dd>{renderBillingAddressField(customer.viewerCanSeeBusinessFields, customer.hasEncryptedBillingAddress, customer.businessBillingAddress)}</dd>
                     </dl>
                 </section>
             )}
@@ -355,6 +392,189 @@ export default function AdminCustomerDetail() {
                     }}
                 />
             )}
+
+            {businessEditOpen && (
+                <BusinessFieldsEditModal
+                    customer={customer}
+                    onClose={() => setBusinessEditOpen(false)}
+                    onSaved={() => {
+                        setBusinessEditOpen(false);
+                        reload();
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+// Post-M6 D-1a — edits client_type + business_* fields via PUT /:id/business.
+// EIN client-side validated against XX-XXXXXXX before submit; address fields
+// are independently optional. Backend re-encrypts both EIN + billing address
+// before writing to D1.
+function BusinessFieldsEditModal({ customer, onClose, onSaved }) {
+    const initialAddress = customer.businessBillingAddress || {};
+    const [clientType, setClientType] = useState(customer.clientType || 'individual');
+    const [businessName, setBusinessName] = useState(customer.businessName || '');
+    const [businessWebsite, setBusinessWebsite] = useState(customer.businessWebsite || '');
+    const [businessTaxId, setBusinessTaxId] = useState(customer.businessTaxId || '');
+    const [line1, setLine1] = useState(initialAddress.line1 || '');
+    const [line2, setLine2] = useState(initialAddress.line2 || '');
+    const [city, setCity] = useState(initialAddress.city || '');
+    const [state, setState] = useState(initialAddress.state || '');
+    const [postal, setPostal] = useState(initialAddress.postal || '');
+    const [country, setCountry] = useState(initialAddress.country || '');
+    const [submitting, setSubmitting] = useState(false);
+    const [err, setErr] = useState(null);
+
+    const einError = (() => {
+        const v = (businessTaxId || '').trim();
+        if (!v) return null;
+        if (!/^\d{2}-\d{7}$/.test(v)) return 'EIN must be XX-XXXXXXX';
+        return null;
+    })();
+
+    async function submit(e) {
+        e.preventDefault();
+        if (einError) { setErr(einError); return; }
+        setSubmitting(true);
+        setErr(null);
+
+        const billing = {};
+        if (line1.trim()) billing.line1 = line1.trim();
+        if (line2.trim()) billing.line2 = line2.trim();
+        if (city.trim()) billing.city = city.trim();
+        if (state.trim()) billing.state = state.trim();
+        if (postal.trim()) billing.postal = postal.trim();
+        if (country.trim()) billing.country = country.trim();
+
+        try {
+            const res = await fetch(
+                `/api/admin/customers/${encodeURIComponent(customer.id)}/business`,
+                {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clientType,
+                        businessName: businessName.trim() || null,
+                        businessWebsite: businessWebsite.trim() || null,
+                        businessTaxId: businessTaxId.trim() || null,
+                        businessBillingAddress: Object.keys(billing).length ? billing : null,
+                    }),
+                },
+            );
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setErr(json.error || `HTTP ${res.status}`);
+                return;
+            }
+            onSaved?.();
+        } catch (e2) {
+            setErr(String(e2.message || e2));
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    return (
+        <div className="admin-customers__modal-backdrop" onClick={onClose}>
+            <div className="admin-customers__modal" onClick={(e) => e.stopPropagation()}>
+                <header className="admin-customers__modal-header">
+                    <h2>Edit business profile</h2>
+                    <button type="button" className="admin-customers__modal-close" onClick={onClose} aria-label="Close">×</button>
+                </header>
+
+                <form onSubmit={submit}>
+                    <div className="admin-customers__modal-body">
+                        <label style={{ display: 'block', marginBottom: '0.85rem' }}>
+                            <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Client type</span>
+                            <select
+                                value={clientType}
+                                onChange={(e) => setClientType(e.target.value)}
+                                className="admin-customers__merge-search"
+                            >
+                                <option value="individual">Individual</option>
+                                <option value="business">Business</option>
+                            </select>
+                        </label>
+
+                        <label style={{ display: 'block', marginBottom: '0.85rem' }}>
+                            <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Business name</span>
+                            <input
+                                type="text"
+                                value={businessName}
+                                onChange={(e) => setBusinessName(e.target.value)}
+                                className="admin-customers__merge-search"
+                                placeholder="Acme Corp"
+                            />
+                        </label>
+
+                        <label style={{ display: 'block', marginBottom: '0.85rem' }}>
+                            <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Website</span>
+                            <input
+                                type="url"
+                                value={businessWebsite}
+                                onChange={(e) => setBusinessWebsite(e.target.value)}
+                                className="admin-customers__merge-search"
+                                placeholder="https://acme.example"
+                            />
+                        </label>
+
+                        <label style={{ display: 'block', marginBottom: '0.85rem' }}>
+                            <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>
+                                EIN / Tax ID <small style={{ color: '#6b7280', fontWeight: 'normal' }}>(encrypted at rest)</small>
+                            </span>
+                            <input
+                                type="text"
+                                value={businessTaxId}
+                                onChange={(e) => setBusinessTaxId(e.target.value)}
+                                className="admin-customers__merge-search"
+                                placeholder="XX-XXXXXXX"
+                            />
+                            {einError && <small style={{ color: '#dc2626', display: 'block', marginTop: '0.25rem' }}>{einError}</small>}
+                        </label>
+
+                        <h3 style={{ marginTop: '1.25rem', marginBottom: '0.5rem' }}>
+                            Billing address <small style={{ color: '#6b7280', fontWeight: 'normal' }}>(encrypted at rest)</small>
+                        </h3>
+                        <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+                            <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Line 1</span>
+                            <input type="text" value={line1} onChange={(e) => setLine1(e.target.value)} className="admin-customers__merge-search" />
+                        </label>
+                        <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+                            <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Line 2</span>
+                            <input type="text" value={line2} onChange={(e) => setLine2(e.target.value)} className="admin-customers__merge-search" />
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                            <label>
+                                <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>City</span>
+                                <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className="admin-customers__merge-search" />
+                            </label>
+                            <label>
+                                <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>State</span>
+                                <input type="text" value={state} onChange={(e) => setState(e.target.value)} className="admin-customers__merge-search" />
+                            </label>
+                            <label>
+                                <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Postal</span>
+                                <input type="text" value={postal} onChange={(e) => setPostal(e.target.value)} className="admin-customers__merge-search" />
+                            </label>
+                        </div>
+                        <label style={{ display: 'block', marginBottom: '0.85rem' }}>
+                            <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Country</span>
+                            <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} className="admin-customers__merge-search" />
+                        </label>
+
+                        {err && <p className="admin-customers__error">Error: {err}</p>}
+                    </div>
+
+                    <footer className="admin-customers__modal-footer">
+                        <button type="button" className="admin-customers__btn" onClick={onClose} disabled={submitting}>Cancel</button>
+                        <button type="submit" className="admin-customers__btn admin-customers__btn--primary" disabled={submitting || !!einError}>
+                            {submitting ? 'Saving…' : 'Save changes'}
+                        </button>
+                    </footer>
+                </form>
+            </div>
         </div>
     );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { BrowserMultiFormatReader, BrowserCodeReader } from '@zxing/browser';
 import { useAdmin } from './AdminContext';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
@@ -8,6 +8,9 @@ import EmptyState from '../components/admin/EmptyState.jsx';
 export default function AdminScan() {
   const { isAuthenticated, loading } = useAdmin();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const expectedEventId = searchParams.get('event');
+  const [expectedEvent, setExpectedEvent] = useState(null);
 
   const videoRef = useRef(null);
   const readerRef = useRef(null);
@@ -29,6 +32,25 @@ export default function AdminScan() {
     if (loading) return;
     if (!isAuthenticated) navigate('/admin/login');
   }, [loading, isAuthenticated, navigate]);
+
+  // Post-M6 D-3: fetch the deep-link target event details (if any) so we
+  // can display "Scanning for: <title>" in the header and warn when a
+  // scanned attendee belongs to a different event.
+  useEffect(() => {
+    if (!expectedEventId || !isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/events/${encodeURIComponent(expectedEventId)}`, {
+          credentials: 'include', cache: 'no-store',
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setExpectedEvent(data.event || null);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [expectedEventId, isAuthenticated]);
 
   const stopScan = useCallback(() => {
     try { controlsRef.current?.stop?.(); } catch { /* ignore */ }
@@ -64,7 +86,11 @@ export default function AdminScan() {
         const aData = await aRes.json();
         setCurrent({ type: 'attendee', data: aData });
         setHistory((h) => [{ at: Date.now(), label: `Player: ${aData.attendee.firstName} ${aData.attendee.lastName || ''}` }, ...h].slice(0, 10));
-        if (!aData.attendee.waiverSigned) showFlashLocal('warn', 'Waiver not signed');
+        // Post-M6 D-3: warn when scanned attendee belongs to a different event
+        // than the one this scanner was opened for (via ?event= deep-link).
+        if (expectedEventId && aData.event?.id && aData.event.id !== expectedEventId) {
+          showFlashLocal('warn', `⚠ Different event: ${aData.event.title || aData.event.id}`, 3000);
+        } else if (!aData.attendee.waiverSigned) showFlashLocal('warn', 'Waiver not signed');
         else if (aData.attendee.checkedInAt) showFlashLocal('ok', 'Already checked in');
         else showFlashLocal('ok', 'Ready to check in');
       } else if (data.type === 'item') {
@@ -75,7 +101,7 @@ export default function AdminScan() {
     } catch {
       showFlashLocal('err', 'Scan failed');
     }
-  }, []);
+  }, [expectedEventId]);
 
   const startScan = useCallback(async (overrideDeviceId) => {
     setError('');
@@ -216,7 +242,11 @@ export default function AdminScan() {
     <div style={container}>
       <AdminPageHeader
         title="QR Scanner"
-        description="Scan player QR codes to check them in, view their info, or assign rental equipment."
+        description={
+          expectedEvent
+            ? `Scanning for: ${expectedEvent.title}${expectedEvent.displayDate ? ' — ' + expectedEvent.displayDate : ''}`
+            : 'Scan player QR codes to check them in, view their info, or assign rental equipment.'
+        }
       />
 
       <div style={videoBox}>

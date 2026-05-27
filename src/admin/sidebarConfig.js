@@ -77,6 +77,7 @@ export const SIDEBAR = [
             { type: 'item', to: '/admin/audit-log', label: 'Audit' },
             { type: 'item', to: '/admin/waivers', label: 'Waivers' },
             { type: 'item', to: '/admin/vendor-package-templates', label: 'Vendor Templates' },
+            { type: 'item', to: '/admin/event-archive', label: 'Event Archive' },
         ],
     },
 ];

@@ -173,6 +173,8 @@ Four behaviors of Cloudflare D1 + wrangler discovered during M3 and M5.5 that bi
 
 4. **(Added 2026-05-11 in M5.5 B2)** **`wrangler d1 execute --json --file=` returns a SUMMARY row, NOT the actual SELECT row data, when run against `--remote`.** Against `--local`, the same flag returns the real row data. Symptom: a Node script calling `--file` for a SELECT receives `[{"results": [{"Total queries executed": 1, "Rows read": N, "Rows written": 0, "Database size (MB)": "X"}], ...}]` instead of the expected `[{"results": [{...row}, ...]}]`. For read queries, **use `--command=` (NOT `--file=`)** — `--command` returns row data on both local and remote. `--file` is still appropriate for multi-statement WRITES (INSERT/UPDATE/CREATE), where the summary is acceptable. Reference: M5.5 B2's [scripts/seed-sites.js](scripts/seed-sites.js) + [scripts/backfill-events-site-id.js](scripts/backfill-events-site-id.js) (hotfix after the first remote run silently failed to update `events.site_id` because the script's read-back interpreted the summary row as one phantom "site").
 
+5. **(Added 2026-05-27 in post-M6 Track C)** **`capabilities` table production column is `category`, NOT `scope`.** Production schema: `CREATE TABLE capabilities (key TEXT PRIMARY KEY, category TEXT NOT NULL, description TEXT NOT NULL, requires_capability_key TEXT REFERENCES capabilities(key), created_at INTEGER NOT NULL)`. Migration 0061's first apply failed with `table capabilities has no column named scope`. Spot-check via `SELECT sql FROM sqlite_master WHERE name='capabilities'` before authoring any migration that seeds caps. Verified: D1 transactional safety means the failed CREATE TABLE was NOT partial-applied — table didn't exist after failure. Reference: [migrations/0061_event_archive_links.sql](migrations/0061_event_archive_links.sql).
+
 ### Where to find each audit document
 
 - [docs/audit/00-overview.md](docs/audit/00-overview.md) — executive summary; start here
@@ -783,6 +785,63 @@ Operator acknowledgment in effect: schema migrations + the public booking flow c
    - **First**: confirm operator-side live cutover items 1-5 status. If complete, immediately run the $1 live e2e to validate B5+B6.
    - **Then**: B7 (damage charge Option A activation) → B8 (admin UI polish) → B9 (remove saved PM) → B11 (closing runbooks).
    - **Parallel work OK without cutover**: any of the M5.5 polish backlog items, HR coordinator role_preset, past-games archive page. B7-B9 can also develop against sandbox if you choose (their live verification waits for cutover regardless).
+
+---
+
+### Post-M6 polish session — 2026-05-27 (8 PRs)
+
+Single-session sprint clearing the post-M6 backlog from `docs/next-session.md`. Knocked out all polish tracks (B/C/D), shipped Marketing milestone B1 (Segments), plus a sidebar-entry follow-up. **All 8 PRs open + green; operator merges + Workers Builds auto-deploys.** Full details in memory `post_m6_polish_session.md`; key state captured here.
+
+**PRs opened:**
+
+| PR | Track | Migration | Notes |
+|---|---|---|---|
+| [#202](https://github.com/bulletbiter99/air-action-sports/pull/202) | B — HR coordinator preset | 0059 applied ✓ | Data-only; tier-2 preset + 3 cap bindings |
+| [#203](https://github.com/bulletbiter99/air-action-sports/pull/203) | D-3 — Lead-stale clear + scan `?event=` deep-link | — | 4 UPDATE statements + 2 JSX integrations |
+| [#204](https://github.com/bulletbiter99/air-action-sports/pull/204) | D-1a — Customers AES decryption surface | — | GET decrypts EIN+billing; PUT /:id/business edits |
+| [#205](https://github.com/bulletbiter99/air-action-sports/pull/205) | D-1b — Admin POST customers + create modal | — | Phone-intake operator flow; base = D-1a branch |
+| [#206](https://github.com/bulletbiter99/air-action-sports/pull/206) | D-2 — Recurrence `day_of_month` + UNIQUE constraint | 0060 applied ✓ | UNIQUE catches race conditions silently |
+| [#207](https://github.com/bulletbiter99/air-action-sports/pull/207) | C — Past-games archive page | 0061 applied ✓ | `/games` + `/admin/event-archive`; new `events.archive.write` cap |
+| [#208](https://github.com/bulletbiter99/air-action-sports/pull/208) | Marketing B1 — Customer Segments | — | Reuses `segments` table from 0022; locks query_json contract for B2+ |
+| [#209](https://github.com/bulletbiter99/air-action-sports/pull/209) | Sidebar Event Archive entry (Track C follow-up) | — | 2 files; sidebar entry under Settings group |
+
+**Totals shipped:** ~5,000 LOC across ~38 files · +131 new tests (M6 baseline 2292 → 2341 on largest branch) · 3 D1 migrations live on remote · 1 new capability + 2 role bindings · 0 DNT violations.
+
+**Per-batch operating rules** (same as M6, no deviation):
+- Plan-mode-first per batch
+- 8-file operating target / 10-file hard ceiling — used branch-chains (D-1b off D-1a) and inline-styles (JSX) to fit
+- Conventional Commits with track-aware scope (`polish(...)` / `feat(marketing)` / `feat(archive)`)
+- All migrations spot-checked before applying — caught the `capabilities.category` column-name mismatch before any partial-apply damage
+
+**Durable lessons added** (full details in memory `post_m6_polish_session.md`):
+
+1. **`capabilities` table column is `category`, NOT `scope`** — added as D1 quirk #5 in the subsection above. Always spot-check before authoring any migration that seeds caps.
+
+2. **`hasCapability` is sync — needs `user.capabilities` preloaded** via `listCapabilities(c.env, user.id)` for routes that don't use `requireCapability` middleware. Without preload, falls through to `LEGACY_ROLE_CAPABILITIES` which only has 5 bookings-related caps; any M5+ capability check returns false. Caught in D-1a test failures; documented in [worker/routes/admin/customers.js](worker/routes/admin/customers.js) post-fix.
+
+3. **Branch-chains work cleanly for dependent PRs.** D-1b branched off D-1a's branch (not main) so it inherited the encrypt import D-1a added; `gh pr create --base <prereq-branch>` sets the GitHub base correctly. When D-1a merges, D-1b auto-bases. Avoids merge conflicts on shared file edits.
+
+4. **Sidebar test indices are brittle — M5 R0c pattern keeps recurring.** Any sidebar entry addition triggers 3-5 line test updates. Future M7 candidate: refactor `sidebarConfig.test.js` to use `find((e) => e.to === '/admin/foo')` instead of index-based asserts. (Marketing B1 + Sidebar Event Archive PRs both hit this.)
+
+5. **`npm run lint` hits dist/ files** (24k pre-existing errors from minified output). Files actually touched show 0 errors. Use `npx eslint <files>` to verify your changes; don't trust the global lint output. ESLint config needs a `dist/` ignore — M7 candidate.
+
+**Untracked items in working tree to NOT commit:**
+- `marketing/` (folder, pre-existing)
+- `public/images/logo-hero-fallback.png.PNG` (pre-existing)
+
+These have been in the working tree since before this session. PR commits explicitly stage by file name (never `git add -A`).
+
+**Suggested merge order when operator reviews:**
+1. #202 HR preset (data-only, zero risk)
+2. #207 Past-games archive (migration already applied; backend additive)
+3. #209 Sidebar Event Archive (depends on #207's page existing)
+4. #206 Recurrence + UNIQUE (migration already applied)
+5. #203 Lead-stale + deep-links (no migration)
+6. #204 D-1a Customers AES (no migration)
+7. #205 D-1b Customers POST (auto-bases on #204 merge)
+8. #208 Marketing B1 (no migration; sidebar conflict with #209 resolves trivially)
+
+**M7 scope: TBD** — operator deferred to next session. See [docs/next-session.md](docs/next-session.md) for the backlog menu.
 
 ---
 
