@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import FilterBar from '../components/admin/FilterBar';
 import { formatMoney } from '../utils/money.js';
+import CustomerCreateModal from './CustomerCreateModal.jsx';
 import './AdminCustomers.css';
 
 const FILTER_SCHEMA = [
@@ -32,6 +33,7 @@ export default function AdminCustomers() {
     const [data, setData] = useState({ total: 0, customers: [] });
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState(null);
+    const [createOpen, setCreateOpen] = useState(false);
 
     const archivedParam = filters.archived || 'false';
 
@@ -73,11 +75,20 @@ export default function AdminCustomers() {
 
     return (
         <div className="admin-customers">
-            <header className="admin-customers__header">
-                <h1>Customers</h1>
-                <p className="admin-customers__subtitle">
-                    {data.total} {data.total === 1 ? 'customer' : 'customers'}
-                </p>
+            <header className="admin-customers__header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                <div>
+                    <h1>Customers</h1>
+                    <p className="admin-customers__subtitle">
+                        {data.total} {data.total === 1 ? 'customer' : 'customers'}
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    className="admin-customers__btn admin-customers__btn--primary"
+                    onClick={() => setCreateOpen(true)}
+                >
+                    + New customer
+                </button>
             </header>
 
             <FilterBar
@@ -152,6 +163,19 @@ export default function AdminCustomers() {
                         Next →
                     </button>
                 </div>
+            )}
+
+            {createOpen && (
+                <CustomerCreateModal
+                    onClose={() => setCreateOpen(false)}
+                    onCreated={(newId) => {
+                        setCreateOpen(false);
+                        if (newId) {
+                            // Reload to surface the new row + bump total
+                            fetchPage();
+                        }
+                    }}
+                />
             )}
         </div>
     );
