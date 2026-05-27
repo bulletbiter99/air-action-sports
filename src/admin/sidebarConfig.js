@@ -51,6 +51,7 @@ export const SIDEBAR = [
     // so it can stay configuration-only). Order: insights (Analytics /
     // Feedback) before marketing/partner ops (Promo Codes / Vendors).
     { type: 'item', to: '/admin/analytics', label: 'Analytics' },
+    { type: 'item', to: '/admin/segments', label: 'Segments' },
     {
         type: 'item',
         to: '/admin/feedback',
