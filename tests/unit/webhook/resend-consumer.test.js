@@ -13,6 +13,7 @@ import worker from '../../../worker/index.js';
 import { createMockEnv } from '../../helpers/mockEnv.js';
 import { signSvixWebhook } from '../../helpers/svixSignature.js';
 import { createCapturedCtx } from '../../helpers/webhookFixture.js';
+import { mockResendFetch } from '../../helpers/mockResend.js';
 
 // Valid base64 after the whsec_ prefix.
 const SECRET = 'whsec_c3ZpeF90ZXN0X3NlY3JldF8wMQ==';
@@ -177,5 +178,70 @@ describe('Resend events we do not act on', () => {
         expect(res.status).toBe(200);
         expect(find(env, /INSERT INTO email_events/)).toBeUndefined();
         expect(find(env, /INSERT INTO audit_log/)).toBeUndefined();
+    });
+});
+
+// ── M7 B10 — admin alert emails (fire on hard bounce + complaint only) ──────
+
+const ALERT_TEMPLATE = {
+    id: 'tpl_x', slug: 'x',
+    subject: '{{recipient}}',
+    body_html: '<p>{{recipient}} {{customer}} {{admin_link}}</p>',
+    body_text: '{{recipient}}',
+    variables_json: null, status: 'published',
+};
+const resendCalls = () => (globalThis.fetch.mock?.calls || []).filter(([u]) => u === 'https://api.resend.com/emails');
+
+describe('email alerts (M7 B10)', () => {
+    function seed(env, { customer = { id: 'cus_1', email_marketing: 1 } } = {}) {
+        env.DB.__on(/SELECT id FROM email_events WHERE svix_message_id/, null, 'first');
+        env.DB.__on(/SELECT id, email_marketing FROM customers/, customer, 'first');
+        env.DB.__on(/FROM email_templates WHERE slug/, ALERT_TEMPLATE, 'first');
+    }
+
+    it('hard bounce → queues a bounce_alert email to admin', async () => {
+        const env = makeEnv();
+        seed(env);
+        mockResendFetch();
+        await postResend(env, bounceEvent({ bounceType: 'hard' }));
+        const calls = resendCalls();
+        expect(calls.length).toBe(1);
+        const body = JSON.parse(calls[0][1].body);
+        expect(body.to).toEqual(['test@example.com']);
+        expect(body.tags?.find((t) => t.name === 'type')?.value).toBe('bounce_alert');
+    });
+
+    it('complaint → queues a complaint_alert email to admin', async () => {
+        const env = makeEnv();
+        seed(env);
+        mockResendFetch();
+        await postResend(env, complaintEvent());
+        const calls = resendCalls();
+        expect(calls.length).toBe(1);
+        expect(JSON.parse(calls[0][1].body).tags?.find((t) => t.name === 'type')?.value).toBe('complaint_alert');
+    });
+
+    it('soft bounce → records but does NOT queue an alert', async () => {
+        const env = makeEnv();
+        seed(env);
+        mockResendFetch();
+        await postResend(env, bounceEvent({ bounceType: 'soft' }));
+        expect(resendCalls().length).toBe(0);
+    });
+
+    it('orphan hard bounce (no customer) → still alerts', async () => {
+        const env = makeEnv();
+        seed(env, { customer: null });
+        mockResendFetch();
+        await postResend(env, bounceEvent({ bounceType: 'hard', email: 'ghost@example.com' }));
+        expect(resendCalls().length).toBe(1);
+    });
+
+    it('self-alert guard: recipient == ADMIN_NOTIFY_EMAIL → no alert (loop prevention)', async () => {
+        const env = makeEnv(); // ADMIN_NOTIFY_EMAIL = test@example.com
+        seed(env, { customer: null });
+        mockResendFetch();
+        await postResend(env, bounceEvent({ bounceType: 'hard', email: 'test@example.com' }));
+        expect(resendCalls().length).toBe(0);
     });
 });

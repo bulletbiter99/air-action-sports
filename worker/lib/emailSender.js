@@ -548,3 +548,70 @@ export async function sendPromoCodeIssued(env, {
         ],
     });
 }
+
+// M7 B10 — admin alert emails for the Resend bounce/complaint consumer
+// (worker/routes/webhooks.js handleResendEmailEvent). Append-only senders (the
+// pre-existing senders are untouched). They fire only for the actionable event
+// types — a HARD bounce or a spam complaint — wired via waitUntil in the
+// /resend route. `emailEvent` is the normalized record the consumer built:
+// { type, bounceType, recipient, resendEmailId, customerId, suppressed }.
+//
+// Resend tag values only allow [a-zA-Z0-9_-], so the recipient email (which has
+// @ and .) is NOT used as a tag — it lives in the subject + body instead.
+
+function alertVars(env, emailEvent) {
+    const { recipient, resendEmailId, customerId, suppressed } = emailEvent;
+    return {
+        recipient: recipient || 'unknown',
+        customer: customerId || 'no matching customer',
+        admin_link: customerId
+            ? `${env.SITE_URL || ''}/admin/customers/${customerId}`
+            : `${env.SITE_URL || ''}/admin/customers`,
+        suppressed: suppressed ? 'suppressed (marketing email turned off)' : 'unchanged',
+        resend_email_id: resendEmailId || 'unknown',
+    };
+}
+
+export async function sendBounceAlert(env, { emailEvent }) {
+    const adminEmail = env.ADMIN_NOTIFY_EMAIL;
+    if (!adminEmail) return { skipped: 'no_admin_email' };
+
+    const template = await loadTemplate(env.DB, 'bounce_alert');
+    if (!template) return { skipped: 'template_missing' };
+
+    const vars = { ...alertVars(env, emailEvent), bounce_type: emailEvent.bounceType || 'unknown' };
+    const rendered = renderTemplate(template, vars);
+
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: adminEmail,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: 'bounce_alert' },
+            { name: 'bounce_type', value: emailEvent.bounceType || 'unknown' },
+        ],
+    });
+}
+
+export async function sendComplaintAlert(env, { emailEvent }) {
+    const adminEmail = env.ADMIN_NOTIFY_EMAIL;
+    if (!adminEmail) return { skipped: 'no_admin_email' };
+
+    const template = await loadTemplate(env.DB, 'complaint_alert');
+    if (!template) return { skipped: 'template_missing' };
+
+    const rendered = renderTemplate(template, alertVars(env, emailEvent));
+
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: adminEmail,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [{ name: 'type', value: 'complaint_alert' }],
+    });
+}
