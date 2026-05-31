@@ -25,6 +25,9 @@ export default function ReportFilters({
     const [period, setPeriod] = useState(value?.period || 'mtd');
     const [comparison, setComparison] = useState(value?.comparison || false);
     const [eventId, setEventId] = useState(value?.eventId || 'all');
+    // Custom date range (Batch 11a) — sensible defaults: last 30 days.
+    const [from, setFrom] = useState(value?.from || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
+    const [to, setTo] = useState(value?.to || new Date().toISOString().slice(0, 10));
     const [events, setEvents] = useState([]);
     const [eventsLoading, setEventsLoading] = useState(false);
 
@@ -50,9 +53,9 @@ export default function ReportFilters({
 
     // Notify parent on any change.
     const notify = useCallback((next) => {
-        const merged = { period, comparison, eventId, ...next };
+        const merged = { period, comparison, eventId, from, to, ...next };
         onChange?.(merged);
-    }, [period, comparison, eventId, onChange]);
+    }, [period, comparison, eventId, from, to, onChange]);
 
     return (
         <div style={wrap}>
@@ -100,10 +103,29 @@ export default function ReportFilters({
             )}
 
             {period === 'custom' && (
-                <div style={customNote}>
-                    Custom date range coming in Batch 11 polish — for now this falls back to
-                    last 30 days.
-                </div>
+                <>
+                    <label style={field}>
+                        <span style={label}>From</span>
+                        <input
+                            type="date"
+                            value={from}
+                            max={to}
+                            onChange={(e) => { setFrom(e.target.value); notify({ from: e.target.value }); }}
+                            style={select}
+                        />
+                    </label>
+                    <label style={field}>
+                        <span style={label}>To</span>
+                        <input
+                            type="date"
+                            value={to}
+                            min={from}
+                            max={new Date().toISOString().slice(0, 10)}
+                            onChange={(e) => { setTo(e.target.value); notify({ to: e.target.value }); }}
+                            style={select}
+                        />
+                    </label>
+                </>
             )}
         </div>
     );
@@ -146,12 +168,4 @@ const select = {
     border: '1px solid var(--color-border-strong)',
     color: 'var(--color-text)',
     minWidth: 200,
-};
-
-const customNote = {
-    flex: '1 1 100%',
-    padding: '0.5rem',
-    color: 'var(--color-text-muted)',
-    fontSize: '0.85rem',
-    fontStyle: 'italic',
 };

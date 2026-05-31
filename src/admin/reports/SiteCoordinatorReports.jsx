@@ -12,7 +12,8 @@
 // page for COI deep-links. Field rentals have 0 production rows today, so
 // empty states are expected.
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useReportData, downloadReportCsv } from './reportData.js';
 import { Link } from 'react-router-dom';
 import ReportFilters from './ReportFilters.jsx';
 import ReportLayout from './ReportLayout.jsx';
@@ -24,37 +25,8 @@ import { formatMoney } from '../../utils/money.js';
 
 const SC_BASE = '/api/admin/reports/site-coordinator';
 
-function buildQuery(f, csv = false) {
-    const p = new URLSearchParams();
-    if (f.period) p.set('period', f.period);
-    if (csv) p.set('format', 'csv');
-    const s = p.toString();
-    return s ? `?${s}` : '';
-}
-
-function useReport(path, filters) {
-    const [state, setState] = useState({ data: null, loading: true, error: null });
-    useEffect(() => {
-        let cancelled = false;
-        setState((s) => ({ ...s, loading: true, error: null }));
-        fetch(`${SC_BASE}/${path}${buildQuery(filters)}`, { credentials: 'include', cache: 'no-store' })
-            .then(async (res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
-            .then((data) => { if (!cancelled) setState({ data, loading: false, error: null }); })
-            .catch((e) => { if (!cancelled) setState({ data: null, loading: false, error: e.message }); });
-        return () => { cancelled = true; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [path, filters.period]);
-    return state;
-}
-
-function downloadCsv(path, filters) {
-    const a = document.createElement('a');
-    a.href = `${SC_BASE}/${path}${buildQuery(filters, true)}`;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-}
+function useReport(path, filters) { return useReportData(SC_BASE, path, filters); }
+const downloadCsv = (path, filters) => downloadReportCsv(SC_BASE, path, filters);
 
 const money = (cents) => formatMoney(cents);
 

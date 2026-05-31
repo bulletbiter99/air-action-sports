@@ -55,8 +55,23 @@ function reportParams(c) {
     const cmp = url.searchParams.get('comparison');
     const comparison = cmp === '1' || cmp === 'true';
     const format = (url.searchParams.get('format') || 'json').toLowerCase();
-    const window = resolvePeriodWindow(period, Date.now());
+    // Custom date range (Batch 11a) — from/to are ISO YYYY-MM-DD. Invalid/missing
+    // → null → resolver falls back to last_30d (unchanged for non-custom requests).
+    const customBounds = parseCustomBounds(url.searchParams.get('from'), url.searchParams.get('to'));
+    const window = resolvePeriodWindow(period, Date.now(), customBounds);
     return { period, eventId, comparison, format, window };
+}
+
+// Convert ISO date-only strings (YYYY-MM-DD) into a UTC [startMs, endMs) window.
+// `from` is 00:00:00Z; `to` advances one day so the selected end day is inclusive.
+// Returns null when either is missing or unparseable (resolvePeriodWindow then
+// validates start < end and falls back to last_30d if not).
+function parseCustomBounds(from, to) {
+    if (!from || !to) return null;
+    const startMs = Date.parse(`${from}T00:00:00Z`);
+    const toMs = Date.parse(`${to}T00:00:00Z`);
+    if (!Number.isFinite(startMs) || !Number.isFinite(toMs)) return null;
+    return { startMs, endMs: toMs + 86400000 };
 }
 
 // CSV export is gated on the reports.export capability (in addition to the

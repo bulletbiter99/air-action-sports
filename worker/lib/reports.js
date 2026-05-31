@@ -22,6 +22,7 @@ const PERIOD_LABELS = {
     ytd: 'Year to date',
     last_30d: 'Last 30 days',
     last_90d: 'Last 90 days',
+    custom: 'Custom range',
 };
 
 export const SUPPORTED_PERIODS = ['mtd', 'qtd', 'ytd', 'last_30d', 'last_90d', 'custom'];
@@ -30,18 +31,33 @@ export const SUPPORTED_PERIODS = ['mtd', 'qtd', 'ytd', 'last_30d', 'last_90d', '
  * Resolve a period selector into a half-open [startMs, endMs) window.
  * endMs is always "now". UTC boundaries for calendar periods.
  *
- * `custom` is not yet wired (Batch 11 polish) and falls back to last_30d,
- * matching the note in src/admin/reports/ReportFilters.jsx.
+ * `custom` uses the caller-supplied customBounds when valid (Batch 11a);
+ * otherwise it falls back to last_30d (missing/invalid range).
  *
  * @param {string} period - mtd | qtd | ytd | last_30d | last_90d | custom
  * @param {number} nowMs
+ * @param {{ startMs:number, endMs:number }} [customBounds] - used only when period==='custom'
  * @returns {{ period: string, requestedPeriod: string, startMs: number, endMs: number, label: string }}
  */
-export function resolvePeriodWindow(period, nowMs) {
+export function resolvePeriodWindow(period, nowMs, customBounds) {
     const now = Number.isFinite(nowMs) ? nowMs : Date.now();
     const d = new Date(now);
     const y = d.getUTCFullYear();
     const m = d.getUTCMonth();
+
+    // Custom range (Batch 11a): a valid [startMs, endMs) from the caller wins.
+    // Must be finite with start < end; otherwise fall through to last_30d.
+    if (period === 'custom' && customBounds
+        && Number.isFinite(customBounds.startMs) && Number.isFinite(customBounds.endMs)
+        && customBounds.startMs < customBounds.endMs) {
+        return {
+            period: 'custom',
+            requestedPeriod: 'custom',
+            startMs: customBounds.startMs,
+            endMs: customBounds.endMs,
+            label: PERIOD_LABELS.custom,
+        };
+    }
 
     let startMs;
     let resolved = period;

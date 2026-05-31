@@ -65,6 +65,31 @@ describe('resolvePeriodWindow', () => {
         expect(resolvePeriodWindow('nonsense', NOW).period).toBe('last_30d');
     });
 
+    // Batch 11a — custom date range
+    it('custom with valid bounds uses the supplied window', () => {
+        const start = Date.UTC(2026, 0, 1);  // 2026-01-01
+        const end = Date.UTC(2026, 2, 1);    // 2026-03-01
+        const w = resolvePeriodWindow('custom', NOW, { startMs: start, endMs: end });
+        expect(w.period).toBe('custom');
+        expect(w.requestedPeriod).toBe('custom');
+        expect(w.startMs).toBe(start);
+        expect(w.endMs).toBe(end);
+        expect(w.label).toBe('Custom range');
+    });
+
+    it('custom falls back to last_30d when bounds are missing, non-finite, or inverted', () => {
+        expect(resolvePeriodWindow('custom', NOW, { startMs: 1 }).period).toBe('last_30d');             // missing endMs
+        expect(resolvePeriodWindow('custom', NOW, { startMs: NaN, endMs: 10 }).period).toBe('last_30d'); // non-finite
+        expect(resolvePeriodWindow('custom', NOW, { startMs: 100, endMs: 100 }).period).toBe('last_30d'); // start == end
+        expect(resolvePeriodWindow('custom', NOW, { startMs: 200, endMs: 100 }).period).toBe('last_30d'); // start > end
+    });
+
+    it('customBounds is ignored for non-custom periods', () => {
+        const w = resolvePeriodWindow('mtd', NOW, { startMs: 1, endMs: 2 });
+        expect(w.period).toBe('mtd');
+        expect(w.startMs).not.toBe(1);
+    });
+
     it('SUPPORTED_PERIODS lists the six selectors', () => {
         expect(SUPPORTED_PERIODS).toEqual(['mtd', 'qtd', 'ytd', 'last_30d', 'last_90d', 'custom']);
     });
