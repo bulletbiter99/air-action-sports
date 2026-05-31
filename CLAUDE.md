@@ -849,7 +849,7 @@ These have been in the working tree since before this session. PR commits explic
 
 **Long-lived branch:** `milestone/7-reports-search-virtualized` (off `main` at `1e6062b` Marketing B1 merge). Sub-branches use **flat `m7-batch-N-slug` naming** (same git ref-collision workaround M1-M5.5 used). PRs target the milestone branch; milestone merges to main at M7 close in Batch 12 per the M3-era pattern.
 
-**Status (as of 2026-05-27):** 3 of 12 batches complete + merged to milestone. **Batch 2 (Owner reports backend + UI) is next.**
+**Status (as of 2026-05-31):** 8 of 12 batches complete + merged to milestone (Reports surface 0–5 + audit-log FTS5 in 6 + virtualized tables in 7). Migrations 0062/0063/0064 applied + verified on remote. **Batch 8 (Resend bounce/complaint webhook consumer, migration 0065) is next.** M7 deploys to prod at Batch 12 close (`milestone → main`); batches 0–7 are milestone-branch-only (`main` still at `1e6062b`).
 
 **Per-batch operating rules** (preserved from M7 prompt):
 - Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing
@@ -872,26 +872,26 @@ These have been in the working tree since before this session. PR commits explic
 - The 10 existing email senders in `worker/lib/emailSender.js` — only APPEND new senders (Batch 10 adds sendBounceAlert + sendComplaintAlert as 11th + 12th)
 - `worker/routes/webhooks.js` extended additively in Batch 8 (new `else if` branches for `email.bounced` + `email.complained`, matching M6's `charge.dispute.created` pattern)
 
-**Batch status (3 done, 9 remaining):**
+**Batch status (8 done, 4 remaining):**
 
 | Batch | What | Migration | PR | Status |
 |---|---|---|---|---|
-| **0** | Pre-flight verification + reports scope summary | — | [#212](https://github.com/bulletbiter99/air-action-sports/pull/212) | ✓ merged to milestone |
-| **1a** | Reports shell backend (caps + 16-endpoint stub + sidebar) | 0062 (pending operator-apply) | [#213](https://github.com/bulletbiter99/air-action-sports/pull/213) | ✓ merged to milestone |
-| **1b** | Reports shell UI (4-tab strip + ReportLayout/EmptyState/Filters + route) | — | [#214](https://github.com/bulletbiter99/air-action-sports/pull/214) | ✓ merged to milestone |
-| **2** | **Owner reports backend + UI (5 reports)** | — | — | **← NEXT** |
-| 3 | Bookkeeper reports (3 reports; 1099 thresholds links to existing M5 page) | — | — | pending |
-| 4 | Marketing reports (4 reports) | — | — | pending |
-| 5 | Site Coordinator reports (4 reports — new persona from M5.5) | — | — | pending |
-| 6 | Audit log full-text search (FTS5) | 0063 + 0064 flag | — | pending |
-| 7 | Virtualized tables (TanStack Virtual on 4 admin lists) | — | — | pending |
-| 8 | Resend bounce/complaint webhook consumer | 0065 | — | pending |
+| **0** | Pre-flight verification + reports scope summary | — | [#212](https://github.com/bulletbiter99/air-action-sports/pull/212) | ✓ merged |
+| **1a** | Reports shell backend (caps + 16-endpoint stub + sidebar) | 0062 (applied) | [#213](https://github.com/bulletbiter99/air-action-sports/pull/213) | ✓ merged |
+| **1b** | Reports shell UI (4-tab strip + ReportLayout/EmptyState/Filters + route) | — | [#214](https://github.com/bulletbiter99/air-action-sports/pull/214) | ✓ merged |
+| **2** | Owner reports backend + UI (5 reports) | — | [#216](https://github.com/bulletbiter99/air-action-sports/pull/216) | ✓ merged |
+| **3** | Bookkeeper reports (3 reports + 1099 deep-link) | — | [#217](https://github.com/bulletbiter99/air-action-sports/pull/217) | ✓ merged |
+| **4** | Marketing reports (4 reports) | — | [#218](https://github.com/bulletbiter99/air-action-sports/pull/218) | ✓ merged |
+| **5** | Site Coordinator reports (4 reports) | — | [#219](https://github.com/bulletbiter99/air-action-sports/pull/219) | ✓ merged |
+| **6** | Audit-log full-text search (FTS5), flag-gated | 0063 + 0064 (applied) | [#220](https://github.com/bulletbiter99/air-action-sports/pull/220) | ✓ merged |
+| **7** | Virtualized tables (TanStack Virtual: Roster/Events/PromoCodes/RentalAssignments) | — | [#221](https://github.com/bulletbiter99/air-action-sports/pull/221) | ✓ merged · visual verify operator-pending |
+| **8** | **Resend bounce/complaint webhook consumer** | **0065** | — | **← NEXT** |
 | 9 | Admin visual regression baselines (M4 B11 deferral resolved) | — | — | pending |
 | 10 | Email templates for bounce/complaint alerts | 0066 | — | pending |
 | 11 | Reports polish + virtualization perf tuning | — | — | pending |
-| 12 | Closing runbooks + baseline coverage + CLAUDE.md/HANDOFF.md flips | — | — | pending |
+| 12 | Closing runbooks + baseline coverage + CLAUDE.md/HANDOFF.md flips + milestone→main | — | — | pending |
 
-**M7 cumulative through Batch 1b:** test count 2424 → **2437** (+13 from Batch 1a's reports-stub tests; Batch 1b adds 0 — JSX tests deferred per project no-RTL convention from M5 carry-forward).
+**M7 cumulative through Batch 7:** test count 2424 → **2513 / 196 files** (B1a +13 reports-stub · B2 +30 owner lib+route · B3 +10 · B4 +13 · B5 +11 · B6 +12 FTS sanitizer+route · B7 +0 [JSX, no-RTL]). The Reports + FTS surfaces are fully unit-tested; the virtualized tables (B7) are build/lint-verified + operator-visual-pending. New gated paths: `worker/lib/reports.js`, `worker/routes/admin/reports.js`, `worker/lib/auditSearch.js`, `worker/routes/admin/auditLog.js`.
 
 **Migration sequence:** M7 starts at 0062 because the post-M6 polish session consumed 0059 (HR preset) / 0060 (field_rentals UNIQUE) / 0061 (event_archive_links). All three are applied to remote and now on main via merged PRs.
 
@@ -915,18 +915,11 @@ These have been in the working tree since before this session. PR commits explic
 - Settings group index: 21
 - `getVisibleItems` owner test: 22 visible items
 
-**Operator action queued before Batch 2 live smoke:**
-
-```bash
-git checkout milestone/7-reports-search-virtualized && git pull
-source .claude/.env && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
-```
-
-Spot-check via:
-- `SELECT COUNT(*) FROM capabilities WHERE key LIKE 'reports.%'` → 6
-- `SELECT COUNT(*) FROM role_preset_capabilities WHERE capability_key LIKE 'reports.%'` → 16
-
-Batch 2 dev work proceeds without this (tests use mocks); only live smoke needs it.
+**Operator actions (post-Batch-7):**
+- Migrations **0062 (reports caps) + 0063 (FTS5 index) + 0064 (audit_log_fts flag) are APPLIED + verified on remote** (2026-05-31). Verified: 6 reports caps / 16 role bindings; `audit_log_fts` rows = `audit_log` rows (rebuild + trigger); `MATCH 'cron*'` → 2463 hits; flag `state='off'`.
+- **At M7→main cutover (Batch 12)**: flip the FTS flag on — `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';` (prod runs the pre-M7 audit route until M7 deploys, so the flag is dormant on prod until then).
+- **Batch 7 visual verify** (recommended): browser-check the 4 virtualized lists — `/admin/events`, `/admin/promo-codes`, `/admin/roster?event=…`, `/admin/rentals/assignments` (columns align, smooth scroll, actions work).
+- Batch 8 ships migration 0065 (operator-applies after merge, per the standing rule).
 
 **Carry-forward observations / lessons** (added in Batches 0/1a/1b):
 
@@ -940,8 +933,8 @@ Batch 2 dev work proceeds without this (tests use mocks); only live smoke needs 
 **Resume the milestone in a fresh session:**
 1. `git checkout milestone/7-reports-search-virtualized && git pull origin milestone/7-reports-search-virtualized`
 2. `npm install`
-3. `npm test -- --run` — confirm **2437 / 193** passing
-4. `npm run build` — confirm clean (~254-264ms)
+3. `npm test -- --run` — confirm **2513 / 196** passing
+4. `npm run build` — confirm clean (~270ms)
 5. `curl https://airactionsport.com/api/health` — confirm `{"ok":true,...}`
 6. **Read [`docs/next-session.md`](docs/next-session.md) for the copy-paste prompt** + this M7 section for batch status
 7. **Confirm operator-applies status** of migration 0062 (Batch 2 dev doesn't require, smoke does)

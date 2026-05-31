@@ -4,9 +4,9 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — M7 IN PROGRESS (Batches 0/1a/1b shipped; Batch 2 next)
+## ⚠ NEW SESSION — M7 IN PROGRESS (Batches 0–7 merged; Batch 8 next)
 
-**M7 (Reports + Audit Log FTS + Virtualized Tables) is the active milestone.** 3 of 12 batches complete on the milestone branch; **Batch 2 (Owner reports backend + UI, 5 reports) is the next step**.
+**M7 (Reports + Audit Log FTS + Virtualized Tables) is the active milestone.** 8 of 12 batches complete on the milestone branch; **Batch 8 (Resend bounce/complaint webhook consumer, migration 0065) is the next step**.
 
 **For the next session prompt, use [docs/next-session.md](docs/next-session.md)** — it contains the copy-paste prompt and current state.
 
@@ -14,23 +14,29 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 |---|---|
 | Active milestone | **M7 — Reports + Audit Log FTS + Virtualized Tables** (in progress) |
 | Milestone branch | `milestone/7-reports-search-virtualized` |
-| Milestone branch HEAD | `652276f` (Merge #214 Batch 1b) |
-| `main` HEAD | `1e6062b` (Merge #208 Marketing B1) |
-| Tests on milestone | **2437 / 193 passing** |
-| Tests on main | **2424 / 192** (M6 baseline + 9 post-M6 polish PRs) |
-| Build | clean (~254-264ms) |
-| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` |
-| Latest worker | `1e6062b` deploy (post-Marketing-B1; M7 work stays on milestone, not yet in prod) |
-| D1 migrations on remote | 0001–0061 (M7's 0062 **PENDING operator-apply**) |
-| Open PRs | 0 (all 3 M7 batches + 9 polish PRs merged) |
+| Milestone branch HEAD | `54e5bd4` (Merge #221 Batch 7) |
+| `main` HEAD | `1e6062b` (Merge #208 Marketing B1) — **M7 not yet deployed to prod** |
+| Tests on milestone | **2513 / 196 passing** |
+| Build | clean (~270ms) |
+| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` (running pre-M7 `main`) |
+| D1 migrations on remote | 0001–**0064** applied (0062 reports caps · 0063 FTS5 index · 0064 audit_log_fts flag — applied + verified 2026-05-31) |
+| Open PRs | 0 (all 7 M7 batches merged to milestone) |
+
+> M7 deploys to production at milestone close (Batch 12): the milestone branch accumulates batches, and `milestone → main` (Workers-Builds auto-deploys) happens once at the end. Batches 0–7 are on the milestone branch only.
 
 ### M7 batches complete (merged to milestone branch)
 
 | Batch | PR | Status |
 |---|---|---|
-| 0 — Pre-flight verification + reports scope summary | [#212](https://github.com/bulletbiter99/air-action-sports/pull/212) | ✓ merged |
-| 1a — Reports shell backend (caps + 16-endpoint stub + sidebar) | [#213](https://github.com/bulletbiter99/air-action-sports/pull/213) | ✓ merged (operator-applies migration 0062) |
-| 1b — Reports shell UI (persona-aware tab strip + base components) | [#214](https://github.com/bulletbiter99/air-action-sports/pull/214) | ✓ merged |
+| 0 — Pre-flight verification + reports scope | [#212](https://github.com/bulletbiter99/air-action-sports/pull/212) | ✓ merged |
+| 1a — Reports shell backend (caps + 16-endpoint stub) | [#213](https://github.com/bulletbiter99/air-action-sports/pull/213) | ✓ merged · migration 0062 applied |
+| 1b — Reports shell UI (persona tab strip + base components) | [#214](https://github.com/bulletbiter99/air-action-sports/pull/214) | ✓ merged |
+| 2 — Owner reports (5) | [#216](https://github.com/bulletbiter99/air-action-sports/pull/216) | ✓ merged |
+| 3 — Bookkeeper reports (3 + 1099 link) | [#217](https://github.com/bulletbiter99/air-action-sports/pull/217) | ✓ merged |
+| 4 — Marketing reports (4) | [#218](https://github.com/bulletbiter99/air-action-sports/pull/218) | ✓ merged |
+| 5 — Site Coordinator reports (4) | [#219](https://github.com/bulletbiter99/air-action-sports/pull/219) | ✓ merged |
+| 6 — Audit-log FTS5 search (flag-gated) | [#220](https://github.com/bulletbiter99/air-action-sports/pull/220) | ✓ merged · migrations 0063+0064 applied |
+| 7 — Virtualized admin tables (TanStack Virtual) | [#221](https://github.com/bulletbiter99/air-action-sports/pull/221) | ✓ merged · visual verify operator-pending |
 
 ### Post-M6 polish session — 9 PRs all merged to main (2026-05-27)
 
@@ -46,18 +52,13 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 | [#210](https://github.com/bulletbiter99/air-action-sports/pull/210) | docs post-M6 session notes + D1 quirk #5 | — |
 | [#211](https://github.com/bulletbiter99/air-action-sports/pull/211) | D-1b — Customers POST + create modal (reopened from #205 after #204 merge) | — |
 
-### Operator action pending (gates Batch 2 LIVE smoke; not Batch 2 dev)
+### Operator action pending
 
-```bash
-git checkout milestone/7-reports-search-virtualized && git pull
-source .claude/.env && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
-```
+1. **Batch 7 visual verify** (recommended pre-close): eyeball `/admin/events`, `/admin/promo-codes`, `/admin/roster?event=…`, `/admin/rentals/assignments` — columns align with headers, smooth scroll, actions work (Events + RentalAssignments now use an inner scroll box vs page-scroll).
+2. **Flip `audit_log_fts` flag at M7→main cutover** — migrations 0063/0064 applied + index verified (fts rows = audit_log rows; `MATCH 'cron*'` → 2463 hits), but the flag is `off` (prod runs the pre-M7 audit route, which ignores it). Enable: `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';`
+3. **M6 live-Stripe cutover items 1–5** ([docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md)) — land before M7 close.
 
-Spot-check expectations:
-- `SELECT COUNT(*) FROM capabilities WHERE key LIKE 'reports.%'` → 6
-- `SELECT COUNT(*) FROM role_preset_capabilities WHERE capability_key LIKE 'reports.%'` → 16
-
-Until 0062 applies, the `/admin/reports` page shows "No reports available for your role" because `/me` won't return `reports.*` caps. Batch 2 dev (writing the 5 Owner reports) doesn't block on this — tests use mocks.
+All three M7 migrations (0062/0063/0064) are already applied + verified on remote; Batch 8 adds 0065.
 
 ### M6 operator cutover items — still pending (do NOT block M7 dev; land before M7 close)
 
