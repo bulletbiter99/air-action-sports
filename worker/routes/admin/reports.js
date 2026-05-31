@@ -1,8 +1,8 @@
 // M7 Batch 1a — admin Reports route shell.
 //
-// All 16 endpoints return 501 Not Implemented until populated in Batches 2-5
-// (per persona). Each endpoint is gated on the persona-specific capability
-// from migration 0062, so 403s fire at the cap-check stage before 501.
+// All 16 endpoints are implemented (Batches 2-5). Each is gated on the
+// persona-specific capability from migration 0062 (403 at the cap-check
+// stage); CSV export (?format=csv) additionally requires reports.export.
 //
 //   Owner reports (5)  — Batch 2: revenue-trends, retention, refund-rate,
 //                                  repeat-customers, aov-trend
@@ -33,21 +33,15 @@ import {
     computePromoPerformance,
     computeCustomerCohorts,
     computeChannelAttribution,
+    computeFieldRentalRevenue,
+    computeCoiCompliance,
+    computeLeadConversion,
+    computeRecurrenceRetention,
     toCsv,
 } from '../../lib/reports.js';
 
 const adminReports = new Hono();
 adminReports.use('*', requireAuth);
-
-function notImplemented(c, persona, report) {
-    return c.json({
-        error: 'Not implemented',
-        persona,
-        report,
-        status: 'stub',
-        note: 'M7 Batches 2-5 will populate this endpoint per persona.',
-    }, 501);
-}
 
 // ────────────────────────────────────────────────────────────────────
 // Shared report-handler helpers (Batch 2)
@@ -516,20 +510,94 @@ adminReports.get('/marketing/channel-attribution',
 // Site Coordinator reports (Batch 5)
 // ────────────────────────────────────────────────────────────────────
 
+// 1. Field rental revenue by site — realized (paid+completed) revenue per
+//    site, by month. Period windows scheduled_starts_at.
 adminReports.get('/site-coordinator/field-rental-revenue',
     requireCapability('reports.read.site_coordinator'),
-    (c) => notImplemented(c, 'site-coordinator', 'field-rental-revenue'));
+    async (c) => {
+        const { format, window } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+        const res = await c.env.DB.prepare(
+            `SELECT s.name AS site,
+                    strftime('%Y-%m', fr.scheduled_starts_at/1000,'unixepoch') AS month,
+                    COUNT(*) AS rentals,
+                    COALESCE(SUM(fr.total_cents),0) AS revenue_cents
+             FROM field_rentals fr
+             JOIN sites s ON s.id = fr.site_id
+             WHERE fr.status IN ('paid','completed')
+               AND fr.scheduled_starts_at >= ? AND fr.scheduled_starts_at < ?
+             GROUP BY s.name, month
+             ORDER BY s.name ASC, month ASC`
+        ).bind(window.startMs, window.endMs).all();
+        const payload = computeFieldRentalRevenue({ rows: res.results || [] });
+        if (format === 'csv') {
+            return csvResponse('field-rental-revenue',
+                ['Site', 'Month', 'Rentals', 'Revenue'],
+                payload.rows.map((r) => [r.site, r.month, r.rentals, dollars(r.revenueCents)]));
+        }
+        return c.json({ report: 'field-rental-revenue', period: window.period, window, ...payload });
+    });
 
+// 2. COI compliance — active rentals bucketed by certificate status (snapshot).
 adminReports.get('/site-coordinator/coi-compliance',
     requireCapability('reports.read.site_coordinator'),
-    (c) => notImplemented(c, 'site-coordinator', 'coi-compliance'));
+    async (c) => {
+        const { format } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+        const res = await c.env.DB.prepare(
+            `SELECT fr.id, s.name AS site, fr.coi_status, fr.coi_expires_at, fr.scheduled_starts_at
+             FROM field_rentals fr
+             JOIN sites s ON s.id = fr.site_id
+             WHERE fr.status IN ('sent','agreed','paid','completed') AND fr.archived_at IS NULL`
+        ).all();
+        const payload = computeCoiCompliance({ rows: res.results || [], nowMs: Date.now() });
+        if (format === 'csv') {
+            return csvResponse('coi-compliance', ['Status', 'Active Rentals'],
+                Object.entries(payload.buckets).map(([bucket, n]) => [bucket, n]));
+        }
+        return c.json({ report: 'coi-compliance', ...payload });
+    });
 
+// 3. Lead-to-booking conversion — field-rental pipeline funnel (period windows
+//    created_at). Approximated from current status (see lib note).
 adminReports.get('/site-coordinator/lead-conversion',
     requireCapability('reports.read.site_coordinator'),
-    (c) => notImplemented(c, 'site-coordinator', 'lead-conversion'));
+    async (c) => {
+        const { format, window } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+        const res = await c.env.DB.prepare(
+            `SELECT status, COUNT(*) AS n
+             FROM field_rentals
+             WHERE created_at >= ? AND created_at < ?
+             GROUP BY status`
+        ).bind(window.startMs, window.endMs).all();
+        const payload = computeLeadConversion({ statusCounts: res.results || [] });
+        if (format === 'csv') {
+            return csvResponse('lead-conversion', ['Stage', 'Count', '% of Leads'],
+                payload.stages.map((s) => [s.name, s.count, s.pctOfTop == null ? '' : (s.pctOfTop * 100).toFixed(1)]));
+        }
+        return c.json({ report: 'lead-conversion', period: window.period, window, ...payload });
+    });
 
+// 4. Recurrence retention — % of recurrence series still active at 90/180/365d
+//    (snapshot; period N/A).
 adminReports.get('/site-coordinator/recurrence-retention',
     requireCapability('reports.read.site_coordinator'),
-    (c) => notImplemented(c, 'site-coordinator', 'recurrence-retention'));
+    async (c) => {
+        const { format } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+        const res = await c.env.DB.prepare(
+            `SELECT r.id, s.name AS site, r.frequency, r.starts_on, r.active, r.created_at
+             FROM field_rental_recurrences r
+             JOIN sites s ON s.id = r.site_id
+             ORDER BY r.created_at DESC`
+        ).all();
+        const payload = computeRecurrenceRetention({ rows: res.results || [], nowMs: Date.now() });
+        if (format === 'csv') {
+            return csvResponse('recurrence-retention', ['Window', 'Eligible', 'Retained', 'Retention %'],
+                Object.entries(payload.retention).map(([win, b]) => [win, b.eligible, b.retained, (b.pct * 100).toFixed(1)]));
+        }
+        return c.json({ report: 'recurrence-retention', ...payload });
+    });
 
 export default adminReports;

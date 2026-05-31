@@ -471,6 +471,147 @@ export function computeChannelAttribution({ rows = [] } = {}) {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// Site Coordinator report shapers (Batch 5)
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * Field rental revenue by site — per (site, month) rows + per-site + grand
+ * totals. SQL groups by site + month; the helper just normalizes + sums.
+ *
+ * @param {{ rows?: Array<{site?:string,month?:string,rentals?:number,revenue_cents?:number}> }} input
+ */
+export function computeFieldRentalRevenue({ rows = [] } = {}) {
+    const normalized = rows.map((r) => ({
+        site: r.site,
+        month: r.month ?? r.m,
+        rentals: Number(r.rentals ?? 0),
+        revenueCents: Number(r.revenue_cents ?? r.revenueCents ?? 0),
+    }));
+    const bySite = new Map();
+    for (const r of normalized) {
+        let s = bySite.get(r.site);
+        if (!s) { s = { site: r.site, rentals: 0, revenueCents: 0 }; bySite.set(r.site, s); }
+        s.rentals += r.rentals;
+        s.revenueCents += r.revenueCents;
+    }
+    const siteTotals = [...bySite.values()].sort((a, b) => b.revenueCents - a.revenueCents);
+    const totals = normalized.reduce(
+        (t, r) => ({ rentals: t.rentals + r.rentals, revenueCents: t.revenueCents + r.revenueCents }),
+        { rentals: 0, revenueCents: 0 },
+    );
+    return { rows: normalized, siteTotals, totals };
+}
+
+const DAY_MS_REPORTS = 86400000;
+
+/**
+ * COI compliance snapshot — bucket active rentals by certificate status vs
+ * `nowMs` into 5 mutually-exclusive buckets, plus an expiring-soon list (≤60d).
+ *
+ * @param {{ rows?: Array<{id?:string,site?:string,coi_status?:string,coi_expires_at?:number,scheduled_starts_at?:number}>, nowMs?: number }} input
+ */
+export function computeCoiCompliance({ rows = [], nowMs = 0 } = {}) {
+    const buckets = { valid: 0, expiring30: 0, expiring60: 0, missing: 0, expired: 0 };
+    const expiringSoon = [];
+    for (const r of rows) {
+        const status = r.coi_status ?? r.coiStatus;
+        const exp = r.coi_expires_at ?? r.coiExpiresAt ?? null;
+        let bucket;
+        if (status === 'received') {
+            if (exp == null) bucket = 'valid';
+            else if (exp <= nowMs) bucket = 'expired';
+            else if (exp <= nowMs + 30 * DAY_MS_REPORTS) bucket = 'expiring30';
+            else if (exp <= nowMs + 60 * DAY_MS_REPORTS) bucket = 'expiring60';
+            else bucket = 'valid';
+        } else if (status === 'expired') {
+            bucket = 'expired';
+        } else {
+            bucket = 'missing'; // not_required | pending
+        }
+        buckets[bucket] += 1;
+        if (bucket === 'expiring30' || bucket === 'expiring60') {
+            expiringSoon.push({
+                id: r.id,
+                site: r.site,
+                coiExpiresAt: exp,
+                scheduledStartsAt: r.scheduled_starts_at ?? r.scheduledStartsAt ?? null,
+                daysUntil: exp != null ? Math.ceil((exp - nowMs) / DAY_MS_REPORTS) : null,
+            });
+        }
+    }
+    expiringSoon.sort((a, b) => (a.coiExpiresAt ?? Infinity) - (b.coiExpiresAt ?? Infinity));
+    return { buckets, expiringSoon, total: rows.length };
+}
+
+/**
+ * Lead-to-booking conversion funnel. Derived from CURRENT status (no status-
+ * history table), so the funnel cascades over non-terminal forward ranks and
+ * cancelled/refunded count as `lost` rather than mid-funnel drop-offs. A true
+ * historical funnel is a future enhancement.
+ *
+ * @param {{ statusCounts?: Array<{status?:string,n?:number}> }} input
+ */
+export function computeLeadConversion({ statusCounts = [] } = {}) {
+    const counts = {};
+    for (const r of statusCounts) counts[r.status] = Number(r.n ?? 0);
+    const c = (s) => counts[s] || 0;
+
+    const reachedPaid = c('paid') + c('completed');
+    const reachedAgreed = reachedPaid + c('agreed');
+    const reachedSent = reachedAgreed + c('sent');
+    const reachedDraft = reachedSent + c('draft');
+    const reachedLead = reachedDraft + c('lead'); // all non-terminal
+    const lost = c('cancelled') + c('refunded');
+    const created = reachedLead + lost;
+    const top = reachedLead;
+
+    const stageDefs = [
+        ['Lead', reachedLead],
+        ['Draft', reachedDraft],
+        ['Sent', reachedSent],
+        ['Agreed', reachedAgreed],
+        ['Paid', reachedPaid],
+    ];
+    const stages = stageDefs.map(([name, count], i) => ({
+        name,
+        count,
+        pctOfTop: top > 0 ? count / top : 0,
+        pctOfPrev: i === 0 ? null : (stageDefs[i - 1][1] > 0 ? count / stageDefs[i - 1][1] : 0),
+    }));
+    return { stages, lost, created, conversionPct: created > 0 ? reachedPaid / created : 0 };
+}
+
+/**
+ * Recurrence retention — for each {90,180,365}-day window, the fraction of
+ * series old enough to be eligible that are still active.
+ *
+ * @param {{ rows?: Array<{id?:string,site?:string,frequency?:string,starts_on?:string,active?:number,created_at?:number}>, nowMs?: number }} input
+ */
+export function computeRecurrenceRetention({ rows = [], nowMs = 0 } = {}) {
+    const windows = [90, 180, 365];
+    const retention = {};
+    for (const w of windows) retention[`d${w}`] = { eligible: 0, retained: 0, pct: 0 };
+
+    const series = rows.map((r) => {
+        const createdAt = Number(r.created_at ?? r.createdAt ?? 0);
+        const active = r.active === 1 || r.active === true;
+        const ageDays = createdAt > 0 ? Math.floor((nowMs - createdAt) / DAY_MS_REPORTS) : 0;
+        for (const w of windows) {
+            if (ageDays >= w) {
+                retention[`d${w}`].eligible += 1;
+                if (active) retention[`d${w}`].retained += 1;
+            }
+        }
+        return { id: r.id, site: r.site, frequency: r.frequency, startsOn: r.starts_on ?? r.startsOn, active, ageDays };
+    });
+    for (const w of windows) {
+        const b = retention[`d${w}`];
+        b.pct = b.eligible > 0 ? b.retained / b.eligible : 0;
+    }
+    return { retention, series, total: rows.length };
+}
+
+// ────────────────────────────────────────────────────────────────────
 // CSV serialization (mirrors the csvEscape behavior in
 // worker/lib/thresholds1099.js — wrap-and-double-quote on special chars).
 // ────────────────────────────────────────────────────────────────────
