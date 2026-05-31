@@ -17,6 +17,7 @@
     "verify-m5": "node scripts/verify-m5-completeness.js"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.26",
     "@zxing/browser": "^0.1.5",
     "docx": "^9.6.1",
     "hono": "^4.12.14",

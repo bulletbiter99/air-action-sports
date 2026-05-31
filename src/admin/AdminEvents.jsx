@@ -5,6 +5,7 @@ import { formatMoney } from '../utils/money.js';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import EmptyState from '../components/admin/EmptyState.jsx';
 import FilterBar from '../components/admin/FilterBar.jsx';
+import VirtualizedList from './VirtualizedList.jsx';
 
 // "6:30 AM" | "18:30" → "HH:MM" (24h) for <input type="time">. Returns '' if unparseable.
 function to24h(s) {
@@ -168,51 +169,55 @@ export default function AdminEvents() {
           />
         )}
         {!loadingList && filtered.length > 0 && (
-          <div className="admin-table-wrap"><table style={table}>
-            <thead>
-              <tr>
-                <th style={th}>Title</th>
-                <th style={th}>Date</th>
-                <th style={th}>Location</th>
-                <th style={th}>Tickets</th>
-                <th style={th}>Sold</th>
-                <th style={th}>Gross</th>
-                <th style={th}>Status</th>
-                <th style={th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((e) => (
-                <tr key={e.id} style={tr}>
-                  <td style={td}>
-                    <strong>{e.title}</strong>
-                    <div style={subRowMono}>{e.id}</div>
-                  </td>
-                  <td style={td}>{e.displayDate || e.dateIso?.slice(0, 10)}</td>
-                  <td style={tdSmall}>{e.location || '—'}</td>
-                  <td style={td}>{(e.ticketTypes || []).length}</td>
-                  <td style={td}>{e.attendeesCount || 0}</td>
-                  <td style={td}>{formatMoney(e.grossCents)}</td>
-                  <td style={td}>
-                    {e.past ? <span style={statusPast}>Past</span>
-                      : e.published ? <span style={statusPublished}>Published</span>
-                      : <span style={statusDraft}>Draft</span>}
-                  </td>
-                  <td style={td}>
-                    <button onClick={() => setEditingId(e.id)} style={subtleBtn}>Edit</button>
-                    {hasRole('manager') && (
-                      <button onClick={() => duplicate(e.id)} disabled={duplicating === e.id} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>
-                        {duplicating === e.id ? '…' : 'Duplicate'}
-                      </button>
-                    )}
-                    {hasRole('owner') && (
-                      <button onClick={() => del(e.id)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Delete</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
+          <div className="admin-table-wrap">
+            <div style={{ minWidth: 820 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: EVENTS_COLS }}>
+                <div style={th}>Title</div>
+                <div style={th}>Date</div>
+                <div style={th}>Location</div>
+                <div style={th}>Tickets</div>
+                <div style={th}>Sold</div>
+                <div style={th}>Gross</div>
+                <div style={th}>Status</div>
+                <div style={th}>Actions</div>
+              </div>
+              <VirtualizedList
+                items={filtered}
+                getKey={(e) => e.id}
+                estimateRowHeight={56}
+                maxHeight="60vh"
+                renderRow={(e) => (
+                  <div style={{ ...tr, display: 'grid', gridTemplateColumns: EVENTS_COLS, alignItems: 'start' }}>
+                    <div style={td}>
+                      <strong>{e.title}</strong>
+                      <div style={subRowMono}>{e.id}</div>
+                    </div>
+                    <div style={td}>{e.displayDate || e.dateIso?.slice(0, 10)}</div>
+                    <div style={tdSmall}>{e.location || '—'}</div>
+                    <div style={td}>{(e.ticketTypes || []).length}</div>
+                    <div style={td}>{e.attendeesCount || 0}</div>
+                    <div style={td}>{formatMoney(e.grossCents)}</div>
+                    <div style={td}>
+                      {e.past ? <span style={statusPast}>Past</span>
+                        : e.published ? <span style={statusPublished}>Published</span>
+                        : <span style={statusDraft}>Draft</span>}
+                    </div>
+                    <div style={td}>
+                      <button onClick={() => setEditingId(e.id)} style={subtleBtn}>Edit</button>
+                      {hasRole('manager') && (
+                        <button onClick={() => duplicate(e.id)} disabled={duplicating === e.id} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>
+                          {duplicating === e.id ? '…' : 'Duplicate'}
+                        </button>
+                      )}
+                      {hasRole('owner') && (
+                        <button onClick={() => del(e.id)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Delete</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              />
+            </div>
+          </div>
         )}
       </section>
 
@@ -1025,6 +1030,8 @@ const tableBox = {
   marginTop: 'var(--space-16)',
 };
 const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+// M7 Batch 7 — grid template for the virtualized events list (Title/Date/Location/Tickets/Sold/Gross/Status/Actions).
+const EVENTS_COLS = 'minmax(170px, 2.2fr) 110px minmax(120px, 1.5fr) 70px 60px 90px 100px minmax(170px, 1.6fr)';
 const th = {
   textAlign: 'left',
   padding: 'var(--space-8) var(--space-12)',

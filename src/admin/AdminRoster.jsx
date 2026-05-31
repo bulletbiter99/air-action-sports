@@ -4,6 +4,7 @@ import { useAdmin } from './AdminContext';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import EmptyState from '../components/admin/EmptyState.jsx';
 import FilterBar from '../components/admin/FilterBar.jsx';
+import VirtualizedList from './VirtualizedList.jsx';
 
 const WAIVER_FILTER_OPTIONS = [
   { value: 'signed', label: 'Waiver signed' },
@@ -195,74 +196,78 @@ export default function AdminRoster() {
           />
         )}
         {!loadingRoster && filtered.length > 0 && (
-          <div className="admin-table-wrap"><table style={table}>
-            <thead>
-              <tr>
-                <th style={th}>#</th>
-                <th style={th}>Name</th>
-                <th style={th}>Email</th>
-                <th style={th}>Phone</th>
-                <th style={th}>Ticket</th>
-                <th style={th}>Waiver</th>
-                <th style={th}>Check-in</th>
-                <th style={th}>Booking</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((a, i) => (
-                <tr key={a.id} style={tr}>
-                  <td style={td}>{i + 1}</td>
-                  <td style={td}>
-                    <strong>{a.firstName} {a.lastName || ''}</strong>
-                    {a.isMinor && <span style={minorBadge}>MINOR</span>}
-                    {customQuestions.length > 0 && a.customAnswers && Object.keys(a.customAnswers).length > 0 && (
-                      <div style={customAnswersBlock}>
-                        {customQuestions.map((q) => {
-                          const v = a.customAnswers[q.key];
-                          if (v === undefined || v === null || v === '') return null;
-                          return (
-                            <div key={q.key}>
-                              <span style={{ color: 'var(--color-text-subtle)' }}>{q.label}:</span> {String(v)}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </td>
-                  <td style={td}>{a.email || '—'}</td>
-                  <td style={td}>{a.phone || '—'}</td>
-                  <td style={td}>{a.ticketType || '—'}</td>
-                  <td style={td}>
-                    {a.waiverSigned
-                      ? <span style={waiverSigned}>✓ Signed</span>
-                      : (
-                        <div>
-                          <span style={{ color: 'var(--color-text-muted)' }}>Pending</span>
-                          <button onClick={() => sendWaiver(a.id)} style={sendBtn}>✉ Send</button>
+          <div className="admin-table-wrap">
+            <div style={{ minWidth: 900 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: ROSTER_COLS }}>
+                <div style={th}>#</div>
+                <div style={th}>Name</div>
+                <div style={th}>Email</div>
+                <div style={th}>Phone</div>
+                <div style={th}>Ticket</div>
+                <div style={th}>Waiver</div>
+                <div style={th}>Check-in</div>
+                <div style={th}>Booking</div>
+              </div>
+              <VirtualizedList
+                items={filtered}
+                getKey={(a) => a.id}
+                estimateRowHeight={64}
+                maxHeight="60vh"
+                renderRow={(a, i) => (
+                  <div style={{ ...tr, display: 'grid', gridTemplateColumns: ROSTER_COLS, alignItems: 'start' }}>
+                    <div style={td}>{i + 1}</div>
+                    <div style={td}>
+                      <strong>{a.firstName} {a.lastName || ''}</strong>
+                      {a.isMinor && <span style={minorBadge}>MINOR</span>}
+                      {customQuestions.length > 0 && a.customAnswers && Object.keys(a.customAnswers).length > 0 && (
+                        <div style={customAnswersBlock}>
+                          {customQuestions.map((q) => {
+                            const v = a.customAnswers[q.key];
+                            if (v === undefined || v === null || v === '') return null;
+                            return (
+                              <div key={q.key}>
+                                <span style={{ color: 'var(--color-text-subtle)' }}>{q.label}:</span> {String(v)}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
-                  </td>
-                  <td style={td}>
-                    {a.checkedInAt ? (
-                      <div>
-                        <span style={checkedInTime}>
-                          ✓ {new Date(a.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <button onClick={() => checkOut(a.id)} style={undoBtn}>undo</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => checkIn(a.id)} style={checkInBtn}>Check In</button>
-                    )}
-                  </td>
-                  <td style={tdSmall}>
-                    <div style={{ color: 'var(--color-text-muted)' }}>{a.buyerName}</div>
-                    <div style={bookingIdMono}>{a.bookingId}</div>
-                    {a.bookingStatus === 'comp' && <span style={compBadge}>COMP</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
+                    </div>
+                    <div style={td}>{a.email || '—'}</div>
+                    <div style={td}>{a.phone || '—'}</div>
+                    <div style={td}>{a.ticketType || '—'}</div>
+                    <div style={td}>
+                      {a.waiverSigned
+                        ? <span style={waiverSigned}>✓ Signed</span>
+                        : (
+                          <div>
+                            <span style={{ color: 'var(--color-text-muted)' }}>Pending</span>
+                            <button onClick={() => sendWaiver(a.id)} style={sendBtn}>✉ Send</button>
+                          </div>
+                        )}
+                    </div>
+                    <div style={td}>
+                      {a.checkedInAt ? (
+                        <div>
+                          <span style={checkedInTime}>
+                            ✓ {new Date(a.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <button onClick={() => checkOut(a.id)} style={undoBtn}>undo</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => checkIn(a.id)} style={checkInBtn}>Check In</button>
+                      )}
+                    </div>
+                    <div style={tdSmall}>
+                      <div style={{ color: 'var(--color-text-muted)' }}>{a.buyerName}</div>
+                      <div style={bookingIdMono}>{a.bookingId}</div>
+                      {a.bookingStatus === 'comp' && <span style={compBadge}>COMP</span>}
+                    </div>
+                  </div>
+                )}
+              />
+            </div>
+          </div>
         )}
       </section>
     </div>
@@ -323,7 +328,8 @@ const tableBox = {
   padding: 'var(--space-24)',
   marginTop: 'var(--space-16)',
 };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+// M7 Batch 7 — grid template for the virtualized roster (# / Name / Email / Phone / Ticket / Waiver / Check-in / Booking).
+const ROSTER_COLS = '48px minmax(160px, 2fr) minmax(140px, 1.4fr) 120px 100px minmax(110px, 1.1fr) minmax(120px, 1.2fr) minmax(140px, 1.4fr)';
 const th = {
   textAlign: 'left',
   padding: 'var(--space-8) var(--space-12)',
