@@ -1,0 +1,58 @@
+M7 — Reports + Audit Log FTS + Virtualized Tables — BASELINE COVERAGE (close snapshot)
+========================================================================================
+Captured 2026-05-31 at milestone close.
+Branch milestone/7-reports-search-virtualized HEAD d4c5356 (Merge #228, Batch 11b).
+
+TESTS:  2561 passed / 200 files  (vitest run)  — +137 vs M7 start (2424 / 192)
+        + 6 admin visual-regression baselines (Playwright, tests/visual-admin/, linux/CI-only)
+        + 7 public visual baselines (M4 B1b, tests/visual/)
+BUILD:  clean (~260ms, vite build)
+LINT:   0 errors (eslint flat config); warning count unchanged vs milestone baseline
+
+PER-BATCH TEST DELTAS
+  0    pre-flight + reports scope (docs)        +0
+  1a   reports shell backend (caps/stub/sidebar) +13
+  1b   reports shell UI (JSX, no-RTL)            +0
+  2    owner reports (5)                         +30
+  3    bookkeeper reports (3 + 1099 link)        +10
+  4    marketing reports (4)                     +13
+  5    site coordinator reports (4)              +11
+  6    audit-log FTS5 search                     +12
+  7    virtualized tables (JSX)                  +0
+  8    resend bounce/complaint consumer          +33
+  9    admin visual baselines (Playwright)       +0
+  10   bounce/complaint alert emails             +12
+  11a  reports custom date range                 +3
+  11b  sticky list headers (JSX)                 +0
+  ----------------------------------------------------
+  TOTAL                                  2424 -> 2561 (+137)
+
+NEW GATED PATHS (scripts/test-gate-mapping.json)
+  worker/lib/reports.js                  (Batch 2)
+  worker/routes/admin/reports.js         (Batch 2)
+  worker/lib/auditSearch.js              (Batch 6)
+  worker/routes/admin/auditLog.js        (Batch 6)
+  worker/lib/resendWebhook.js            (Batch 8)
+  worker/lib/emailEvents.js              (Batch 8)
+  worker/routes/webhooks.js              gate extended with the /resend consumer test (Batch 8)
+
+D1 MIGRATIONS (M7)
+  0062 reports_capabilities         APPLIED to remote 2026-05-31
+  0063 audit_log_fts (FTS5 index)   APPLIED to remote 2026-05-31
+  0064 audit_fts_flag               APPLIED to remote 2026-05-31 (flag state='off')
+  0065 email_events                 IN REPO — operator-applies post-deploy
+  0066 email_event_alert_templates  IN REPO — operator-applies post-deploy
+
+NEW SURFACES
+  - Public route: POST /api/webhooks/resend (svix-signed bounce/complaint consumer)
+  - Admin pages: /admin/reports (4-persona tab strip, 17 reports, CSV export, custom range)
+  - Admin visual harness: playwright.admin.config.js + tests/visual-admin/ (visual-admin CI job)
+  - Email senders: sendBounceAlert + sendComplaintAlert (11th + 12th)
+  - email_templates: bounce_alert + complaint_alert (seeded by 0066)
+
+OPERATOR-PENDING AT CLOSE (see m7-deploy.md)
+  - apply migrations 0065 + 0066 to remote
+  - wrangler secret put RESEND_WEBHOOK_SECRET + add the Resend dashboard webhook
+  - flip the audit_log_fts flag on
+  - eyeball: the 4 virtualized lists' sticky headers + the Reports custom-range UI
+  - (carried from M6) live-Stripe cutover items 1-5 — docs/m6-operator-cutover-checklist.md
