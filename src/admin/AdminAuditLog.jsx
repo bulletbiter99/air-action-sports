@@ -113,7 +113,7 @@ export default function AdminAuditLog() {
         onChange={handleFilterChange}
         searchValue={filters.q}
         onSearchChange={handleSearchChange}
-        searchPlaceholder="Search target ID or metadata…"
+        searchPlaceholder="Search actions, targets, metadata…"
         resultCount={total}
         savedViewsKey="adminAuditLog"
       />

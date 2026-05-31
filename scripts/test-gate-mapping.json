@@ -657,6 +657,27 @@
       "tests": [
         "tests/unit/admin/reports/reports-stub.test.js"
       ]
+    },
+    "worker/lib/auditSearch.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "buildFtsMatchQuery(q) — injection-safe FTS5 MATCH builder (per-token char-strip + double-quote + prefix *; null when no usable input)"
+      ],
+      "audit_group": "(M7 Batch 6 audit-log full-text search)",
+      "tests": [
+        "tests/unit/lib/auditSearch.test.js"
+      ]
+    },
+    "worker/routes/admin/auditLog.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/audit-log — q full-text via FTS5 (audit_log_fts MATCH) when the audit_log_fts flag is on + index exists; LIKE fallback otherwise + on FTS error; structured filters (action/target_type/user_id/from/to) + pagination",
+        "GET /api/admin/audit-log/actions — distinct action values"
+      ],
+      "audit_group": "(M7 Batch 6 — FTS5 search upgrade to the q path)",
+      "tests": [
+        "tests/unit/admin/audit-log-search.test.js"
+      ]
     }
   },
   "uncovered": {

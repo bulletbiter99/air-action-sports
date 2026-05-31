@@ -1,11 +1,15 @@
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
+import { isEnabled } from '../../lib/featureFlags.js';
+import { buildFtsMatchQuery } from '../../lib/auditSearch.js';
 
 const adminAuditLog = new Hono();
 adminAuditLog.use('*', requireAuth);
 
 // GET /api/admin/audit-log
 // Filters: action (prefix or exact), target_type, user_id, from, to
+// Free-text q: full-text (FTS5) when the audit_log_fts flag is on + the index
+//   exists (migration 0063); otherwise a target_id/meta_json LIKE scan.
 // Pagination: limit (default 50, max 200), offset
 adminAuditLog.get('/', requireRole('owner', 'manager'), async (c) => {
     const url = new URL(c.req.url);
@@ -18,40 +22,81 @@ adminAuditLog.get('/', requireRole('owner', 'manager'), async (c) => {
     const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') || 50)));
     const offset = Math.max(0, Number(url.searchParams.get('offset') || 0));
 
-    const where = [];
-    const binds = [];
-    if (action) {
-        if (action.endsWith('*')) {
-            where.push(`action LIKE ?`);
-            binds.push(`${action.slice(0, -1)}%`);
-        } else {
-            where.push(`action = ?`);
-            binds.push(action);
+    // Shared structured filters (columns qualified with al.* so they're
+    // unambiguous once the audit_log_fts table — which shares column names —
+    // is joined in FTS mode).
+    function baseClauses() {
+        const where = [];
+        const binds = [];
+        if (action) {
+            if (action.endsWith('*')) {
+                where.push('al.action LIKE ?');
+                binds.push(`${action.slice(0, -1)}%`);
+            } else {
+                where.push('al.action = ?');
+                binds.push(action);
+            }
         }
+        if (targetType) { where.push('al.target_type = ?'); binds.push(targetType); }
+        if (userId) { where.push('al.user_id = ?'); binds.push(userId); }
+        if (from) { where.push('al.created_at >= ?'); binds.push(Number(from)); }
+        if (to) { where.push('al.created_at <= ?'); binds.push(Number(to)); }
+        return { where, binds };
     }
-    if (targetType) { where.push(`target_type = ?`); binds.push(targetType); }
-    if (userId) { where.push(`user_id = ?`); binds.push(userId); }
-    if (from) { where.push(`created_at >= ?`); binds.push(Number(from)); }
-    if (to) { where.push(`created_at <= ?`); binds.push(Number(to)); }
-    if (q) {
-        where.push(`(target_id LIKE ? OR meta_json LIKE ?)`);
-        binds.push(`%${q}%`, `%${q}%`);
+
+    // FTS only when there's a q, the flag is on, and the sanitizer yields a
+    // usable MATCH expression; otherwise the LIKE path handles q.
+    let ftsMatch = null;
+    if (q && await isEnabled(c.env, 'audit_log_fts', c.get('user'))) {
+        ftsMatch = buildFtsMatchQuery(q);
     }
-    const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-    const countRow = await c.env.DB.prepare(
-        `SELECT COUNT(*) AS n FROM audit_log ${whereSQL}`
-    ).bind(...binds).first();
+    async function runSearch(useFts) {
+        const { where, binds } = baseClauses();
+        let join = '';
+        if (q) {
+            if (useFts) {
+                join = 'JOIN audit_log_fts fts ON fts.rowid = al.id';
+                where.push('fts MATCH ?');
+                binds.push(ftsMatch);
+            } else {
+                where.push('(al.target_id LIKE ? OR al.meta_json LIKE ?)');
+                binds.push(`%${q}%`, `%${q}%`);
+            }
+        }
+        const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-    const rows = await c.env.DB.prepare(
-        `SELECT al.*, u.display_name AS user_name, u.email AS user_email
-         FROM audit_log al
-         LEFT JOIN users u ON u.id = al.user_id
-         ${whereSQL}
-         ORDER BY al.created_at DESC
-         LIMIT ? OFFSET ?`
-    ).bind(...binds, limit, offset).all();
+        const countRow = await c.env.DB.prepare(
+            `SELECT COUNT(*) AS n FROM audit_log al ${join} ${whereSQL}`
+        ).bind(...binds).first();
 
+        const rows = await c.env.DB.prepare(
+            `SELECT al.*, u.display_name AS user_name, u.email AS user_email
+             FROM audit_log al ${join}
+             LEFT JOIN users u ON u.id = al.user_id
+             ${whereSQL}
+             ORDER BY al.created_at DESC
+             LIMIT ? OFFSET ?`
+        ).bind(...binds, limit, offset).all();
+
+        return { countRow, rows };
+    }
+
+    let result;
+    if (ftsMatch) {
+        try {
+            result = await runSearch(true);
+        } catch (err) {
+            // FTS index unavailable (e.g. migration 0063 not yet applied) — fall
+            // back to the LIKE scan so the audit log never errors out.
+            console.warn('audit-log FTS query failed, falling back to LIKE:', err?.message);
+            result = await runSearch(false);
+        }
+    } else {
+        result = await runSearch(false);
+    }
+
+    const { countRow, rows } = result;
     return c.json({
         total: countRow?.n ?? 0,
         limit,
