@@ -19,6 +19,10 @@ import {
     computePromoPerformance,
     computeCustomerCohorts,
     computeChannelAttribution,
+    computeFieldRentalRevenue,
+    computeCoiCompliance,
+    computeLeadConversion,
+    computeRecurrenceRetention,
     csvEscape,
     toCsv,
     SUPPORTED_PERIODS,
@@ -462,5 +466,109 @@ describe('computeChannelAttribution', () => {
         const out = computeChannelAttribution({});
         expect(out.hasData).toBe(false);
         expect(out.totalRevenueCents).toBe(0);
+    });
+});
+
+describe('computeFieldRentalRevenue', () => {
+    it('rolls up per-site and grand totals', () => {
+        const out = computeFieldRentalRevenue({
+            rows: [
+                { site: 'Ghost Town', month: '2026-05', rentals: 2, revenue_cents: 50000 },
+                { site: 'Ghost Town', month: '2026-06', rentals: 1, revenue_cents: 30000 },
+                { site: 'Foxtrot', month: '2026-05', rentals: 1, revenue_cents: 20000 },
+            ],
+        });
+        expect(out.totals).toEqual({ rentals: 4, revenueCents: 100000 });
+        // siteTotals sorted by revenue desc
+        expect(out.siteTotals[0]).toEqual({ site: 'Ghost Town', rentals: 3, revenueCents: 80000 });
+        expect(out.siteTotals[1]).toEqual({ site: 'Foxtrot', rentals: 1, revenueCents: 20000 });
+        expect(out.rows).toHaveLength(3);
+    });
+
+    it('handles empty input', () => {
+        expect(computeFieldRentalRevenue({}).totals).toEqual({ rentals: 0, revenueCents: 0 });
+    });
+});
+
+describe('computeCoiCompliance', () => {
+    it('buckets active rentals by COI status + expiry vs now', () => {
+        const out = computeCoiCompliance({
+            nowMs: NOW,
+            rows: [
+                { id: 'r1', coi_status: 'received', coi_expires_at: NOW + 100 * DAY }, // valid
+                { id: 'r2', coi_status: 'received', coi_expires_at: NOW + 20 * DAY },  // expiring30
+                { id: 'r3', coi_status: 'received', coi_expires_at: NOW + 45 * DAY },  // expiring60
+                { id: 'r4', coi_status: 'received', coi_expires_at: NOW - 5 * DAY },   // expired (date)
+                { id: 'r5', coi_status: 'expired' },                                   // expired (status)
+                { id: 'r6', coi_status: 'pending' },                                   // missing
+                { id: 'r7', coi_status: 'not_required' },                              // missing
+                { id: 'r8', coi_status: 'received', coi_expires_at: null },            // valid (no expiry)
+            ],
+        });
+        expect(out.buckets).toEqual({ valid: 2, expiring30: 1, expiring60: 1, missing: 2, expired: 2 });
+        expect(out.total).toBe(8);
+        // expiring soon = r2 + r3, sorted by expiry asc (r2 first)
+        expect(out.expiringSoon.map((e) => e.id)).toEqual(['r2', 'r3']);
+        expect(out.expiringSoon[0].daysUntil).toBe(20);
+    });
+
+    it('handles empty input', () => {
+        expect(computeCoiCompliance({ rows: [], nowMs: NOW }).buckets)
+            .toEqual({ valid: 0, expiring30: 0, expiring60: 0, missing: 0, expired: 0 });
+    });
+});
+
+describe('computeLeadConversion', () => {
+    it('cascades current statuses into a funnel + lost + conversion %', () => {
+        const out = computeLeadConversion({
+            statusCounts: [
+                { status: 'lead', n: 5 },
+                { status: 'draft', n: 3 },
+                { status: 'sent', n: 2 },
+                { status: 'agreed', n: 2 },
+                { status: 'paid', n: 4 },
+                { status: 'completed', n: 1 },
+                { status: 'cancelled', n: 3 },
+                { status: 'refunded', n: 1 },
+            ],
+        });
+        const byName = Object.fromEntries(out.stages.map((s) => [s.name, s.count]));
+        expect(byName).toEqual({ Lead: 17, Draft: 12, Sent: 9, Agreed: 7, Paid: 5 });
+        expect(out.stages[0].pctOfPrev).toBeNull();
+        expect(out.lost).toBe(4);
+        expect(out.created).toBe(21);
+        expect(out.conversionPct).toBeCloseTo(5 / 21);
+    });
+
+    it('handles empty input', () => {
+        const out = computeLeadConversion({});
+        expect(out.created).toBe(0);
+        expect(out.conversionPct).toBe(0);
+        expect(out.stages.every((s) => s.count === 0)).toBe(true);
+    });
+});
+
+describe('computeRecurrenceRetention', () => {
+    it('computes eligible/retained/pct per 90/180/365-day window', () => {
+        const out = computeRecurrenceRetention({
+            nowMs: NOW,
+            rows: [
+                { id: 's1', active: 1, created_at: NOW - 400 * DAY }, // eligible 90/180/365, active
+                { id: 's2', active: 0, created_at: NOW - 200 * DAY }, // eligible 90/180, inactive
+                { id: 's3', active: 1, created_at: NOW - 100 * DAY }, // eligible 90 only, active
+                { id: 's4', active: 1, created_at: NOW - 10 * DAY },  // not eligible
+            ],
+        });
+        expect(out.retention.d90).toMatchObject({ eligible: 3, retained: 2 });
+        expect(out.retention.d90.pct).toBeCloseTo(2 / 3);
+        expect(out.retention.d180).toMatchObject({ eligible: 2, retained: 1 });
+        expect(out.retention.d365).toMatchObject({ eligible: 1, retained: 1 });
+        expect(out.retention.d365.pct).toBe(1);
+        expect(out.series).toHaveLength(4);
+    });
+
+    it('handles empty input', () => {
+        const out = computeRecurrenceRetention({ rows: [], nowMs: NOW });
+        expect(out.retention.d90).toEqual({ eligible: 0, retained: 0, pct: 0 });
     });
 });

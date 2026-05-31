@@ -1,9 +1,9 @@
 // M7 Batch 1a — admin Reports route tests.
 //
-// Owner (5, Batch 2), Bookkeeper (3, Batch 3), and Marketing (4, Batch 4)
-// endpoints are IMPLEMENTED and return 200 with a report payload (or text/csv
-// with ?format=csv, gated on reports.export). Site Coordinator endpoints
-// remain 501 stubs until Batch 5. Without the persona-specific capability,
+// All four personas — Owner (5, B2), Bookkeeper (3, B3), Marketing (4, B4),
+// Site Coordinator (4, B5) — are IMPLEMENTED and return 200 with a report
+// payload (or text/csv with ?format=csv, gated on reports.export). No endpoint
+// returns 501 anymore. Without the persona-specific capability,
 // requireCapability fires 403 first.
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -155,19 +155,46 @@ describe('GET /api/admin/reports/* — Marketing endpoints (Batch 4 — implemen
     });
 });
 
-describe('GET /api/admin/reports/* — Site Coordinator endpoints (Batch 5)', () => {
-    it('returns 501 with reports.read.site_coordinator', async () => {
+describe('GET /api/admin/reports/* — Site Coordinator endpoints (Batch 5 — implemented)', () => {
+    it('field-rental-revenue returns 200 with rows + totals when viewer has reports.read.site_coordinator', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.site_coordinator']);
         const res = await worker.fetch(req('/api/admin/reports/site-coordinator/field-rental-revenue'), env, {});
-        expect(res.status).toBe(501);
+        expect(res.status).toBe(200);
         const data = await res.json();
-        expect(data.persona).toBe('site-coordinator');
+        expect(data.report).toBe('field-rental-revenue');
+        expect(Array.isArray(data.rows)).toBe(true);
+        expect(data.totals).toBeTruthy();
+    });
+
+    it('coi-compliance returns 200 with the 5 status buckets', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.site_coordinator']);
+        const res = await worker.fetch(req('/api/admin/reports/site-coordinator/coi-compliance'), env, {});
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.report).toBe('coi-compliance');
+        expect(data.buckets).toHaveProperty('valid');
+        expect(data.buckets).toHaveProperty('expired');
     });
 
     it('returns 403 without reports.read.site_coordinator', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read']);
         const res = await worker.fetch(req('/api/admin/reports/site-coordinator/coi-compliance'), env, {});
         expect(res.status).toBe(403);
+    });
+
+    it('CSV export returns text/csv when viewer also has reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.site_coordinator', 'reports.export']);
+        const res = await worker.fetch(req('/api/admin/reports/site-coordinator/recurrence-retention?format=csv'), env, {});
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/csv');
+        expect(await res.text()).toContain('Window');
+    });
+
+    it('CSV export returns 403 without reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.site_coordinator']);
+        const res = await worker.fetch(req('/api/admin/reports/site-coordinator/field-rental-revenue?format=csv'), env, {});
+        expect(res.status).toBe(403);
+        expect((await res.json()).requiresCapability).toBe('reports.export');
     });
 });
 
@@ -214,7 +241,7 @@ describe('All 16 endpoints mounted', () => {
         }
     });
 
-    it('every Site Coordinator report endpoint exists (4 endpoints)', async () => {
+    it('every Site Coordinator report endpoint returns 200 (implemented in Batch 5)', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.site_coordinator']);
         const paths = [
             '/api/admin/reports/site-coordinator/field-rental-revenue',
@@ -224,7 +251,7 @@ describe('All 16 endpoints mounted', () => {
         ];
         for (const path of paths) {
             const res = await worker.fetch(req(path), env, {});
-            expect(res.status, `${path} should be 501 stub`).toBe(501);
+            expect(res.status, `${path} should be 200`).toBe(200);
         }
     });
 });
