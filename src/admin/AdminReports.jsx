@@ -18,6 +18,8 @@ import ReportEmptyState from './reports/ReportEmptyState.jsx';
 // Owner tab content (Batch 2). Lazy-loaded so the report bundle + chart
 // primitives don't weigh down the shell for personas that never open it.
 const OwnerReports = lazy(() => import('./reports/OwnerReports.jsx'));
+// Bookkeeper tab content (Batch 3).
+const BookkeeperReports = lazy(() => import('./reports/BookkeeperReports.jsx'));
 
 const TABS = [
     { key: 'owner',            label: 'Owner',             capability: 'reports.read.owner',            batch: 'Batch 2' },
@@ -111,6 +113,10 @@ export default function AdminReports() {
                 {currentTab === 'owner' ? (
                     <Suspense fallback={<p style={muted}>Loading reports…</p>}>
                         <OwnerReports />
+                    </Suspense>
+                ) : currentTab === 'bookkeeper' ? (
+                    <Suspense fallback={<p style={muted}>Loading reports…</p>}>
+                        <BookkeeperReports />
                     </Suspense>
                 ) : tabConfig ? (
                     <ReportEmptyState

@@ -26,6 +26,9 @@ import {
     computeAovTrend,
     bucketRepeatCustomers,
     computeSeriesRetention,
+    computePayoutsSummary,
+    computeTaxFeeSummary,
+    computePeriodComparison,
     toCsv,
 } from '../../lib/reports.js';
 
@@ -261,17 +264,116 @@ adminReports.get('/owner/aov-trend',
 // Bookkeeper reports (Batch 3)
 // ────────────────────────────────────────────────────────────────────
 
+// 1. Payouts summary — monthly Stripe (bookings) + field-rental gross + refunds.
 adminReports.get('/bookkeeper/payouts',
     requireCapability('reports.read.bookkeeper'),
-    (c) => notImplemented(c, 'bookkeeper', 'payouts'));
+    async (c) => {
+        const { eventId, format, window } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
 
+        const evt = eventId ? ' AND event_id = ?' : '';
+        const bBinds = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
+        const booking = await c.env.DB.prepare(
+            `SELECT strftime('%Y-%m', paid_at/1000,'unixepoch') AS month,
+                    SUM(CASE WHEN status IN ('paid','refunded') THEN total_cents ELSE 0 END) AS gross_cents,
+                    SUM(CASE WHEN status = 'refunded' THEN total_cents ELSE 0 END) AS refund_cents
+             FROM bookings
+             WHERE paid_at >= ? AND paid_at < ?${evt}
+             GROUP BY month ORDER BY month ASC`
+        ).bind(...bBinds).all();
+
+        // Field rentals aren't event-scoped — skip the FR query when an event
+        // filter is set (and flag it in the response).
+        let frRows = [];
+        if (!eventId) {
+            const fr = await c.env.DB.prepare(
+                `SELECT strftime('%Y-%m', received_at/1000,'unixepoch') AS month,
+                        COALESCE(SUM(amount_cents),0) AS fr_gross_cents
+                 FROM field_rental_payments
+                 WHERE status = 'received' AND received_at >= ? AND received_at < ?
+                 GROUP BY month ORDER BY month ASC`
+            ).bind(window.startMs, window.endMs).all();
+            frRows = fr.results || [];
+        }
+
+        const payload = computePayoutsSummary({ bookingRows: booking.results || [], frRows });
+        if (format === 'csv') {
+            return csvResponse('payouts-summary',
+                ['Month', 'Stripe Gross', 'Field Rental Gross', 'Refunds', 'Net'],
+                payload.rows.map((r) => [r.month, dollars(r.stripeGrossCents), dollars(r.fieldRentalGrossCents), dollars(r.refundsCents), dollars(r.netCents)]));
+        }
+        return c.json({
+            report: 'payouts',
+            period: window.period,
+            window,
+            scopedNote: eventId ? 'Field rentals excluded (not event-scoped).' : null,
+            ...payload,
+        });
+    });
+
+// 2. Tax/fee summary — monthly SUM(tax_cents) + SUM(fee_cents) over paid/comp.
 adminReports.get('/bookkeeper/tax-fee-summary',
     requireCapability('reports.read.bookkeeper'),
-    (c) => notImplemented(c, 'bookkeeper', 'tax-fee-summary'));
+    async (c) => {
+        const { eventId, format, window } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
 
+        const evt = eventId ? ' AND event_id = ?' : '';
+        const mb = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
+        const monthly = await c.env.DB.prepare(
+            `SELECT strftime('%Y-%m', paid_at/1000,'unixepoch') AS month,
+                    COALESCE(SUM(tax_cents),0) AS tax_cents,
+                    COALESCE(SUM(fee_cents),0) AS fee_cents
+             FROM bookings
+             WHERE status IN ('paid','comp') AND paid_at >= ? AND paid_at < ?${evt}
+             GROUP BY month ORDER BY month ASC`
+        ).bind(...mb).all();
+
+        const payload = computeTaxFeeSummary({ monthlyRows: monthly.results || [] });
+        if (format === 'csv') {
+            return csvResponse('tax-fee-summary',
+                ['Month', 'Tax', 'Fees', 'Total'],
+                payload.series.map((r) => [r.month, dollars(r.taxCents), dollars(r.feeCents), dollars(r.totalCents)]));
+        }
+        return c.json({ report: 'tax-fee-summary', period: window.period, window, ...payload });
+    });
+
+// 3. Period comparison — current window vs prior window (always compares).
 adminReports.get('/bookkeeper/period-comparison',
     requireCapability('reports.read.bookkeeper'),
-    (c) => notImplemented(c, 'bookkeeper', 'period-comparison'));
+    async (c) => {
+        const { eventId, format, window } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+
+        const pw = priorWindow(window);
+        const evt = eventId ? ' AND event_id = ?' : '';
+        const aggSql =
+            `SELECT SUM(CASE WHEN status IN ('paid','refunded') THEN total_cents ELSE 0 END) AS gross_cents,
+                    SUM(CASE WHEN status = 'refunded' THEN total_cents ELSE 0 END) AS refund_cents,
+                    SUM(CASE WHEN status IN ('paid','comp') THEN tax_cents ELSE 0 END) AS tax_cents,
+                    SUM(CASE WHEN status IN ('paid','comp') THEN fee_cents ELSE 0 END) AS fee_cents,
+                    SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) AS paid_count
+             FROM bookings WHERE paid_at >= ? AND paid_at < ?${evt}`;
+        const curBinds = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
+        const priBinds = eventId ? [pw.startMs, pw.endMs, eventId] : [pw.startMs, pw.endMs];
+        const [current, prior] = await Promise.all([
+            c.env.DB.prepare(aggSql).bind(...curBinds).first(),
+            c.env.DB.prepare(aggSql).bind(...priBinds).first(),
+        ]);
+
+        const payload = computePeriodComparison({ current: current || {}, prior: prior || {} });
+        if (format === 'csv') {
+            return csvResponse('period-comparison',
+                ['Metric', 'Current', 'Prior', 'Change %'],
+                payload.metrics.map((m) => [
+                    m.label,
+                    m.kind === 'money' ? dollars(m.current) : m.current,
+                    m.kind === 'money' ? dollars(m.prior) : m.prior,
+                    m.delta.deltaPct == null ? '' : (m.delta.deltaPct * 100).toFixed(1),
+                ]));
+        }
+        return c.json({ report: 'period-comparison', period: window.period, window, priorWindow: pw, ...payload });
+    });
 
 // ────────────────────────────────────────────────────────────────────
 // Marketing reports (Batch 4)

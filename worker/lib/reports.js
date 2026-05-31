@@ -253,6 +253,114 @@ export function computeSeriesRetention(rows = []) {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// Bookkeeper report shapers (Batch 3)
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * Payouts summary — merge monthly booking revenue with monthly field-rental
+ * payments into one per-month table. Net = stripeGross − refunds + frGross.
+ *
+ * @param {{ bookingRows?: Array<{month?:string, gross_cents?:number, refund_cents?:number}>,
+ *           frRows?: Array<{month?:string, fr_gross_cents?:number}> }} input
+ */
+export function computePayoutsSummary({ bookingRows = [], frRows = [] } = {}) {
+    const byMonth = new Map();
+    const ensure = (m) => {
+        let r = byMonth.get(m);
+        if (!r) {
+            r = { month: m, stripeGrossCents: 0, fieldRentalGrossCents: 0, refundsCents: 0 };
+            byMonth.set(m, r);
+        }
+        return r;
+    };
+    for (const b of bookingRows) {
+        const m = b.month ?? b.m;
+        if (!m) continue;
+        const r = ensure(m);
+        r.stripeGrossCents += Number(b.gross_cents ?? 0);
+        r.refundsCents += Number(b.refund_cents ?? 0);
+    }
+    for (const f of frRows) {
+        const m = f.month ?? f.m;
+        if (!m) continue;
+        ensure(m).fieldRentalGrossCents += Number(f.fr_gross_cents ?? f.frGrossCents ?? 0);
+    }
+
+    const rows = [...byMonth.values()]
+        .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0))
+        .map((r) => ({ ...r, netCents: r.stripeGrossCents - r.refundsCents + r.fieldRentalGrossCents }));
+
+    const totals = rows.reduce((t, r) => ({
+        stripeGrossCents: t.stripeGrossCents + r.stripeGrossCents,
+        fieldRentalGrossCents: t.fieldRentalGrossCents + r.fieldRentalGrossCents,
+        refundsCents: t.refundsCents + r.refundsCents,
+        netCents: t.netCents + r.netCents,
+    }), { stripeGrossCents: 0, fieldRentalGrossCents: 0, refundsCents: 0, netCents: 0 });
+
+    return { rows, totals };
+}
+
+/**
+ * Tax/fee summary — monthly tax + fee series + totals.
+ *
+ * @param {{ monthlyRows?: Array<{month?:string, tax_cents?:number, fee_cents?:number}> }} input
+ */
+export function computeTaxFeeSummary({ monthlyRows = [] } = {}) {
+    const series = monthlyRows.map((r) => {
+        const taxCents = Number(r.tax_cents ?? r.taxCents ?? 0);
+        const feeCents = Number(r.fee_cents ?? r.feeCents ?? 0);
+        return { month: r.month ?? r.m, taxCents, feeCents, totalCents: taxCents + feeCents };
+    });
+    const totals = series.reduce((t, r) => ({
+        taxCents: t.taxCents + r.taxCents,
+        feeCents: t.feeCents + r.feeCents,
+        totalCents: t.totalCents + r.totalCents,
+    }), { taxCents: 0, feeCents: 0, totalCents: 0 });
+    return { series, totals };
+}
+
+/**
+ * Period comparison — current window vs prior window, one metric per row with
+ * a delta. Net = gross − refunds; AOV = net ÷ paid bookings. Tolerates
+ * null/empty inputs (coerced to 0) so empty windows produce a valid shape.
+ *
+ * @param {{ current?: object, prior?: object }} input - each side
+ *   { gross_cents, refund_cents, tax_cents, fee_cents, paid_count }
+ */
+export function computePeriodComparison({ current = {}, prior = {} } = {}) {
+    const derive = (o) => {
+        const gross = Number(o?.gross_cents ?? 0) || 0;
+        const refunds = Number(o?.refund_cents ?? 0) || 0;
+        const tax = Number(o?.tax_cents ?? 0) || 0;
+        const fee = Number(o?.fee_cents ?? 0) || 0;
+        const bookings = Number(o?.paid_count ?? 0) || 0;
+        const net = gross - refunds;
+        return { gross, refunds, net, tax, fee, bookings, aov: bookings > 0 ? Math.round(net / bookings) : 0 };
+    };
+    const c = derive(current);
+    const p = derive(prior);
+
+    const defs = [
+        { key: 'gross', label: 'Gross', kind: 'money' },
+        { key: 'refunds', label: 'Refunds', kind: 'money' },
+        { key: 'net', label: 'Net', kind: 'money' },
+        { key: 'tax', label: 'Tax', kind: 'money' },
+        { key: 'fee', label: 'Fees', kind: 'money' },
+        { key: 'bookings', label: 'Bookings', kind: 'count' },
+        { key: 'aov', label: 'AOV', kind: 'money' },
+    ];
+    const metrics = defs.map((d) => ({
+        key: d.key,
+        label: d.label,
+        kind: d.kind,
+        current: c[d.key],
+        prior: p[d.key],
+        delta: computeDelta(c[d.key], p[d.key]),
+    }));
+    return { metrics };
+}
+
+// ────────────────────────────────────────────────────────────────────
 // CSV serialization (mirrors the csvEscape behavior in
 // worker/lib/thresholds1099.js — wrap-and-double-quote on special chars).
 // ────────────────────────────────────────────────────────────────────
