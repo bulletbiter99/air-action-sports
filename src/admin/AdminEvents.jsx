@@ -171,17 +171,19 @@ export default function AdminEvents() {
         {!loadingList && filtered.length > 0 && (
           <div className="admin-table-wrap">
             <div style={{ minWidth: 820 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: EVENTS_COLS }}>
-                <div style={th}>Title</div>
-                <div style={th}>Date</div>
-                <div style={th}>Location</div>
-                <div style={th}>Tickets</div>
-                <div style={th}>Sold</div>
-                <div style={th}>Gross</div>
-                <div style={th}>Status</div>
-                <div style={th}>Actions</div>
-              </div>
               <VirtualizedList
+                header={(
+                  <div style={{ display: 'grid', gridTemplateColumns: EVENTS_COLS }}>
+                    <div style={th}>Title</div>
+                    <div style={th}>Date</div>
+                    <div style={th}>Location</div>
+                    <div style={th}>Tickets</div>
+                    <div style={th}>Sold</div>
+                    <div style={th}>Gross</div>
+                    <div style={th}>Status</div>
+                    <div style={th}>Actions</div>
+                  </div>
+                )}
                 items={filtered}
                 getKey={(e) => e.id}
                 estimateRowHeight={56}
