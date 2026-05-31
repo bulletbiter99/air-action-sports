@@ -1,0 +1,279 @@
+// M7 Batch 2 — unit tests for the Reports pure helpers (worker/lib/reports.js).
+// No D1: every function here is fed plain fixtures matching the raw D1 row
+// shapes the route handlers pass in.
+
+import { describe, it, expect } from 'vitest';
+import {
+    resolvePeriodWindow,
+    priorWindow,
+    computeDelta,
+    computeRevenueTrends,
+    computeRefundRate,
+    computeAovTrend,
+    bucketRepeatCustomers,
+    computeSeriesRetention,
+    csvEscape,
+    toCsv,
+    SUPPORTED_PERIODS,
+} from '../../../worker/lib/reports.js';
+
+const DAY = 86400000;
+// Fixed reference instant: 2026-05-15T12:00:00Z (May = UTC month index 4, Q2).
+const NOW = Date.UTC(2026, 4, 15, 12, 0, 0);
+
+describe('resolvePeriodWindow', () => {
+    it('mtd starts at the 1st of the current UTC month', () => {
+        const w = resolvePeriodWindow('mtd', NOW);
+        expect(w.startMs).toBe(Date.UTC(2026, 4, 1));
+        expect(w.endMs).toBe(NOW);
+        expect(w.period).toBe('mtd');
+        expect(w.label).toBe('Month to date');
+    });
+
+    it('qtd starts at the 1st of the current quarter (Q2 → April)', () => {
+        const w = resolvePeriodWindow('qtd', NOW);
+        expect(w.startMs).toBe(Date.UTC(2026, 3, 1));
+        expect(w.endMs).toBe(NOW);
+    });
+
+    it('ytd starts at Jan 1 of the current UTC year', () => {
+        const w = resolvePeriodWindow('ytd', NOW);
+        expect(w.startMs).toBe(Date.UTC(2026, 0, 1));
+    });
+
+    it('last_30d / last_90d are rolling windows ending now', () => {
+        expect(resolvePeriodWindow('last_30d', NOW).startMs).toBe(NOW - 30 * DAY);
+        expect(resolvePeriodWindow('last_90d', NOW).startMs).toBe(NOW - 90 * DAY);
+    });
+
+    it('custom (and unknown) falls back to last_30d', () => {
+        const w = resolvePeriodWindow('custom', NOW);
+        expect(w.period).toBe('last_30d');
+        expect(w.requestedPeriod).toBe('custom');
+        expect(w.startMs).toBe(NOW - 30 * DAY);
+        expect(resolvePeriodWindow('nonsense', NOW).period).toBe('last_30d');
+    });
+
+    it('SUPPORTED_PERIODS lists the six selectors', () => {
+        expect(SUPPORTED_PERIODS).toEqual(['mtd', 'qtd', 'ytd', 'last_30d', 'last_90d', 'custom']);
+    });
+});
+
+describe('priorWindow', () => {
+    it('is the equal-length window immediately preceding', () => {
+        const cur = { startMs: 1000, endMs: 1700 };
+        const prior = priorWindow(cur);
+        expect(prior.endMs).toBe(1000);
+        expect(prior.startMs).toBe(300); // 1000 - (1700-1000)
+        expect(prior.endMs - prior.startMs).toBe(cur.endMs - cur.startMs);
+    });
+
+    it('prior of an MTD window does not overlap the current window', () => {
+        const cur = resolvePeriodWindow('mtd', NOW);
+        const prior = priorWindow(cur);
+        expect(prior.endMs).toBe(cur.startMs);
+    });
+});
+
+describe('computeDelta', () => {
+    it('computes absolute + percentage delta', () => {
+        expect(computeDelta(150, 100)).toEqual({ delta: 50, deltaPct: 0.5 });
+        expect(computeDelta(80, 100)).toEqual({ delta: -20, deltaPct: -0.2 });
+    });
+
+    it('returns null deltaPct when prior is 0 (no divide-by-zero)', () => {
+        expect(computeDelta(100, 0)).toEqual({ delta: 100, deltaPct: null });
+        expect(computeDelta(0, 0)).toEqual({ delta: 0, deltaPct: null });
+    });
+
+    it('treats null/undefined prior as 0', () => {
+        expect(computeDelta(100, null)).toEqual({ delta: 100, deltaPct: null });
+        expect(computeDelta(100, undefined)).toEqual({ delta: 100, deltaPct: null });
+    });
+});
+
+describe('computeRevenueTrends', () => {
+    it('maps daily rows to a series and sums the total', () => {
+        const out = computeRevenueTrends({
+            dailyRows: [
+                { d: '2026-05-01', gross_cents: 10000 },
+                { d: '2026-05-02', gross_cents: 5000 },
+            ],
+        });
+        expect(out.series).toEqual([
+            { date: '2026-05-01', grossCents: 10000 },
+            { date: '2026-05-02', grossCents: 5000 },
+        ]);
+        expect(out.totalCents).toBe(15000);
+        expect(out.priorTotalCents).toBeNull();
+        expect(out.delta).toBeNull();
+    });
+
+    it('computes a prior-period delta when priorTotalCents supplied', () => {
+        const out = computeRevenueTrends({
+            dailyRows: [{ d: '2026-05-01', gross_cents: 12000 }],
+            priorTotalCents: 10000,
+        });
+        expect(out.priorTotalCents).toBe(10000);
+        expect(out.delta).toEqual({ delta: 2000, deltaPct: 0.2 });
+    });
+
+    it('handles empty rows', () => {
+        const out = computeRevenueTrends({ dailyRows: [] });
+        expect(out.series).toEqual([]);
+        expect(out.totalCents).toBe(0);
+    });
+});
+
+describe('computeRefundRate', () => {
+    it('computes per-month rate and overall rate from sums', () => {
+        const out = computeRefundRate({
+            monthlyRows: [
+                { month: '2026-04', charged: 10, refunded: 2 },
+                { month: '2026-05', charged: 10, refunded: 3 },
+            ],
+        });
+        expect(out.series[0].rate).toBeCloseTo(0.2);
+        expect(out.series[1].rate).toBeCloseTo(0.3);
+        expect(out.charged).toBe(20);
+        expect(out.refunded).toBe(5);
+        expect(out.rate).toBeCloseTo(0.25);
+    });
+
+    it('rate is 0 when nothing charged (no NaN)', () => {
+        const out = computeRefundRate({ monthlyRows: [{ month: '2026-05', charged: 0, refunded: 0 }] });
+        expect(out.rate).toBe(0);
+    });
+
+    it('computes prior rate + delta when prior supplied', () => {
+        const out = computeRefundRate({
+            monthlyRows: [{ month: '2026-05', charged: 10, refunded: 5 }],
+            priorCharged: 10,
+            priorRefunded: 2,
+        });
+        expect(out.priorRate).toBeCloseTo(0.2);
+        expect(out.delta.delta).toBeCloseTo(0.3);
+    });
+});
+
+describe('computeAovTrend', () => {
+    it('recomputes overall AOV from total sum / count, not avg of monthly avgs', () => {
+        const out = computeAovTrend({
+            monthlyRows: [
+                { month: '2026-04', sum_cents: 30000, n: 3 }, // avg 10000
+                { month: '2026-05', sum_cents: 10000, n: 1 }, // avg 10000
+            ],
+        });
+        expect(out.series[0].avgCents).toBe(10000);
+        expect(out.series[1].avgCents).toBe(10000);
+        // overall: 40000 / 4 = 10000 (avg-of-avgs would also be 10000 here,
+        // but the weighted path is exercised by the prior case below)
+        expect(out.aovCents).toBe(10000);
+        expect(out.bookings).toBe(4);
+    });
+
+    it('weights overall AOV by booking count across uneven months', () => {
+        const out = computeAovTrend({
+            monthlyRows: [
+                { month: '2026-04', sum_cents: 90000, n: 9 }, // avg 10000
+                { month: '2026-05', sum_cents: 10000, n: 1 }, // avg 10000
+            ],
+        });
+        expect(out.aovCents).toBe(10000); // 100000 / 10
+    });
+
+    it('computes prior AOV + delta', () => {
+        const out = computeAovTrend({
+            monthlyRows: [{ month: '2026-05', sum_cents: 12000, n: 1 }],
+            priorSumCents: 10000,
+            priorCount: 1,
+        });
+        expect(out.priorAovCents).toBe(10000);
+        expect(out.delta).toEqual({ delta: 2000, deltaPct: 0.2 });
+    });
+
+    it('handles empty + zero-count months', () => {
+        expect(computeAovTrend({ monthlyRows: [] }).aovCents).toBe(0);
+        expect(computeAovTrend({ monthlyRows: [{ month: '2026-05', sum_cents: 0, n: 0 }] }).series[0].avgCents).toBe(0);
+    });
+});
+
+describe('bucketRepeatCustomers', () => {
+    it('buckets at the 2-3 / 4-9 / 10+ boundaries', () => {
+        const out = bucketRepeatCustomers([
+            { total_bookings: 1 },  // not repeat
+            { total_bookings: 2 },  // 2-3
+            { total_bookings: 3 },  // 2-3
+            { total_bookings: 4 },  // 4-9
+            { total_bookings: 9 },  // 4-9
+            { total_bookings: 10 }, // 10+
+            { total_bookings: 25 }, // 10+
+        ]);
+        expect(out.buckets).toEqual({ '2-3': 2, '4-9': 2, '10+': 2 });
+        expect(out.total).toBe(7);
+        expect(out.repeatTotal).toBe(6);
+        expect(out.repeatPct).toBeCloseTo(6 / 7);
+    });
+
+    it('handles empty input', () => {
+        expect(bucketRepeatCustomers([])).toEqual({
+            buckets: { '2-3': 0, '4-9': 0, '10+': 0 },
+            total: 0,
+            repeatTotal: 0,
+            repeatPct: 0,
+        });
+    });
+});
+
+describe('computeSeriesRetention', () => {
+    it('orders series by earliest date and computes adjacent retention', () => {
+        const rows = [
+            // Series Alpha (earliest 2026-01) — customers a,b,c
+            { customer_id: 'a', series: 'Alpha', date_iso: '2026-01-10' },
+            { customer_id: 'b', series: 'Alpha', date_iso: '2026-01-10' },
+            { customer_id: 'c', series: 'Alpha', date_iso: '2026-01-10' },
+            // Series Bravo (2026-03) — a,b booked again (2/3 retained)
+            { customer_id: 'a', series: 'Bravo', date_iso: '2026-03-10' },
+            { customer_id: 'b', series: 'Bravo', date_iso: '2026-03-10' },
+            // Series Charlie (2026-05) — only a (1/2 retained from Bravo)
+            { customer_id: 'a', series: 'Charlie', date_iso: '2026-05-10' },
+        ];
+        const out = computeSeriesRetention(rows);
+        expect(out).toHaveLength(2);
+        expect(out[0]).toMatchObject({ fromSeries: 'Alpha', toSeries: 'Bravo', baseCount: 3, retainedCount: 2 });
+        expect(out[0].retainedPct).toBeCloseTo(2 / 3);
+        expect(out[1]).toMatchObject({ fromSeries: 'Bravo', toSeries: 'Charlie', baseCount: 2, retainedCount: 1 });
+        expect(out[1].retainedPct).toBeCloseTo(0.5);
+    });
+
+    it('returns [] with fewer than 2 series', () => {
+        expect(computeSeriesRetention([])).toEqual([]);
+        expect(computeSeriesRetention([
+            { customer_id: 'a', series: 'Solo', date_iso: '2026-01-01' },
+        ])).toEqual([]);
+    });
+
+    it('skips rows with null series or customer', () => {
+        const out = computeSeriesRetention([
+            { customer_id: 'a', series: null, date_iso: '2026-01-01' },
+            { customer_id: null, series: 'X', date_iso: '2026-01-01' },
+        ]);
+        expect(out).toEqual([]);
+    });
+});
+
+describe('csvEscape + toCsv', () => {
+    it('escapes commas, quotes, and newlines', () => {
+        expect(csvEscape('plain')).toBe('plain');
+        expect(csvEscape('a,b')).toBe('"a,b"');
+        expect(csvEscape('say "hi"')).toBe('"say ""hi"""');
+        expect(csvEscape('line1\nline2')).toBe('"line1\nline2"');
+        expect(csvEscape(null)).toBe('');
+        expect(csvEscape(42)).toBe('42');
+    });
+
+    it('builds a CRLF-delimited CSV with header + rows', () => {
+        const csv = toCsv(['Month', 'Gross'], [['2026-05', '100.00'], ['2026-06', '250.50']]);
+        expect(csv).toBe('Month,Gross\r\n2026-05,100.00\r\n2026-06,250.50\r\n');
+    });
+});

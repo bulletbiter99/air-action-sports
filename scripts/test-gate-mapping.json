@@ -628,6 +628,35 @@
         "tests/unit/admin/email-templates-status.test.js",
         "tests/unit/admin/email-templates-preview-with-data.test.js"
       ]
+    },
+    "worker/lib/reports.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "resolvePeriodWindow (mtd/qtd/ytd/last_30d/last_90d UTC windows; custom→last_30d fallback)",
+        "priorWindow (equal-length preceding window for comparison)",
+        "computeDelta (deltaPct null when prior=0)",
+        "computeRevenueTrends / computeRefundRate / computeAovTrend / bucketRepeatCustomers / computeSeriesRetention (Owner report shapers)",
+        "csvEscape / toCsv (CSV serialization)"
+      ],
+      "audit_group": "(M7 Batch 2 Owner reports pure helpers)",
+      "tests": [
+        "tests/unit/lib/reports.test.js"
+      ]
+    },
+    "worker/routes/admin/reports.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "GET /api/admin/reports/owner/revenue-trends — daily gross + prior-period delta (JSON + ?format=csv)",
+        "GET /api/admin/reports/owner/retention — series-to-series retention via events.site",
+        "GET /api/admin/reports/owner/refund-rate — monthly refunded÷charged (Stripe + external)",
+        "GET /api/admin/reports/owner/repeat-customers — lifetime total_bookings bucket distribution",
+        "GET /api/admin/reports/owner/aov-trend — monthly AVG(total_cents) over paid bookings",
+        "CSV export on each owner endpoint gated on reports.export; Bookkeeper/Marketing/Site-Coordinator endpoints remain 501 stubs until Batches 3-5"
+      ],
+      "audit_group": "(M7 Batch 1a shell + Batch 2 Owner reports)",
+      "tests": [
+        "tests/unit/admin/reports/reports-stub.test.js"
+      ]
     }
   },
   "uncovered": {

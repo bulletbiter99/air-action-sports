@@ -1,7 +1,9 @@
-// M7 Batch 1a — admin Reports route stub tests.
+// M7 Batch 1a — admin Reports route tests.
 //
-// All 16 endpoints return 501 Not Implemented for capability-holding users
-// (until populated in Batches 2-5). Without the persona-specific capability,
+// Owner endpoints (5) are IMPLEMENTED in Batch 2 and return 200 with a report
+// payload (or text/csv with ?format=csv, gated on reports.export). The other
+// three personas' endpoints (Bookkeeper/Marketing/Site Coordinator) remain
+// 501 stubs until Batches 3-5. Without the persona-specific capability,
 // requireCapability fires 403 first.
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -25,15 +27,16 @@ beforeEach(async () => {
     cookieHeader = session.cookieHeader;
 });
 
-describe('GET /api/admin/reports/* — Owner endpoints (Batch 2 destinations)', () => {
-    it('owner endpoint returns 501 stub when viewer has reports.read.owner', async () => {
+describe('GET /api/admin/reports/* — Owner endpoints (Batch 2 — implemented)', () => {
+    it('revenue-trends returns 200 with a report payload when viewer has reports.read.owner', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.owner']);
         const res = await worker.fetch(req('/api/admin/reports/owner/revenue-trends'), env, {});
-        expect(res.status).toBe(501);
+        expect(res.status).toBe(200);
         const data = await res.json();
-        expect(data.persona).toBe('owner');
         expect(data.report).toBe('revenue-trends');
-        expect(data.status).toBe('stub');
+        expect(Array.isArray(data.series)).toBe(true);
+        expect(data.window).toBeTruthy();
+        expect(typeof data.totalCents).toBe('number');
     });
 
     it('owner endpoint returns 403 without reports.read.owner', async () => {
@@ -47,6 +50,23 @@ describe('GET /api/admin/reports/* — Owner endpoints (Batch 2 destinations)', 
         const noCookieReq = new Request('https://airactionsport.com/api/admin/reports/owner/refund-rate');
         const res = await worker.fetch(noCookieReq, env, {});
         expect(res.status).toBe(401);
+    });
+
+    it('CSV export returns text/csv when viewer also has reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.owner', 'reports.export']);
+        const res = await worker.fetch(req('/api/admin/reports/owner/revenue-trends?format=csv'), env, {});
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/csv');
+        const body = await res.text();
+        expect(body).toContain('Date,Gross');
+    });
+
+    it('CSV export returns 403 without reports.export (read.owner alone is not enough)', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.owner']);
+        const res = await worker.fetch(req('/api/admin/reports/owner/refund-rate?format=csv'), env, {});
+        expect(res.status).toBe(403);
+        const data = await res.json();
+        expect(data.requiresCapability).toBe('reports.export');
     });
 });
 
@@ -99,7 +119,7 @@ describe('GET /api/admin/reports/* — Site Coordinator endpoints (Batch 5)', ()
 });
 
 describe('All 16 endpoints mounted', () => {
-    it('every Owner report endpoint exists (5 endpoints)', async () => {
+    it('every Owner report endpoint returns 200 (implemented in Batch 2)', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.owner']);
         const paths = [
             '/api/admin/reports/owner/revenue-trends',
@@ -110,7 +130,7 @@ describe('All 16 endpoints mounted', () => {
         ];
         for (const path of paths) {
             const res = await worker.fetch(req(path), env, {});
-            expect(res.status, `${path} should be 501 stub`).toBe(501);
+            expect(res.status, `${path} should be 200`).toBe(200);
         }
     });
 

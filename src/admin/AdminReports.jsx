@@ -11,9 +11,13 @@
 // Each tab's content is empty until Batches 2-5 populate. Until then the
 // page renders a "Coming in Batch N" placeholder per persona.
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { useAdmin } from './AdminContext';
 import ReportEmptyState from './reports/ReportEmptyState.jsx';
+
+// Owner tab content (Batch 2). Lazy-loaded so the report bundle + chart
+// primitives don't weigh down the shell for personas that never open it.
+const OwnerReports = lazy(() => import('./reports/OwnerReports.jsx'));
 
 const TABS = [
     { key: 'owner',            label: 'Owner',             capability: 'reports.read.owner',            batch: 'Batch 2' },
@@ -104,7 +108,11 @@ export default function AdminReports() {
             </nav>
 
             <div style={tabContent}>
-                {tabConfig ? (
+                {currentTab === 'owner' ? (
+                    <Suspense fallback={<p style={muted}>Loading reports…</p>}>
+                        <OwnerReports />
+                    </Suspense>
+                ) : tabConfig ? (
                     <ReportEmptyState
                         kind="not-implemented"
                         title={`${tabConfig.label} reports`}
