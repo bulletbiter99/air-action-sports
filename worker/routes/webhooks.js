@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { verifyWebhookSignature } from '../lib/stripe.js';
 import { attendeeId, qrToken } from '../lib/ids.js';
 import { safeJson } from '../lib/formatters.js';
-import { sendBookingConfirmation, sendAdminNotify, sendWaiverRequest, sendDisputeAlert } from '../lib/emailSender.js';
+import { sendBookingConfirmation, sendAdminNotify, sendWaiverRequest, sendDisputeAlert, sendBounceAlert, sendComplaintAlert } from '../lib/emailSender.js';
 import { findExistingValidWaiver } from '../lib/waiverLookup.js';
 import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../lib/customers.js';
 import { verifyResendWebhook } from '../lib/resendWebhook.js';
@@ -82,7 +82,12 @@ webhooks.post('/resend', async (c) => {
     }
 
     if (event.type === 'email.bounced' || event.type === 'email.complained') {
-        await handleResendEmailEvent(c.env.DB, event, svixId);
+        const result = await handleResendEmailEvent(c.env.DB, event, svixId);
+        // M7 B10 — queue an admin alert for actionable events (hard bounce /
+        // complaint). handleResendEmailEvent returns emailContext only then.
+        if (result?.emailContext && c.executionCtx?.waitUntil) {
+            c.executionCtx.waitUntil(sendResendAlert(c.env, result.emailContext));
+        }
     }
 
     return c.json({ received: true });
@@ -179,8 +184,10 @@ async function sendDisputeEmail(env, { booking, event, dispute }) {
 // matches), and writes an audit_log row so events surface in the admin audit
 // log + Batch 6 FTS search. On a hard bounce or any complaint that matches a
 // known active customer, suppresses marketing email (NEVER transactional, so
-// booking confirmations keep sending). Batch 10 adds the alert emails; this
-// batch only records + suppresses, so all work is synchronous (no waitUntil).
+// booking confirmations keep sending). On a hard bounce or complaint it returns
+// an emailContext; the /resend route then queues an admin alert via waitUntil
+// (M7 B10 — sendResendAlert). Soft bounces + the idempotent-skip path return
+// nothing, so no alert fires.
 //
 // Idempotency: Svix redelivers the same message on our 5xx or a manual resend.
 // We short-circuit if an email_events row already carries this svix-id (the
@@ -265,6 +272,46 @@ async function handleResendEmailEvent(db, event, svixId) {
     ).run();
 
     console.log(`Resend webhook: ${type}${bounceType ? ` (${bounceType})` : ''} for ${recipient} — customer=${customer?.id || 'none'} suppressed=${suppress}`);
+
+    // M7 B10 — alert on actionable events (hard bounce / complaint), regardless
+    // of customer match (an orphan dead address is still worth knowing about).
+    // Reuses shouldSuppressMarketing as the actionable predicate; it's NOT
+    // customer-gated, unlike `suppress` above.
+    if (shouldSuppressMarketing({ type, bounceType })) {
+        return {
+            emailContext: {
+                type,
+                bounceType,
+                recipient,
+                resendEmailId,
+                customerId: customer?.id || null,
+                suppressed: suppress,
+            },
+        };
+    }
+}
+
+// M7 B10 — admin-alert dispatcher for the Resend consumer. Mirrors
+// sendDisputeEmail. Self-alert guard: if the bounced/complained recipient IS our
+// own ADMIN_NOTIFY_EMAIL, skip — otherwise an admin alert that itself bounces
+// would loop back through this handler.
+async function sendResendAlert(env, ctx) {
+    try {
+        const adminNorm = normalizeEmail(env.ADMIN_NOTIFY_EMAIL || '');
+        const recipNorm = ctx.recipient ? normalizeEmail(ctx.recipient) : null;
+        if (adminNorm && recipNorm && adminNorm === recipNorm) {
+            console.log('Resend alert: recipient is ADMIN_NOTIFY_EMAIL — skipping self-alert');
+            return { skipped: 'self_alert' };
+        }
+        const r = ctx.type === 'complaint'
+            ? await sendComplaintAlert(env, { emailEvent: ctx })
+            : await sendBounceAlert(env, { emailEvent: ctx });
+        console.log('Resend alert sent:', JSON.stringify(r));
+        return r;
+    } catch (err) {
+        console.error('sendResendAlert failed:', err.message);
+        return { error: err.message };
+    }
 }
 
 async function sendBookingEmails(env, { booking, event, attendees }) {
