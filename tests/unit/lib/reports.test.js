@@ -12,6 +12,9 @@ import {
     computeAovTrend,
     bucketRepeatCustomers,
     computeSeriesRetention,
+    computePayoutsSummary,
+    computeTaxFeeSummary,
+    computePeriodComparison,
     csvEscape,
     toCsv,
     SUPPORTED_PERIODS,
@@ -275,5 +278,89 @@ describe('csvEscape + toCsv', () => {
     it('builds a CRLF-delimited CSV with header + rows', () => {
         const csv = toCsv(['Month', 'Gross'], [['2026-05', '100.00'], ['2026-06', '250.50']]);
         expect(csv).toBe('Month,Gross\r\n2026-05,100.00\r\n2026-06,250.50\r\n');
+    });
+});
+
+describe('computePayoutsSummary', () => {
+    it('merges booking + field-rental months and computes net', () => {
+        const out = computePayoutsSummary({
+            bookingRows: [
+                { month: '2026-04', gross_cents: 10000, refund_cents: 0 },
+                { month: '2026-05', gross_cents: 20000, refund_cents: 5000 },
+            ],
+            frRows: [
+                { month: '2026-05', fr_gross_cents: 8000 },
+                { month: '2026-06', fr_gross_cents: 3000 },
+            ],
+        });
+        // union of months, sorted ascending
+        expect(out.rows.map((r) => r.month)).toEqual(['2026-04', '2026-05', '2026-06']);
+        const may = out.rows.find((r) => r.month === '2026-05');
+        expect(may).toMatchObject({ stripeGrossCents: 20000, fieldRentalGrossCents: 8000, refundsCents: 5000 });
+        expect(may.netCents).toBe(23000); // 20000 - 5000 + 8000
+        const jun = out.rows.find((r) => r.month === '2026-06');
+        expect(jun.netCents).toBe(3000); // FR-only month
+        expect(out.totals).toEqual({
+            stripeGrossCents: 30000,
+            fieldRentalGrossCents: 11000,
+            refundsCents: 5000,
+            netCents: 36000,
+        });
+    });
+
+    it('handles empty input', () => {
+        const out = computePayoutsSummary({});
+        expect(out.rows).toEqual([]);
+        expect(out.totals).toEqual({ stripeGrossCents: 0, fieldRentalGrossCents: 0, refundsCents: 0, netCents: 0 });
+    });
+});
+
+describe('computeTaxFeeSummary', () => {
+    it('builds a per-month series with per-row totals + grand totals', () => {
+        const out = computeTaxFeeSummary({
+            monthlyRows: [
+                { month: '2026-05', tax_cents: 1000, fee_cents: 500 },
+                { month: '2026-06', tax_cents: 2000, fee_cents: 0 },
+            ],
+        });
+        expect(out.series[0]).toEqual({ month: '2026-05', taxCents: 1000, feeCents: 500, totalCents: 1500 });
+        expect(out.series[1].totalCents).toBe(2000);
+        expect(out.totals).toEqual({ taxCents: 3000, feeCents: 500, totalCents: 3500 });
+    });
+
+    it('handles empty input', () => {
+        expect(computeTaxFeeSummary({}).totals).toEqual({ taxCents: 0, feeCents: 0, totalCents: 0 });
+    });
+});
+
+describe('computePeriodComparison', () => {
+    it('derives net/AOV per side and a delta per metric', () => {
+        const out = computePeriodComparison({
+            current: { gross_cents: 20000, refund_cents: 5000, tax_cents: 1500, fee_cents: 500, paid_count: 10 },
+            prior: { gross_cents: 10000, refund_cents: 0, tax_cents: 800, fee_cents: 200, paid_count: 5 },
+        });
+        const byKey = Object.fromEntries(out.metrics.map((m) => [m.key, m]));
+        expect(byKey.net).toMatchObject({ current: 15000, prior: 10000 });
+        expect(byKey.net.delta).toEqual({ delta: 5000, deltaPct: 0.5 });
+        expect(byKey.aov).toMatchObject({ current: 1500, prior: 2000 }); // net/bookings
+        expect(byKey.aov.delta).toEqual({ delta: -500, deltaPct: -0.25 });
+        expect(byKey.bookings).toMatchObject({ current: 10, prior: 5, kind: 'count' });
+        expect(out.metrics).toHaveLength(7);
+    });
+
+    it('returns null deltaPct when prior side is empty/zero', () => {
+        const out = computePeriodComparison({
+            current: { gross_cents: 5000, refund_cents: 0, paid_count: 2 },
+            prior: {},
+        });
+        const net = out.metrics.find((m) => m.key === 'net');
+        expect(net.current).toBe(5000);
+        expect(net.prior).toBe(0);
+        expect(net.delta.deltaPct).toBeNull();
+    });
+
+    it('tolerates fully empty input (all zeros)', () => {
+        const out = computePeriodComparison({});
+        expect(out.metrics.every((m) => m.current === 0 && m.prior === 0)).toBe(true);
     });
 });

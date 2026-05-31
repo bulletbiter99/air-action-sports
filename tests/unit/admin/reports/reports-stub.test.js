@@ -1,10 +1,10 @@
 // M7 Batch 1a — admin Reports route tests.
 //
-// Owner endpoints (5) are IMPLEMENTED in Batch 2 and return 200 with a report
-// payload (or text/csv with ?format=csv, gated on reports.export). The other
-// three personas' endpoints (Bookkeeper/Marketing/Site Coordinator) remain
-// 501 stubs until Batches 3-5. Without the persona-specific capability,
-// requireCapability fires 403 first.
+// Owner endpoints (5, Batch 2) and Bookkeeper endpoints (3, Batch 3) are
+// IMPLEMENTED and return 200 with a report payload (or text/csv with
+// ?format=csv, gated on reports.export). Marketing + Site Coordinator
+// endpoints remain 501 stubs until Batches 4-5. Without the persona-specific
+// capability, requireCapability fires 403 first.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import worker from '../../../../worker/index.js';
@@ -70,19 +70,46 @@ describe('GET /api/admin/reports/* — Owner endpoints (Batch 2 — implemented)
     });
 });
 
-describe('GET /api/admin/reports/* — Bookkeeper endpoints (Batch 3)', () => {
-    it('returns 501 with reports.read.bookkeeper', async () => {
+describe('GET /api/admin/reports/* — Bookkeeper endpoints (Batch 3 — implemented)', () => {
+    it('payouts returns 200 with rows + totals when viewer has reports.read.bookkeeper', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper']);
         const res = await worker.fetch(req('/api/admin/reports/bookkeeper/payouts'), env, {});
-        expect(res.status).toBe(501);
+        expect(res.status).toBe(200);
         const data = await res.json();
-        expect(data.persona).toBe('bookkeeper');
+        expect(data.report).toBe('payouts');
+        expect(Array.isArray(data.rows)).toBe(true);
+        expect(data.totals).toBeTruthy();
+    });
+
+    it('period-comparison returns 200 with a 7-metric array', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper']);
+        const res = await worker.fetch(req('/api/admin/reports/bookkeeper/period-comparison'), env, {});
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.report).toBe('period-comparison');
+        expect(Array.isArray(data.metrics)).toBe(true);
+        expect(data.metrics).toHaveLength(7);
     });
 
     it('returns 403 without reports.read.bookkeeper', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read.owner']);  // owner cap, not bookkeeper
         const res = await worker.fetch(req('/api/admin/reports/bookkeeper/tax-fee-summary'), env, {});
         expect(res.status).toBe(403);
+    });
+
+    it('CSV export returns text/csv when viewer also has reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper', 'reports.export']);
+        const res = await worker.fetch(req('/api/admin/reports/bookkeeper/payouts?format=csv'), env, {});
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/csv');
+        expect(await res.text()).toContain('Stripe Gross');
+    });
+
+    it('CSV export returns 403 without reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper']);
+        const res = await worker.fetch(req('/api/admin/reports/bookkeeper/period-comparison?format=csv'), env, {});
+        expect(res.status).toBe(403);
+        expect((await res.json()).requiresCapability).toBe('reports.export');
     });
 });
 
@@ -134,7 +161,7 @@ describe('All 16 endpoints mounted', () => {
         }
     });
 
-    it('every Bookkeeper report endpoint exists (3 endpoints; 1099 thresholds links elsewhere)', async () => {
+    it('every Bookkeeper report endpoint returns 200 (3 endpoints; 1099 thresholds links elsewhere)', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper']);
         const paths = [
             '/api/admin/reports/bookkeeper/payouts',
@@ -143,7 +170,7 @@ describe('All 16 endpoints mounted', () => {
         ];
         for (const path of paths) {
             const res = await worker.fetch(req(path), env, {});
-            expect(res.status, `${path} should be 501 stub`).toBe(501);
+            expect(res.status, `${path} should be 200`).toBe(200);
         }
     });
 
