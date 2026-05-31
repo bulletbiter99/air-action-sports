@@ -15,6 +15,10 @@ import {
     computePayoutsSummary,
     computeTaxFeeSummary,
     computePeriodComparison,
+    computeConversionFunnel,
+    computePromoPerformance,
+    computeCustomerCohorts,
+    computeChannelAttribution,
     csvEscape,
     toCsv,
     SUPPORTED_PERIODS,
@@ -362,5 +366,101 @@ describe('computePeriodComparison', () => {
     it('tolerates fully empty input (all zeros)', () => {
         const out = computePeriodComparison({});
         expect(out.metrics.every((m) => m.current === 0 && m.prior === 0)).toBe(true);
+    });
+});
+
+describe('computeConversionFunnel', () => {
+    it('builds a 4-stage funnel per event with drop-off percentages', () => {
+        const out = computeConversionFunnel({
+            bookingRows: [{ event_id: 'e1', title: 'Op Night', date_iso: '2026-05-01', created: 100, paid: 80 }],
+            attendeeRows: [{ event_id: 'e1', checked_in: 60, waivered: 50 }],
+        });
+        expect(out.events).toHaveLength(1);
+        const ev = out.events[0];
+        expect(ev).toMatchObject({ eventId: 'e1', title: 'Op Night', dateIso: '2026-05-01' });
+        expect(ev.stages.map((s) => s.count)).toEqual([100, 80, 60, 50]);
+        expect(ev.stages[0].pctOfPrev).toBeNull();
+        expect(ev.stages[1].pctOfTop).toBeCloseTo(0.8);
+        expect(ev.stages[2].pctOfPrev).toBeCloseTo(0.75); // 60/80
+        expect(ev.stages[3].pctOfPrev).toBeCloseTo(50 / 60);
+    });
+
+    it('zero-fills events with no attendee row', () => {
+        const out = computeConversionFunnel({
+            bookingRows: [{ event_id: 'e2', title: 'New', date_iso: '2026-06-01', created: 5, paid: 0 }],
+            attendeeRows: [],
+        });
+        expect(out.events[0].stages.map((s) => s.count)).toEqual([5, 0, 0, 0]);
+    });
+
+    it('handles empty input', () => {
+        expect(computeConversionFunnel({}).events).toEqual([]);
+    });
+});
+
+describe('computePromoPerformance', () => {
+    const NOW_MS = Date.UTC(2026, 4, 15);
+
+    it('labels discount + computes status across active/expired/inactive', () => {
+        const out = computePromoPerformance({
+            nowMs: NOW_MS,
+            rows: [
+                { id: 'p1', code: 'SAVE15', discount_type: 'percent', discount_value: 15, uses_count: 5, active: 1, expires_at: null, redemptions: 5, discount_cents: 3000, revenue_cents: 17000 },
+                { id: 'p2', code: 'TENOFF', discount_type: 'fixed', discount_value: 1000, uses_count: 2, active: 1, expires_at: NOW_MS - 1000, redemptions: 2, discount_cents: 2000, revenue_cents: 5000 },
+                { id: 'p3', code: 'OLD', discount_type: 'percent', discount_value: 50, uses_count: 0, active: 0 },
+            ],
+        });
+        const byCode = Object.fromEntries(out.promos.map((p) => [p.code, p]));
+        expect(byCode.SAVE15).toMatchObject({ discountLabel: '15%', status: 'active', redemptions: 5, revenueCents: 17000 });
+        expect(byCode.TENOFF).toMatchObject({ discountLabel: '$10.00', status: 'expired' });
+        expect(byCode.OLD).toMatchObject({ status: 'inactive' });
+    });
+
+    it('handles empty input', () => {
+        expect(computePromoPerformance({}).promos).toEqual([]);
+    });
+});
+
+describe('computeCustomerCohorts', () => {
+    it('computes per-cohort repeat rate + weighted totals', () => {
+        const out = computeCustomerCohorts({
+            monthlyRows: [
+                { month: '2026-04', new_count: 10, repeat_count: 3 },
+                { month: '2026-05', new_count: 5, repeat_count: 0 },
+            ],
+        });
+        expect(out.cohorts[0].repeatPct).toBeCloseTo(0.3);
+        expect(out.cohorts[1].repeatPct).toBe(0);
+        expect(out.totals).toMatchObject({ newCount: 15, repeatCount: 3 });
+        expect(out.totals.repeatPct).toBeCloseTo(0.2);
+    });
+
+    it('handles empty input', () => {
+        expect(computeCustomerCohorts({}).totals).toEqual({ newCount: 0, repeatCount: 0, repeatPct: 0 });
+    });
+});
+
+describe('computeChannelAttribution', () => {
+    it('computes revenue share and flags hasData when a real channel exists', () => {
+        const out = computeChannelAttribution({
+            rows: [
+                { channel: 'google', bookings: 10, revenue_cents: 50000 },
+                { channel: '(unspecified)', bookings: 5, revenue_cents: 20000 },
+            ],
+        });
+        expect(out.totalRevenueCents).toBe(70000);
+        expect(out.channels[0].pctOfRevenue).toBeCloseTo(50000 / 70000);
+        expect(out.hasData).toBe(true);
+    });
+
+    it('hasData is false when only the unspecified bucket is present', () => {
+        const out = computeChannelAttribution({ rows: [{ channel: '(unspecified)', bookings: 3, revenue_cents: 10000 }] });
+        expect(out.hasData).toBe(false);
+    });
+
+    it('handles empty input', () => {
+        const out = computeChannelAttribution({});
+        expect(out.hasData).toBe(false);
+        expect(out.totalRevenueCents).toBe(0);
     });
 });

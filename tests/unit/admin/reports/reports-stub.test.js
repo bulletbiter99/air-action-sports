@@ -1,10 +1,10 @@
 // M7 Batch 1a — admin Reports route tests.
 //
-// Owner endpoints (5, Batch 2) and Bookkeeper endpoints (3, Batch 3) are
-// IMPLEMENTED and return 200 with a report payload (or text/csv with
-// ?format=csv, gated on reports.export). Marketing + Site Coordinator
-// endpoints remain 501 stubs until Batches 4-5. Without the persona-specific
-// capability, requireCapability fires 403 first.
+// Owner (5, Batch 2), Bookkeeper (3, Batch 3), and Marketing (4, Batch 4)
+// endpoints are IMPLEMENTED and return 200 with a report payload (or text/csv
+// with ?format=csv, gated on reports.export). Site Coordinator endpoints
+// remain 501 stubs until Batch 5. Without the persona-specific capability,
+// requireCapability fires 403 first.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import worker from '../../../../worker/index.js';
@@ -113,19 +113,45 @@ describe('GET /api/admin/reports/* — Bookkeeper endpoints (Batch 3 — impleme
     });
 });
 
-describe('GET /api/admin/reports/* — Marketing endpoints (Batch 4)', () => {
-    it('returns 501 with reports.read.marketing', async () => {
+describe('GET /api/admin/reports/* — Marketing endpoints (Batch 4 — implemented)', () => {
+    it('conversion-funnel returns 200 with an events array when viewer has reports.read.marketing', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.marketing']);
         const res = await worker.fetch(req('/api/admin/reports/marketing/conversion-funnel'), env, {});
-        expect(res.status).toBe(501);
+        expect(res.status).toBe(200);
         const data = await res.json();
-        expect(data.persona).toBe('marketing');
+        expect(data.report).toBe('conversion-funnel');
+        expect(Array.isArray(data.events)).toBe(true);
+    });
+
+    it('channel-attribution returns 200 with channels + hasData flag', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.marketing']);
+        const res = await worker.fetch(req('/api/admin/reports/marketing/channel-attribution'), env, {});
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.report).toBe('channel-attribution');
+        expect(Array.isArray(data.channels)).toBe(true);
+        expect(typeof data.hasData).toBe('boolean');
     });
 
     it('returns 403 without reports.read.marketing', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read']);
         const res = await worker.fetch(req('/api/admin/reports/marketing/customer-cohorts'), env, {});
         expect(res.status).toBe(403);
+    });
+
+    it('CSV export returns text/csv when viewer also has reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.marketing', 'reports.export']);
+        const res = await worker.fetch(req('/api/admin/reports/marketing/promo-performance?format=csv'), env, {});
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/csv');
+        expect(await res.text()).toContain('Code');
+    });
+
+    it('CSV export returns 403 without reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.marketing']);
+        const res = await worker.fetch(req('/api/admin/reports/marketing/channel-attribution?format=csv'), env, {});
+        expect(res.status).toBe(403);
+        expect((await res.json()).requiresCapability).toBe('reports.export');
     });
 });
 
@@ -174,7 +200,7 @@ describe('All 16 endpoints mounted', () => {
         }
     });
 
-    it('every Marketing report endpoint exists (4 endpoints)', async () => {
+    it('every Marketing report endpoint returns 200 (implemented in Batch 4)', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.marketing']);
         const paths = [
             '/api/admin/reports/marketing/conversion-funnel',
@@ -184,7 +210,7 @@ describe('All 16 endpoints mounted', () => {
         ];
         for (const path of paths) {
             const res = await worker.fetch(req(path), env, {});
-            expect(res.status, `${path} should be 501 stub`).toBe(501);
+            expect(res.status, `${path} should be 200`).toBe(200);
         }
     });
 
