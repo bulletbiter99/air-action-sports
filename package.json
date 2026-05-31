@@ -14,6 +14,8 @@
     "test:e2e": "playwright test --project=smoke",
     "test:visual": "playwright test --project=visual",
     "test:visual:update": "playwright test --project=visual --update-snapshots",
+    "test:visual:admin": "playwright test --config playwright.admin.config.js",
+    "test:visual:admin:update": "playwright test --config playwright.admin.config.js --update-snapshots",
     "verify-m5": "node scripts/verify-m5-completeness.js"
   },
   "dependencies": {
