@@ -20,6 +20,8 @@ import ReportEmptyState from './reports/ReportEmptyState.jsx';
 const OwnerReports = lazy(() => import('./reports/OwnerReports.jsx'));
 // Bookkeeper tab content (Batch 3).
 const BookkeeperReports = lazy(() => import('./reports/BookkeeperReports.jsx'));
+// Marketing tab content (Batch 4).
+const MarketingReports = lazy(() => import('./reports/MarketingReports.jsx'));
 
 const TABS = [
     { key: 'owner',            label: 'Owner',             capability: 'reports.read.owner',            batch: 'Batch 2' },
@@ -117,6 +119,10 @@ export default function AdminReports() {
                 ) : currentTab === 'bookkeeper' ? (
                     <Suspense fallback={<p style={muted}>Loading reports…</p>}>
                         <BookkeeperReports />
+                    </Suspense>
+                ) : currentTab === 'marketing' ? (
+                    <Suspense fallback={<p style={muted}>Loading reports…</p>}>
+                        <MarketingReports />
                     </Suspense>
                 ) : tabConfig ? (
                     <ReportEmptyState

@@ -361,6 +361,116 @@ export function computePeriodComparison({ current = {}, prior = {} } = {}) {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// Marketing report shapers (Batch 4)
+// ────────────────────────────────────────────────────────────────────
+
+const FUNNEL_STAGE_NAMES = ['Bookings', 'Paid', 'Checked-in', 'Waivers'];
+
+/**
+ * Conversion funnel by event — merge per-event booking counts with per-event
+ * attendee counts into a 4-stage funnel each. Stage units are mixed (bookings
+ * for stages 1-2, attendees for 3-4), matching the M4 /analytics/funnel
+ * definition; labeled clearly.
+ *
+ * @param {{ bookingRows?: Array<{event_id?:string,title?:string,date_iso?:string,created?:number,paid?:number}>,
+ *           attendeeRows?: Array<{event_id?:string,checked_in?:number,waivered?:number}> }} input
+ */
+export function computeConversionFunnel({ bookingRows = [], attendeeRows = [] } = {}) {
+    const attByEvent = new Map();
+    for (const a of attendeeRows) {
+        const id = a.event_id ?? a.eventId;
+        if (id != null) attByEvent.set(id, a);
+    }
+    const events = bookingRows.map((b) => {
+        const id = b.event_id ?? b.eventId;
+        const att = attByEvent.get(id) || {};
+        const counts = [
+            Number(b.created ?? 0),
+            Number(b.paid ?? 0),
+            Number(att.checked_in ?? att.checkedIn ?? 0),
+            Number(att.waivered ?? 0),
+        ];
+        const top = counts[0];
+        const stages = counts.map((count, i) => ({
+            name: FUNNEL_STAGE_NAMES[i],
+            count,
+            pctOfTop: top > 0 ? count / top : 0,
+            pctOfPrev: i === 0 ? null : (counts[i - 1] > 0 ? count / counts[i - 1] : 0),
+        }));
+        return { eventId: id, title: b.title, dateIso: b.date_iso ?? b.dateIso, stages };
+    });
+    return { events };
+}
+
+/**
+ * Promo code performance — per-code label + lifetime usage/revenue + a
+ * computed status. `nowMs` is passed in (no Date.now() in the pure helper).
+ */
+export function computePromoPerformance({ rows = [], nowMs = 0 } = {}) {
+    const promos = rows.map((r) => {
+        const type = r.discount_type ?? r.discountType;
+        const value = Number(r.discount_value ?? r.discountValue ?? 0);
+        const discountLabel = type === 'percent' ? `${value}%` : `$${(value / 100).toFixed(2)}`;
+        const active = r.active === 1 || r.active === true;
+        const expiresAt = r.expires_at ?? r.expiresAt ?? null;
+        let status = 'active';
+        if (!active) status = 'inactive';
+        else if (expiresAt != null && Number(expiresAt) < nowMs) status = 'expired';
+        return {
+            id: r.id,
+            code: r.code,
+            discountLabel,
+            uses: Number(r.uses_count ?? r.usesCount ?? 0),
+            redemptions: Number(r.redemptions ?? 0),
+            discountCents: Number(r.discount_cents ?? 0),
+            revenueCents: Number(r.revenue_cents ?? 0),
+            status,
+        };
+    });
+    return { promos };
+}
+
+/**
+ * Customer cohorts by acquisition month — repeat rate per cohort + totals.
+ * @param {{ monthlyRows?: Array<{month?:string,new_count?:number,repeat_count?:number}> }} input
+ */
+export function computeCustomerCohorts({ monthlyRows = [] } = {}) {
+    const cohorts = monthlyRows.map((r) => {
+        const newCount = Number(r.new_count ?? r.newCount ?? 0);
+        const repeatCount = Number(r.repeat_count ?? r.repeatCount ?? 0);
+        return { month: r.month ?? r.m, newCount, repeatCount, repeatPct: newCount > 0 ? repeatCount / newCount : 0 };
+    });
+    const totals = cohorts.reduce((t, c) => ({
+        newCount: t.newCount + c.newCount,
+        repeatCount: t.repeatCount + c.repeatCount,
+    }), { newCount: 0, repeatCount: 0 });
+    totals.repeatPct = totals.newCount > 0 ? totals.repeatCount / totals.newCount : 0;
+    return { cohorts, totals };
+}
+
+/**
+ * Channel attribution — revenue + share per referral channel. `hasData` is
+ * false when there are no rows or the only channel is the unspecified bucket,
+ * which drives the UI's explanatory empty state.
+ *
+ * @param {{ rows?: Array<{channel?:string,bookings?:number,revenue_cents?:number}> }} input
+ */
+export function computeChannelAttribution({ rows = [] } = {}) {
+    const totalRevenueCents = rows.reduce((s, r) => s + Number(r.revenue_cents ?? 0), 0);
+    const channels = rows.map((r) => {
+        const revenueCents = Number(r.revenue_cents ?? 0);
+        return {
+            channel: r.channel,
+            bookings: Number(r.bookings ?? 0),
+            revenueCents,
+            pctOfRevenue: totalRevenueCents > 0 ? revenueCents / totalRevenueCents : 0,
+        };
+    });
+    const hasData = channels.some((c) => c.channel !== '(unspecified)');
+    return { channels, totalRevenueCents, hasData };
+}
+
+// ────────────────────────────────────────────────────────────────────
 // CSV serialization (mirrors the csvEscape behavior in
 // worker/lib/thresholds1099.js — wrap-and-double-quote on special chars).
 // ────────────────────────────────────────────────────────────────────

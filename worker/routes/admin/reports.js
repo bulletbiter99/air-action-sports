@@ -29,6 +29,10 @@ import {
     computePayoutsSummary,
     computeTaxFeeSummary,
     computePeriodComparison,
+    computeConversionFunnel,
+    computePromoPerformance,
+    computeCustomerCohorts,
+    computeChannelAttribution,
     toCsv,
 } from '../../lib/reports.js';
 
@@ -379,21 +383,134 @@ adminReports.get('/bookkeeper/period-comparison',
 // Marketing reports (Batch 4)
 // ────────────────────────────────────────────────────────────────────
 
+// 1. Conversion funnel by event — Bookings → Paid → Checked-in → Waivers.
 adminReports.get('/marketing/conversion-funnel',
     requireCapability('reports.read.marketing'),
-    (c) => notImplemented(c, 'marketing', 'conversion-funnel'));
+    async (c) => {
+        const { eventId, format } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
 
+        const FUNNEL_EVENT_CAP = 25;
+        const evtWhere = eventId ? 'WHERE e.id = ?' : '';
+        const bookingBinds = eventId ? [eventId, FUNNEL_EVENT_CAP + 1] : [FUNNEL_EVENT_CAP + 1];
+        const bookingRes = await c.env.DB.prepare(
+            `SELECT e.id AS event_id, e.title, e.date_iso,
+                    COUNT(b.id) AS created,
+                    SUM(CASE WHEN b.status IN ('paid','comp') THEN 1 ELSE 0 END) AS paid
+             FROM events e
+             LEFT JOIN bookings b ON b.event_id = e.id
+             ${evtWhere}
+             GROUP BY e.id
+             ORDER BY e.date_iso DESC
+             LIMIT ?`
+        ).bind(...bookingBinds).all();
+        let bookingRows = bookingRes.results || [];
+        const truncated = bookingRows.length > FUNNEL_EVENT_CAP;
+        if (truncated) bookingRows = bookingRows.slice(0, FUNNEL_EVENT_CAP);
+
+        // Per-event attendee counts for just the events being shown.
+        let attendeeRows = [];
+        const ids = bookingRows.map((r) => r.event_id);
+        if (ids.length) {
+            const placeholders = ids.map(() => '?').join(',');
+            const attRes = await c.env.DB.prepare(
+                `SELECT b.event_id,
+                        COUNT(CASE WHEN a.checked_in_at IS NOT NULL THEN 1 END) AS checked_in,
+                        COUNT(CASE WHEN a.checked_in_at IS NOT NULL AND a.waiver_id IS NOT NULL THEN 1 END) AS waivered
+                 FROM attendees a
+                 JOIN bookings b ON b.id = a.booking_id
+                 WHERE b.status IN ('paid','comp') AND b.event_id IN (${placeholders})
+                 GROUP BY b.event_id`
+            ).bind(...ids).all();
+            attendeeRows = attRes.results || [];
+        }
+
+        const payload = computeConversionFunnel({ bookingRows, attendeeRows });
+        if (format === 'csv') {
+            const rows = [];
+            for (const ev of payload.events) {
+                for (const s of ev.stages) {
+                    rows.push([ev.title, s.name, s.count, s.pctOfTop == null ? '' : (s.pctOfTop * 100).toFixed(1)]);
+                }
+            }
+            return csvResponse('conversion-funnel', ['Event', 'Stage', 'Count', '% of Bookings'], rows);
+        }
+        return c.json({ report: 'conversion-funnel', truncated, ...payload });
+    });
+
+// 2. Promo code performance — per-code lifetime usage + revenue attributed.
 adminReports.get('/marketing/promo-performance',
     requireCapability('reports.read.marketing'),
-    (c) => notImplemented(c, 'marketing', 'promo-performance'));
+    async (c) => {
+        const { format } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+        const res = await c.env.DB.prepare(
+            `SELECT pc.id, pc.code, pc.discount_type, pc.discount_value, pc.uses_count, pc.active, pc.expires_at,
+                    COUNT(b.id) AS redemptions,
+                    COALESCE(SUM(b.discount_cents),0) AS discount_cents,
+                    COALESCE(SUM(CASE WHEN b.status IN ('paid','refunded') THEN b.total_cents ELSE 0 END),0) AS revenue_cents
+             FROM promo_codes pc
+             LEFT JOIN bookings b ON b.promo_code_id = pc.id AND b.status IN ('paid','comp','refunded')
+             GROUP BY pc.id
+             ORDER BY revenue_cents DESC, pc.created_at DESC`
+        ).all();
+        const payload = computePromoPerformance({ rows: res.results || [], nowMs: Date.now() });
+        if (format === 'csv') {
+            return csvResponse('promo-performance',
+                ['Code', 'Discount', 'Uses', 'Redemptions', 'Discount Given', 'Revenue', 'Status'],
+                payload.promos.map((p) => [p.code, p.discountLabel, p.uses, p.redemptions, dollars(p.discountCents), dollars(p.revenueCents), p.status]));
+        }
+        return c.json({ report: 'promo-performance', ...payload });
+    });
 
+// 3. Customer cohorts by acquisition month (lifetime; period/event N/A).
 adminReports.get('/marketing/customer-cohorts',
     requireCapability('reports.read.marketing'),
-    (c) => notImplemented(c, 'marketing', 'customer-cohorts'));
+    async (c) => {
+        const { format } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+        const res = await c.env.DB.prepare(
+            `SELECT strftime('%Y-%m', first_booking_at/1000,'unixepoch') AS month,
+                    COUNT(*) AS new_count,
+                    SUM(CASE WHEN total_bookings >= 2 THEN 1 ELSE 0 END) AS repeat_count
+             FROM customers
+             WHERE first_booking_at IS NOT NULL AND merged_into IS NULL AND archived_at IS NULL
+               AND id != '__needs_backfill__'
+             GROUP BY month ORDER BY month ASC`
+        ).all();
+        const payload = computeCustomerCohorts({ monthlyRows: res.results || [] });
+        if (format === 'csv') {
+            return csvResponse('customer-cohorts',
+                ['Acquisition Month', 'New Customers', 'Repeat', 'Repeat %'],
+                payload.cohorts.map((co) => [co.month, co.newCount, co.repeatCount, (co.repeatPct * 100).toFixed(1)]));
+        }
+        return c.json({ report: 'customer-cohorts', ...payload });
+    });
 
+// 4. Channel attribution — paid bookings grouped by referral (period + event).
 adminReports.get('/marketing/channel-attribution',
     requireCapability('reports.read.marketing'),
-    (c) => notImplemented(c, 'marketing', 'channel-attribution'));
+    async (c) => {
+        const { eventId, format, window } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+        const evt = eventId ? ' AND event_id = ?' : '';
+        const binds = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
+        const res = await c.env.DB.prepare(
+            `SELECT COALESCE(NULLIF(TRIM(referral),''),'(unspecified)') AS channel,
+                    COUNT(*) AS bookings,
+                    COALESCE(SUM(total_cents),0) AS revenue_cents
+             FROM bookings
+             WHERE status IN ('paid','comp','refunded') AND paid_at >= ? AND paid_at < ?${evt}
+             GROUP BY channel ORDER BY revenue_cents DESC`
+        ).bind(...binds).all();
+        const payload = computeChannelAttribution({ rows: res.results || [] });
+        if (format === 'csv') {
+            return csvResponse('channel-attribution',
+                ['Channel', 'Bookings', 'Revenue', '% of Revenue'],
+                payload.channels.map((ch) => [ch.channel, ch.bookings, dollars(ch.revenueCents), (ch.pctOfRevenue * 100).toFixed(1)]));
+        }
+        return c.json({ report: 'channel-attribution', period: window.period, window, ...payload });
+    });
 
 // ────────────────────────────────────────────────────────────────────
 // Site Coordinator reports (Batch 5)
