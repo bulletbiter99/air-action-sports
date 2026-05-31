@@ -4,11 +4,13 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — M7 IN PROGRESS (Batches 0–7 merged; Batch 8 next)
+## ✓ M7 CLOSED + DEPLOYED 2026-05-31
 
-**M7 (Reports + Audit Log FTS + Virtualized Tables) is the active milestone.** 8 of 12 batches complete on the milestone branch; **Batch 8 (Resend bounce/complaint webhook consumer, migration 0065) is the next step**.
+**M7 (Reports + Audit-Log FTS + Virtualized Tables + Resend deliverability + admin visual baselines) is CLOSED and DEPLOYED to production** — `milestone/7-reports-search-virtualized` merged to `main`; Workers Builds auto-deployed. All 12 batches merged (0–10, 11a, 11b; **11c cosmetic Reports polish deferred** post-M7). Tests **2561 / 200**.
 
-**For the next session prompt, use [docs/next-session.md](docs/next-session.md)** — it contains the copy-paste prompt and current state.
+**Operator-pending to activate M7's deferred features** (deployed safely; these are inert/fallback until done): apply migrations 0065/0066, `wrangler secret put RESEND_WEBHOOK_SECRET` + add the Resend dashboard webhook, flip the `audit_log_fts` flag, eyeball the 4 sticky-header lists — full detail in **[docs/runbooks/m7-deploy.md](docs/runbooks/m7-deploy.md)**.
+
+**For the next session, use [docs/next-session.md](docs/next-session.md)** — the post-M7 work menu + current state.
 
 | Metric | Value |
 |---|---|

@@ -2,7 +2,7 @@
 
 This file is the entry point for any Claude session working in this repository. The full canonical onboarding lives in [HANDOFF.md](HANDOFF.md); this file gives you the short, durable rules.
 
-**For a fresh session post-M6 close (current state — 2026-05-27): use [`docs/next-session.md`](docs/next-session.md).** It has the menu of available work tracks + a copy-paste prompt template. The "Milestone 6 — Stripe Live Flow" section deep in this file documents what shipped; `docs/next-session.md` is the entry-point.
+**For a fresh session post-M7 close (current state — 2026-05-31): use [`docs/next-session.md`](docs/next-session.md).** M7 (Reports + Audit-Log FTS + Virtualized Tables + Resend deliverability + admin visual baselines) is **CLOSED + DEPLOYED**; `docs/next-session.md` has the post-M7 work menu + the operator-pending activation steps (migrations 0065/0066, RESEND_WEBHOOK_SECRET, FTS flag, list eyeballs). The "Milestone 7" section deep in this file documents what shipped + the close state.
 
 ---
 
@@ -845,11 +845,11 @@ These have been in the working tree since before this session. PR commits explic
 
 ---
 
-### Milestone 7 — Reports + Audit Log Full-Text Search + Virtualized Tables (IN PROGRESS — Batches 0/1a/1b shipped 2026-05-27)
+### Milestone 7 — Reports + Audit Log Full-Text Search + Virtualized Tables (✓ CLOSED + DEPLOYED 2026-05-31)
 
 **Long-lived branch:** `milestone/7-reports-search-virtualized` (off `main` at `1e6062b` Marketing B1 merge). Sub-branches use **flat `m7-batch-N-slug` naming** (same git ref-collision workaround M1-M5.5 used). PRs target the milestone branch; milestone merges to main at M7 close in Batch 12 per the M3-era pattern.
 
-**Status (as of 2026-05-31):** 11 of 12 batches complete + merged to milestone (HEAD `443fdbc`, tests **2558 / 200**). Reports surface (0–5) + audit-log FTS5 (6) + virtualized tables (7) + Resend bounce/complaint webhook consumer (8) + admin visual regression baselines (9) + bounce/complaint admin alert emails (10). Migrations 0062/0063/0064 applied + verified on remote; **0065 + 0066 ship in-repo (operator-applies after M7→main)**. **Batch 11 (reports polish + virtualization perf tuning) is next, then Batch 12 (closing runbooks + milestone→main).** M7 deploys to prod at Batch 12 close (`milestone → main`); batches 0–10 are milestone-branch-only (`main` still at `1e6062b`).
+**Status: ✓ CLOSED + DEPLOYED 2026-05-31.** All 12 batches merged (0–10, 11a, 11b) + Batch 12 close; milestone `milestone/7-reports-search-virtualized` merged to `main` → Workers Builds auto-deployed. Tests **2561 / 200** at close (+ 6 admin visual baselines + 7 public). Reports surface (0–5, 17 reports / 4 personas) + audit-log FTS5 (6) + virtualized tables (7) + Resend bounce/complaint consumer (8) + admin visual baselines (9) + bounce/complaint alert emails (10) + Reports custom date range (11a) + sticky list headers (11b). **Batch 11 was split: 11a + 11b shipped; 11c (cosmetic Reports polish — dateFormat extraction, export loading state, friendlier error copy, money-format consistency) was DEFERRED post-M7.** Migrations 0062/0063/0064 applied to remote pre-deploy; **0065 (email_events) + 0066 (alert templates) ship in-repo, operator-applies post-deploy** (safe: the consuming code is behind the unset `RESEND_WEBHOOK_SECRET`). **Operator-pending to fully activate the deferred features: see [docs/runbooks/m7-deploy.md](docs/runbooks/m7-deploy.md)** (apply 0065/0066; set RESEND_WEBHOOK_SECRET + Resend dashboard webhook; flip `audit_log_fts` flag on; eyeball the 4 sticky-header lists + Reports custom range). Carried from M6: live-Stripe cutover items 1-5. Closing runbooks at `docs/runbooks/m7-{deploy,rollback,baseline-coverage}.{md,txt}`.
 
 **Per-batch operating rules** (preserved from M7 prompt):
 - Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing
@@ -888,10 +888,12 @@ These have been in the working tree since before this session. PR commits explic
 | **8** | Resend bounce/complaint webhook consumer (signed `/api/webhooks/resend`; `email_events` table; auto-suppress marketing on hard bounce/complaint) | **0065** | [#223](https://github.com/bulletbiter99/air-action-sports/pull/223) | ✓ merged |
 | **9** | Admin visual regression baselines (M4 B11 deferral resolved — local-serve + Playwright route-mock harness; 6 linux baselines seeded) | — | [#224](https://github.com/bulletbiter99/air-action-sports/pull/224) | ✓ merged |
 | **10** | Bounce/complaint admin alert emails (sendBounceAlert/sendComplaintAlert; hard-bounce + complaint only; self-alert guard) | **0066** | [#225](https://github.com/bulletbiter99/air-action-sports/pull/225) | ✓ merged |
-| 11 | Reports polish + virtualization perf tuning | — | — | **← NEXT** |
-| 12 | Closing runbooks + baseline coverage + CLAUDE.md/HANDOFF.md flips + milestone→main | — | — | pending |
+| **11a** | Reports custom date range + shared `reportData.js` query extraction | — | [#227](https://github.com/bulletbiter99/air-action-sports/pull/227) | ✓ merged |
+| **11b** | Virtualized lists: sticky scrollbar-aligned headers (VirtualizedList `header` prop) | — | [#228](https://github.com/bulletbiter99/air-action-sports/pull/228) | ✓ merged · operator eyeball pending |
+| ~~11c~~ | Cosmetic Reports polish (dateFormat extraction, export loading, error copy, money-format) | — | — | DEFERRED post-M7 |
+| **12** | Closing runbooks + baseline coverage + doc flips + milestone→main deploy | — | this batch | ✓ closed |
 
-**M7 cumulative through Batch 10:** test count 2424 → **2558 / 200 files** (B1a–7 +89 → 2513; **B8 +33** Resend consumer → 2546; **B9 +0** [admin visual baselines are Playwright, not vitest — 6 linux PNGs committed under `tests/visual-admin/`]; **B10 +12** alert senders → 2558). New gated paths since B7: `worker/lib/resendWebhook.js`, `worker/lib/emailEvents.js` (B8); the `worker/routes/webhooks.js` gate extended with the `/resend` consumer test (B8). New non-vitest surface: an isolated admin visual-regression harness (`playwright.admin.config.js` + `tests/visual-admin/`, B9) with its own `visual-admin` CI job. Prior B1a–6 gated paths: `worker/lib/reports.js`, `worker/routes/admin/reports.js`, `worker/lib/auditSearch.js`, `worker/routes/admin/auditLog.js`.
+**M7 cumulative at close:** test count 2424 → **2561 / 200 files** (B1a–7 +89 → 2513; B8 +33 → 2546; B9 +0 [Playwright]; B10 +12 → 2558; **B11a +3** custom-range → 2561; B11b +0 [JSX]) + 6 admin visual baselines + 7 public. Gated paths added in M7: `worker/lib/reports.js`, `worker/routes/admin/reports.js` (B2), `worker/lib/auditSearch.js`, `worker/routes/admin/auditLog.js` (B6), `worker/lib/resendWebhook.js`, `worker/lib/emailEvents.js` (B8), + the `worker/routes/webhooks.js` gate extended with the `/resend` consumer test (B8). New non-vitest surface: the admin visual-regression harness (`playwright.admin.config.js` + `tests/visual-admin/`, B9) with its own `visual-admin` CI job. Full snapshot: [docs/runbooks/m7-baseline-coverage.txt](docs/runbooks/m7-baseline-coverage.txt).
 
 **Migration sequence:** M7 starts at 0062 because the post-M6 polish session consumed 0059 (HR preset) / 0060 (field_rentals UNIQUE) / 0061 (event_archive_links). All three are applied to remote and now on main via merged PRs.
 
@@ -915,13 +917,13 @@ These have been in the working tree since before this session. PR commits explic
 - Settings group index: 21
 - `getVisibleItems` owner test: 22 visible items
 
-**Operator actions (post-Batch-7):**
-- Migrations **0062 (reports caps) + 0063 (FTS5 index) + 0064 (audit_log_fts flag) are APPLIED + verified on remote** (2026-05-31). Verified: 6 reports caps / 16 role bindings; `audit_log_fts` rows = `audit_log` rows (rebuild + trigger); `MATCH 'cron*'` → 2463 hits; flag `state='off'`.
-- **At M7→main cutover (Batch 12)**: flip the FTS flag on — `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';` (prod runs the pre-M7 audit route until M7 deploys, so the flag is dormant on prod until then).
-- **Batch 7 visual verify** (still recommended): browser-check the 4 virtualized lists — `/admin/events`, `/admin/promo-codes`, `/admin/roster?event=…`, `/admin/rentals/assignments` (columns align, smooth scroll, actions work).
-- **Batches 8 + 10 ship migrations 0065 (email_events) + 0066 (bounce/complaint alert templates)** — operator-applies after M7→main, per the standing rule.
-- **Batch 8 live cutover** (deferred to M7 close): `wrangler secret put RESEND_WEBHOOK_SECRET` + add the Resend dashboard webhook → `https://airactionsport.com/api/webhooks/resend` (subscribe `email.bounced` + `email.complained`). Until then `/resend` safely returns 500. Once live, Batch 10's alert emails fire end-to-end.
-- **Batch 9 admin baselines** are on milestone (6 linux PNGs under `tests/visual-admin/admin.spec.js-snapshots/`); the `visual-admin` CI job runs against them on every milestone PR. Refresh them by labeling a PR `capture-baselines` (now captures public + admin).
+**Operator actions (post-deploy — M7 closed + deployed 2026-05-31):** full detail in [docs/runbooks/m7-deploy.md](docs/runbooks/m7-deploy.md).
+- Migrations **0062/0063/0064 APPLIED pre-deploy** (reports caps / FTS5 index / flag `state='off'`).
+- **Apply migrations 0065 (email_events) + 0066 (alert templates) to remote** — safe (the consuming code is behind the unset `RESEND_WEBHOOK_SECRET`).
+- **`wrangler secret put RESEND_WEBHOOK_SECRET`** + add the Resend dashboard webhook → `https://airactionsport.com/api/webhooks/resend` (subscribe `email.bounced` + `email.complained`). Until then `/resend` safely returns 500; once live, the bounce/complaint consumer + Batch-10 alert emails fire end-to-end.
+- **Flip the FTS flag on** — `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';` (until then audit search uses the LIKE fallback).
+- **Eyeball (no automated coverage):** the 4 virtualized lists' sticky headers (`/admin/events`, `/admin/roster?event=…`, `/admin/promo-codes`, `/admin/rentals/assignments`) + the Reports custom-range UI (`/admin/reports` → Period → Custom range). Closes the pending Batch-7 + 11b visual checks.
+- **Batch 9 admin baselines** are on main (6 linux PNGs under `tests/visual-admin/admin.spec.js-snapshots/`); the `visual-admin` CI job runs against them on every PR. Refresh by labeling a PR `capture-baselines`.
 
 **Carry-forward observations / lessons** (added in Batches 0/1a/1b):
 
@@ -935,14 +937,14 @@ These have been in the working tree since before this session. PR commits explic
 8. **Admin visual regression via local-serve + route-mock** (Batch 9) dissolves the M4 B11 deferral: the admin shell gates client-side on `/api/admin/auth/me`, so a Playwright `page.route` mock returning an owner authenticates the shell with no SESSION_SECRET/creds, and empty/zero data → deterministic empty-state baselines. Separate `playwright.admin.config.js` + `tests/visual-admin/` keep it isolated from the public suite. Admin pages never go network-idle (they poll), so `prepareAdminPage` waits on a stable element, not `networkidle`. Baselines are CI-generated (linux) only — never commit local PNGs.
 9. **Append-only senders + emailContext/waitUntil** (Batch 10): new alert senders append to `emailSender.js` (existing senders untouched); the B8 handler returns an `emailContext` for alert-worthy events (hard bounce / complaint, NOT customer-gated → orphans alert) and the `/resend` route queues `waitUntil(sendResendAlert)` — same shape as the M6 dispute alert. A self-alert guard skips when the recipient is `ADMIN_NOTIFY_EMAIL` (prevents a loop if an alert email itself bounces).
 
-**Resume the milestone in a fresh session:**
-1. `git checkout milestone/7-reports-search-virtualized && git pull origin milestone/7-reports-search-virtualized`
+**Resume after M7 close (fresh session):**
+1. `git checkout main && git pull origin main`  (M7 is merged + deployed; the milestone branch is closed)
 2. `npm install`
-3. `npm test -- --run` — confirm **2558 / 200** passing
-4. `npm run build` — confirm clean (~270ms)
+3. `npm test -- --run` — confirm **2561 / 200** passing
+4. `npm run build` — confirm clean (~260ms)
 5. `curl https://airactionsport.com/api/health` — confirm `{"ok":true,...}`
-6. **Read [`docs/next-session.md`](docs/next-session.md) for the copy-paste prompt** + this M7 section for batch status
-7. **Plan-mode-first for Batch 11** (reports polish + virtualization perf tuning) per operating rule #1 — present plan (8-file target), await "proceed". Then **Batch 12** closes the milestone: closing runbooks + baseline coverage + CLAUDE.md/HANDOFF.md flips + `milestone → main` (which Workers-Builds auto-deploys), and the operator applies migrations 0065 + 0066 + flips the `audit_log_fts` flag on.
+6. **Read [`docs/next-session.md`](docs/next-session.md)** for the post-M7 work menu + the operator-pending items in [docs/runbooks/m7-deploy.md](docs/runbooks/m7-deploy.md).
+7. Post-M7 candidates: the deferred **11c cosmetic Reports polish** (dateFormat extraction, export loading state, friendlier error copy, money-format consistency); representative-data admin visual baselines (so CI covers the populated tables); the Marketing milestone B2+ (Segments shipped in B1); or a new milestone.
 
 **Stop-and-ask conditions during M7** (durable):
 - A do-not-touch file needs modification beyond appending a new branch/function/endpoint
