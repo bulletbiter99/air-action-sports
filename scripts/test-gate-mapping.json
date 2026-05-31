@@ -63,9 +63,10 @@
       "covers": [
         "POST /api/webhooks/stripe",
         "handleCheckoutCompleted",
-        "handleDisputeCreated (M6 B6 — charge.dispute.created consumer)"
+        "handleDisputeCreated (M6 B6 — charge.dispute.created consumer)",
+        "POST /api/webhooks/resend (M7 B8 — Resend bounce/complaint consumer; handleResendEmailEvent)"
       ],
-      "audit_group": "B + M6 B6 dispute handler",
+      "audit_group": "B + M6 B6 dispute handler + M7 B8 resend consumer",
       "tests": [
         "tests/unit/webhook/idempotency-already-paid.test.js",
         "tests/unit/webhook/unknown-event-type.test.js",
@@ -76,7 +77,8 @@
         "tests/unit/webhook/email-send-confirmation.test.js",
         "tests/unit/webhook/email-send-admin-notify.test.js",
         "tests/unit/webhook/waiver-auto-link-on-paid.test.js",
-        "tests/unit/webhook/dispute-created-handler.test.js"
+        "tests/unit/webhook/dispute-created-handler.test.js",
+        "tests/unit/webhook/resend-consumer.test.js"
       ]
     },
     "worker/lib/waiverLookup.js": {
@@ -677,6 +679,26 @@
       "audit_group": "(M7 Batch 6 — FTS5 search upgrade to the q path)",
       "tests": [
         "tests/unit/admin/audit-log-search.test.js"
+      ]
+    },
+    "worker/lib/resendWebhook.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "verifyResendWebhook — svix HMAC-SHA256 signature verify (whsec_ base64-decode key, ${id}.${ts}.${body} signed content, base64 sig, v1 token match, 300s replay tolerance, constant-time compare)"
+      ],
+      "audit_group": "(M7 Batch 8 — Resend bounce/complaint webhook signature verification)",
+      "tests": [
+        "tests/unit/lib/resendWebhook.test.js"
+      ]
+    },
+    "worker/lib/emailEvents.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "emailEventId / classifyResendEvent (defensive recipient + hard|soft|Permanent|Transient bounce parsing) / shouldSuppressMarketing (complaint OR hard bounce) / eventActionName"
+      ],
+      "audit_group": "(M7 Batch 8 — Resend bounce/complaint pure helpers)",
+      "tests": [
+        "tests/unit/lib/emailEvents.test.js"
       ]
     }
   },
