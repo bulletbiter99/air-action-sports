@@ -198,17 +198,19 @@ export default function AdminRoster() {
         {!loadingRoster && filtered.length > 0 && (
           <div className="admin-table-wrap">
             <div style={{ minWidth: 900 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: ROSTER_COLS }}>
-                <div style={th}>#</div>
-                <div style={th}>Name</div>
-                <div style={th}>Email</div>
-                <div style={th}>Phone</div>
-                <div style={th}>Ticket</div>
-                <div style={th}>Waiver</div>
-                <div style={th}>Check-in</div>
-                <div style={th}>Booking</div>
-              </div>
               <VirtualizedList
+                header={(
+                  <div style={{ display: 'grid', gridTemplateColumns: ROSTER_COLS }}>
+                    <div style={th}>#</div>
+                    <div style={th}>Name</div>
+                    <div style={th}>Email</div>
+                    <div style={th}>Phone</div>
+                    <div style={th}>Ticket</div>
+                    <div style={th}>Waiver</div>
+                    <div style={th}>Check-in</div>
+                    <div style={th}>Booking</div>
+                  </div>
+                )}
                 items={filtered}
                 getKey={(a) => a.id}
                 estimateRowHeight={64}

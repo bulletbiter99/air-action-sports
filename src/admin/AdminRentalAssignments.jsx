@@ -125,16 +125,18 @@ export default function AdminRentalAssignments() {
         {!loadingList && assignments.length > 0 && (
           <div className="admin-table-wrap">
             <div style={{ minWidth: 860 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: RENTAL_COLS }}>
-                <div style={th}>Item</div>
-                <div style={th}>Player</div>
-                <div style={th}>Event</div>
-                <div style={th}>Out</div>
-                <div style={th}>Returned</div>
-                <div style={th}>Condition</div>
-                <div style={th}>Actions</div>
-              </div>
               <VirtualizedList
+                header={(
+                  <div style={{ display: 'grid', gridTemplateColumns: RENTAL_COLS }}>
+                    <div style={th}>Item</div>
+                    <div style={th}>Player</div>
+                    <div style={th}>Event</div>
+                    <div style={th}>Out</div>
+                    <div style={th}>Returned</div>
+                    <div style={th}>Condition</div>
+                    <div style={th}>Actions</div>
+                  </div>
+                )}
                 items={assignments}
                 getKey={(a) => a.id}
                 estimateRowHeight={56}

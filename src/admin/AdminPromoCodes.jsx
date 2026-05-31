@@ -163,16 +163,18 @@ export default function AdminPromoCodes() {
         {!loadingList && promoCodes.length > 0 && (
           <div className="admin-table-wrap">
             <div style={{ minWidth: 760 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: PROMO_COLS }}>
-                <div style={th}>Code</div>
-                <div style={th}>Discount</div>
-                <div style={th}>Scope</div>
-                <div style={th}>Uses</div>
-                <div style={th}>Window</div>
-                <div style={th}>Status</div>
-                <div style={th}>Actions</div>
-              </div>
               <VirtualizedList
+                header={(
+                  <div style={{ display: 'grid', gridTemplateColumns: PROMO_COLS }}>
+                    <div style={th}>Code</div>
+                    <div style={th}>Discount</div>
+                    <div style={th}>Scope</div>
+                    <div style={th}>Uses</div>
+                    <div style={th}>Window</div>
+                    <div style={th}>Status</div>
+                    <div style={th}>Actions</div>
+                  </div>
+                )}
                 items={promoCodes}
                 getKey={(p) => p.id}
                 estimateRowHeight={52}
