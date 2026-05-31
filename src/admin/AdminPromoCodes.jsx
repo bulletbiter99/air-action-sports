@@ -5,6 +5,7 @@ import { formatMoney } from '../utils/money.js';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import EmptyState from '../components/admin/EmptyState.jsx';
 import FilterBar from '../components/admin/FilterBar.jsx';
+import VirtualizedList from './VirtualizedList.jsx';
 import { parseEmailList, formatDiscountDisplay } from './promoCodeBatchHelpers.js';
 
 const ACTIVE_OPTIONS = [
@@ -160,59 +161,65 @@ export default function AdminPromoCodes() {
           />
         )}
         {!loadingList && promoCodes.length > 0 && (
-          <div className="admin-table-wrap"><table style={table}>
-            <thead>
-              <tr>
-                <th style={th}>Code</th>
-                <th style={th}>Discount</th>
-                <th style={th}>Scope</th>
-                <th style={th}>Uses</th>
-                <th style={th}>Window</th>
-                <th style={th}>Status</th>
-                <th style={th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {promoCodes.map((p) => (
-                <tr key={p.id} style={tr}>
-                  <td style={tdCode}>{p.code}</td>
-                  <td style={td}>
-                    {p.discountType === 'percent'
-                      ? `${p.discountValue}% off`
-                      : `${formatMoney(p.discountValue)} off`}
-                    {p.minOrderCents ? <div style={subRow}>min {formatMoney(p.minOrderCents)}</div> : null}
-                  </td>
-                  <td style={tdSmall}>{eventTitle(p.eventId)}</td>
-                  <td style={td}>
-                    {p.usesCount}{p.maxUses != null ? ` / ${p.maxUses}` : ''}
-                  </td>
-                  <td style={tdSmaller}>
-                    {p.startsAt ? <div>from {new Date(p.startsAt).toLocaleDateString()}</div> : null}
-                    {p.expiresAt ? <div>to {new Date(p.expiresAt).toLocaleDateString()}</div> : null}
-                    {!p.startsAt && !p.expiresAt && <span style={mutedText}>—</span>}
-                  </td>
-                  <td style={td}>
-                    {p.active
-                      ? <span style={statusActive}>Active</span>
-                      : <span style={statusInactive}>Inactive</span>}
-                  </td>
-                  <td style={td}>
-                    {hasRole('manager') && (
-                      <>
-                        <button onClick={() => setEditing(p)} style={subtleBtn}>Edit</button>
-                        <button onClick={() => toggleActive(p)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>
-                          {p.active ? 'Disable' : 'Enable'}
-                        </button>
-                      </>
-                    )}
-                    {hasRole('owner') && (
-                      <button onClick={() => del(p.id)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Delete</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
+          <div className="admin-table-wrap">
+            <div style={{ minWidth: 760 }}>
+              <VirtualizedList
+                header={(
+                  <div style={{ display: 'grid', gridTemplateColumns: PROMO_COLS }}>
+                    <div style={th}>Code</div>
+                    <div style={th}>Discount</div>
+                    <div style={th}>Scope</div>
+                    <div style={th}>Uses</div>
+                    <div style={th}>Window</div>
+                    <div style={th}>Status</div>
+                    <div style={th}>Actions</div>
+                  </div>
+                )}
+                items={promoCodes}
+                getKey={(p) => p.id}
+                estimateRowHeight={52}
+                maxHeight="60vh"
+                renderRow={(p) => (
+                  <div style={{ ...tr, display: 'grid', gridTemplateColumns: PROMO_COLS, alignItems: 'start' }}>
+                    <div style={tdCode}>{p.code}</div>
+                    <div style={td}>
+                      {p.discountType === 'percent'
+                        ? `${p.discountValue}% off`
+                        : `${formatMoney(p.discountValue)} off`}
+                      {p.minOrderCents ? <div style={subRow}>min {formatMoney(p.minOrderCents)}</div> : null}
+                    </div>
+                    <div style={tdSmall}>{eventTitle(p.eventId)}</div>
+                    <div style={td}>
+                      {p.usesCount}{p.maxUses != null ? ` / ${p.maxUses}` : ''}
+                    </div>
+                    <div style={tdSmaller}>
+                      {p.startsAt ? <div>from {new Date(p.startsAt).toLocaleDateString()}</div> : null}
+                      {p.expiresAt ? <div>to {new Date(p.expiresAt).toLocaleDateString()}</div> : null}
+                      {!p.startsAt && !p.expiresAt && <span style={mutedText}>—</span>}
+                    </div>
+                    <div style={td}>
+                      {p.active
+                        ? <span style={statusActive}>Active</span>
+                        : <span style={statusInactive}>Inactive</span>}
+                    </div>
+                    <div style={td}>
+                      {hasRole('manager') && (
+                        <>
+                          <button onClick={() => setEditing(p)} style={subtleBtn}>Edit</button>
+                          <button onClick={() => toggleActive(p)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>
+                            {p.active ? 'Disable' : 'Enable'}
+                          </button>
+                        </>
+                      )}
+                      {hasRole('owner') && (
+                        <button onClick={() => del(p.id)} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>Delete</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              />
+            </div>
+          </div>
         )}
       </section>
 
@@ -606,6 +613,8 @@ const tableBox = {
   marginTop: 'var(--space-16)',
 };
 const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+// M7 Batch 7 — grid template for the virtualized promo-codes list (Code/Discount/Scope/Uses/Window/Status/Actions).
+const PROMO_COLS = 'minmax(120px, 1.4fr) minmax(110px, 1.3fr) minmax(110px, 1.4fr) 80px minmax(120px, 1.3fr) 90px minmax(150px, 1.6fr)';
 const th = {
   textAlign: 'left',
   padding: 'var(--space-8) var(--space-12)',

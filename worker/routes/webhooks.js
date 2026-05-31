@@ -2,9 +2,12 @@ import { Hono } from 'hono';
 import { verifyWebhookSignature } from '../lib/stripe.js';
 import { attendeeId, qrToken } from '../lib/ids.js';
 import { safeJson } from '../lib/formatters.js';
-import { sendBookingConfirmation, sendAdminNotify, sendWaiverRequest, sendDisputeAlert } from '../lib/emailSender.js';
+import { sendBookingConfirmation, sendAdminNotify, sendWaiverRequest, sendDisputeAlert, sendBounceAlert, sendComplaintAlert } from '../lib/emailSender.js';
 import { findExistingValidWaiver } from '../lib/waiverLookup.js';
 import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../lib/customers.js';
+import { verifyResendWebhook } from '../lib/resendWebhook.js';
+import { classifyResendEvent, shouldSuppressMarketing, eventActionName, emailEventId } from '../lib/emailEvents.js';
+import { normalizeEmail } from '../lib/email.js';
 
 const webhooks = new Hono();
 
@@ -43,6 +46,47 @@ webhooks.post('/stripe', async (c) => {
         const result = await handleDisputeCreated(c.env.DB, event.data.object);
         if (result?.emailContext && c.executionCtx?.waitUntil) {
             c.executionCtx.waitUntil(sendDisputeEmail(c.env, result.emailContext));
+        }
+    }
+
+    return c.json({ received: true });
+});
+
+// M7 B8 — Resend (Svix) webhook consumer. A SIBLING route to /stripe above:
+// Resend events cannot flow through the Stripe-signed handler (it 400s anything
+// without a valid Stripe signature), so they get their own signed endpoint.
+// Records bounces/complaints + auto-suppresses marketing email. Fully additive —
+// the /stripe handler + verifyWebhookSignature are untouched.
+webhooks.post('/resend', async (c) => {
+    const secret = c.env.RESEND_WEBHOOK_SECRET;
+    if (!secret) {
+        console.error('RESEND_WEBHOOK_SECRET not configured');
+        return c.json({ error: 'Webhook not configured' }, 500);
+    }
+
+    const rawBody = await c.req.text();
+    const svixId = c.req.header('svix-id');
+
+    let event;
+    try {
+        event = await verifyResendWebhook({
+            body: rawBody,
+            svixId,
+            svixTimestamp: c.req.header('svix-timestamp'),
+            svixSignature: c.req.header('svix-signature'),
+            secret,
+        });
+    } catch (err) {
+        console.error('Resend webhook verification failed:', err.message);
+        return c.json({ error: 'Signature verification failed' }, 400);
+    }
+
+    if (event.type === 'email.bounced' || event.type === 'email.complained') {
+        const result = await handleResendEmailEvent(c.env.DB, event, svixId);
+        // M7 B10 — queue an admin alert for actionable events (hard bounce /
+        // complaint). handleResendEmailEvent returns emailContext only then.
+        if (result?.emailContext && c.executionCtx?.waitUntil) {
+            c.executionCtx.waitUntil(sendResendAlert(c.env, result.emailContext));
         }
     }
 
@@ -131,6 +175,141 @@ async function sendDisputeEmail(env, { booking, event, dispute }) {
         return r;
     } catch (err) {
         console.error('sendDisputeAlert failed:', err.message);
+        return { error: err.message };
+    }
+}
+
+// M7 B8 — Resend bounce/complaint handler. Mirrors handleDisputeCreated:
+// idempotent (by svix message id), orphan-safe (records even when no customer
+// matches), and writes an audit_log row so events surface in the admin audit
+// log + Batch 6 FTS search. On a hard bounce or any complaint that matches a
+// known active customer, suppresses marketing email (NEVER transactional, so
+// booking confirmations keep sending). On a hard bounce or complaint it returns
+// an emailContext; the /resend route then queues an admin alert via waitUntil
+// (M7 B10 — sendResendAlert). Soft bounces + the idempotent-skip path return
+// nothing, so no alert fires.
+//
+// Idempotency: Svix redelivers the same message on our 5xx or a manual resend.
+// We short-circuit if an email_events row already carries this svix-id (the
+// UNIQUE partial index on svix_message_id is the backstop under a race).
+async function handleResendEmailEvent(db, event, svixId) {
+    if (svixId) {
+        const existing = await db.prepare(
+            `SELECT id FROM email_events WHERE svix_message_id = ? LIMIT 1`
+        ).bind(svixId).first();
+        if (existing) {
+            console.log(`Resend webhook: event ${svixId} already recorded — skipping (idempotent)`);
+            return;
+        }
+    }
+
+    const { type, bounceType, recipient, resendEmailId } = classifyResendEvent(event);
+    const normalized = recipient ? normalizeEmail(recipient) : null;
+
+    // Resolve the active customer row by normalized email, if any.
+    const customer = normalized
+        ? await db.prepare(
+            `SELECT id, email_marketing FROM customers
+             WHERE email_normalized = ? AND archived_at IS NULL
+             LIMIT 1`
+        ).bind(normalized).first()
+        : null;
+
+    const suppress = !!customer && shouldSuppressMarketing({ type, bounceType });
+    const now = Date.now();
+
+    // recipient_email is NOT NULL. Resend always includes a recipient, but a
+    // malformed payload must not 500 the INSERT (that would make Resend retry
+    // forever) — coerce to a sentinel so the junk event still records + 200s.
+    const recipientEmail = recipient || '(unknown)';
+
+    await db.prepare(
+        `INSERT INTO email_events (
+            id, type, bounce_type, recipient_email, recipient_normalized,
+            customer_id, resend_email_id, svix_message_id, suppressed_marketing,
+            payload_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+        emailEventId(),
+        type,
+        bounceType,
+        recipientEmail,
+        normalized,
+        customer?.id || null,
+        resendEmailId,
+        svixId || null,
+        suppress ? 1 : 0,
+        JSON.stringify(event.data || {}),
+        now,
+    ).run();
+
+    if (suppress) {
+        // Only flip when currently on — keeps the UPDATE idempotent + cheap.
+        await db.prepare(
+            `UPDATE customers SET email_marketing = 0, updated_at = ?
+             WHERE id = ? AND email_marketing = 1`
+        ).bind(now, customer.id).run();
+    }
+
+    // Audit row — raw INSERT matches the dispute handler (raw-db handlers don't
+    // have env for the M2 writeAudit helper). 6-col shape (no ip_address).
+    const meta = {
+        recipient,
+        bounce_type: bounceType,
+        resend_email_id: resendEmailId,
+        svix_message_id: svixId || null,
+        suppressed_marketing: suppress,
+    };
+    await db.prepare(
+        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+         VALUES (NULL, ?, ?, ?, ?, ?)`
+    ).bind(
+        eventActionName(type),
+        customer ? 'customer' : 'unknown',
+        customer?.id || recipient || 'unknown',
+        JSON.stringify(meta),
+        now,
+    ).run();
+
+    console.log(`Resend webhook: ${type}${bounceType ? ` (${bounceType})` : ''} for ${recipient} — customer=${customer?.id || 'none'} suppressed=${suppress}`);
+
+    // M7 B10 — alert on actionable events (hard bounce / complaint), regardless
+    // of customer match (an orphan dead address is still worth knowing about).
+    // Reuses shouldSuppressMarketing as the actionable predicate; it's NOT
+    // customer-gated, unlike `suppress` above.
+    if (shouldSuppressMarketing({ type, bounceType })) {
+        return {
+            emailContext: {
+                type,
+                bounceType,
+                recipient,
+                resendEmailId,
+                customerId: customer?.id || null,
+                suppressed: suppress,
+            },
+        };
+    }
+}
+
+// M7 B10 — admin-alert dispatcher for the Resend consumer. Mirrors
+// sendDisputeEmail. Self-alert guard: if the bounced/complained recipient IS our
+// own ADMIN_NOTIFY_EMAIL, skip — otherwise an admin alert that itself bounces
+// would loop back through this handler.
+async function sendResendAlert(env, ctx) {
+    try {
+        const adminNorm = normalizeEmail(env.ADMIN_NOTIFY_EMAIL || '');
+        const recipNorm = ctx.recipient ? normalizeEmail(ctx.recipient) : null;
+        if (adminNorm && recipNorm && adminNorm === recipNorm) {
+            console.log('Resend alert: recipient is ADMIN_NOTIFY_EMAIL — skipping self-alert');
+            return { skipped: 'self_alert' };
+        }
+        const r = ctx.type === 'complaint'
+            ? await sendComplaintAlert(env, { emailEvent: ctx })
+            : await sendBounceAlert(env, { emailEvent: ctx });
+        console.log('Resend alert sent:', JSON.stringify(r));
+        return r;
+    } catch (err) {
+        console.error('sendResendAlert failed:', err.message);
         return { error: err.message };
     }
 }

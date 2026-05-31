@@ -16,7 +16,45 @@ The visual-regression suite (M4 B1b) captures pixel-stable baselines for the pub
 | waiver error state | `/waiver?token=invalid` |
 | booking confirmation | `/booking/success` |
 
-**Admin baselines are NOT yet captured.** Per the M4 plan they're deferred to Batch 5 (admin IA reorganization), where the new sidebar shipped in B5 becomes the basis. Until then, admin UI changes are protected only by the M3 manual UAT pattern + the test gate map.
+**Admin baselines are captured as of M7 Batch 9** — see [Admin baselines (M7 B9)](#admin-baselines-m7-b9) below. They use a different harness (local-serve + API route-mock) because admin pages require auth and render non-deterministic data; they live in `tests/visual-admin/` under a separate Playwright config.
+
+## Admin baselines (M7 B9)
+
+Admin pages get their own harness because they can't be screenshotted against production the way public pages are: they require authentication, render non-deterministic database data, and **never go network-idle** (the `useWidgetData` / `useTodayActive` polling).
+
+**How it differs from the public suite:**
+
+| | Public suite | Admin suite |
+|---|---|---|
+| Config | `playwright.config.js` (`visual` project) | `playwright.admin.config.js` (`visual-admin` project) |
+| Target | deployed `airactionsport.com` | **local** `vite preview` of the built SPA |
+| Data | real (anonymous) | **route-mocked** `**/api/**` → empty/zero |
+| Auth | none | mocked `/api/admin/auth/me` → owner |
+| Script | `npm run test:visual` | `npm run test:visual:admin` |
+| Tests | `tests/visual/public.spec.js` | `tests/visual-admin/admin.spec.js` |
+| Baselines | `tests/visual/public.spec.js-snapshots/` | `tests/visual-admin/admin.spec.js-snapshots/` |
+
+**Why route-mock and not a real session?** Capturing admin baselines once looked like it required either a forged session cookie (`SESSION_SECRET` in CI — a forgery vector) or real admin credentials, plus it would screenshot live, changing data (the M4 B11 deferral). But the admin shell gates access purely client-side: `AdminContext` fetches `/api/admin/auth/me` and `AdminLayout` renders the shell only when `isAuthenticated`. So a Playwright `page.route` mock returning an owner for `/me` authenticates the whole shell with **no secret and no production load**, and empty/zero data for every other endpoint makes the renders deterministic. See [tests/visual-admin/adminMocks.js](../../tests/visual-admin/adminMocks.js).
+
+**Surfaces captured (6):**
+
+| Surface | Route | Auth |
+|---|---|---|
+| login | `/admin/login` | unauthenticated (`/me` → 401) |
+| dashboard | `/admin` | owner |
+| bookings | `/admin/bookings` | owner |
+| events | `/admin/events` | owner |
+| reports | `/admin/reports` | owner |
+| settings | `/admin/settings` | owner |
+
+**The never-idle gotcha.** Admin pages poll, so `waitForLoadState('networkidle')` never resolves. `prepareAdminPage()` skips it — it freezes animations + waits for fonts (reusing the public helpers) + waits for a stable element (`nav.admin-sidebar-nav` on authed pages; the password field for login) + a short settle. `toHaveScreenshot`'s two-stable-frames retry handles the rest.
+
+**Capture / CI** mirrors the public flow: the `visual-admin` CI job compares against baselines; on a `capture-baselines`-labeled PR the capture workflow also runs `npm run test:visual:admin:update` in the same runner and commits the PNGs (`git add tests/visual tests/visual-admin`). The first-ever admin capture happened on the M7 B9 PR.
+
+**Adding a new admin surface:**
+1. Add a `test('<name>', …)` to [tests/visual-admin/admin.spec.js](../../tests/visual-admin/admin.spec.js): `installAdminMocks(page)` → `goto('/admin/<route>')` → `prepareAdminPage(page, 'nav.admin-sidebar-nav')` → `toHaveScreenshot('<name>.png', { fullPage: true, mask: dynamicMasks(page) })`.
+2. If the page needs a non-empty shape to render cleanly, add a targeted zero/empty response in `installAdminMocks` (keep it empty, not representative — that's a later layer).
+3. Label the PR `capture-baselines` to seed the baseline; review the new PNG in the diff.
 
 ## Threshold
 
@@ -104,8 +142,8 @@ When the `visual` CI job fails:
 
 - **B1a** — Group G worker-level tests (separate batch, already merged)
 - **B1b** — this suite + the capture-baselines workflow + this runbook
-- **B5** — admin IA reorg; admin baselines captured for the first time as part of B5's PR
-- **Beyond M4** — mobile viewport (375×667) baselines, additional admin surfaces as they stabilize
+- **B5** — admin IA reorg (the new sidebar); admin baselines were deferred here, then again in B11 (M4 B11), and finally landed in **M7 Batch 9** via the local-serve + route-mock harness above
+- **Beyond M7** — mobile viewport (375×667) baselines, representative-data admin baselines, additional admin surfaces as they stabilize
 
 ## Cost notes
 

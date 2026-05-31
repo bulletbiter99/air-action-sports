@@ -4,13 +4,75 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 ---
 
-## ⚠ NEW SESSION — M6 CLOSED (2026-05-27); live Stripe cutover remains operator-pending
+## ✓ M7 CLOSED + DEPLOYED 2026-05-31
 
-**M6 is fully CLOSED.** All 13 batches (B0/B0-followup/B1/B2/B3/B4/B5/B6/B7/B8/B9/B10/B11) merged + deployed to production. Sandbox-mode verification complete for every batch. Closing runbooks landed in B11. The **only remaining work is operator-side**: live Stripe cutover items 1-5 in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md), which gate the live e2e verification of B5 (setup_future_usage), B6 (real dispute alerts), B7 (real off-session captures), and B9 (real PM detach).
+**M7 (Reports + Audit-Log FTS + Virtualized Tables + Resend deliverability + admin visual baselines) is CLOSED and DEPLOYED to production** — `milestone/7-reports-search-virtualized` merged to `main`; Workers Builds auto-deployed. All 12 batches merged (0–10, 11a, 11b; **11c cosmetic Reports polish deferred** post-M7). Tests **2561 / 200**.
 
-**For the next session prompt, use [docs/m6-next-session.md](docs/m6-next-session.md).**
+**Operator-pending to activate M7's deferred features** (deployed safely; these are inert/fallback until done): apply migrations 0065/0066, `wrangler secret put RESEND_WEBHOOK_SECRET` + add the Resend dashboard webhook, flip the `audit_log_fts` flag, eyeball the 4 sticky-header lists — full detail in **[docs/runbooks/m7-deploy.md](docs/runbooks/m7-deploy.md)**.
 
-Production worker version `e8372102-d9e3-4799-9678-261912192ab1` (post-B9 deploy). `main` at the B11 merge commit (see `git log`).
+**For the next session, use [docs/next-session.md](docs/next-session.md)** — the post-M7 work menu + current state.
+
+| Metric | Value |
+|---|---|
+| Active milestone | **M7 — Reports + Audit Log FTS + Virtualized Tables** (in progress) |
+| Milestone branch | `milestone/7-reports-search-virtualized` |
+| Milestone branch HEAD | `54e5bd4` (Merge #221 Batch 7) |
+| `main` HEAD | `1e6062b` (Merge #208 Marketing B1) — **M7 not yet deployed to prod** |
+| Tests on milestone | **2513 / 196 passing** |
+| Build | clean (~270ms) |
+| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` (running pre-M7 `main`) |
+| D1 migrations on remote | 0001–**0064** applied (0062 reports caps · 0063 FTS5 index · 0064 audit_log_fts flag — applied + verified 2026-05-31) |
+| Open PRs | 0 (all 7 M7 batches merged to milestone) |
+
+> M7 deploys to production at milestone close (Batch 12): the milestone branch accumulates batches, and `milestone → main` (Workers-Builds auto-deploys) happens once at the end. Batches 0–7 are on the milestone branch only.
+
+### M7 batches complete (merged to milestone branch)
+
+| Batch | PR | Status |
+|---|---|---|
+| 0 — Pre-flight verification + reports scope | [#212](https://github.com/bulletbiter99/air-action-sports/pull/212) | ✓ merged |
+| 1a — Reports shell backend (caps + 16-endpoint stub) | [#213](https://github.com/bulletbiter99/air-action-sports/pull/213) | ✓ merged · migration 0062 applied |
+| 1b — Reports shell UI (persona tab strip + base components) | [#214](https://github.com/bulletbiter99/air-action-sports/pull/214) | ✓ merged |
+| 2 — Owner reports (5) | [#216](https://github.com/bulletbiter99/air-action-sports/pull/216) | ✓ merged |
+| 3 — Bookkeeper reports (3 + 1099 link) | [#217](https://github.com/bulletbiter99/air-action-sports/pull/217) | ✓ merged |
+| 4 — Marketing reports (4) | [#218](https://github.com/bulletbiter99/air-action-sports/pull/218) | ✓ merged |
+| 5 — Site Coordinator reports (4) | [#219](https://github.com/bulletbiter99/air-action-sports/pull/219) | ✓ merged |
+| 6 — Audit-log FTS5 search (flag-gated) | [#220](https://github.com/bulletbiter99/air-action-sports/pull/220) | ✓ merged · migrations 0063+0064 applied |
+| 7 — Virtualized admin tables (TanStack Virtual) | [#221](https://github.com/bulletbiter99/air-action-sports/pull/221) | ✓ merged · visual verify operator-pending |
+
+### Post-M6 polish session — 9 PRs all merged to main (2026-05-27)
+
+| PR | Track | Migration |
+|---|---|---|
+| [#202](https://github.com/bulletbiter99/air-action-sports/pull/202) | B — HR coordinator preset | 0059 applied |
+| [#203](https://github.com/bulletbiter99/air-action-sports/pull/203) | D-3 — Lead-stale clear + scan ?event= | — |
+| [#204](https://github.com/bulletbiter99/air-action-sports/pull/204) | D-1a — Customers AES decryption | — |
+| [#206](https://github.com/bulletbiter99/air-action-sports/pull/206) | D-2 — Recurrence + UNIQUE | 0060 applied |
+| [#207](https://github.com/bulletbiter99/air-action-sports/pull/207) | C — Past-games archive | 0061 applied |
+| [#208](https://github.com/bulletbiter99/air-action-sports/pull/208) | Marketing B1 — Customer Segments | — |
+| [#209](https://github.com/bulletbiter99/air-action-sports/pull/209) | Sidebar Event Archive entry | — |
+| [#210](https://github.com/bulletbiter99/air-action-sports/pull/210) | docs post-M6 session notes + D1 quirk #5 | — |
+| [#211](https://github.com/bulletbiter99/air-action-sports/pull/211) | D-1b — Customers POST + create modal (reopened from #205 after #204 merge) | — |
+
+### Operator action pending
+
+1. **Batch 7 visual verify** (recommended pre-close): eyeball `/admin/events`, `/admin/promo-codes`, `/admin/roster?event=…`, `/admin/rentals/assignments` — columns align with headers, smooth scroll, actions work (Events + RentalAssignments now use an inner scroll box vs page-scroll).
+2. **Flip `audit_log_fts` flag at M7→main cutover** — migrations 0063/0064 applied + index verified (fts rows = audit_log rows; `MATCH 'cron*'` → 2463 hits), but the flag is `off` (prod runs the pre-M7 audit route, which ignores it). Enable: `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';`
+3. **M6 live-Stripe cutover items 1–5** ([docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md)) — land before M7 close.
+
+All three M7 migrations (0062/0063/0064) are already applied + verified on remote; Batch 8 adds 0065.
+
+### M6 operator cutover items — still pending (do NOT block M7 dev; land before M7 close)
+
+5 items in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md): Stripe live key/webhook config, DMARC/SPF/DKIM, $1 live e2e. Batch 12's deploy runbook bundles them as Section X.
+
+---
+
+## Historical: M6 close state (preserved for reference)
+
+The original "M6 CLOSED" section is preserved below for historical context. Skip to "M6 PRs shipped this multi-batch session" header for the M6 changelog.
+
+---
 
 ### M6 PRs shipped this multi-batch session (in order)
 

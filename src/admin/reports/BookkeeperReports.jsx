@@ -1,0 +1,186 @@
+// M7 Batch 3 — Bookkeeper reports tab content.
+//
+// Three table-based reports under one shared filter, plus a deep-link tile to
+// the existing M5 1099-thresholds page (not a report):
+//   1. Payouts summary  — monthly Stripe + field-rental gross, refunds, net
+//   2. Tax & fee summary — monthly tax + fees + totals MetricCard
+//   3. Period comparison — current vs prior window, metric by metric
+//   4. 1099 Thresholds   — link to /admin/staff/1099-thresholds
+//
+// Comparison toggle is hidden: payouts/tax-fee don't use it and period
+// comparison always compares. Event scope applies to all three reports.
+// CSV export hits the same endpoint with ?format=csv (server gates on
+// reports.export; ReportLayout hides the button without it).
+
+import { useState } from 'react';
+import { useReportData, downloadReportCsv } from './reportData.js';
+import { Link } from 'react-router-dom';
+import ReportFilters from './ReportFilters.jsx';
+import ReportLayout from './ReportLayout.jsx';
+import ReportEmptyState from './ReportEmptyState.jsx';
+import ReportTable from './ReportTable.jsx';
+import MetricCard from './charts/MetricCard.jsx';
+import { formatMoney } from '../../utils/money.js';
+
+const BK_BASE = '/api/admin/reports/bookkeeper';
+
+function useReport(path, filters) { return useReportData(BK_BASE, path, filters); }
+const downloadCsv = (path, filters) => downloadReportCsv(BK_BASE, path, filters);
+
+const money = (cents) => formatMoney(cents);
+
+function DeltaCell({ delta, metricKey }) {
+    if (!delta || delta.deltaPct == null) {
+        return <span style={{ color: 'var(--color-text-subtle)' }}>—</span>;
+    }
+    const up = delta.deltaPct > 0;
+    const flat = delta.deltaPct === 0;
+    const inverse = metricKey === 'refunds'; // more refunds = worse → flip color
+    const good = inverse ? !up : up;
+    const color = flat ? 'var(--color-text-muted)' : good ? 'var(--color-success)' : 'var(--color-danger)';
+    const arrow = flat ? '→' : up ? '▲' : '▼';
+    return <span style={{ color, fontWeight: 700 }}>{arrow} {Math.abs(delta.deltaPct * 100).toFixed(1)}%</span>;
+}
+
+function PayoutsCard({ filters }) {
+    const { data, loading, error } = useReport('payouts', filters);
+    const rows = data?.rows || [];
+    const columns = [
+        { key: 'month', label: 'Month' },
+        { key: 'stripeGrossCents', label: 'Stripe Gross', align: 'right', render: money },
+        { key: 'fieldRentalGrossCents', label: 'Field Rental Gross', align: 'right', render: money },
+        { key: 'refundsCents', label: 'Refunds', align: 'right', render: money },
+        { key: 'netCents', label: 'Net', align: 'right', render: money },
+    ];
+    const footer = data?.totals ? { month: 'Total', ...data.totals } : null;
+    return (
+        <ReportLayout
+            title="Payouts summary"
+            description="Money in by month — Stripe bookings + field-rental payments, net of refunds."
+            loading={loading}
+            error={error}
+            onExportCsv={() => downloadCsv('payouts', filters)}
+        >
+            {rows.length === 0 ? (
+                <ReportEmptyState kind="no-data" />
+            ) : (
+                <>
+                    <ReportTable columns={columns} rows={rows} footer={footer} />
+                    {data?.scopedNote && <p style={note}>{data.scopedNote}</p>}
+                </>
+            )}
+        </ReportLayout>
+    );
+}
+
+function TaxFeeCard({ filters }) {
+    const { data, loading, error } = useReport('tax-fee-summary', filters);
+    const series = data?.series || [];
+    const columns = [
+        { key: 'month', label: 'Month' },
+        { key: 'taxCents', label: 'Tax', align: 'right', render: money },
+        { key: 'feeCents', label: 'Fees', align: 'right', render: money },
+        { key: 'totalCents', label: 'Total', align: 'right', render: money },
+    ];
+    const footer = data?.totals ? { month: 'Total', ...data.totals } : null;
+    return (
+        <ReportLayout
+            title="Tax & fee summary"
+            description="Tax and fees collected by month (paid + comp bookings)."
+            loading={loading}
+            error={error}
+            onExportCsv={() => downloadCsv('tax-fee-summary', filters)}
+        >
+            {series.length === 0 ? (
+                <ReportEmptyState kind="no-data" />
+            ) : (
+                <div style={chartRow}>
+                    <div style={chartCol}>
+                        <ReportTable columns={columns} rows={series} footer={footer} />
+                    </div>
+                    <MetricCard
+                        label="Tax + fees collected"
+                        value={money(data.totals.totalCents)}
+                        sublabel={`${money(data.totals.taxCents)} tax · ${money(data.totals.feeCents)} fees`}
+                    />
+                </div>
+            )}
+        </ReportLayout>
+    );
+}
+
+function PeriodComparisonCard({ filters }) {
+    const { data, loading, error } = useReport('period-comparison', filters);
+    const metrics = data?.metrics || [];
+    const fmt = (kind, v) => (kind === 'money' ? money(v) : v);
+    const columns = [
+        { key: 'label', label: 'Metric' },
+        { key: 'current', label: 'Current', align: 'right', render: (v, row) => fmt(row.kind, v) },
+        { key: 'prior', label: 'Prior', align: 'right', render: (v, row) => fmt(row.kind, v) },
+        { key: 'delta', label: 'Change', align: 'right', render: (v, row) => <DeltaCell delta={v} metricKey={row.key} /> },
+    ];
+    return (
+        <ReportLayout
+            title="Period comparison"
+            description="Current period vs the equal-length prior period, metric by metric."
+            loading={loading}
+            error={error}
+            onExportCsv={() => downloadCsv('period-comparison', filters)}
+        >
+            {metrics.length === 0 ? (
+                <ReportEmptyState kind="no-data" />
+            ) : (
+                <ReportTable columns={columns} rows={metrics} />
+            )}
+        </ReportLayout>
+    );
+}
+
+function Thresholds1099Card() {
+    return (
+        <ReportLayout
+            title="1099 Thresholds"
+            description="Contractor 1099-NEC threshold tracking lives on the dedicated Staff page."
+        >
+            <div style={linkWrap}>
+                <p style={{ color: 'var(--color-text-muted)', margin: 0, maxWidth: 620 }}>
+                    Year-to-date contractor payouts, the $600 threshold flags, EIN / legal-name
+                    readiness, and the lock-year + CSV export are all managed on the Staff 1099 page.
+                </p>
+                <Link to="/admin/staff/1099-thresholds" style={linkBtn}>Open 1099 Thresholds →</Link>
+            </div>
+        </ReportLayout>
+    );
+}
+
+export default function BookkeeperReports() {
+    const [filters, setFilters] = useState({ period: 'mtd', comparison: false, eventId: 'all' });
+
+    return (
+        <div>
+            <div style={{ marginBottom: '1.5rem' }}>
+                <ReportFilters value={filters} onChange={setFilters} showEventScope showComparison={false} />
+            </div>
+            <PayoutsCard filters={filters} />
+            <TaxFeeCard filters={filters} />
+            <PeriodComparisonCard filters={filters} />
+            <Thresholds1099Card />
+        </div>
+    );
+}
+
+// ── styles ───────────────────────────────────────────────────────────
+const chartRow = { display: 'flex', gap: '1.25rem', alignItems: 'flex-start', flexWrap: 'wrap' };
+const chartCol = { flex: '1 1 420px', minWidth: 0 };
+const note = { color: 'var(--color-text-subtle)', fontSize: '0.8rem', fontStyle: 'italic', marginTop: '0.5rem' };
+const linkWrap = { display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start' };
+const linkBtn = {
+    display: 'inline-block',
+    background: 'var(--color-accent)',
+    color: 'var(--color-accent-on-accent)',
+    padding: '0.5rem 1rem',
+    borderRadius: 4,
+    textDecoration: 'none',
+    fontWeight: 700,
+    fontSize: '0.9rem',
+};

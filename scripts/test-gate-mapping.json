@@ -63,9 +63,10 @@
       "covers": [
         "POST /api/webhooks/stripe",
         "handleCheckoutCompleted",
-        "handleDisputeCreated (M6 B6 — charge.dispute.created consumer)"
+        "handleDisputeCreated (M6 B6 — charge.dispute.created consumer)",
+        "POST /api/webhooks/resend (M7 B8 — Resend bounce/complaint consumer; handleResendEmailEvent)"
       ],
-      "audit_group": "B + M6 B6 dispute handler",
+      "audit_group": "B + M6 B6 dispute handler + M7 B8 resend consumer",
       "tests": [
         "tests/unit/webhook/idempotency-already-paid.test.js",
         "tests/unit/webhook/unknown-event-type.test.js",
@@ -76,7 +77,8 @@
         "tests/unit/webhook/email-send-confirmation.test.js",
         "tests/unit/webhook/email-send-admin-notify.test.js",
         "tests/unit/webhook/waiver-auto-link-on-paid.test.js",
-        "tests/unit/webhook/dispute-created-handler.test.js"
+        "tests/unit/webhook/dispute-created-handler.test.js",
+        "tests/unit/webhook/resend-consumer.test.js"
       ]
     },
     "worker/lib/waiverLookup.js": {
@@ -627,6 +629,76 @@
       "tests": [
         "tests/unit/admin/email-templates-status.test.js",
         "tests/unit/admin/email-templates-preview-with-data.test.js"
+      ]
+    },
+    "worker/lib/reports.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "resolvePeriodWindow (mtd/qtd/ytd/last_30d/last_90d UTC windows; custom→last_30d fallback)",
+        "priorWindow (equal-length preceding window for comparison)",
+        "computeDelta (deltaPct null when prior=0)",
+        "computeRevenueTrends / computeRefundRate / computeAovTrend / bucketRepeatCustomers / computeSeriesRetention (Owner report shapers)",
+        "csvEscape / toCsv (CSV serialization)"
+      ],
+      "audit_group": "(M7 Batch 2 Owner reports pure helpers)",
+      "tests": [
+        "tests/unit/lib/reports.test.js"
+      ]
+    },
+    "worker/routes/admin/reports.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "GET /api/admin/reports/owner/revenue-trends — daily gross + prior-period delta (JSON + ?format=csv)",
+        "GET /api/admin/reports/owner/retention — series-to-series retention via events.site",
+        "GET /api/admin/reports/owner/refund-rate — monthly refunded÷charged (Stripe + external)",
+        "GET /api/admin/reports/owner/repeat-customers — lifetime total_bookings bucket distribution",
+        "GET /api/admin/reports/owner/aov-trend — monthly AVG(total_cents) over paid bookings",
+        "CSV export on each owner endpoint gated on reports.export; Bookkeeper/Marketing/Site-Coordinator endpoints remain 501 stubs until Batches 3-5"
+      ],
+      "audit_group": "(M7 Batch 1a shell + Batch 2 Owner reports)",
+      "tests": [
+        "tests/unit/admin/reports/reports-stub.test.js"
+      ]
+    },
+    "worker/lib/auditSearch.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "buildFtsMatchQuery(q) — injection-safe FTS5 MATCH builder (per-token char-strip + double-quote + prefix *; null when no usable input)"
+      ],
+      "audit_group": "(M7 Batch 6 audit-log full-text search)",
+      "tests": [
+        "tests/unit/lib/auditSearch.test.js"
+      ]
+    },
+    "worker/routes/admin/auditLog.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/audit-log — q full-text via FTS5 (audit_log_fts MATCH) when the audit_log_fts flag is on + index exists; LIKE fallback otherwise + on FTS error; structured filters (action/target_type/user_id/from/to) + pagination",
+        "GET /api/admin/audit-log/actions — distinct action values"
+      ],
+      "audit_group": "(M7 Batch 6 — FTS5 search upgrade to the q path)",
+      "tests": [
+        "tests/unit/admin/audit-log-search.test.js"
+      ]
+    },
+    "worker/lib/resendWebhook.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "verifyResendWebhook — svix HMAC-SHA256 signature verify (whsec_ base64-decode key, ${id}.${ts}.${body} signed content, base64 sig, v1 token match, 300s replay tolerance, constant-time compare)"
+      ],
+      "audit_group": "(M7 Batch 8 — Resend bounce/complaint webhook signature verification)",
+      "tests": [
+        "tests/unit/lib/resendWebhook.test.js"
+      ]
+    },
+    "worker/lib/emailEvents.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "emailEventId / classifyResendEvent (defensive recipient + hard|soft|Permanent|Transient bounce parsing) / shouldSuppressMarketing (complaint OR hard bounce) / eventActionName"
+      ],
+      "audit_group": "(M7 Batch 8 — Resend bounce/complaint pure helpers)",
+      "tests": [
+        "tests/unit/lib/emailEvents.test.js"
       ]
     }
   },

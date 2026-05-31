@@ -4,6 +4,7 @@ import { useAdmin } from './AdminContext';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import EmptyState from '../components/admin/EmptyState.jsx';
 import FilterBar from '../components/admin/FilterBar.jsx';
+import VirtualizedList from './VirtualizedList.jsx';
 
 const STATUS_OPTIONS = [
   { value: 'open', label: 'Open (out)' },
@@ -122,45 +123,51 @@ export default function AdminRentalAssignments() {
           />
         )}
         {!loadingList && assignments.length > 0 && (
-          <div className="admin-table-wrap"><table style={table}>
-            <thead>
-              <tr>
-                <th style={th}>Item</th>
-                <th style={th}>Player</th>
-                <th style={th}>Event</th>
-                <th style={th}>Out</th>
-                <th style={th}>Returned</th>
-                <th style={th}>Condition</th>
-                <th style={th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assignments.map((a) => (
-                <tr key={a.id} style={tr}>
-                  <td style={td}>
-                    <strong>{a.itemName}</strong>
-                    <div style={subRowMono}>{a.itemSku} · {a.itemCategory}</div>
-                  </td>
-                  <td style={td}>{a.attendeeName}</td>
-                  <td style={tdSmall}>{a.eventTitle || '—'}</td>
-                  <td style={tdSmall}>{new Date(a.checkedOutAt).toLocaleString()}</td>
-                  <td style={tdSmall}>
-                    {a.checkedInAt
-                      ? new Date(a.checkedInAt).toLocaleString()
-                      : <span style={stillOut}>— still out</span>}
-                  </td>
-                  <td style={td}>
-                    {a.conditionOnReturn ? <ReturnPill c={a.conditionOnReturn} notes={a.damageNotes} /> : '—'}
-                  </td>
-                  <td style={td}>
-                    {!a.checkedInAt && (
-                      <button onClick={() => markReturned(a.id)} style={primaryBtn}>Mark returned</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
+          <div className="admin-table-wrap">
+            <div style={{ minWidth: 860 }}>
+              <VirtualizedList
+                header={(
+                  <div style={{ display: 'grid', gridTemplateColumns: RENTAL_COLS }}>
+                    <div style={th}>Item</div>
+                    <div style={th}>Player</div>
+                    <div style={th}>Event</div>
+                    <div style={th}>Out</div>
+                    <div style={th}>Returned</div>
+                    <div style={th}>Condition</div>
+                    <div style={th}>Actions</div>
+                  </div>
+                )}
+                items={assignments}
+                getKey={(a) => a.id}
+                estimateRowHeight={56}
+                maxHeight="60vh"
+                renderRow={(a) => (
+                  <div style={{ ...tr, display: 'grid', gridTemplateColumns: RENTAL_COLS, alignItems: 'start' }}>
+                    <div style={td}>
+                      <strong>{a.itemName}</strong>
+                      <div style={subRowMono}>{a.itemSku} · {a.itemCategory}</div>
+                    </div>
+                    <div style={td}>{a.attendeeName}</div>
+                    <div style={tdSmall}>{a.eventTitle || '—'}</div>
+                    <div style={tdSmall}>{new Date(a.checkedOutAt).toLocaleString()}</div>
+                    <div style={tdSmall}>
+                      {a.checkedInAt
+                        ? new Date(a.checkedInAt).toLocaleString()
+                        : <span style={stillOut}>— still out</span>}
+                    </div>
+                    <div style={td}>
+                      {a.conditionOnReturn ? <ReturnPill c={a.conditionOnReturn} notes={a.damageNotes} /> : '—'}
+                    </div>
+                    <div style={td}>
+                      {!a.checkedInAt && (
+                        <button onClick={() => markReturned(a.id)} style={primaryBtn}>Mark returned</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              />
+            </div>
+          </div>
         )}
       </section>
     </div>
@@ -191,7 +198,8 @@ const tableBox = {
   padding: 'var(--space-24)',
   marginTop: 'var(--space-16)',
 };
-const table = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-base)' };
+// M7 Batch 7 — grid template for the virtualized rental-assignments list (Item/Player/Event/Out/Returned/Condition/Actions).
+const RENTAL_COLS = 'minmax(150px, 1.6fr) minmax(130px, 1.4fr) minmax(120px, 1.3fr) minmax(140px, 1.3fr) minmax(140px, 1.3fr) minmax(110px, 1.1fr) minmax(120px, 1fr)';
 const th = {
   textAlign: 'left',
   padding: 'var(--space-8) var(--space-12)',
