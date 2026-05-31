@@ -119,3 +119,56 @@ jobs:
           name: playwright-visual-diffs
           path: test-results/
           retention-days: 14
+
+  visual-admin:
+    name: Admin visual regression (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        run: npx playwright install chromium
+
+      # Unlike the public `visual` job (which hits production), the admin suite
+      # serves the BUILT SPA locally — the config's webServer runs
+      # `npm run build && npm run preview` — and route-mocks the admin API so the
+      # shell authenticates as an owner with deterministic empty data. Like the
+      # public job, this FAILS on the suite-introducing PR (M7 B9) until
+      # baselines exist: label the PR `capture-baselines` to seed them.
+      # See docs/runbooks/visual-regression.md.
+      - name: Run admin visual regression suite
+        run: npm run test:visual:admin
+
+      - name: Upload Playwright HTML report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-visual-admin-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload admin visual diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-visual-admin-diffs
+          path: test-results/
+          retention-days: 14

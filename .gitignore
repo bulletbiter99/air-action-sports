@@ -11,3 +11,5 @@ dist/
 *.sqlite
 *.sqlite3
 coverage/
+test-results/
+playwright-report/

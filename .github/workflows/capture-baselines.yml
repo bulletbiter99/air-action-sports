@@ -71,11 +71,17 @@ jobs:
       - name: Capture baselines
         run: npm run test:visual:update
 
+      # Admin baselines (M7 B9) — serves the built SPA locally + route-mocks the
+      # admin API (see docs/runbooks/visual-regression.md). Same CI runner as the
+      # public capture above, so admin PNGs are pixel-stable for future compares.
+      - name: Capture admin baselines
+        run: npm run test:visual:admin:update
+
       - name: Commit baselines
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tests/visual/
+          git add tests/visual tests/visual-admin
           if git diff --cached --quiet; then
             echo "No baseline changes to commit (snapshots already match captured pixels)."
           else
