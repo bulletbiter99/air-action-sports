@@ -22,6 +22,7 @@ import ReportTable from './ReportTable.jsx';
 import MetricCard from './charts/MetricCard.jsx';
 import { ProgressBar } from '../charts.jsx';
 import { formatMoney } from '../../utils/money.js';
+import { fmtDate } from '../../utils/dateFormat.js';
 
 const SC_BASE = '/api/admin/reports/site-coordinator';
 
@@ -29,12 +30,6 @@ function useReport(path, filters) { return useReportData(SC_BASE, path, filters)
 const downloadCsv = (path, filters) => downloadReportCsv(SC_BASE, path, filters);
 
 const money = (cents) => formatMoney(cents);
-
-function fmtDate(ms) {
-    if (ms == null) return '';
-    const d = new Date(Number(ms));
-    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
-}
 
 function StageBars({ stages }) {
     const top = stages[0]?.count || 0;

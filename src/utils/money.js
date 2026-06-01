@@ -69,3 +69,16 @@ export function parseMoney(input) {
 
     return Math.round(n * 100);
 }
+
+// Compact money for dense displays (chart axis ticks): whole dollars under
+// $1k, "$X.Xk" at or above. Lossy by design — pair with full formatMoney()
+// for headline values so charts and cards stay visually consistent.
+// Tolerates null/garbage (treated as 0).
+//   formatMoneyCompact(8000)    → '$80'
+//   formatMoneyCompact(123456)  → '$1.2k'
+//   formatMoneyCompact(null)    → '$0'
+export function formatMoneyCompact(cents) {
+    const d = (Number(cents) || 0) / 100;
+    if (Math.abs(d) >= 1000) return `$${(d / 1000).toFixed(1)}k`;
+    return `$${Math.round(d)}`;
+}

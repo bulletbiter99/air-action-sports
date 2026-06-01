@@ -4,6 +4,7 @@
 // CSV export button. Used by all 17 reports across Batches 2-5 so the UX is
 // consistent and we can fix layout issues in one place.
 
+import { useState } from 'react';
 import { useAdmin } from '../AdminContext';
 
 export default function ReportLayout({
@@ -17,6 +18,24 @@ export default function ReportLayout({
 }) {
     const { hasCapability } = useAdmin();
     const canExport = typeof hasCapability === 'function' ? hasCapability('reports.export') : false;
+    const [exporting, setExporting] = useState(false);
+    const [exportErr, setExportErr] = useState(null);
+
+    // onExportCsv triggers an async CSV download (reportData.downloadReportCsv).
+    // Await it so the button can show progress and a server error surfaces here
+    // instead of the browser navigating away to a raw error response.
+    async function handleExport() {
+        if (exporting) return;
+        setExporting(true);
+        setExportErr(null);
+        try {
+            await onExportCsv();
+        } catch {
+            setExportErr('Export failed. Please try again.');
+        } finally {
+            setExporting(false);
+        }
+    }
 
     return (
         <section style={wrap}>
@@ -26,15 +45,19 @@ export default function ReportLayout({
                     {description && <p style={descStyle}>{description}</p>}
                 </div>
                 {canExport && onExportCsv && (
-                    <button
-                        type="button"
-                        onClick={onExportCsv}
-                        disabled={loading}
-                        style={exportBtn}
-                        title="Download report as CSV"
-                    >
-                        ▼ Export CSV
-                    </button>
+                    <div style={exportWrap}>
+                        <button
+                            type="button"
+                            onClick={handleExport}
+                            disabled={loading || exporting}
+                            style={exportBtn}
+                            title="Download report as CSV"
+                            aria-busy={exporting}
+                        >
+                            {exporting ? 'Exporting…' : '▼ Export CSV'}
+                        </button>
+                        {exportErr && <span style={exportErrStyle}>{exportErr}</span>}
+                    </div>
                 )}
             </header>
 
@@ -105,4 +128,18 @@ const loadingMsg = {
 
 const errStyle = {
     color: 'var(--color-danger)',
+};
+
+const exportWrap = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '0.35rem',
+};
+
+const exportErrStyle = {
+    color: 'var(--color-danger)',
+    fontSize: '0.75rem',
+    maxWidth: 180,
+    textAlign: 'right',
 };
