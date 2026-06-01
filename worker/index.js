@@ -17,6 +17,7 @@ import {
 } from './lib/eventStaffing.js';
 import { runTaxYearAutoLockSweep as _runTaxYearAutoLockSweep } from './lib/thresholds1099.js';
 import { runCampaignSendSweep as _runCampaignSendSweep } from './lib/campaignSender.js';
+import { runAutomationSweep as _runAutomationSweep } from './lib/automations.js';
 // Top-level const aliases so the verify-m5 cron-sweep check (regex:
 // `const NAME = ...`) detects the sweeps are wired up here. The actual
 // implementations live in worker/lib/{certifications,eventStaffing,thresholds1099}.js.
@@ -28,6 +29,7 @@ const runEventStaffingReminderSweep = _runEventStaffingReminderSweep;
 const runEventStaffingAutoDeclineSweep = _runEventStaffingAutoDeclineSweep;
 const runTaxYearAutoLockSweep = _runTaxYearAutoLockSweep;
 const runCampaignSendSweep = _runCampaignSendSweep;
+const runAutomationSweep = _runAutomationSweep;
 
 import events from './routes/events.js';
 import bookings from './routes/bookings.js';
@@ -67,6 +69,7 @@ import adminFieldRentalPayments from './routes/admin/fieldRentalPayments.js';
 import adminSavedViews from './routes/admin/savedViews.js';
 import adminSegments from './routes/admin/segments.js';
 import adminCampaigns from './routes/admin/campaigns.js';
+import adminAutomations from './routes/admin/automations.js';
 import adminReports from './routes/admin/reports.js';
 import adminDashboard from './routes/admin/dashboard.js';
 import adminStaff from './routes/admin/staff.js';
@@ -181,6 +184,7 @@ app.route('/api/admin/field-rental-payments', adminFieldRentalPayments);
 app.route('/api/admin/saved-views', adminSavedViews);
 app.route('/api/admin/segments', adminSegments);
 app.route('/api/admin/campaigns', adminCampaigns);
+app.route('/api/admin/automations', adminAutomations);
 app.route('/api/admin/reports', adminReports);
 app.route('/api/admin', adminDashboard);
 app.route('/api/admin/staff', adminStaff);
@@ -689,7 +693,7 @@ export default {
                 ]);
                 summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen, coiAlerts, leadStale };
             } else {
-                const [r, a, v, campaigns] = await Promise.all([
+                const [r, a, v, campaigns, automations] = await Promise.all([
                     runReminderSweep(env),
                     runAbandonPendingSweep(env).catch((err) => {
                         console.error('abandon sweep failed', err);
@@ -703,8 +707,12 @@ export default {
                         console.error('campaign send sweep failed', err);
                         return { error: err?.message };
                     }),
+                    runAutomationSweep(env).catch((err) => {
+                        console.error('automation sweep failed', err);
+                        return { error: err?.message };
+                    }),
                 ]);
-                summary = { reminders: r, pending: a, vendor: v, campaigns };
+                summary = { reminders: r, pending: a, vendor: v, campaigns, automations };
             }
 
             const finishedAt = Date.now();
