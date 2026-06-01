@@ -14,17 +14,16 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 | Metric | Value |
 |---|---|
-| Active milestone | **M7 — Reports + Audit Log FTS + Virtualized Tables** (in progress) |
-| Milestone branch | `milestone/7-reports-search-virtualized` |
-| Milestone branch HEAD | `54e5bd4` (Merge #221 Batch 7) |
-| `main` HEAD | `1e6062b` (Merge #208 Marketing B1) — **M7 not yet deployed to prod** |
-| Tests on milestone | **2513 / 196 passing** |
-| Build | clean (~270ms) |
-| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` (running pre-M7 `main`) |
-| D1 migrations on remote | 0001–**0064** applied (0062 reports caps · 0063 FTS5 index · 0064 audit_log_fts flag — applied + verified 2026-05-31) |
-| Open PRs | 0 (all 7 M7 batches merged to milestone) |
+| Latest work | **Post-M7 work-menu session (2026-05-31)** — Marketing milestone B2–B6 + M8 (a11y + sidebar caps) shipped + merged |
+| `main` HEAD | `189ee7c` (Merge #244 — M8 sidebar /me caps) |
+| Tests | **2682 / 209 passing** (was 2561 / 200 at M7 close) |
+| Build | clean (~265ms) · Lint 0 errors |
+| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — running post-M7 + Marketing + M8 `main` (auto-deploys from `main` via Workers Builds) |
+| D1 migrations on remote | **0001–0064 applied**; **0065–0070 in-repo, operator-applies** (M7's 0065/0066 + Marketing 0067–0070) |
+| Open milestone | **M8** — a11y region pass ✓ + sidebar /me caps ✓; full ARIA-grid cells + RTL infra remain |
+| Open PRs | 0 (all post-M7 PRs #231–#244 merged) |
 
-> M7 deploys to production at milestone close (Batch 12): the milestone branch accumulates batches, and `milestone → main` (Workers-Builds auto-deploys) happens once at the end. Batches 0–7 are on the milestone branch only.
+**Post-M7 work-menu session (2026-05-31) — all merged to `main`:** 11c Reports polish (#231), representative-data visual baselines (#232), the **Marketing milestone B2–B6** (#234 / #243 / #236–#240 — campaigns + send pipeline + engagement tracking + automations + capability seed), M6 live-Stripe code-readiness audit (#233), and the **M8** start (#241 a11y region pass + #244 sidebar /me caps). **For the full current state + remaining work menu + consolidated operator-pending, use [docs/next-session.md](docs/next-session.md).** The M7-in-progress tables below are preserved as a historical record.
 
 ### M7 batches complete (merged to milestone branch)
 
@@ -54,17 +53,9 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 | [#210](https://github.com/bulletbiter99/air-action-sports/pull/210) | docs post-M6 session notes + D1 quirk #5 | — |
 | [#211](https://github.com/bulletbiter99/air-action-sports/pull/211) | D-1b — Customers POST + create modal (reopened from #205 after #204 merge) | — |
 
-### Operator action pending
+### Operator-pending (consolidated)
 
-1. **Batch 7 visual verify** (recommended pre-close): eyeball `/admin/events`, `/admin/promo-codes`, `/admin/roster?event=…`, `/admin/rentals/assignments` — columns align with headers, smooth scroll, actions work (Events + RentalAssignments now use an inner scroll box vs page-scroll).
-2. **Flip `audit_log_fts` flag at M7→main cutover** — migrations 0063/0064 applied + index verified (fts rows = audit_log rows; `MATCH 'cron*'` → 2463 hits), but the flag is `off` (prod runs the pre-M7 audit route, which ignores it). Enable: `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';`
-3. **M6 live-Stripe cutover items 1–5** ([docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md)) — land before M7 close.
-
-All three M7 migrations (0062/0063/0064) are already applied + verified on remote; Batch 8 adds 0065.
-
-### M6 operator cutover items — still pending (do NOT block M7 dev; land before M7 close)
-
-5 items in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md): Stripe live key/webhook config, DMARC/SPF/DKIM, $1 live e2e. Batch 12's deploy runbook bundles them as Section X.
+All current operator-pending items — apply migrations **0065–0070**, set `RESEND_WEBHOOK_SECRET` + `MARKETING_POSTAL_ADDRESS`, configure the Resend webhook + plan upgrade, flip the `audit_log_fts` flag, the deferred marketing route-capability swap, and the M6 live-Stripe cutover (5 items) — are consolidated in **[docs/next-session.md](docs/next-session.md)** (⚠️ Operator-pending section), with full detail in the runbooks ([marketing-deploy.md](docs/runbooks/marketing-deploy.md), [m7-deploy.md](docs/runbooks/m7-deploy.md), [m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md)).
 
 ---
 

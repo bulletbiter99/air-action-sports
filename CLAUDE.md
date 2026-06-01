@@ -2,7 +2,24 @@
 
 This file is the entry point for any Claude session working in this repository. The full canonical onboarding lives in [HANDOFF.md](HANDOFF.md); this file gives you the short, durable rules.
 
-**For a fresh session post-M7 close (current state — 2026-05-31): use [`docs/next-session.md`](docs/next-session.md).** M7 (Reports + Audit-Log FTS + Virtualized Tables + Resend deliverability + admin visual baselines) is **CLOSED + DEPLOYED**; `docs/next-session.md` has the post-M7 work menu + the operator-pending activation steps (migrations 0065/0066, RESEND_WEBHOOK_SECRET, FTS flag, list eyeballs). The "Milestone 7" section deep in this file documents what shipped + the close state.
+**For a fresh session, use [`docs/next-session.md`](docs/next-session.md)** — it carries the current state, the work menu, and the consolidated operator-pending list. **State as of 2026-05-31:** M7 is **CLOSED + DEPLOYED**; the post-M7 work-menu session then shipped + merged the deferred **11c** Reports polish, the native **Marketing milestone B2–B6** (campaigns + send pipeline + tracking + automations + capability seed), and the start of **M8** (a11y region pass on virtualized tables + sidebar consuming real `/me` capabilities). `main` is at **2682 / 209** tests. **Operator-pending** spans migrations **0065–0070** + Marketing send activation (`MARKETING_POSTAL_ADDRESS`, Resend upgrade), the M7 Resend/FTS steps, the deferred marketing route-capability swap, and the M6 live-Stripe cutover — all detailed in `docs/next-session.md` + the runbooks. The "Post-M7 work-menu session" section below + the "Milestone 7" section deep in this file document what shipped per milestone.
+
+---
+
+## Post-M7 work-menu session — 2026-05-31
+
+After M7 close, a session worked the post-M7 work menu (tracks 1–5); **14 PRs (#231–#244; #235 was closed + replaced by #243) all merged to `main`.** Combined main verified at **2682 / 209** tests, build clean, 0 lint errors. Current state + remaining work + the full operator-pending list live in [docs/next-session.md](docs/next-session.md).
+
+- **Track 1 — 11c Reports polish** (#231): extracted `src/utils/dateFormat.js`; CSV "Exporting…" loading state in `ReportLayout`; friendly error mapping in `reportData.js` (no raw `e.message`); shared `formatMoneyCompact` in both money mirrors.
+- **Track 2 — representative-data visual baselines** (#232): 4 populated virtualized-table admin baselines via a new `installAdminMocks({ overrides })` layer; the `capture-baselines` bot seeded the linux PNGs.
+- **Track 3 — Marketing milestone B2–B6** ✓ CODE-COMPLETE (#234 B2a / #243 B2b / #236 B3 / #237 B4 / #238 B5a / #239 B5b / #240 B6): campaigns + send pipeline (cron drain + CAN-SPAM unsubscribe) + engagement tracking + automations (recurring / tag_added) + `marketing.*` capability seed. Migrations **0067–0070** (operator-applies). Send cron + tracking gated on operator activation (`MARKETING_POSTAL_ADDRESS` + Resend upgrade). Closing runbook: [docs/runbooks/marketing-deploy.md](docs/runbooks/marketing-deploy.md).
+- **Track 4 — M6 live-Stripe cutover** (#233): code-readiness audit only — all paths verified live-ready; the 5 operator items remain ([docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md)).
+- **Track 5 — M8** (started): a11y region pass on virtualized tables (#241 — `role="region"` + label + `tabIndex` + `aria-rowcount` on `VirtualizedList`) + sidebar consumes real `/me` capabilities (#244 — `getVisibleItems` unions DB caps with the legacy stub so e.g. site_coordinator sees Reports). **Remaining M8:** full ARIA-grid cell roles on the virtualized tables + RTL test infra + JSX coverage backfill.
+
+**Durable lessons:**
+1. **`gh pr merge --delete-branch` on a chain parent auto-CLOSES the child PR** (the child's base was that branch) and blocks reopen (deleted base). For chained PRs: retarget each child to `main` first, OR merge without `--delete-branch` and clean up branches at the end. (#235 hit this; re-PR'd as #243.)
+2. **Sidebar capability gating** (`src/admin/sidebarConfig.js` `getVisibleItems`) now UNIONs the real `/me` capability set with the `CAPABILITY_TO_LEGACY_ROLE` stub — additive only (never hides what the stub already showed), so it's safe before DB caps load.
+3. **Marketing route capability swap is schema-gated:** `requireCapability('marketing.*')` 403s owners until 0070's bindings are on remote — so the `requireAuth → requireCapability` swap on segments/campaigns/automations is DEFERRED until the operator applies 0070 (and must bind the caps in the route tests in the same change, or they'll 403).
 
 ---
 
