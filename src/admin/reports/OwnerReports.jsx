@@ -21,32 +21,13 @@ import ReportEmptyState from './ReportEmptyState.jsx';
 import LineChart from './charts/LineChart.jsx';
 import MetricCard from './charts/MetricCard.jsx';
 import { ProgressBar } from '../charts.jsx';
-import { formatMoney } from '../../utils/money.js';
+import { formatMoney, formatMoneyCompact } from '../../utils/money.js';
+import { monthLabel, dayLabel } from '../../utils/dateFormat.js';
 
 const OWNER_BASE = '/api/admin/reports/owner';
 
 function useReport(path, filters) { return useReportData(OWNER_BASE, path, filters); }
 const downloadCsv = (path, filters) => downloadReportCsv(OWNER_BASE, path, filters);
-
-// ── Small label/format helpers ───────────────────────────────────────
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function compactMoney(cents) {
-    const d = (Number(cents) || 0) / 100;
-    if (Math.abs(d) >= 1000) return `$${(d / 1000).toFixed(1)}k`;
-    return `$${Math.round(d)}`;
-}
-function dayLabel(iso) {
-    if (!iso) return '';
-    const p = String(iso).split('-');
-    return p.length >= 3 ? `${Number(p[1])}/${Number(p[2])}` : iso;
-}
-function monthLabel(ym) {
-    if (!ym) return '';
-    const p = String(ym).split('-');
-    if (p.length < 2) return ym;
-    return `${MONTHS[Number(p[1]) - 1] || p[1]} '${p[0].slice(2)}`;
-}
 
 // ── Shared categorical bars (retention + repeat buckets) ─────────────
 function CategoryBars({ items, formatValue = (v) => v }) {
@@ -82,7 +63,7 @@ function RevenueTrendsCard({ filters }) {
             ) : (
                 <div style={chartRow}>
                     <div style={chartCol}>
-                        <LineChart data={series} formatValue={compactMoney} formatLabel={dayLabel} ariaLabel="Daily gross revenue" />
+                        <LineChart data={series} formatValue={formatMoneyCompact} formatLabel={dayLabel} ariaLabel="Daily gross revenue" />
                     </div>
                     <MetricCard
                         label={`Total · ${data.window?.label || ''}`}
@@ -143,7 +124,7 @@ function AovTrendCard({ filters }) {
             ) : (
                 <div style={chartRow}>
                     <div style={chartCol}>
-                        <LineChart data={series} formatValue={compactMoney} formatLabel={monthLabel} ariaLabel="Monthly average order value" />
+                        <LineChart data={series} formatValue={formatMoneyCompact} formatLabel={monthLabel} ariaLabel="Monthly average order value" />
                     </div>
                     <MetricCard
                         label="AOV"

@@ -15,7 +15,7 @@ const targets = [
 ];
 
 for (const { name, mod } of targets) {
-    const { formatMoney, parseMoney } = mod;
+    const { formatMoney, parseMoney, formatMoneyCompact } = mod;
 
     describe(`formatMoney — happy path (${name})`, () => {
         it('formats positive cents as $X.XX', () => {
@@ -181,6 +181,38 @@ for (const { name, mod } of targets) {
             for (const c of cases) {
                 expect(parseMoney(formatMoney(c, { currency: '' }))).toBe(c);
             }
+        });
+    });
+
+    describe(`formatMoneyCompact (${name})`, () => {
+        it('whole dollars under $1k (rounded, no decimals)', () => {
+            expect(formatMoneyCompact(8000)).toBe('$80');
+            expect(formatMoneyCompact(0)).toBe('$0');
+            expect(formatMoneyCompact(99900)).toBe('$999');
+        });
+
+        it('rounds to the nearest dollar under $1k', () => {
+            expect(formatMoneyCompact(50)).toBe('$1');    // 0.50 → 1
+            expect(formatMoneyCompact(149)).toBe('$1');   // 1.49 → 1
+            expect(formatMoneyCompact(150)).toBe('$2');   // 1.50 → 2
+        });
+
+        it('uses "$X.Xk" at or above $1,000', () => {
+            expect(formatMoneyCompact(100000)).toBe('$1.0k');
+            expect(formatMoneyCompact(123456)).toBe('$1.2k');
+            expect(formatMoneyCompact(2550000)).toBe('$25.5k');
+        });
+
+        it('keeps the sign on negatives', () => {
+            expect(formatMoneyCompact(-50000)).toBe('$-500');
+            expect(formatMoneyCompact(-123456)).toBe('$-1.2k');
+        });
+
+        it('treats null/undefined/NaN/"" as 0', () => {
+            expect(formatMoneyCompact(null)).toBe('$0');
+            expect(formatMoneyCompact(undefined)).toBe('$0');
+            expect(formatMoneyCompact(NaN)).toBe('$0');
+            expect(formatMoneyCompact('')).toBe('$0');
         });
     });
 }
