@@ -6,6 +6,22 @@ Treat this file as a worksheet — fill in outcomes as you complete each item; p
 
 ---
 
+## Code-readiness audit — ✅ 2026-05-31 (post-M7)
+
+A post-M7 read-through confirmed every code path that activates when these operator items land is **present, wired, and unregressed since M6 close** (M7 touched no Stripe surface). **No code work blocks the cutover — only the 5 operator items below remain.**
+
+| Gate | Code path | Verified |
+|---|---|---|
+| Items 1 + 5 — save PM on checkout (B5) | `worker/routes/bookings.js` passes `setupFutureUsage: 'off_session'` → `worker/lib/stripe.js` emits `payment_intent_data[setup_future_usage]=off_session` | ✅ present |
+| Item 3 — Stripe-Version match | `worker/lib/stripe.js` pins `Stripe-Version: 2026-04-22.dahlia` (= the version Item 3 says to set on the endpoint) | ✅ matches |
+| Item 3 — dispute consumer (B6) | `worker/routes/webhooks.js` handles `charge.dispute.created`; idempotent via the `dispute.received` audit_log lookup; orphan-safe | ✅ present |
+| B7 — damage charge Option A | `worker/lib/stripe.js` off-session charge (`payment_method` + `off_session:'true'`); `chargeOffSessionForCharge` + `POST /:id/charge-card` | ✅ present |
+| B9 — remove saved PM | `worker/lib/stripe.js` `detachPaymentMethod` + `POST /:id/detach-saved-pm` | ✅ present |
+
+Group A + B Stripe regression tests remain green (138/138 at M6 close; 149/149 with B6). **Run the 5 items below in any order (1–4), then Item 5 ($1 live e2e).**
+
+---
+
 ## Item 1 — Live Stripe API key
 
 **Status:** ☐ Not done
