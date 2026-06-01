@@ -99,6 +99,27 @@ describe('GET /api/admin/campaigns/:id — detail', () => {
     });
 });
 
+describe('GET /api/admin/campaigns/:id/stats (B4)', () => {
+    it('404 when missing', async () => {
+        env.DB.__on(/SELECT id FROM campaigns WHERE id = \?/, null, 'first');
+        const res = await worker.fetch(getReq('/api/admin/campaigns/nope/stats'), env, {});
+        expect(res.status).toBe(404);
+    });
+
+    it('returns engagement counts', async () => {
+        env.DB.__on(/SELECT id FROM campaigns WHERE id = \?/, { id: 'cmp_1' }, 'first');
+        env.DB.__on(/FROM campaign_recipients WHERE campaign_id = \?/, {
+            recipients: 5, sent: 5, failed: 0, delivered: 4, opened: 2, clicked: 1, bounced: 0, complained: 0,
+        }, 'first');
+        const res = await worker.fetch(getReq('/api/admin/campaigns/cmp_1/stats'), env, {});
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.stats.recipients).toBe(5);
+        expect(data.stats.delivered).toBe(4);
+        expect(data.stats.clicked).toBe(1);
+    });
+});
+
 describe('POST /api/admin/campaigns — create', () => {
     it('400 when required fields missing', async () => {
         const res = await worker.fetch(jsonReq('/api/admin/campaigns', 'POST', { name: 'X' }), env, {});

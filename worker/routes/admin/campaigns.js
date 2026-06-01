@@ -33,6 +33,7 @@ import {
     formatCampaignSummary,
     resolveCampaignRecipients,
 } from '../../lib/campaigns.js';
+import { getCampaignStats } from '../../lib/campaignTracking.js';
 
 const adminCampaigns = new Hono();
 adminCampaigns.use('*', requireAuth);
@@ -65,6 +66,15 @@ adminCampaigns.get('/:id', async (c) => {
     const row = await c.env.DB.prepare('SELECT * FROM campaigns WHERE id = ?').bind(c.req.param('id')).first();
     if (!row) return c.json({ error: 'Campaign not found' }, 404);
     return c.json({ campaign: formatCampaign(row) });
+});
+
+// ── GET /:id/stats — per-campaign engagement counts (B4) ──────────────
+adminCampaigns.get('/:id/stats', async (c) => {
+    const id = c.req.param('id');
+    const camp = await c.env.DB.prepare('SELECT id FROM campaigns WHERE id = ?').bind(id).first();
+    if (!camp) return c.json({ error: 'Campaign not found' }, 404);
+    const stats = await getCampaignStats(c.env.DB, id);
+    return c.json({ stats });
 });
 
 // ── POST / — create draft ─────────────────────────────────────────────
