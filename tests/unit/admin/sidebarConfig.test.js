@@ -371,6 +371,54 @@ describe('getVisibleItems', () => {
     });
 });
 
+describe('getVisibleItems — real /me capabilities (M8 union)', () => {
+    it('surfaces a capability item from real caps even when the legacy stub would hide it', () => {
+        // role 'staff' → the stub maps reports.read/sites.read to 'manager' → denied.
+        // But the real /me cap set holds them (e.g. a site_coordinator preset),
+        // so the union makes Reports + Sites visible.
+        const visible = getVisibleItems(SIDEBAR, {
+            todayState: null,
+            userRole: 'staff',
+            userCapabilities: ['reports.read', 'sites.read'],
+        });
+        expect(visible.find((e) => e.label === 'Reports')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Sites')).toBeDefined();
+    });
+
+    it('hides a capability item when neither the real caps nor the stub grant it', () => {
+        const visible = getVisibleItems(SIDEBAR, {
+            todayState: null,
+            userRole: 'staff',
+            userCapabilities: [], // no reports.read; stub denies staff
+        });
+        expect(visible.find((e) => e.label === 'Reports')).toBeUndefined();
+    });
+
+    it('is additive — never hides what the stub already showed (owner + unrelated cap set)', () => {
+        const visible = getVisibleItems(SIDEBAR, {
+            todayState: null,
+            userRole: 'owner',
+            userCapabilities: ['some.unrelated.cap'], // does NOT include reports.read
+        });
+        // owner passes the stub for reports.read → still visible despite the real
+        // cap set not containing it (union, not intersection).
+        expect(visible.find((e) => e.label === 'Reports')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Sites')).toBeDefined();
+    });
+
+    it('falls back to the stub when userCapabilities is absent (backward compat)', () => {
+        const visible = getVisibleItems(SIDEBAR, { todayState: null, userRole: 'owner' });
+        expect(visible.find((e) => e.label === 'Reports')).toBeDefined();
+    });
+
+    it('ignores a non-array userCapabilities (defensive → stub only)', () => {
+        const visible = getVisibleItems(SIDEBAR, {
+            todayState: null, userRole: 'staff', userCapabilities: 'nope',
+        });
+        expect(visible.find((e) => e.label === 'Reports')).toBeUndefined();
+    });
+});
+
 describe('loadSidebarExpand / saveSidebarExpand', () => {
     let storage;
     let originalLocalStorage;
