@@ -125,7 +125,7 @@ function MobileTopbar({ onOpen }) {
 }
 
 function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
-  const { isAuthenticated, user } = useAdmin();
+  const { isAuthenticated, user, capabilities } = useAdmin();
   const [badges, setBadges] = useState({ newFeedback: 0 });
   const loc = useLocation();
 
@@ -157,6 +157,7 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
           badges={badges}
           onClose={onClose}
           userRole={user?.role}
+          userCapabilities={capabilities}
         />
       </nav>
       <ProfileMenu onOpenFeedback={onOpenFeedback} />
@@ -171,11 +172,11 @@ function Sidebar({ drawerOpen, onClose, onOpenFeedback }) {
 // group expand / collapse persists in localStorage. M4 B12b removed the
 // customers_entity flag plumbing (no sidebar item uses requiresFlag
 // anymore).
-function NewSidebarNav({ badges, onClose, userRole }) {
+function NewSidebarNav({ badges, onClose, userRole, userCapabilities }) {
   const todayState = useTodayActive();
   const visibleEntries = useMemo(
-    () => getVisibleItems(SIDEBAR, { todayState, userRole }),
-    [todayState, userRole],
+    () => getVisibleItems(SIDEBAR, { todayState, userRole, userCapabilities }),
+    [todayState, userRole, userCapabilities],
   );
 
   return (

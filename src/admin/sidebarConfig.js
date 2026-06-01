@@ -111,11 +111,11 @@ const CAPABILITY_TO_LEGACY_ROLE = {
     // finer-grained per-action permissions (deposit_record vs balance_record,
     // bypass_conflict, etc.).
     'field_rentals.read': 'manager',
-    // M7 B1a — Reports section. Manager + above see the nav entry; per-
-    // persona capability gates (reports.read.{owner,bookkeeper,marketing,
-    // site_coordinator}) live at the route layer. TODO M8: refactor sidebar
-    // to consume /me capabilities directly so non-owner non-manager personas
-    // with reports.* bindings (e.g. site_coordinator) see the nav too.
+    // M7 B1a — Reports section. Manager + above see the nav entry via this
+    // legacy stub. M8 (done): getVisibleItems now also UNIONs the real /me
+    // capability set, so a non-"manager" preset that holds reports.read (e.g.
+    // site_coordinator) gets the nav entry from its real binding — this stub
+    // stays as the fallback when /me caps aren't loaded.
     'reports.read': 'manager',
 };
 
@@ -153,8 +153,11 @@ export function userHasCapabilityStub(userRole, capability) {
  * @param {Object} ctx.flags - Feature flag values keyed by flag name,
  *   e.g. { customers_entity: true }
  * @param {string|undefined} ctx.userRole - 'owner' | 'manager' | 'staff'.
- *   Drives capability-stub gating for items with a `capability` field.
+ *   Drives the legacy capability-stub gating for items with a `capability` field.
  *   Omitted/undefined treated as no role; capability-gated items hidden.
+ * @param {string[]|undefined} ctx.userCapabilities - M8: the real DB-backed
+ *   capability set from /me. When provided, an item's `capability` is visible
+ *   if it's in this set OR the legacy stub allows it (union — additive only).
  * @returns {Array} Filtered config — separators and groups pass through
  *   unchanged; items with `dynamic`, `requiresFlag`, or `capability`
  *   are filtered.
@@ -164,6 +167,12 @@ export function getVisibleItems(config, ctx = {}) {
     const todayState = ctx.todayState || null;
     const flags = ctx.flags || {};
     const userRole = ctx.userRole;
+    // M8 — the real DB-backed capability set from /api/admin/auth/me. When
+    // present it UNIONs with the legacy role stub (visible if EITHER grants the
+    // cap) — strictly additive, so it never hides what the stub already showed
+    // (owners keep everything) but DOES surface items a non-"manager" preset
+    // holds via its real bindings (e.g. site_coordinator → reports.read → Reports).
+    const userCapabilities = Array.isArray(ctx.userCapabilities) ? ctx.userCapabilities : null;
 
     const filtered = config.filter((entry) => {
         if (!entry || typeof entry !== 'object') return false;
@@ -187,8 +196,10 @@ export function getVisibleItems(config, ctx = {}) {
             return Boolean(flags[entry.requiresFlag]);
         }
 
-        // Items gated by a capability (M5 B0 stub; M5 B2 swaps to real check)
+        // Items gated by a capability. M8: prefer the real /me capability set,
+        // UNIONed with the legacy role stub so nothing the stub showed is hidden.
         if (entry.capability) {
+            if (userCapabilities && userCapabilities.includes(entry.capability)) return true;
             return userHasCapabilityStub(userRole, entry.capability);
         }
 
