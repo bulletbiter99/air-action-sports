@@ -114,3 +114,12 @@ export function customerContactId() {
 export function suaDocumentId() {
     return `sua_${randomId(12)}`;
 }
+
+// Marketing milestone B2 — campaigns
+export function campaignId() {
+    return `cmp_${randomId(14)}`;
+}
+
+export function campaignRecipientId() {
+    return `cmpr_${randomId(14)}`;
+}
