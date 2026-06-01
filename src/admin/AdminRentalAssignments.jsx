@@ -141,6 +141,7 @@ export default function AdminRentalAssignments() {
                 getKey={(a) => a.id}
                 estimateRowHeight={56}
                 maxHeight="60vh"
+                ariaLabel="Rental assignments table"
                 renderRow={(a) => (
                   <div style={{ ...tr, display: 'grid', gridTemplateColumns: RENTAL_COLS, alignItems: 'start' }}>
                     <div style={td}>

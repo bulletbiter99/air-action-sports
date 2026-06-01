@@ -179,6 +179,7 @@ export default function AdminPromoCodes() {
                 getKey={(p) => p.id}
                 estimateRowHeight={52}
                 maxHeight="60vh"
+                ariaLabel="Promo codes table"
                 renderRow={(p) => (
                   <div style={{ ...tr, display: 'grid', gridTemplateColumns: PROMO_COLS, alignItems: 'start' }}>
                     <div style={tdCode}>{p.code}</div>
