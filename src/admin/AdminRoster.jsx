@@ -215,6 +215,7 @@ export default function AdminRoster() {
                 getKey={(a) => a.id}
                 estimateRowHeight={64}
                 maxHeight="60vh"
+                ariaLabel="Event roster table"
                 renderRow={(a, i) => (
                   <div style={{ ...tr, display: 'grid', gridTemplateColumns: ROSTER_COLS, alignItems: 'start' }}>
                     <div style={td}>{i + 1}</div>

@@ -188,6 +188,7 @@ export default function AdminEvents() {
                 getKey={(e) => e.id}
                 estimateRowHeight={56}
                 maxHeight="60vh"
+                ariaLabel="Events table"
                 renderRow={(e) => (
                   <div style={{ ...tr, display: 'grid', gridTemplateColumns: EVENTS_COLS, alignItems: 'start' }}>
                     <div style={td}>

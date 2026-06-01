@@ -35,6 +35,7 @@ export default function VirtualizedList({
     overscan = 8,
     maxHeight = '60vh',
     style,
+    ariaLabel,
 }) {
     const parentRef = useRef(null);
     const rowVirtualizer = useVirtualizer({
@@ -44,8 +45,20 @@ export default function VirtualizedList({
         overscan,
     });
 
+    // a11y (M8): the viewport is a keyboard-scrollable, labeled region.
+    // Virtualization makes a full ARIA grid (row/gridcell roles) fragile — only
+    // the on-screen window is in the DOM — so we keep the honest, complete win:
+    // a focusable (tabIndex 0 → WCAG 2.1.1 keyboard scroll) region with an
+    // accessible name + a live row count. Full grid-cell roles are an M8 follow-up.
     return (
-        <div ref={parentRef} style={{ maxHeight, overflowY: 'auto', scrollbarGutter: 'stable', ...style }}>
+        <div
+            ref={parentRef}
+            role="region"
+            aria-label={ariaLabel || 'Scrollable list'}
+            aria-rowcount={items.length}
+            tabIndex={0}
+            style={{ maxHeight, overflowY: 'auto', scrollbarGutter: 'stable', ...style }}
+        >
             {header && (
                 <div style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--color-bg-page)' }}>
                     {header}
