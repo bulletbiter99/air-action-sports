@@ -123,3 +123,12 @@ export function campaignId() {
 export function campaignRecipientId() {
     return `cmpr_${randomId(14)}`;
 }
+
+// Marketing milestone B5 — automations
+export function automationId() {
+    return `auto_${randomId(14)}`;
+}
+
+export function automationSendId() {
+    return `autos_${randomId(14)}`;
+}
