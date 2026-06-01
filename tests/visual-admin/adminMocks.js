@@ -58,13 +58,26 @@ const EMPTY = {
  * /me fetch is intercepted.
  *
  * @param {import('@playwright/test').Page} page
- * @param {{ authed?: boolean }} [opts] authed:false → /me returns 401 (login surface)
+ * @param {{ authed?: boolean, overrides?: Array<{ match: string|RegExp, body: any }> }} [opts]
+ *   authed:false → /me returns 401 (login surface).
+ *   overrides → per-test data injected for specific endpoints (populated-table
+ *   baselines). `match` is a path suffix (endsWith) or RegExp tested against the
+ *   pathname; the first hit wins. Unmatched paths fall through to the
+ *   empty/zero defaults, so a test only overrides what it needs.
  */
-export async function installAdminMocks(page, { authed = true } = {}) {
+export async function installAdminMocks(page, { authed = true, overrides = [] } = {}) {
     await page.route('**/api/**', async (route) => {
         const path = new URL(route.request().url()).pathname;
         const json = (body, status = 200) =>
             route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
+        // Per-test data overrides (checked first). Lets a test return
+        // representative rows for specific endpoints while everything else stays
+        // empty/zero. Existing callers pass no overrides → behavior unchanged.
+        for (const o of overrides) {
+            const hit = o.match instanceof RegExp ? o.match.test(path) : path.endsWith(o.match);
+            if (hit) return json(o.body);
+        }
 
         // Auth surface
         if (path.endsWith('/api/admin/auth/me')) {
@@ -102,4 +115,103 @@ export async function prepareAdminPage(page, waitForSelector, { timeout = 10_000
     // Small settle for lazy-loaded route chunks to paint. toHaveScreenshot's
     // own stability retry handles the rest.
     await page.waitForTimeout(300);
+}
+
+// ── Representative fixtures for the virtualized-table baselines ──────────
+//
+// The empty-state baselines above don't exercise the virtualized lists
+// (Events / PromoCodes / Roster / RentalAssignments), so a sticky-header or
+// column-alignment regression slips through CI (M7 11b needed a manual eyeball
+// for exactly this reason). These builders feed deterministic, populated rows
+// so the populated tables get pixel-locked too. Values are fixed (no clock /
+// random); timestamps are constants and the populated tests pin TZ+locale so
+// the toLocale* renders are reproducible across CI runs.
+
+/** Events list payload (`GET /api/admin/events` → { events }). evt_mock_1 is non-past so Roster can auto-select it. */
+export function mockEventList() {
+    const out = [];
+    for (let i = 1; i <= 10; i++) {
+        const past = i > 7;
+        out.push({
+            id: `evt_mock_${i}`,
+            title: `Operation Mock ${i}`,
+            slug: `operation-mock-${i}`,
+            displayDate: `Jun ${i + 9}, 2026`,
+            dateIso: `2026-06-${String(i + 9).padStart(2, '0')}`,
+            location: i % 2 ? 'Ghost Town, Hiawatha UT' : 'Foxtrot, Kaysville UT',
+            ticketTypes: [{ id: `tt_${i}_a` }, { id: `tt_${i}_b` }],
+            attendeesCount: 12 * i,
+            grossCents: 80000 * i,
+            published: !past && i % 4 !== 0,
+            past,
+        });
+    }
+    return out;
+}
+
+/** Promo codes list payload (`GET /api/admin/promo-codes` → { promoCodes }). */
+export function mockPromoCodeList() {
+    const out = [];
+    for (let i = 1; i <= 10; i++) {
+        out.push({
+            id: `promo_mock_${i}`,
+            code: `MOCK${String(i).padStart(2, '0')}`,
+            discountType: i % 2 ? 'percent' : 'fixed',
+            discountValue: i % 2 ? 10 + i : 500 * i,
+            minOrderCents: i % 3 === 0 ? 5000 : 0,
+            eventId: i % 4 === 0 ? `evt_mock_${i}` : null,
+            usesCount: i,
+            maxUses: i % 2 ? 100 : null,
+            startsAt: i % 3 === 0 ? 1_750_377_600_000 : null,
+            expiresAt: i % 3 === 0 ? 1_755_648_000_000 : null,
+            active: i % 5 !== 0,
+        });
+    }
+    return out;
+}
+
+/** Roster payload (`GET /api/admin/events/:id/roster` → { attendees, event }). */
+export function mockRosterPayload() {
+    const attendees = [];
+    for (let i = 1; i <= 12; i++) {
+        attendees.push({
+            id: `att_mock_${i}`,
+            firstName: 'Player',
+            lastName: String(i),
+            email: `player${i}@example.com`,
+            phone: `801-555-${String(1000 + i)}`,
+            ticketType: i % 2 ? 'General Admission' : 'VIP',
+            waiverSigned: i % 3 !== 0,
+            checkedInAt: i % 4 === 0 ? 1_750_464_000_000 : null,
+            bookingStatus: i % 5 === 0 ? 'comp' : 'paid',
+            buyerName: `Buyer ${i}`,
+            isMinor: i % 6 === 0,
+            customAnswers: {},
+        });
+    }
+    return { attendees, event: { customQuestions: [] } };
+}
+
+/** Rental assignments list payload (`GET /api/admin/rentals/assignments` → { assignments }). */
+export function mockRentalAssignmentList() {
+    const cats = ['Rifle', 'Pistol', 'Mask', 'Vest'];
+    const conds = [null, 'good', 'fair', 'damaged'];
+    const out = [];
+    for (let i = 1; i <= 10; i++) {
+        const returned = i % 2 === 0;
+        const cond = returned ? conds[i % conds.length] : null;
+        out.push({
+            id: `asg_mock_${i}`,
+            itemName: `${cats[i % cats.length]} #${i}`,
+            itemSku: `SKU-${1000 + i}`,
+            itemCategory: cats[i % cats.length],
+            attendeeName: `Player ${i}`,
+            eventTitle: `Operation Mock ${(i % 10) + 1}`,
+            checkedOutAt: 1_750_420_000_000 + i * 3_600_000,
+            checkedInAt: returned ? 1_750_440_000_000 + i * 3_600_000 : null,
+            conditionOnReturn: cond,
+            damageNotes: cond === 'damaged' ? 'Scratched optic' : null,
+        });
+    }
+    return out;
 }

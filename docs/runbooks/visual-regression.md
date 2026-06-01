@@ -47,13 +47,22 @@ Admin pages get their own harness because they can't be screenshotted against pr
 | reports | `/admin/reports` | owner |
 | settings | `/admin/settings` | owner |
 
+**Populated-table surfaces (4, post-M7 track 2):** the six above are empty-state, so they never exercise the virtualized lists — a sticky-header or column-alignment regression slips through (M7 11b needed a manual eyeball for exactly this). These feed representative rows via `installAdminMocks(page, { overrides })`, where `overrides` is `[{ match, body }]` (path-suffix or RegExp; first hit wins; unmatched paths still get the empty/zero defaults). The fixtures (`mockEventList` / `mockPromoCodeList` / `mockRosterPayload` / `mockRentalAssignmentList`) use fixed values + constant timestamps, and the populated `test.describe` pins `timezoneId: 'UTC'` + `locale: 'en-US'` so the rows' `toLocale*` date renders are reproducible — scoped so the six empty-state baselines stay byte-for-byte unchanged.
+
+| Surface | Route | Data |
+|---|---|---|
+| events (populated) | `/admin/events` | 10 events (published / draft / past mix) |
+| promo codes (populated) | `/admin/promo-codes` | 10 codes (percent / fixed, scoped / global) |
+| roster (populated) | `/admin/roster?event=evt_mock_1` | 12 attendees (signed / pending / checked-in / minor / comp) |
+| rental assignments (populated) | `/admin/rentals/assignments` | 10 assignments (out / returned, good / fair / damaged) |
+
 **The never-idle gotcha.** Admin pages poll, so `waitForLoadState('networkidle')` never resolves. `prepareAdminPage()` skips it — it freezes animations + waits for fonts (reusing the public helpers) + waits for a stable element (`nav.admin-sidebar-nav` on authed pages; the password field for login) + a short settle. `toHaveScreenshot`'s two-stable-frames retry handles the rest.
 
 **Capture / CI** mirrors the public flow: the `visual-admin` CI job compares against baselines; on a `capture-baselines`-labeled PR the capture workflow also runs `npm run test:visual:admin:update` in the same runner and commits the PNGs (`git add tests/visual tests/visual-admin`). The first-ever admin capture happened on the M7 B9 PR.
 
 **Adding a new admin surface:**
 1. Add a `test('<name>', …)` to [tests/visual-admin/admin.spec.js](../../tests/visual-admin/admin.spec.js): `installAdminMocks(page)` → `goto('/admin/<route>')` → `prepareAdminPage(page, 'nav.admin-sidebar-nav')` → `toHaveScreenshot('<name>.png', { fullPage: true, mask: dynamicMasks(page) })`.
-2. If the page needs a non-empty shape to render cleanly, add a targeted zero/empty response in `installAdminMocks` (keep it empty, not representative — that's a later layer).
+2. If the page needs a non-empty shape to render cleanly, add a targeted zero/empty response in `installAdminMocks`. For a **populated**-table baseline, pass `{ overrides: [{ match, body }] }` to `installAdminMocks` instead (see the populated surfaces above) and wrap the test in a `test.describe` that pins `timezoneId` + `locale` if any row renders a `toLocale*` date.
 3. Label the PR `capture-baselines` to seed the baseline; review the new PNG in the diff.
 
 ## Threshold
@@ -143,7 +152,8 @@ When the `visual` CI job fails:
 - **B1a** — Group G worker-level tests (separate batch, already merged)
 - **B1b** — this suite + the capture-baselines workflow + this runbook
 - **B5** — admin IA reorg (the new sidebar); admin baselines were deferred here, then again in B11 (M4 B11), and finally landed in **M7 Batch 9** via the local-serve + route-mock harness above
-- **Beyond M7** — mobile viewport (375×667) baselines, representative-data admin baselines, additional admin surfaces as they stabilize
+- **Post-M7 (track 2)** — representative-data admin baselines (4 populated virtualized tables) via the `overrides` route-mock layer
+- **Beyond** — mobile viewport (375×667) baselines, additional admin surfaces as they stabilize
 
 ## Cost notes
 

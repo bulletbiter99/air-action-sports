@@ -15,11 +15,22 @@
 
 import { test, expect } from '@playwright/test';
 import { dynamicMasks } from '../visual/helpers.js';
-import { installAdminMocks, prepareAdminPage } from './adminMocks.js';
+import {
+    installAdminMocks,
+    prepareAdminPage,
+    mockEventList,
+    mockPromoCodeList,
+    mockRosterPayload,
+    mockRentalAssignmentList,
+} from './adminMocks.js';
 
 // The sidebar nav renders on every authenticated admin page (AdminLayout),
 // so it's a reliable "shell mounted + auth succeeded" signal.
 const SHELL = 'nav.admin-sidebar-nav';
+
+// Renders only once a list page has rows (filtered.length > 0) — a stronger
+// "table painted" signal than SHELL for the populated-table baselines.
+const TABLE = '.admin-table-wrap';
 
 const shot = (page, name) =>
     expect(page).toHaveScreenshot(name, { fullPage: true, mask: dynamicMasks(page) });
@@ -67,5 +78,63 @@ test.describe('admin visual baselines', () => {
         await page.goto('/admin/settings');
         await prepareAdminPage(page, SHELL);
         await shot(page, 'admin-settings.png');
+    });
+});
+
+// Populated-table baselines (post-M7 track 2). The empty-state baselines above
+// never exercise the virtualized lists, so a sticky-header or column-alignment
+// regression in Events / PromoCodes / Roster / RentalAssignments slips through
+// CI (M7 11b needed a manual eyeball for exactly this). These feed representative
+// rows so the populated tables are pixel-locked too. TZ + locale are pinned so
+// the rows' toLocale* date renders are deterministic across CI runs — scoped to
+// this describe so the six empty-state baselines stay byte-for-byte unaffected.
+test.describe('admin visual baselines — populated tables', () => {
+    test.use({ timezoneId: 'UTC', locale: 'en-US' });
+
+    test('events list — populated (virtualized)', async ({ page }) => {
+        await installAdminMocks(page, {
+            overrides: [{ match: '/api/admin/events', body: { events: mockEventList() } }],
+        });
+        await page.goto('/admin/events');
+        await prepareAdminPage(page, TABLE);
+        await shot(page, 'admin-events-populated.png');
+    });
+
+    test('promo codes — populated (virtualized)', async ({ page }) => {
+        await installAdminMocks(page, {
+            overrides: [
+                { match: '/api/admin/promo-codes', body: { promoCodes: mockPromoCodeList() } },
+                { match: '/api/admin/events', body: { events: mockEventList() } },
+            ],
+        });
+        await page.goto('/admin/promo-codes');
+        await prepareAdminPage(page, TABLE);
+        await shot(page, 'admin-promo-codes-populated.png');
+    });
+
+    test('roster — populated (virtualized)', async ({ page }) => {
+        await installAdminMocks(page, {
+            overrides: [
+                { match: /\/api\/admin\/events\/[^/]+\/roster$/, body: mockRosterPayload() },
+                { match: '/api/admin/events', body: { events: mockEventList() } },
+            ],
+        });
+        // ?event=evt_mock_1 — AdminRoster auto-selects a ?event= target that
+        // matches a known event id (mockEventList includes evt_mock_1, non-past).
+        await page.goto('/admin/roster?event=evt_mock_1');
+        await prepareAdminPage(page, TABLE);
+        await shot(page, 'admin-roster-populated.png');
+    });
+
+    test('rental assignments — populated (virtualized)', async ({ page }) => {
+        await installAdminMocks(page, {
+            overrides: [
+                { match: '/api/admin/rentals/assignments', body: { assignments: mockRentalAssignmentList() } },
+                { match: '/api/admin/events', body: { events: mockEventList() } },
+            ],
+        });
+        await page.goto('/admin/rentals/assignments');
+        await prepareAdminPage(page, TABLE);
+        await shot(page, 'admin-rental-assignments-populated.png');
     });
 });
