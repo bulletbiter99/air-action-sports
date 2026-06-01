@@ -54,6 +54,7 @@ export const SIDEBAR = [
     { type: 'item', to: '/admin/reports', label: 'Reports', capability: 'reports.read' },
     { type: 'item', to: '/admin/segments', label: 'Segments' },
     { type: 'item', to: '/admin/campaigns', label: 'Campaigns' },
+    { type: 'item', to: '/admin/automations', label: 'Automations' },
     {
         type: 'item',
         to: '/admin/feedback',
