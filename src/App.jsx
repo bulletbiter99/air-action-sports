@@ -73,6 +73,7 @@ const AdminStaffLibrary = lazy(() => import('./admin/AdminStaffLibrary'));
 const AdminStaffDocumentEditor = lazy(() => import('./admin/AdminStaffDocumentEditor'));
 const AdminStaff1099Thresholds = lazy(() => import('./admin/AdminStaff1099Thresholds'));
 const AdminSegments = lazy(() => import('./admin/AdminSegments'));
+const AdminCampaigns = lazy(() => import('./admin/AdminCampaigns'));
 const AdminReports = lazy(() => import('./admin/AdminReports'));
 const AdminEventArchive = lazy(() => import('./admin/AdminEventArchive'));
 
@@ -180,6 +181,7 @@ export default function App() {
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="customers/:id" element={<AdminCustomerDetail />} />
             <Route path="segments" element={<AdminSegments />} />
+            <Route path="campaigns" element={<AdminCampaigns />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="event-archive" element={<AdminEventArchive />} />
             <Route path="sites" element={<AdminSites />} />

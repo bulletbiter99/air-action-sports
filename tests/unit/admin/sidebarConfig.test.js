@@ -53,21 +53,23 @@ describe('SIDEBAR config', () => {
         });
         expect(SIDEBAR[13]).toMatchObject({ type: 'separator' });
         // Operational: Analytics (14) · Reports (15, M7 B1a) · Segments (16,
-        // Marketing B1) · Feedback (17) · Promo Codes (18) · Vendors (19) · sep (20)
+        // Marketing B1) · Campaigns (17, Marketing B3) · Feedback (18) ·
+        // Promo Codes (19) · Vendors (20) · sep (21)
         expect(SIDEBAR[14]).toMatchObject({ type: 'item', to: '/admin/analytics', label: 'Analytics' });
         expect(SIDEBAR[15]).toMatchObject({ type: 'item', to: '/admin/reports', label: 'Reports', capability: 'reports.read' });
         expect(SIDEBAR[16]).toMatchObject({ type: 'item', to: '/admin/segments', label: 'Segments' });
-        expect(SIDEBAR[17]).toMatchObject({
+        expect(SIDEBAR[17]).toMatchObject({ type: 'item', to: '/admin/campaigns', label: 'Campaigns' });
+        expect(SIDEBAR[18]).toMatchObject({
             type: 'item', to: '/admin/feedback', label: 'Feedback', badgeKey: 'newFeedback',
         });
-        expect(SIDEBAR[18]).toMatchObject({ type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' });
-        expect(SIDEBAR[19]).toMatchObject({ type: 'item', to: '/admin/vendors', label: 'Vendors' });
-        expect(SIDEBAR[20]).toMatchObject({ type: 'separator' });
+        expect(SIDEBAR[19]).toMatchObject({ type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' });
+        expect(SIDEBAR[20]).toMatchObject({ type: 'item', to: '/admin/vendors', label: 'Vendors' });
+        expect(SIDEBAR[21]).toMatchObject({ type: 'separator' });
     });
 
     it('Settings group sits at the end, separated by a divider', () => {
         const groupIdx = SIDEBAR.findIndex((e) => e.type === 'group');
-        expect(groupIdx).toBe(21);
+        expect(groupIdx).toBe(22);
         expect(SIDEBAR[groupIdx]).toMatchObject({ type: 'group', label: 'Settings' });
         // The separator immediately precedes the group.
         expect(SIDEBAR[groupIdx - 1]).toMatchObject({ type: 'separator' });
@@ -162,17 +164,17 @@ describe('userHasCapabilityStub (M5 B0)', () => {
 });
 
 describe('getVisibleItems', () => {
-    it('owner with today active sees all 16 items + 5 separators + Settings group = 22', () => {
-        // 16 top-level items: Home, Today, Events, Bookings, Customers,
+    it('owner with today active sees all 17 items + 5 separators + Settings group = 23', () => {
+        // 17 top-level items: Home, Today, Events, Bookings, Customers,
         // Sites, Field Rentals, Rentals, Roster, Scan, Analytics, Reports
-        // (M7 B1a), Segments (Marketing B1), Feedback, Promo Codes, Vendors.
-        // Plus 5 visual-chunk separators + Settings group = 22 entries
-        // (no collapse triggered — all chunks have at least one visible item).
+        // (M7 B1a), Segments (Marketing B1), Campaigns (Marketing B3),
+        // Feedback, Promo Codes, Vendors. Plus 5 visual-chunk separators +
+        // Settings group = 23 entries (no collapse — every chunk has a visible item).
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: true, eventId: 'evt_1', checkInOpen: false },
             userRole: 'owner',
         });
-        expect(visible).toHaveLength(22);
+        expect(visible).toHaveLength(23);
         expect(visible.filter((e) => e.type === 'separator')).toHaveLength(5);
         expect(visible.find((e) => e.label === 'Today')).toBeDefined();
         expect(visible.find((e) => e.label === 'Customers')).toBeDefined();
@@ -184,6 +186,7 @@ describe('getVisibleItems', () => {
         expect(visible.find((e) => e.label === 'Analytics')).toBeDefined();
         expect(visible.find((e) => e.label === 'Reports')).toBeDefined();
         expect(visible.find((e) => e.label === 'Segments')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Campaigns')).toBeDefined();
         expect(visible.find((e) => e.label === 'Feedback')).toBeDefined();
         expect(visible.find((e) => e.label === 'Promo Codes')).toBeDefined();
         expect(visible.find((e) => e.label === 'Vendors')).toBeDefined();
