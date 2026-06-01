@@ -7,6 +7,7 @@ import { findExistingValidWaiver } from '../lib/waiverLookup.js';
 import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../lib/customers.js';
 import { verifyResendWebhook } from '../lib/resendWebhook.js';
 import { classifyResendEvent, shouldSuppressMarketing, eventActionName, emailEventId } from '../lib/emailEvents.js';
+import { CAMPAIGN_TRACKED_EVENTS, correlateCampaignEvent } from '../lib/campaignTracking.js';
 import { normalizeEmail } from '../lib/email.js';
 
 const webhooks = new Hono();
@@ -88,6 +89,14 @@ webhooks.post('/resend', async (c) => {
         if (result?.emailContext && c.executionCtx?.waitUntil) {
             c.executionCtx.waitUntil(sendResendAlert(c.env, result.emailContext));
         }
+    }
+
+    // Marketing B4 — project any tracked Resend event onto its campaign
+    // recipient (delivered/opened/clicked/bounced/complained). Additive +
+    // independent of the bounce/complaint suppression above; failures are
+    // swallowed so a tracking miss never makes Resend retry the webhook.
+    if (CAMPAIGN_TRACKED_EVENTS.has(event.type)) {
+        await correlateCampaignEvent(c.env.DB, event).catch((e) => console.error('campaign event correlate failed', e));
     }
 
     return c.json({ received: true });

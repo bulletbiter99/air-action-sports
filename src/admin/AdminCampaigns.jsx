@@ -139,6 +139,7 @@ function CampaignModal({ initial, onClose, onChanged }) {
     const [submitting, setSubmitting] = useState(false);
     const [err, setErr] = useState(null);
     const [preview, setPreview] = useState(null);
+    const [stats, setStats] = useState(null);
     const [notice, setNotice] = useState(null);
 
     const status = current?.status || 'draft';
@@ -153,6 +154,19 @@ function CampaignModal({ initial, onClose, onChanged }) {
             } catch { /* picker just shows "Whole marketing base" */ }
         })();
     }, []);
+
+    // Engagement stats for a sent/sending campaign (best-effort).
+    useEffect(() => {
+        if (!current?.id || (status !== 'sending' && status !== 'sent')) return undefined;
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch(`/api/admin/campaigns/${encodeURIComponent(current.id)}/stats`, { credentials: 'include', cache: 'no-store' });
+                if (!cancelled && res.ok) setStats((await res.json()).stats);
+            } catch { /* stats are best-effort */ }
+        })();
+        return () => { cancelled = true; };
+    }, [current?.id, status]);
 
     function bodyPayload() {
         return {
@@ -305,6 +319,14 @@ function CampaignModal({ initial, onClose, onChanged }) {
                         </div>
                     )}
 
+                    {stats && (
+                        <div style={previewBox}>
+                            <strong>Delivery</strong> · sent {stats.sent} · delivered {stats.delivered} · opened {stats.opened} · clicked {stats.clicked}
+                            {(stats.bounced || stats.complained)
+                                ? <span style={{ color: 'var(--color-danger)' }}> · {stats.bounced} bounced · {stats.complained} complained</span>
+                                : null}
+                        </div>
+                    )}
                     {notice && <p style={noticeStyle}>{notice}</p>}
                     {err && <p style={errStyle}>{err}</p>}
 
