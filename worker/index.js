@@ -16,6 +16,7 @@ import {
     runEventStaffingAutoDeclineSweep as _runEventStaffingAutoDeclineSweep,
 } from './lib/eventStaffing.js';
 import { runTaxYearAutoLockSweep as _runTaxYearAutoLockSweep } from './lib/thresholds1099.js';
+import { runCampaignSendSweep as _runCampaignSendSweep } from './lib/campaignSender.js';
 // Top-level const aliases so the verify-m5 cron-sweep check (regex:
 // `const NAME = ...`) detects the sweeps are wired up here. The actual
 // implementations live in worker/lib/{certifications,eventStaffing,thresholds1099}.js.
@@ -26,6 +27,7 @@ const runLeadStaleSweep = _runLeadStaleSweep;
 const runEventStaffingReminderSweep = _runEventStaffingReminderSweep;
 const runEventStaffingAutoDeclineSweep = _runEventStaffingAutoDeclineSweep;
 const runTaxYearAutoLockSweep = _runTaxYearAutoLockSweep;
+const runCampaignSendSweep = _runCampaignSendSweep;
 
 import events from './routes/events.js';
 import bookings from './routes/bookings.js';
@@ -34,6 +36,7 @@ import waivers from './routes/waivers.js';
 import publicTaxesFees from './routes/taxesFees.js';
 import publicFeedback from './routes/feedback.js';
 import publicInquiry from './routes/inquiry.js';
+import unsubscribe from './routes/unsubscribe.js';
 import vendorPublic from './routes/vendor.js';
 import vendorAuth from './routes/vendorAuth.js';
 import adminAuth from './routes/admin/auth.js';
@@ -146,6 +149,7 @@ app.route('/api/waivers', waivers);
 app.route('/api/taxes-fees', publicTaxesFees);
 app.route('/api/feedback', publicFeedback);
 app.route('/api/inquiry', publicInquiry);
+app.route('/api/unsubscribe', unsubscribe);
 app.route('/api/vendor/auth', vendorAuth);
 app.route('/api/vendor', vendorPublic);
 app.route('/api/admin/auth', adminAuth);
@@ -685,7 +689,7 @@ export default {
                 ]);
                 summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen, coiAlerts, leadStale };
             } else {
-                const [r, a, v] = await Promise.all([
+                const [r, a, v, campaigns] = await Promise.all([
                     runReminderSweep(env),
                     runAbandonPendingSweep(env).catch((err) => {
                         console.error('abandon sweep failed', err);
@@ -695,8 +699,12 @@ export default {
                         console.error('vendor sweep failed', err);
                         return { error: err?.message };
                     }),
+                    runCampaignSendSweep(env).catch((err) => {
+                        console.error('campaign send sweep failed', err);
+                        return { error: err?.message };
+                    }),
                 ]);
-                summary = { reminders: r, pending: a, vendor: v };
+                summary = { reminders: r, pending: a, vendor: v, campaigns };
             }
 
             const finishedAt = Date.now();
