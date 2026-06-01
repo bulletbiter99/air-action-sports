@@ -7,6 +7,40 @@ auto-deployed. This file is the menu for what's next.
 
 ---
 
+## ⚡ Post-M7 work-menu session (2026-05-31) — 11 PRs OPEN, awaiting merge
+
+A session worked the post-M7 work menu (tracks 1–5). **11 PRs (#231–#241) are open + green**
+(not yet merged). Track 3 (Marketing) is a 7-PR chain; the rest are independent off `main`.
+
+| Track | Status | PRs |
+|---|---|---|
+| **1 — 11c Reports polish** | ✅ ready | [#231](https://github.com/bulletbiter99/air-action-sports/pull/231) — dateFormat util, CSV loading, friendly errors, shared compact money |
+| **2 — representative-data visual baselines** | ✅ ready · **label `capture-baselines`** | [#232](https://github.com/bulletbiter99/air-action-sports/pull/232) — 4 populated virtualized-table baselines (visual-admin CI red until labeled) |
+| **4 — M6 live-Stripe cutover** | ✅ audit done (cutover is operator-only) | [#233](https://github.com/bulletbiter99/air-action-sports/pull/233) — code-readiness audit; the 5 operator items remain |
+| **3 — Marketing B2–B6** | ✅ code-complete (chain) | [#234](https://github.com/bulletbiter99/air-action-sports/pull/234) B2a→[#235](https://github.com/bulletbiter99/air-action-sports/pull/235) B2b→[#236](https://github.com/bulletbiter99/air-action-sports/pull/236) B3→[#237](https://github.com/bulletbiter99/air-action-sports/pull/237) B4→[#238](https://github.com/bulletbiter99/air-action-sports/pull/238) B5a→[#239](https://github.com/bulletbiter99/air-action-sports/pull/239) B5b→[#240](https://github.com/bulletbiter99/air-action-sports/pull/240) B6 |
+| **5 — M8** | ◐ started | [#241](https://github.com/bulletbiter99/air-action-sports/pull/241) — a11y region pass on virtualized tables (1 of 3 M8 items) |
+
+Tests on the marketing chain tip: **2656 / 208** (main is 2561). All PRs: build clean, 0 lint errors.
+
+### Merge order (operator)
+1. **#231, #233, #241** — independent, any order, straight to `main`.
+2. **#232** — merge, then **label it `capture-baselines`** so CI seeds the 4 new admin PNGs (the `visual-admin` job is red until then — the documented B9 flow). Push an empty commit after the bot pushes baselines to re-trigger CI.
+3. **Marketing chain in sequence:** #234 → #235 → #236 → #237 → #238 → #239 → #240. Each PR's base auto-retargets to `main` as the previous one merges; merge them in order.
+4. No cross-PR conflicts (marketing is a self-contained chain; the other 4 touch disjoint files).
+
+### Operator-pending added this session (on top of M7's 0065/0066 + RESEND_WEBHOOK_SECRET + `audit_log_fts` flag)
+- **Apply migrations 0067–0070** (campaigns / tracking / automations / marketing caps) — see [docs/runbooks/marketing-deploy.md](runbooks/marketing-deploy.md). Routes degrade gracefully until applied.
+- **Marketing send activation:** `MARKETING_POSTAL_ADDRESS` (CAN-SPAM, required) + Resend plan upgrade + (optional) marketing subdomain. The campaign/automation cron no-ops until set.
+- **Resend webhook** now also feeds campaign tracking — subscribe `email.delivered`/`opened`/`clicked` too (B4).
+
+### Deferred follow-ups (documented, intentional)
+- **Marketing route capability swap** — segments/campaigns/automations stay `requireAuth`; the `requireCapability` swap is a follow-up to do AFTER 0070 is verified on remote (would 403 owners + break route tests otherwise; functionally identical today). Caps are seeded by 0070.
+- **Marketing `date_relative` trigger** + **formal sidebar "Marketing" group** (cosmetic).
+- **M8 remaining (track 5):** (a) full ARIA-grid cell roles on virtualized tables (needs a ~4-page cell refactor); (b) **sidebar consumes `/me` caps directly** (so site_coordinator sees Reports — currently the `CAPABILITY_TO_LEGACY_ROLE` stub; entangles with the marketing chain's sidebarConfig edits, so do it after the chain merges); (c) RTL test infra + JSX coverage backfill.
+- **Admin visual baselines** for `/admin/campaigns` + `/admin/automations` (track-2 pattern).
+
+---
+
 ## Current state at a glance
 
 | Metric | Value |
