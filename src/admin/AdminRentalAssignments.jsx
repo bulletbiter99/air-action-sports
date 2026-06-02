@@ -126,15 +126,16 @@ export default function AdminRentalAssignments() {
           <div className="admin-table-wrap">
             <div style={{ minWidth: 860 }}>
               <VirtualizedList
+                colCount={7}
                 header={(
-                  <div style={{ display: 'grid', gridTemplateColumns: RENTAL_COLS }}>
-                    <div style={th}>Item</div>
-                    <div style={th}>Player</div>
-                    <div style={th}>Event</div>
-                    <div style={th}>Out</div>
-                    <div style={th}>Returned</div>
-                    <div style={th}>Condition</div>
-                    <div style={th}>Actions</div>
+                  <div role="row" aria-rowindex={1} style={{ display: 'grid', gridTemplateColumns: RENTAL_COLS }}>
+                    <div role="columnheader" aria-colindex={1} style={th}>Item</div>
+                    <div role="columnheader" aria-colindex={2} style={th}>Player</div>
+                    <div role="columnheader" aria-colindex={3} style={th}>Event</div>
+                    <div role="columnheader" aria-colindex={4} style={th}>Out</div>
+                    <div role="columnheader" aria-colindex={5} style={th}>Returned</div>
+                    <div role="columnheader" aria-colindex={6} style={th}>Condition</div>
+                    <div role="columnheader" aria-colindex={7} style={th}>Actions</div>
                   </div>
                 )}
                 items={assignments}
@@ -142,24 +143,24 @@ export default function AdminRentalAssignments() {
                 estimateRowHeight={56}
                 maxHeight="60vh"
                 ariaLabel="Rental assignments table"
-                renderRow={(a) => (
-                  <div style={{ ...tr, display: 'grid', gridTemplateColumns: RENTAL_COLS, alignItems: 'start' }}>
-                    <div style={td}>
+                renderRow={(a, i) => (
+                  <div role="row" aria-rowindex={i + 2} style={{ ...tr, display: 'grid', gridTemplateColumns: RENTAL_COLS, alignItems: 'start' }}>
+                    <div role="cell" aria-colindex={1} style={td}>
                       <strong>{a.itemName}</strong>
                       <div style={subRowMono}>{a.itemSku} · {a.itemCategory}</div>
                     </div>
-                    <div style={td}>{a.attendeeName}</div>
-                    <div style={tdSmall}>{a.eventTitle || '—'}</div>
-                    <div style={tdSmall}>{new Date(a.checkedOutAt).toLocaleString()}</div>
-                    <div style={tdSmall}>
+                    <div role="cell" aria-colindex={2} style={td}>{a.attendeeName}</div>
+                    <div role="cell" aria-colindex={3} style={tdSmall}>{a.eventTitle || '—'}</div>
+                    <div role="cell" aria-colindex={4} style={tdSmall}>{new Date(a.checkedOutAt).toLocaleString()}</div>
+                    <div role="cell" aria-colindex={5} style={tdSmall}>
                       {a.checkedInAt
                         ? new Date(a.checkedInAt).toLocaleString()
                         : <span style={stillOut}>— still out</span>}
                     </div>
-                    <div style={td}>
+                    <div role="cell" aria-colindex={6} style={td}>
                       {a.conditionOnReturn ? <ReturnPill c={a.conditionOnReturn} notes={a.damageNotes} /> : '—'}
                     </div>
-                    <div style={td}>
+                    <div role="cell" aria-colindex={7} style={td}>
                       {!a.checkedInAt && (
                         <button onClick={() => markReturned(a.id)} style={primaryBtn}>Mark returned</button>
                       )}

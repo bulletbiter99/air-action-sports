@@ -700,6 +700,16 @@
       "tests": [
         "tests/unit/lib/emailEvents.test.js"
       ]
+    },
+    "src/admin/VirtualizedList.jsx": {
+      "tier": "m8_a11y_surface",
+      "covers": [
+        "ARIA table semantics for the virtualized-list primitive: role=table + aria-rowcount (incl. header) + aria-colcount; sticky/spacer/row wrappers role=presentation so the a11y tree flattens to table>row>cell; consumers tag the header (role=row/columnheader) + rows (role=row/cell + aria-rowindex/colindex). Used by AdminEvents / AdminPromoCodes / AdminRoster / AdminRentalAssignments."
+      ],
+      "audit_group": "(M8 — ARIA table roles on virtualized tables; builds on #241 region pass)",
+      "tests": [
+        "tests/unit/admin/VirtualizedList.test.jsx"
+      ]
     }
   },
   "uncovered": {
