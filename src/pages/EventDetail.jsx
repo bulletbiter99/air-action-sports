@@ -7,6 +7,17 @@ import { fetchEventBySlug, useEvents } from '../hooks/useEvents';
 import '../styles/pages/event-detail.css';
 import '../styles/pages/rules-of-engagement.css';
 
+// Default Rules & Requirements shown on every event. Per-event overrides come
+// from event.details.rules (e.g. Volga allows blind fire + Joule-based FPS).
+const DEFAULT_RULES = [
+  'Minimum age 12 (12–17 with parent/guardian on-site)',
+  'ANSI Z87.1+ full-seal eye protection mandatory; full-face mask required for under-18',
+  'FPS limits enforced by class (rifle 350, DMR/LMG 450, sniper 550 with .20g)',
+  'Hits called honestly — honor system, marshals enforce',
+  'No blind fire, no physical contact, no impaired play',
+  'Completed waiver required (emailed after booking)',
+];
+
 export default function EventDetail() {
   const { slug } = useParams();
   const [event, setEvent] = useState(null);
@@ -95,6 +106,17 @@ export default function EventDetail() {
         <div className="event-detail-grid">
           {/* Left Column — Event Details */}
           <div>
+            {/* Collaboration banner — per-event partner logos (event.details.collabBannerUrl) */}
+            {event.details?.collabBannerUrl && (
+              <div className="detail-section collab-banner">
+                <div className="collab-banner-label">Presented in partnership with</div>
+                <img
+                  src={event.details.collabBannerUrl}
+                  alt={`${event.title} event partners`}
+                  className="collab-banner-img"
+                />
+              </div>
+            )}
             {/* Schedule */}
             <div className="detail-section">
               <h2>Schedule</h2>
@@ -106,7 +128,7 @@ export default function EventDetail() {
                   </tr>
                   <tr>
                     <td>First Game Starts</td>
-                    <td>{event.firstGame || '—'} — TDM</td>
+                    <td>{event.firstGame || '—'} — {event.details?.firstGameLabel || 'TDM'}</td>
                   </tr>
                   <tr>
                     <td>End Time</td>
@@ -116,6 +138,28 @@ export default function EventDetail() {
               </table>
             </div>
 
+            {/* Operation Timeline — detailed per-event schedule (event.details.schedule) */}
+            {event.details?.schedule && event.details.schedule.length > 0 && (
+              <div className="detail-section">
+                <h2>Operation Timeline</h2>
+                <table className="pricing-table">
+                  <tbody>
+                    {event.details.schedule.map((s, i) => (
+                      <tr key={i}>
+                        <td style={{ color: 'var(--orange)', fontWeight: 700, whiteSpace: 'nowrap' }}>{s.time}</td>
+                        <td style={{ color: 'var(--tan-light)', fontWeight: 400 }}>{s.label}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {event.details.scheduleNote && (
+                  <p style={{ fontSize: '12px', fontStyle: 'italic', marginTop: '0.75rem' }}>
+                    {event.details.scheduleNote}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Mission Briefing */}
             <div className="detail-section">
               <h2>Mission Briefing</h2>
@@ -124,12 +168,18 @@ export default function EventDetail() {
                   {event.shortDescription}
                 </p>
               )}
-              <p>
-                As twilight falls over {event.location.split(' —')[0] || 'the site'}, two factions prepare to clash in a high-stakes operation. {event.title} is a full-day airsoft event built around squad-based tactics and objective-driven gameplay. Expect fast rotations, flanking manoeuvres through buildings, and coordinated assaults on fortified positions.
-              </p>
-              <p>
-                Teams will be briefed on mission objectives at staging. Communication, teamwork, and smart positioning will decide the outcome. Whether you're a seasoned operator or stepping onto the field for the first time, this event is designed to deliver intense, fair, and unforgettable gameplay from first light to last round.
-              </p>
+              {event.details?.missionBriefing
+                ? event.details.missionBriefing.map((para, i) => <p key={i}>{para}</p>)
+                : (
+                  <>
+                    <p>
+                      As twilight falls over {event.location.split(' —')[0] || 'the site'}, two factions prepare to clash in a high-stakes operation. {event.title} is a full-day airsoft event built around squad-based tactics and objective-driven gameplay. Expect fast rotations, flanking manoeuvres through buildings, and coordinated assaults on fortified positions.
+                    </p>
+                    <p>
+                      Teams will be briefed on mission objectives at staging. Communication, teamwork, and smart positioning will decide the outcome. Whether you're a seasoned operator or stepping onto the field for the first time, this event is designed to deliver intense, fair, and unforgettable gameplay from first light to last round.
+                    </p>
+                  </>
+                )}
             </div>
 
             {/* Game Modes */}
@@ -229,12 +279,9 @@ export default function EventDetail() {
             <div className="detail-section">
               <h2>Rules &amp; Requirements</h2>
               <ul>
-                <li>Minimum age 12 (12&ndash;17 with parent/guardian on-site)</li>
-                <li>ANSI Z87.1+ full-seal eye protection mandatory; full-face mask required for under-18</li>
-                <li>FPS limits enforced by class (rifle 350, DMR/LMG 450, sniper 550 with .20g)</li>
-                <li>Hits called honestly &mdash; honor system, marshals enforce</li>
-                <li>No blind fire, no physical contact, no impaired play</li>
-                <li>Completed waiver required (emailed after booking)</li>
+                {(event.details?.rules || DEFAULT_RULES).map((rule, i) => (
+                  <li key={i}>{rule}</li>
+                ))}
               </ul>
               <div className="roe-callout">
                 <strong>Read first</strong>
@@ -245,15 +292,38 @@ export default function EventDetail() {
               </div>
             </div>
 
+            {/* Required Documents — per-event external docs/forms (event.details.documents) */}
+            {event.details?.documents && event.details.documents.length > 0 && (
+              <div className="detail-section">
+                <h2>Required Documents</h2>
+                <ul className="event-docs">
+                  {event.details.documents.map((doc, i) => (
+                    <li key={i}>
+                      {doc.url ? (
+                        <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                          {doc.label} &#8599;
+                        </a>
+                      ) : (
+                        <span>
+                          {doc.label} &mdash; <em>{doc.note || 'link coming soon'}</em>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Terrain */}
             <div className="detail-section">
               <h2>Terrain</h2>
               <p>
-                {event.location.includes('Ghost Town')
+                {event.details?.terrain
+                  || (event.location.includes('Ghost Town')
                   ? 'Ghost Town features 19 buildings across a rural neighborhood setting with bunker systems and fortified objectives. The site offers varied engagement zones suited to both long-range and close-quarters play.'
                   : event.location.includes('Echo Urban')
                   ? 'Echo Urban is an indoor warehouse facility featuring multiple floors, narrow corridors, and purpose-built rooms for close-quarters combat training.'
-                  : 'Foxtrot Fields is a 25-acre open field site with varied terrain zones and purpose-built staging areas.'}
+                  : 'Foxtrot Fields is a 25-acre open field site with varied terrain zones and purpose-built staging areas.')}
               </p>
             </div>
           </div>
@@ -300,7 +370,7 @@ export default function EventDetail() {
               </div>
               <div className="info-card-item">
                 <span className="info-card-label">FPS Limit</span>
-                <span className="info-card-value">350 / 500</span>
+                <span className="info-card-value">{event.details?.fpsLabel || '350 / 500'}</span>
               </div>
             </div>
 

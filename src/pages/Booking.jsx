@@ -303,6 +303,7 @@ export default function Booking() {
             setUseBuyerForFirst={setUseBuyerForFirst}
             ticketTypes={selectedEvent.ticketTypes}
             customQuestions={selectedEvent.customQuestions || []}
+            factionLinks={selectedEvent.details?.factionLinks || null}
             validationErrors={validationErrors}
           />
         )}
@@ -518,7 +519,7 @@ function StepTicketsAndAddons({
 
 function StepPlayersAndContact({
   buyer, setBuyer, attendees, updateAttendee, updateAttendeeAnswer,
-  useBuyerForFirst, setUseBuyerForFirst, ticketTypes, customQuestions, validationErrors,
+  useBuyerForFirst, setUseBuyerForFirst, ticketTypes, customQuestions, factionLinks, validationErrors,
 }) {
   const ttById = new Map(ticketTypes.map((t) => [t.id, t]));
   return (
@@ -627,13 +628,31 @@ function StepPlayersAndContact({
                           <textarea className="form-textarea" rows={3} value={answer}
                             onChange={(e) => updateAttendeeAnswer(i, q.key, e.target.value)} />
                         ) : q.type === 'select' ? (
-                          <select className="form-select" value={answer}
-                            onChange={(e) => updateAttendeeAnswer(i, q.key, e.target.value)}>
-                            <option value="">Select…</option>
-                            {(q.options || []).map((opt) => (
-                              <option key={opt} value={opt}>{opt}</option>
-                            ))}
-                          </select>
+                          <>
+                            <select className="form-select" value={answer}
+                              onChange={(e) => updateAttendeeAnswer(i, q.key, e.target.value)}>
+                              <option value="">Select…</option>
+                              {(q.options || []).map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                            {/* Per-faction registration link surfaced from event.details.factionLinks
+                                keyed by the selected option (e.g. Kraken/NATO → NATO form). */}
+                            {factionLinks && answer && factionLinks[answer] && (
+                              <p style={{ marginTop: 8, fontSize: 13 }}>
+                                {factionLinks[answer].url ? (
+                                  <a href={factionLinks[answer].url} target="_blank" rel="noopener noreferrer"
+                                    style={{ color: 'var(--orange)', fontWeight: 700, textDecoration: 'none' }}>
+                                    &#9658; {factionLinks[answer].label || 'Complete your registration'}
+                                  </a>
+                                ) : (
+                                  <span style={{ color: 'var(--olive-light)' }}>
+                                    {factionLinks[answer].label || 'Registration'} &mdash; <em>{factionLinks[answer].note || 'link coming soon'}</em>
+                                  </span>
+                                )}
+                              </p>
+                            )}
+                          </>
                         ) : q.type === 'checkbox' ? (
                           <label className="checkbox-row">
                             <input type="checkbox" checked={!!answer}
