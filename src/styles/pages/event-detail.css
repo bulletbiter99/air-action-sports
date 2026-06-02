@@ -96,4 +96,14 @@
 .cd-mini-unit { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--olive-light); margin-top: 2px; }
 .related-events { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
 
+/* Collaboration partner banner (event.details.collabBannerUrl) */
+.collab-banner { text-align: center; }
+.collab-banner-label { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--olive-light); margin-bottom: 0.75rem; }
+.collab-banner-img { max-width: 100%; height: auto; display: block; margin: 0 auto; border: 1px solid rgba(200,184,154,0.1); }
+
+/* Required Documents external links (event.details.documents) */
+.event-docs a { color: var(--orange); text-decoration: none; font-weight: 700; }
+.event-docs a:hover { text-decoration: underline; }
+.event-docs em { color: var(--olive-light); font-style: italic; font-weight: 400; }
+
 @media (max-width: 768px) { .event-detail-grid { grid-template-columns: 1fr; } .event-sidebar { position: static; } }

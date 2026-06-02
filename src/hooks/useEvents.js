@@ -63,6 +63,10 @@ export function adaptEvent(apiEvent) {
         bannerOverlayOpacity: apiEvent.bannerOverlayOpacity ?? null,
         dateIso: apiEvent.dateIso || '',
         ticketTypes: apiEvent.ticketTypes || [],
+        // Per-event structured content (rules override, schedule, documents,
+        // collab banner, etc.). Null for every event except those that set it,
+        // so detail-page sections fall back to their hardcoded defaults.
+        details: apiEvent.details || null,
     };
 }
 
