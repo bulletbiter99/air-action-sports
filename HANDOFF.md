@@ -15,7 +15,7 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 | Metric | Value |
 |---|---|
 | Latest work | **Event-content session (2026-06-02)** — first data-driven event pages + Volga/Foxtrot fully built (PRs #254/#255/#256/#257 merged; #1 closed). Prior: M8 session (#246–#252) + post-M7 work-menu session. |
-| `main` HEAD | `84d2eaf` (Merge #257 — Bolotnik RUSFOR link) |
+| `main` HEAD | `8adc7ae` (Merge #259 — rename Volga Flank) |
 | Tests | **2744 / 217 passing** (event session added no unit tests — JSX + data; visual-regression covers the render) |
 | Build | clean · Lint 0 errors |
 | Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — running `main` (auto-deploys via Workers Builds) |
