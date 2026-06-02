@@ -215,3 +215,39 @@ export function mockRentalAssignmentList() {
     }
     return out;
 }
+
+/**
+ * Campaigns list payload (`GET /api/admin/campaigns` → { campaigns }). The
+ * native Marketing milestone (B3) list page — a plain <table>, not virtualized.
+ * Covers every status + a failed-send case.
+ *
+ * updatedAt values are fixed Q1-2026 constants, comfortably >30 days before now,
+ * so the page's formatRelative() renders a stable absolute toLocaleDateString()
+ * (the populated describe pins UTC/en-US) instead of a drifting "Nd ago".
+ */
+export function mockCampaignList() {
+    return [
+        { id: 'camp_mock_1', name: 'Spring VIP re-engagement', subject: 'We saved your spot — 20% off your next op', status: 'sent', recipientCount: 2400, sentCount: 2398, failedCount: 2, updatedAt: 1_772_841_600_000 },
+        { id: 'camp_mock_2', name: 'Summer season launch', subject: 'The 2026 season opens at Ghost Town', status: 'sending', recipientCount: 5600, sentCount: 1820, failedCount: 0, updatedAt: 1_771_545_600_000 },
+        { id: 'camp_mock_3', name: 'Weekend flash sale', subject: '48 hours: 30% off all bookings', status: 'scheduled', recipientCount: 1200, sentCount: 0, failedCount: 0, updatedAt: 1_770_249_600_000 },
+        { id: 'camp_mock_4', name: 'Lapsed win-back', subject: 'Come back to the field', status: 'draft', recipientCount: 0, sentCount: 0, failedCount: 0, updatedAt: 1_768_867_200_000 },
+        { id: 'camp_mock_5', name: 'Foxtrot field announcement', subject: 'A new field just opened in Kaysville', status: 'sent', recipientCount: 3100, sentCount: 3100, failedCount: 0, updatedAt: 1_767_571_200_000 },
+        { id: 'camp_mock_6', name: 'Holiday promo (pulled)', subject: 'Holiday savings inside', status: 'canceled', recipientCount: 0, sentCount: 0, failedCount: 0, updatedAt: 1_767_225_600_000 },
+    ];
+}
+
+/**
+ * Automations list payload (`GET /api/admin/automations` → { automations }).
+ * The native Marketing milestone (B5b) list page — a plain <table>. Covers
+ * active/paused × recurring/tag_added triggers + a null lastRunAt ("—") row.
+ * lastRunAt timestamps are >30-day-old constants (see mockCampaignList).
+ */
+export function mockAutomationList() {
+    return [
+        { id: 'auto_mock_1', name: 'Welcome new customers', status: 'active', triggerType: 'tag_added', triggerConfig: { tag: 'new' }, sentCount: 847, lastRunAt: 1_773_532_800_000 },
+        { id: 'auto_mock_2', name: 'Frequent-flyer loyalty', status: 'active', triggerType: 'recurring', triggerConfig: { intervalDays: 14 }, sentCount: 3420, lastRunAt: 1_772_323_200_000 },
+        { id: 'auto_mock_3', name: 'VIP monthly exclusive', status: 'paused', triggerType: 'recurring', triggerConfig: { intervalDays: 30 }, sentCount: 1245, lastRunAt: null },
+        { id: 'auto_mock_4', name: 'Lapsed re-engage', status: 'active', triggerType: 'tag_added', triggerConfig: { tag: 'lapsed' }, sentCount: 512, lastRunAt: 1_769_904_000_000 },
+        { id: 'auto_mock_5', name: 'Win-back (paused)', status: 'paused', triggerType: 'recurring', triggerConfig: { intervalDays: 60 }, sentCount: 0, lastRunAt: null },
+    ];
+}
