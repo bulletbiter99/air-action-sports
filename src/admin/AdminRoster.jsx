@@ -199,16 +199,17 @@ export default function AdminRoster() {
           <div className="admin-table-wrap">
             <div style={{ minWidth: 900 }}>
               <VirtualizedList
+                colCount={8}
                 header={(
-                  <div style={{ display: 'grid', gridTemplateColumns: ROSTER_COLS }}>
-                    <div style={th}>#</div>
-                    <div style={th}>Name</div>
-                    <div style={th}>Email</div>
-                    <div style={th}>Phone</div>
-                    <div style={th}>Ticket</div>
-                    <div style={th}>Waiver</div>
-                    <div style={th}>Check-in</div>
-                    <div style={th}>Booking</div>
+                  <div role="row" aria-rowindex={1} style={{ display: 'grid', gridTemplateColumns: ROSTER_COLS }}>
+                    <div role="columnheader" aria-colindex={1} style={th}>#</div>
+                    <div role="columnheader" aria-colindex={2} style={th}>Name</div>
+                    <div role="columnheader" aria-colindex={3} style={th}>Email</div>
+                    <div role="columnheader" aria-colindex={4} style={th}>Phone</div>
+                    <div role="columnheader" aria-colindex={5} style={th}>Ticket</div>
+                    <div role="columnheader" aria-colindex={6} style={th}>Waiver</div>
+                    <div role="columnheader" aria-colindex={7} style={th}>Check-in</div>
+                    <div role="columnheader" aria-colindex={8} style={th}>Booking</div>
                   </div>
                 )}
                 items={filtered}
@@ -217,9 +218,9 @@ export default function AdminRoster() {
                 maxHeight="60vh"
                 ariaLabel="Event roster table"
                 renderRow={(a, i) => (
-                  <div style={{ ...tr, display: 'grid', gridTemplateColumns: ROSTER_COLS, alignItems: 'start' }}>
-                    <div style={td}>{i + 1}</div>
-                    <div style={td}>
+                  <div role="row" aria-rowindex={i + 2} style={{ ...tr, display: 'grid', gridTemplateColumns: ROSTER_COLS, alignItems: 'start' }}>
+                    <div role="cell" aria-colindex={1} style={td}>{i + 1}</div>
+                    <div role="cell" aria-colindex={2} style={td}>
                       <strong>{a.firstName} {a.lastName || ''}</strong>
                       {a.isMinor && <span style={minorBadge}>MINOR</span>}
                       {customQuestions.length > 0 && a.customAnswers && Object.keys(a.customAnswers).length > 0 && (
@@ -236,10 +237,10 @@ export default function AdminRoster() {
                         </div>
                       )}
                     </div>
-                    <div style={td}>{a.email || '—'}</div>
-                    <div style={td}>{a.phone || '—'}</div>
-                    <div style={td}>{a.ticketType || '—'}</div>
-                    <div style={td}>
+                    <div role="cell" aria-colindex={3} style={td}>{a.email || '—'}</div>
+                    <div role="cell" aria-colindex={4} style={td}>{a.phone || '—'}</div>
+                    <div role="cell" aria-colindex={5} style={td}>{a.ticketType || '—'}</div>
+                    <div role="cell" aria-colindex={6} style={td}>
                       {a.waiverSigned
                         ? <span style={waiverSigned}>✓ Signed</span>
                         : (
@@ -249,7 +250,7 @@ export default function AdminRoster() {
                           </div>
                         )}
                     </div>
-                    <div style={td}>
+                    <div role="cell" aria-colindex={7} style={td}>
                       {a.checkedInAt ? (
                         <div>
                           <span style={checkedInTime}>
@@ -261,7 +262,7 @@ export default function AdminRoster() {
                         <button onClick={() => checkIn(a.id)} style={checkInBtn}>Check In</button>
                       )}
                     </div>
-                    <div style={tdSmall}>
+                    <div role="cell" aria-colindex={8} style={tdSmall}>
                       <div style={{ color: 'var(--color-text-muted)' }}>{a.buyerName}</div>
                       <div style={bookingIdMono}>{a.bookingId}</div>
                       {a.bookingStatus === 'comp' && <span style={compBadge}>COMP</span>}

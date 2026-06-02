@@ -164,15 +164,16 @@ export default function AdminPromoCodes() {
           <div className="admin-table-wrap">
             <div style={{ minWidth: 760 }}>
               <VirtualizedList
+                colCount={7}
                 header={(
-                  <div style={{ display: 'grid', gridTemplateColumns: PROMO_COLS }}>
-                    <div style={th}>Code</div>
-                    <div style={th}>Discount</div>
-                    <div style={th}>Scope</div>
-                    <div style={th}>Uses</div>
-                    <div style={th}>Window</div>
-                    <div style={th}>Status</div>
-                    <div style={th}>Actions</div>
+                  <div role="row" aria-rowindex={1} style={{ display: 'grid', gridTemplateColumns: PROMO_COLS }}>
+                    <div role="columnheader" aria-colindex={1} style={th}>Code</div>
+                    <div role="columnheader" aria-colindex={2} style={th}>Discount</div>
+                    <div role="columnheader" aria-colindex={3} style={th}>Scope</div>
+                    <div role="columnheader" aria-colindex={4} style={th}>Uses</div>
+                    <div role="columnheader" aria-colindex={5} style={th}>Window</div>
+                    <div role="columnheader" aria-colindex={6} style={th}>Status</div>
+                    <div role="columnheader" aria-colindex={7} style={th}>Actions</div>
                   </div>
                 )}
                 items={promoCodes}
@@ -180,30 +181,30 @@ export default function AdminPromoCodes() {
                 estimateRowHeight={52}
                 maxHeight="60vh"
                 ariaLabel="Promo codes table"
-                renderRow={(p) => (
-                  <div style={{ ...tr, display: 'grid', gridTemplateColumns: PROMO_COLS, alignItems: 'start' }}>
-                    <div style={tdCode}>{p.code}</div>
-                    <div style={td}>
+                renderRow={(p, i) => (
+                  <div role="row" aria-rowindex={i + 2} style={{ ...tr, display: 'grid', gridTemplateColumns: PROMO_COLS, alignItems: 'start' }}>
+                    <div role="cell" aria-colindex={1} style={tdCode}>{p.code}</div>
+                    <div role="cell" aria-colindex={2} style={td}>
                       {p.discountType === 'percent'
                         ? `${p.discountValue}% off`
                         : `${formatMoney(p.discountValue)} off`}
                       {p.minOrderCents ? <div style={subRow}>min {formatMoney(p.minOrderCents)}</div> : null}
                     </div>
-                    <div style={tdSmall}>{eventTitle(p.eventId)}</div>
-                    <div style={td}>
+                    <div role="cell" aria-colindex={3} style={tdSmall}>{eventTitle(p.eventId)}</div>
+                    <div role="cell" aria-colindex={4} style={td}>
                       {p.usesCount}{p.maxUses != null ? ` / ${p.maxUses}` : ''}
                     </div>
-                    <div style={tdSmaller}>
+                    <div role="cell" aria-colindex={5} style={tdSmaller}>
                       {p.startsAt ? <div>from {new Date(p.startsAt).toLocaleDateString()}</div> : null}
                       {p.expiresAt ? <div>to {new Date(p.expiresAt).toLocaleDateString()}</div> : null}
                       {!p.startsAt && !p.expiresAt && <span style={mutedText}>—</span>}
                     </div>
-                    <div style={td}>
+                    <div role="cell" aria-colindex={6} style={td}>
                       {p.active
                         ? <span style={statusActive}>Active</span>
                         : <span style={statusInactive}>Inactive</span>}
                     </div>
-                    <div style={td}>
+                    <div role="cell" aria-colindex={7} style={td}>
                       {hasRole('manager') && (
                         <>
                           <button onClick={() => setEditing(p)} style={subtleBtn}>Edit</button>

@@ -172,16 +172,17 @@ export default function AdminEvents() {
           <div className="admin-table-wrap">
             <div style={{ minWidth: 820 }}>
               <VirtualizedList
+                colCount={8}
                 header={(
-                  <div style={{ display: 'grid', gridTemplateColumns: EVENTS_COLS }}>
-                    <div style={th}>Title</div>
-                    <div style={th}>Date</div>
-                    <div style={th}>Location</div>
-                    <div style={th}>Tickets</div>
-                    <div style={th}>Sold</div>
-                    <div style={th}>Gross</div>
-                    <div style={th}>Status</div>
-                    <div style={th}>Actions</div>
+                  <div role="row" aria-rowindex={1} style={{ display: 'grid', gridTemplateColumns: EVENTS_COLS }}>
+                    <div role="columnheader" aria-colindex={1} style={th}>Title</div>
+                    <div role="columnheader" aria-colindex={2} style={th}>Date</div>
+                    <div role="columnheader" aria-colindex={3} style={th}>Location</div>
+                    <div role="columnheader" aria-colindex={4} style={th}>Tickets</div>
+                    <div role="columnheader" aria-colindex={5} style={th}>Sold</div>
+                    <div role="columnheader" aria-colindex={6} style={th}>Gross</div>
+                    <div role="columnheader" aria-colindex={7} style={th}>Status</div>
+                    <div role="columnheader" aria-colindex={8} style={th}>Actions</div>
                   </div>
                 )}
                 items={filtered}
@@ -189,23 +190,23 @@ export default function AdminEvents() {
                 estimateRowHeight={56}
                 maxHeight="60vh"
                 ariaLabel="Events table"
-                renderRow={(e) => (
-                  <div style={{ ...tr, display: 'grid', gridTemplateColumns: EVENTS_COLS, alignItems: 'start' }}>
-                    <div style={td}>
+                renderRow={(e, i) => (
+                  <div role="row" aria-rowindex={i + 2} style={{ ...tr, display: 'grid', gridTemplateColumns: EVENTS_COLS, alignItems: 'start' }}>
+                    <div role="cell" aria-colindex={1} style={td}>
                       <strong>{e.title}</strong>
                       <div style={subRowMono}>{e.id}</div>
                     </div>
-                    <div style={td}>{e.displayDate || e.dateIso?.slice(0, 10)}</div>
-                    <div style={tdSmall}>{e.location || '—'}</div>
-                    <div style={td}>{(e.ticketTypes || []).length}</div>
-                    <div style={td}>{e.attendeesCount || 0}</div>
-                    <div style={td}>{formatMoney(e.grossCents)}</div>
-                    <div style={td}>
+                    <div role="cell" aria-colindex={2} style={td}>{e.displayDate || e.dateIso?.slice(0, 10)}</div>
+                    <div role="cell" aria-colindex={3} style={tdSmall}>{e.location || '—'}</div>
+                    <div role="cell" aria-colindex={4} style={td}>{(e.ticketTypes || []).length}</div>
+                    <div role="cell" aria-colindex={5} style={td}>{e.attendeesCount || 0}</div>
+                    <div role="cell" aria-colindex={6} style={td}>{formatMoney(e.grossCents)}</div>
+                    <div role="cell" aria-colindex={7} style={td}>
                       {e.past ? <span style={statusPast}>Past</span>
                         : e.published ? <span style={statusPublished}>Published</span>
                         : <span style={statusDraft}>Draft</span>}
                     </div>
-                    <div style={td}>
+                    <div role="cell" aria-colindex={8} style={td}>
                       <button onClick={() => setEditingId(e.id)} style={subtleBtn}>Edit</button>
                       {hasRole('manager') && (
                         <button onClick={() => duplicate(e.id)} disabled={duplicating === e.id} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>

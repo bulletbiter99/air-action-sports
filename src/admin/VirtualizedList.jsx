@@ -31,6 +31,7 @@ export default function VirtualizedList({
     renderRow,
     getKey,
     header,
+    colCount,
     estimateRowHeight = 44,
     overscan = 8,
     maxHeight = '60vh',
@@ -45,31 +46,38 @@ export default function VirtualizedList({
         overscan,
     });
 
-    // a11y (M8): the viewport is a keyboard-scrollable, labeled region.
-    // Virtualization makes a full ARIA grid (row/gridcell roles) fragile — only
-    // the on-screen window is in the DOM — so we keep the honest, complete win:
-    // a focusable (tabIndex 0 → WCAG 2.1.1 keyboard scroll) region with an
-    // accessible name + a live row count. Full grid-cell roles are an M8 follow-up.
+    // a11y (M8): the viewport is a labeled, keyboard-scrollable ARIA table.
+    // Windowing keeps only the on-screen rows in the DOM, so aria-rowcount /
+    // aria-rowindex (+ aria-colcount / aria-colindex on cells) convey each row's
+    // TRUE position even when most rows aren't rendered. role="table" (not "grid")
+    // is deliberate: these are static/scrollable data tables, not an arrow-key
+    // cell-navigation widget, so there's no roving-tabindex obligation — the
+    // honest, complete pattern. tabIndex 0 keeps the #241 WCAG 2.1.1 keyboard-
+    // scroll win. The three layout wrappers below are role="presentation" so the
+    // a11y tree flattens to table > row > cell — each consumer's header/row grid
+    // div is the row, and the consumer tags its own cells.
     return (
         <div
             ref={parentRef}
-            role="region"
+            role="table"
             aria-label={ariaLabel || 'Scrollable list'}
-            aria-rowcount={items.length}
+            aria-rowcount={items.length + (header ? 1 : 0)}
+            aria-colcount={colCount}
             tabIndex={0}
             style={{ maxHeight, overflowY: 'auto', scrollbarGutter: 'stable', ...style }}
         >
             {header && (
-                <div style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--color-bg-page)' }}>
+                <div role="presentation" style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--color-bg-page)' }}>
                     {header}
                 </div>
             )}
-            <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+            <div role="presentation" style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
                 {rowVirtualizer.getVirtualItems().map((vi) => {
                     const item = items[vi.index];
                     return (
                         <div
                             key={getKey ? getKey(item, vi.index) : vi.key}
+                            role="presentation"
                             data-index={vi.index}
                             ref={rowVirtualizer.measureElement}
                             style={{
