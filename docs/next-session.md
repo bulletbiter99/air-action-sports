@@ -13,7 +13,7 @@ pages** and fully built out the **Volga Flank** + **Foxtrot** events (PRs #254/#
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `84d2eaf` (Merge #257 — Bolotnik RUSFOR link) |
+| `main` HEAD | `8adc7ae` (Merge #259 — rename Volga Flank) |
 | Tests | **2744 / 217** (the event session added no unit tests — JSX + data; public visual-regression covers the render) |
 | Build | clean · Lint **0 errors** |
 | Production | `https://airactionsport.com/api/health` → `{"ok":true,...}` — auto-deploys from `main` via Workers Builds |
