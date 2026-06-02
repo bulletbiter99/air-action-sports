@@ -14,14 +14,14 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 | Metric | Value |
 |---|---|
-| Latest work | **Post-M7 work-menu session (2026-05-31)** — Marketing milestone B2–B6 + M8 (a11y + sidebar caps) shipped + merged |
-| `main` HEAD | `189ee7c` (Merge #244 — M8 sidebar /me caps) |
-| Tests | **2682 / 209 passing** (was 2561 / 200 at M7 close) |
-| Build | clean (~265ms) · Lint 0 errors |
-| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — running post-M7 + Marketing + M8 `main` (auto-deploys from `main` via Workers Builds) |
-| D1 migrations on remote | **0001–0064 applied**; **0065–0070 in-repo, operator-applies** (M7's 0065/0066 + Marketing 0067–0070) |
-| Open milestone | **M8** — a11y region pass ✓ + sidebar /me caps ✓; full ARIA-grid cells + RTL infra remain |
-| Open PRs | 0 (all post-M7 PRs #231–#244 merged) |
+| Latest work | **Event-content session (2026-06-02)** — first data-driven event pages + Volga/Foxtrot fully built (PRs #254/#255/#256/#257 merged; #1 closed). Prior: M8 session (#246–#252) + post-M7 work-menu session. |
+| `main` HEAD | `84d2eaf` (Merge #257 — Bolotnik RUSFOR link) |
+| Tests | **2744 / 217 passing** (event session added no unit tests — JSX + data; visual-regression covers the render) |
+| Build | clean · Lint 0 errors |
+| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — running `main` (auto-deploys via Workers Builds) |
+| D1 migrations on remote | **0001–0064 applied**; **0065–0070 in-repo, operator-applies** (M7's 0065/0066 + Marketing 0067–0070; event session added none) |
+| Open milestone | **M8** — items 1–4 done; JSX-coverage backfill for older M3+ pages (long tail) remains |
+| Open PRs | 0 (all merged through #257) |
 
 **Post-M7 work-menu session (2026-05-31) — all merged to `main`:** 11c Reports polish (#231), representative-data visual baselines (#232), the **Marketing milestone B2–B6** (#234 / #243 / #236–#240 — campaigns + send pipeline + engagement tracking + automations + capability seed), M6 live-Stripe code-readiness audit (#233), and the **M8** start (#241 a11y region pass + #244 sidebar /me caps). **For the full current state + remaining work menu + consolidated operator-pending, use [docs/next-session.md](docs/next-session.md).** The M7-in-progress tables below are preserved as a historical record.
 

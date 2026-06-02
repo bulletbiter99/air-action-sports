@@ -2,7 +2,7 @@
 
 This file is the entry point for any Claude session working in this repository. The full canonical onboarding lives in [HANDOFF.md](HANDOFF.md); this file gives you the short, durable rules.
 
-**For a fresh session, use [`docs/next-session.md`](docs/next-session.md)** — it carries the current state, the work menu, and the consolidated operator-pending list. **State as of 2026-05-31:** M7 is **CLOSED + DEPLOYED**; the post-M7 work-menu session then shipped + merged the deferred **11c** Reports polish, the native **Marketing milestone B2–B6** (campaigns + send pipeline + tracking + automations + capability seed), and the start of **M8**. A follow-on **M8 session (2026-06-02)** then shipped **7 more PRs (#246–#252)** working post-M7 work-menu items 1–4 + starting item 2's JSX backfill: RTL+jsdom test infra, ARIA `table` roles on the virtualized tables, Campaigns/Automations + full Reports-surface RTL coverage, populated visual baselines, and an M6 live-readiness re-audit. `main` is at **2744 / 217** tests. **Operator-pending** spans migrations **0065–0070** + Marketing send activation (`MARKETING_POSTAL_ADDRESS`, Resend upgrade), the M7 Resend/FTS steps, the deferred marketing route-capability swap, and the M6 live-Stripe cutover — all detailed in `docs/next-session.md` + the runbooks. The "Post-M7 work-menu session" section below + the "Milestone 7" section deep in this file document what shipped per milestone.
+**For a fresh session, use [`docs/next-session.md`](docs/next-session.md)** — it carries the current state, the work menu, and the consolidated operator-pending list. **State as of 2026-05-31:** M7 is **CLOSED + DEPLOYED**; the post-M7 work-menu session then shipped + merged the deferred **11c** Reports polish, the native **Marketing milestone B2–B6** (campaigns + send pipeline + tracking + automations + capability seed), and the start of **M8**. A follow-on **M8 session (2026-06-02)** then shipped **7 more PRs (#246–#252)** working post-M7 work-menu items 1–4 + starting item 2's JSX backfill: RTL+jsdom test infra, ARIA `table` roles on the virtualized tables, Campaigns/Automations + full Reports-surface RTL coverage, populated visual baselines, and an M6 live-readiness re-audit. A further **event-content session (2026-06-02)** then shipped the first **data-driven event pages** + fully built out the **Volga Initiative** + **Foxtrot** events (PRs #254/#255/#256/#257 merged, #1 closed); `main` HEAD is now **`84d2eaf`**, still **2744 / 217** tests. **Operator-pending** spans migrations **0065–0070** + Marketing send activation (`MARKETING_POSTAL_ADDRESS`, Resend upgrade), the M7 Resend/FTS steps, the deferred marketing route-capability swap, and the M6 live-Stripe cutover — all detailed in `docs/next-session.md` + the runbooks. The "Post-M7 work-menu session" section below + the "Milestone 7" section deep in this file document what shipped per milestone.
 
 ---
 
@@ -46,6 +46,31 @@ Worked the post-M7 work-menu items 1–4 + started item 2's JSX-coverage backfil
 6. **`role="table"` vs `"grid"`** — for virtualized data tables, `table` conveys full row/cell + position semantics with NO arrow-key cell-navigation obligation (which can't work over un-rendered windowed rows). `grid` without roving-tabindex is a fragile half-pattern.
 
 **Remaining M8 (deferred long tail):** RTL coverage for older M3+ JSX-only pages (`AdminCustomers` / `AdminCustomerDetail` / `AdminSegments`, …) + full ARIA-grid *cell* navigation if ever wanted. **Operator-pending is UNCHANGED** from the post-M7 session (migrations 0065–0070, Marketing activation, M7 Resend/FTS flag, marketing route-capability swap, M6 live-Stripe cutover) — #249 re-confirmed M6 is code-ready. Full list: [docs/next-session.md](docs/next-session.md).
+
+---
+
+## Event-content session — 2026-06-02 (Volga + Foxtrot)
+
+Operator-driven content build for two live events + the reusable per-event rendering behind it. **PRs #254/#255/#256/#257 merged to `main`; PR #1 closed.** `main` HEAD `84d2eaf`. Tests unchanged at **2744 / 217** (JSX + data only — no new unit tests; CI's two visual-regression suites cover the public render). **No migrations. No marketing/M7/M6 surfaces touched — operator-pending is UNCHANGED.**
+
+| PR | What |
+|---|---|
+| #254 (merged) | Removed stale "Coming in M5/M6" persona-dashboard placeholder tiles |
+| #1 (CLOSED) | A stale Cloudflare-bot PR that would rename the Worker `air-action-sports`→`action-air-sports` and break production deploys — closed, not merged |
+| **#255** (merged) | **Per-event data-driven detail pages** — `src/hooks/useEvents.js` (`adaptEvent` forwards `event.details`) + `src/pages/EventDetail.jsx` (game-mode label / Rules / Schedule / Required Documents / Mission Briefing / Terrain / sidebar FPS / collab banner — each `event.details?.X` with the hardcoded content as fallback) + `src/pages/Booking.jsx` (inline per-faction registration link from `details.factionLinks`). DNT untouched (`formatEvent` / `bookings.js` / `pricing.js` / `stripe.js`). |
+| #256 (merged) | Audit SQL for the 3 Volga images uploaded to R2 |
+| #257 (merged) | Audit SQL for the Bolotnik (RUSFOR) registration link |
+
+**Production data/asset changes** (operator-authorized; applied directly to remote D1 + R2, audited in `scripts/update-*.sql`):
+- **Cleanup:** cleared 3 test bookings (2 refunded + 1 abandoned) + their attendees/waivers/customers; fixed the foxtrot title typo ("Warefare"→"Warfare") + empty slug (→ `foxtrot-jungle-warfare`).
+- **Foxtrot** (`foxtrot-vietnam`): time → `7:00 AM – 2:00 PM` + `display_date` fix.
+- **Volga** (`volga-initiative`): full `details_json` content + `custom_questions_json` faction select (Kraken/Bolotnik, required) + quick-facts + 3 R2 images (hero/card/logos) + Bolotnik RUSFOR link.
+
+**Durable lessons** (future event-content work — full how-to in memory `event-content-data-driven.md`):
+1. **Events are content-drivable via `events.details_json`** — `formatEvent` (DNT) already passes it through; `adaptEvent` (the subset the public pages read, `src/hooks/useEvents.js`) now forwards it. Render `event.details?.X || <hardcoded default>` so events without it stay byte-identical. The admin event form does NOT send `details`, so a D1-set `details_json` SURVIVES admin saves (patch one field with `json_set`). `custom_questions_json` IS managed by the form.
+2. **Booking faction selector = a plain `select` custom question** (zero code); the **inline per-faction link** reads `details.factionLinks[<selected option>]` — kept in `details_json` (not on the question) so it survives admin re-saves.
+3. **Upload event images to R2 without an admin session:** `wrangler r2 object put air-action-sports-uploads/events/<name>.<ext> --file "<path>" --content-type image/<ext> --remote` (deploy token has R2 access — verify via `wrangler r2 bucket list`). serveUpload (`worker/index.js`) allowlist requires key `<prefix>/<name>.(jpg|jpeg|png|webp|gif)`; URL = `/uploads/<key>`. Can't read chat-pasted images — operator saves files to disk first.
+4. **Google Forms:** a `/edit` URL is the OWNER link (players hit a permission wall); use the public `/forms/d/e/<pubid>/viewform` (or a `forms.gle/…` short link — only the form OWNER can mint it via Send → Shorten URL). Convert `/edit`→`/viewform` and curl-verify it returns 200 publicly.
 
 ---
 
