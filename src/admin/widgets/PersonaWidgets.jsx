@@ -598,9 +598,8 @@ export function RecentActivity() {
 // M4 B4e — Marketing persona widgets
 // ────────────────────────────────────────────────────────────────────
 
-// MarketingKPIs — 4-stat grid: Conversion / Promo redemption / AOV /
-// Email open rate. Email-open shows degraded "Pending" state until
-// Resend webhook ships in M5+. Conversion = paid / total bookings.
+// MarketingKPIs — 3-stat grid: Conversion / Promo uses / Avg order.
+// Conversion = paid / total bookings.
 export function MarketingKPIs() {
     const { data: overview, error: overviewErr } = useWidgetData(
         '/api/admin/analytics/overview',
@@ -629,24 +628,9 @@ export function MarketingKPIs() {
                     <Stat label="Conversion" value={`${conversionPct}%`} highlight />
                     <Stat label="Promo uses" value={promoUses ?? '…'} />
                     <Stat label="Avg order" value={formatMoney(totals.avgOrderCents)} />
-                    <PendingStat label="Email opens" hint="M5" />
                 </div>
             )}
         </section>
-    );
-}
-
-// PendingStat — tile rendered like Stat but with a "data pending" badge
-// instead of a number. Used by MarketingKPIs (email opens) until Resend
-// webhook integration ships in M5+.
-function PendingStat({ label, hint }) {
-    return (
-        <div className="admin-persona-widget__stat admin-persona-widget__stat--pending">
-            <div className="admin-persona-widget__stat-label">{label}</div>
-            <div className="admin-persona-widget__stat-value admin-persona-widget__pending">
-                Pending{hint ? ` · ${hint}` : ''}
-            </div>
-        </div>
     );
 }
 
@@ -796,37 +780,13 @@ export function PromoCodePerformance() {
     );
 }
 
-// AssetLibraryShortcut — static "Coming in M5" placeholder tile. No
-// fetch; no link target (the asset library admin UI hasn't shipped yet).
-// When M5 ships the asset library, this becomes a real shortcut.
-export function AssetLibraryShortcut() {
-    return (
-        <section className="admin-persona-widget admin-persona-widget--asset-library">
-            <h2>Asset library</h2>
-            <div className="admin-persona-widget__pending-tile">
-                <div className="admin-persona-widget__pending-tile-label">
-                    Asset library
-                </div>
-                <div className="admin-persona-widget__pending">
-                    Coming in M5
-                </div>
-                <p className="admin-persona-widget__muted">
-                    Marketing photos and social-ready exports, organized by event.
-                </p>
-            </div>
-        </section>
-    );
-}
-
 // ────────────────────────────────────────────────────────────────────
 // M4 B4f — Bookkeeper persona widgets
 // ────────────────────────────────────────────────────────────────────
 
-// BookkeeperKPIs — 4-stat MTD KPI grid for the Bookkeeper persona's
-// at-a-glance view: Revenue / Refunds / Net / Payout status. Payout
-// status is a degraded "Pending · M6" placeholder (Stripe Connect
-// integration is M6 territory). Reuses /analytics/overview?period=mtd
-// (B4d shipped) for the financial KPIs.
+// BookkeeperKPIs — 3-stat MTD KPI grid for the Bookkeeper persona's
+// at-a-glance view: Gross revenue / Refunds / Net. Reuses
+// /analytics/overview?period=mtd (B4d shipped) for the financial KPIs.
 export function BookkeeperKPIs() {
     const { data, error: err } = useWidgetData(
         '/api/admin/analytics/overview?period=mtd',
@@ -844,7 +804,6 @@ export function BookkeeperKPIs() {
                     <Stat label="Gross revenue" value={formatMoney(totals.grossRevenueCents)} highlight />
                     <Stat label="Refunds" value={formatMoney(totals.refundedCents)} />
                     <Stat label="Net" value={formatMoney(totals.netRevenueCents)} />
-                    <PendingStat label="Stripe payout" hint="M6" />
                 </div>
             )}
         </section>
@@ -966,30 +925,6 @@ export function RefundActivity() {
     );
 }
 
-// Staff1099Thresholds — static "Coming in M5" placeholder. No
-// per-staff payment table exists today; staff are users in the users
-// table but earnings are not tracked at the per-staff level. Once M5
-// ships staff payment tracking, this becomes a real widget showing
-// who is approaching the $600 1099 threshold for the year.
-export function Staff1099Thresholds() {
-    return (
-        <section className="admin-persona-widget admin-persona-widget--1099">
-            <h2>Staff 1099 thresholds</h2>
-            <div className="admin-persona-widget__pending-tile">
-                <div className="admin-persona-widget__pending-tile-label">
-                    1099 tracking
-                </div>
-                <div className="admin-persona-widget__pending">
-                    Coming in M5
-                </div>
-                <p className="admin-persona-widget__muted">
-                    Per-staff payment tracking and threshold alerts launching with the staff payments module.
-                </p>
-            </div>
-        </section>
-    );
-}
-
 // ────────────────────────────────────────────────────────────────────
 // Shared small components
 // ────────────────────────────────────────────────────────────────────
@@ -1073,11 +1008,9 @@ export const WIDGETS = {
     ConversionFunnel,
     UpcomingEventsFillRate,
     PromoCodePerformance,
-    AssetLibraryShortcut,
     // M4 B4f — Bookkeeper persona widgets
     BookkeeperKPIs,
     RevenueTrend,
     TaxFeeSummary,
     RefundActivity,
-    Staff1099Thresholds,
 };

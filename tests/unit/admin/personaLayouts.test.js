@@ -55,24 +55,22 @@ describe('PERSONA_LAYOUTS registry', () => {
         ]);
     });
 
-    it('marketing widget set ships the 6-widget M4 B4e order (5 new + RecentFeedback reused)', () => {
+    it('marketing widget set ships its 5 widgets (stale AssetLibraryShortcut placeholder removed pre-launch)', () => {
         expect(PERSONA_LAYOUTS.marketing).toEqual([
             'MarketingKPIs',
             'ConversionFunnel',
             'UpcomingEventsFillRate',
             'PromoCodePerformance',
             'RecentFeedback',
-            'AssetLibraryShortcut',
         ]);
     });
 
-    it('bookkeeper widget set ships the 5-widget M4 B4f order', () => {
+    it('bookkeeper widget set ships its 4 widgets (stale Staff1099Thresholds placeholder removed pre-launch)', () => {
         expect(PERSONA_LAYOUTS.bookkeeper).toEqual([
             'BookkeeperKPIs',
             'RevenueTrend',
             'TaxFeeSummary',
             'RefundActivity',
-            'Staff1099Thresholds',
         ]);
     });
 });
