@@ -22,6 +22,8 @@ import {
     mockPromoCodeList,
     mockRosterPayload,
     mockRentalAssignmentList,
+    mockCampaignList,
+    mockAutomationList,
 } from './adminMocks.js';
 
 // The sidebar nav renders on every authenticated admin page (AdminLayout),
@@ -136,5 +138,28 @@ test.describe('admin visual baselines — populated tables', () => {
         await page.goto('/admin/rentals/assignments');
         await prepareAdminPage(page, TABLE);
         await shot(page, 'admin-rental-assignments-populated.png');
+    });
+
+    // Marketing list pages (native Marketing milestone B3 / B5b). Unlike the four
+    // above, these render a plain <table> (not VirtualizedList / .admin-table-wrap),
+    // which mounts only once rows exist — so they wait on 'table'. Their
+    // formatRelative() "Updated" / "Last run" cells render absolute dates here
+    // because the mock timestamps are >30 days old (see mockCampaignList).
+    test('campaigns — populated', async ({ page }) => {
+        await installAdminMocks(page, {
+            overrides: [{ match: '/api/admin/campaigns', body: { campaigns: mockCampaignList() } }],
+        });
+        await page.goto('/admin/campaigns');
+        await prepareAdminPage(page, 'table');
+        await shot(page, 'admin-campaigns-populated.png');
+    });
+
+    test('automations — populated', async ({ page }) => {
+        await installAdminMocks(page, {
+            overrides: [{ match: '/api/admin/automations', body: { automations: mockAutomationList() } }],
+        });
+        await page.goto('/admin/automations');
+        await prepareAdminPage(page, 'table');
+        await shot(page, 'admin-automations-populated.png');
     });
 });
