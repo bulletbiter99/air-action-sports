@@ -57,7 +57,6 @@ export const PERSONA_LAYOUTS = {
         'UpcomingEventsFillRate',
         'PromoCodePerformance',
         'RecentFeedback',
-        'AssetLibraryShortcut',
     ],
     // M4 B4f — Bookkeeper widget set ships in this batch.
     // All 6 personas now have concrete widget arrays; the resolveLayout
@@ -67,7 +66,6 @@ export const PERSONA_LAYOUTS = {
         'RevenueTrend',
         'TaxFeeSummary',
         'RefundActivity',
-        'Staff1099Thresholds',
     ],
 };
 
