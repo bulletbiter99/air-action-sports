@@ -29,6 +29,7 @@ import {
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
+import AdminContext from '../../src/admin/AdminContext.jsx';
 import '@testing-library/jest-dom/vitest';
 
 // jsdom has no ResizeObserver; TanStack Virtual observes the scroll element on
@@ -60,6 +61,40 @@ export function renderWithRouter(ui, { route = '/', ...options } = {}) {
         wrapper: ({ children }) => (
             <HelmetProvider>
                 <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+            </HelmetProvider>
+        ),
+        ...options,
+    });
+}
+
+// Render an admin page/component that consumes useAdmin(). Wraps it in the raw
+// AdminContext.Provider (the DEFAULT export — so NO /api/admin/auth/me fetch,
+// unlike the real AdminProvider) plus the router + helmet. The default value is
+// an authenticated owner; `admin` overrides any field, and `capabilities` drives
+// hasCapability — so capability-gating tests just pass the caps they want, e.g.
+// renderWithAdmin(<AdminReports/>, { admin: { capabilities: ['reports.read.owner'] } }).
+export function renderWithAdmin(ui, { admin = {}, route = '/', ...options } = {}) {
+    const capabilities = admin.capabilities ?? [];
+    const value = {
+        user: { id: 'u_test', role: 'owner', persona: 'owner', email: 'owner@example.com', displayName: 'Test Owner' },
+        loading: false,
+        setupNeeded: false,
+        isAuthenticated: true,
+        login: async () => ({ ok: true }),
+        logout: async () => {},
+        setup: async () => ({ ok: true }),
+        refresh: async () => {},
+        hasRole: () => true,
+        ...admin,
+        capabilities,
+        hasCapability: admin.hasCapability ?? ((cap) => capabilities.includes(cap)),
+    };
+    return rtlRender(ui, {
+        wrapper: ({ children }) => (
+            <HelmetProvider>
+                <MemoryRouter initialEntries={[route]}>
+                    <AdminContext.Provider value={value}>{children}</AdminContext.Provider>
+                </MemoryRouter>
             </HelmetProvider>
         ),
         ...options,
