@@ -1,9 +1,10 @@
-# Next-session entry point — post-M7 + Marketing milestone + M8 (in progress)
+# Next-session entry point — post-M8 session
 
-Fresh-session entry point for Air Action Sports. **Updated 2026-05-31** (post-M7 work-menu session).
-M7 is CLOSED + DEPLOYED; the native **Marketing milestone (B1–B6) is now CODE-COMPLETE + merged**; and
-**M8 has started** (a11y + sidebar caps). All of this session's PRs are merged to `main`. This file is
-the current state + the menu for what's next.
+Fresh-session entry point for Air Action Sports. **Updated 2026-06-02** (M8 session).
+M7 is CLOSED + DEPLOYED; the native **Marketing milestone (B1–B6)** is CODE-COMPLETE + merged; and
+**M8** has now had two sessions — the post-M7 session started it (a11y region pass + sidebar `/me`
+caps), and the **2026-06-02 M8 session** delivered work-menu items 1–4 + began item 2's JSX-coverage
+backfill (**7 PRs, all merged**). What remains is item 2's long tail + the standing operator-pending list.
 
 ---
 
@@ -11,43 +12,40 @@ the current state + the menu for what's next.
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `189ee7c` (Merge #244 — M8 sidebar /me caps) |
-| Tests | **2682 / 209** (was 2561 / 200 at M7 close) + admin + public visual baselines |
-| Build | clean (~265ms) |
-| Lint | 0 errors |
+| `main` HEAD | `a1a35d4` (Merge #252 — Reports persona-shell tests) |
+| Tests | **2744 / 217** (was 2682 / 209 before the M8 session) + admin + public visual baselines |
+| Build | clean (~265ms) · Lint **0 errors** |
 | Production | `https://airactionsport.com/api/health` → `{"ok":true,...}` — auto-deploys from `main` via Workers Builds |
 | Migrations on remote | **0001–0064 applied**; **0065–0070 in-repo, operator-applies** (see below) |
-| Open milestone | **M8** — a11y region pass ✓ + sidebar /me caps ✓ done; full ARIA-grid cells + RTL infra remain |
+| Open milestone | **M8** — items 1–4 done; remaining = JSX-coverage backfill for older M3+ pages (long tail) |
 
 ---
 
-## What shipped this session (post-M7 work menu, tracks 1–5) — all merged to `main`
+## What shipped in the M8 session (2026-06-02) — 7 PRs, all merged
 
-14 PRs (#231–#244; #235 was closed + replaced by #243 — see note). All green; combined main verified at 2682/209.
+Worked post-M7 work-menu items 1–4 + started item 2's JSX backfill. 2682 → **2744 / 217** tests; build clean; 0 lint errors. No `src/` runtime changes except B's additive ARIA attributes.
 
-| Track | What | PR(s) |
+| PR | Item | What |
 |---|---|---|
-| **1 — 11c Reports polish** (deferred from M7) | `src/utils/dateFormat.js`, CSV "Exporting…" state, friendly errors (no raw `e.message`), shared `formatMoneyCompact` | #231 |
-| **2 — representative-data visual baselines** | 4 populated virtualized-table admin baselines (bot-captured via `capture-baselines`) | #232 |
-| **3 — Marketing milestone B2–B6** ✓ CODE-COMPLETE | campaigns backend + send pipeline, composer UI, engagement tracking, automations, marketing.* capability seed | #234, #243(B2b), #236, #237, #238, #239, #240 |
-| **4 — M6 live-Stripe cutover** | code-readiness audit only — the cutover itself is operator-only (5 items still pending) | #233 |
-| **5 — M8** (started) | a11y region pass on virtualized tables (#241) + sidebar consumes real /me capabilities (#244) | #241, #244 |
-| (docs) | session record | #242 |
+| #246 (A) | 2 infra | RTL + jsdom test lane (per-file `// @vitest-environment jsdom` pragma; `esbuild jsx:'automatic'`) + `tests/helpers/renderComponent.jsx` + a `VirtualizedList` region-a11y proof |
+| #247 (B) | **1** | ARIA `table` roles on `VirtualizedList` + 4 consumer pages (additive attrs; visuals unchanged; `role="table"` not `grid`) |
+| #248 (D) | **3** | Populated visual baselines for `/admin/campaigns` + `/admin/automations` (bot-seeded via `capture-baselines`) |
+| #249 (E) | **4** | M6 live-Stripe re-audit (no regression since #233) + `docs/m6-operator-cutover-checklist.md` refresh |
+| #250 (C-PR-1) | 2 | `tests/helpers/mockClientFetch.js` + AdminCampaigns / AdminAutomations RTL tests |
+| #251 (C-PR-2) | 2 | `renderWithAdmin` helper + AdminReports gating + shared report shells + `reportData.js` pure helpers |
+| #252 (C-PR-3) | 2 | Reports persona shells + `ReportFilters` — **Reports surface fully covered** |
 
-> **#235→#243 note:** merging a chain parent with `--delete-branch` auto-*closes* the child PR (its base
-> was that branch), which closed #235 (B2b) and blocked reopen. B2b was re-PR'd as #243 (verified diff =
-> exactly the 7 B2b files) and merged; the rest of the chain merged by retargeting each to `main` without
-> deleting branches. Net result is identical. **Lesson for future chains: don't `--delete-branch` a parent
-> while a child PR still bases on it** — retarget children to `main` first, or merge without deleting and
-> clean up branches at the end.
+Reusable patterns established (use these for more component tests): `renderComponent.jsx` (jsdom lane
++ `render`/`renderWithRouter`/`renderWithAdmin`), `installClientFetch` (client fetch mock). Full
+per-PR detail + durable lessons: the **"M8 session — 2026-06-02"** section in [CLAUDE.md](../CLAUDE.md).
 
 ---
 
-## ⚠️ Operator-pending (deferred features are inert / use fallbacks until done)
+## ⚠️ Operator-pending (unchanged — deferred features are inert / use fallbacks until done)
 
-Everything below is safe-deployed — routes degrade gracefully (empty lists / no-op cron) until activated.
+Everything below is safe-deployed — routes degrade gracefully (empty lists / no-op cron) until activated. **The M8 session changed none of this** (it was test infra + tests + a docs re-audit).
 
-**Marketing (this session) — full detail in [docs/runbooks/marketing-deploy.md](runbooks/marketing-deploy.md):**
+**Marketing (post-M7 / Marketing milestone) — full detail in [docs/runbooks/marketing-deploy.md](runbooks/marketing-deploy.md):**
 1. **Apply migrations 0067–0070** to remote (campaigns / tracking / automations / marketing caps).
 2. **`MARKETING_POSTAL_ADDRESS`** (CAN-SPAM, required) + **Resend plan upgrade** + (optional) marketing
    subdomain — the campaign/automation send cron **no-ops** until the address + Resend are set.
@@ -62,7 +60,7 @@ Everything below is safe-deployed — routes degrade gracefully (empty lists / n
 6. **Flip the FTS flag:** `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';`
 7. **Eyeball** the 4 virtualized lists' sticky headers + the Reports custom-range UI.
 
-**Carried from M6:** live-Stripe cutover items 1–5 — [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). The code is verified live-ready (#233 audit); only the 5 operator items remain.
+**Carried from M6:** live-Stripe cutover items 1–5 — [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). The code is verified live-ready (**#233 audit + #249 re-audit 2026-06-02**); only the 5 operator items remain.
 
 ---
 
@@ -70,11 +68,11 @@ Everything below is safe-deployed — routes degrade gracefully (empty lists / n
 
 | # | Track | Notes |
 |---|---|---|
-| 1 | **M8 — full ARIA-grid cell roles** on virtualized tables | The deeper a11y: `role="row"/"gridcell"/"columnheader"` on the header + row cells across Events/PromoCodes/Roster/RentalAssignments (a ~4-page cell refactor). Builds on #241's region pass. No operator gate. |
-| 2 | **M8 — RTL test infra + JSX coverage backfill** | Install `@testing-library/react` + jsdom; backfill component tests for the many admin pages that ship JSX-only today (AdminCampaigns, AdminAutomations, AdminReports, report shells, older M3+ pages). Larger; a genuine fresh undertaking. |
-| 3 | **Representative-data baselines for `/admin/campaigns` + `/admin/automations`** | The track-2 pattern (mocked rows → `capture-baselines`) for the two new marketing pages. |
-| 4 | **M6 live-Stripe cutover** | The 5 operator items + $1 e2e — [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). |
-| 5 | **Marketing route capability swap** | After 0070 is on remote: swap segments/campaigns/automations to `requireCapability` + bind the caps in the route tests. + optional `date_relative` automation trigger + formal sidebar "Marketing" group. |
+| 1 | **M8 — JSX coverage backfill (long tail)** | RTL tests for older M3+ JSX-only pages: `AdminCustomers`, `AdminCustomerDetail`, `AdminSegments`, … Reuse `renderWithAdmin` + `installClientFetch` (established this session). The repetitive remainder of item 2. |
+| 2 | **Marketing route capability swap** | After 0070 is on remote: swap segments/campaigns/automations to `requireCapability('marketing.*')` + bind caps in the route tests. + optional `date_relative` automation trigger + formal sidebar "Marketing" group. |
+| 3 | **M6 live-Stripe cutover** | The 5 operator items + $1 e2e — code verified live-ready (#233 + #249). [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). |
+| 4 | **Full ARIA-grid cell navigation** (optional) | Only if wanted: roving-tabindex arrow-key cell nav on the virtualized tables. Deliberately NOT built — the data tables expose `role="table"` (no nav obligation). |
+| 5 | **Representative-data baselines for more admin pages** | The #232/#248 pattern (`installAdminMocks` overrides → `capture-baselines`) for any other populated tables worth pixel-locking. |
 
 ---
 
@@ -84,7 +82,7 @@ Everything below is safe-deployed — routes degrade gracefully (empty lists / n
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 2682 / 209
+npm test -- --run | tail -3        # expect 2744 / 217
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
@@ -96,8 +94,10 @@ curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 | Path | Purpose |
 |---|---|
 | `docs/next-session.md` | THIS FILE — current state + work menu |
-| `CLAUDE.md` | durable rules + per-milestone/session log (M1–M7 + post-M7) |
+| `CLAUDE.md` | durable rules + per-milestone/session log (M1–M7 + post-M7 + **M8 session**) |
 | `HANDOFF.md` | full session-start onboarding (stack, schema, API surface) |
+| `tests/helpers/renderComponent.jsx` | RTL/jsdom render helpers (`render` / `renderWithRouter` / `renderWithAdmin`) — M8 |
+| `tests/helpers/mockClientFetch.js` | client-side `fetch` mock for component tests — M8 |
 | `docs/runbooks/marketing-deploy.md` | Marketing B1–B6 deploy + activation (migrations 0067–0070) |
 | `docs/runbooks/m7-deploy.md` | M7 deploy + its operator-pending (0065/0066, Resend, FTS flag) |
-| `docs/m6-operator-cutover-checklist.md` | M6's 5 live-Stripe operator items (+ #233 code-readiness audit at top) |
+| `docs/m6-operator-cutover-checklist.md` | M6's 5 live-Stripe operator items (+ #233/#249 code-readiness audit at top) |
