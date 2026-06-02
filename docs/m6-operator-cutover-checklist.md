@@ -6,9 +6,9 @@ Treat this file as a worksheet — fill in outcomes as you complete each item; p
 
 ---
 
-## Code-readiness audit — ✅ 2026-05-31 (post-M7)
+## Code-readiness audit — ✅ re-verified 2026-06-01 (first verified 2026-05-31, post-M7 / PR #233)
 
-A post-M7 read-through confirmed every code path that activates when these operator items land is **present, wired, and unregressed since M6 close** (M7 touched no Stripe surface). **No code work blocks the cutover — only the 5 operator items below remain.**
+A post-M7 read-through (PR #233, 2026-05-31) confirmed every code path that activates when these operator items land is **present, wired, and unregressed since M6 close**, and a **2026-06-01 re-verification** (main `ce59ab9`, 2682 tests) re-confirms it. The Stripe surfaces are **byte-identical to M6 close** — the `/api/webhooks/stripe` handler (`worker/routes/webhooks.js`) and `verifyWebhookSignature` (`worker/lib/stripe.js`) are unchanged. The only post-M6 edits to these payment files are **additive and on the separate `/api/webhooks/resend` route** — M7 B8's bounce/complaint consumer + the native Marketing milestone's B4 campaign-event tracking — none of which touch the Stripe handler, the signature verifier, or the B5/B6/B7/B9 paths. **No code work blocks the cutover — only the 5 operator items below remain.**
 
 | Gate | Code path | Verified |
 |---|---|---|
@@ -18,7 +18,7 @@ A post-M7 read-through confirmed every code path that activates when these opera
 | B7 — damage charge Option A | `worker/lib/stripe.js` off-session charge (`payment_method` + `off_session:'true'`); `chargeOffSessionForCharge` + `POST /:id/charge-card` | ✅ present |
 | B9 — remove saved PM | `worker/lib/stripe.js` `detachPaymentMethod` + `POST /:id/detach-saved-pm` | ✅ present |
 
-Group A + B Stripe regression tests remain green (138/138 at M6 close; 149/149 with B6). **Run the 5 items below in any order (1–4), then Item 5 ($1 live e2e).**
+Group A + B Stripe regression tests remain green (138/138 at M6 close; 149/149 with B6). The B5–B9 characterization tests (`tests/unit/bookings/checkout-setup-future-usage` + `tests/unit/lib/stripe-setup-future-usage` / `stripe-off-session-charge` / `stripe-detach-pm` + `tests/unit/webhook/dispute-created-handler`) are all present + gated. **Run the 5 items below in any order (1–4), then Item 5 ($1 live e2e).**
 
 ---
 
