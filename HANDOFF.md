@@ -8,20 +8,20 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 **M7 (Reports + Audit-Log FTS + Virtualized Tables + Resend deliverability + admin visual baselines) is CLOSED and DEPLOYED to production** — `milestone/7-reports-search-virtualized` merged to `main`; Workers Builds auto-deployed. All 12 batches merged (0–10, 11a, 11b; **11c cosmetic Reports polish deferred** post-M7). Tests **2561 / 200**.
 
-**Operator-pending to activate M7's deferred features** (deployed safely; these are inert/fallback until done): apply migrations 0065/0066, `wrangler secret put RESEND_WEBHOOK_SECRET` + add the Resend dashboard webhook, flip the `audit_log_fts` flag, eyeball the 4 sticky-header lists — full detail in **[docs/runbooks/m7-deploy.md](docs/runbooks/m7-deploy.md)**.
+**Operator-pending to activate M7's deferred features** (deployed safely; inert/fallback until done): **migrations 0065/0066 are now applied (2026-06-02)** — remaining: `wrangler secret put RESEND_WEBHOOK_SECRET` + add the Resend dashboard webhook, flip the `audit_log_fts` flag, eyeball the 4 sticky-header lists — full detail in **[docs/runbooks/m7-deploy.md](docs/runbooks/m7-deploy.md)**.
 
 **For the next session, use [docs/next-session.md](docs/next-session.md)** — the post-M7 work menu + current state.
 
 | Metric | Value |
 |---|---|
-| Latest work | **Image focal-point positioning + data-driven Locations (2026-06-02)** — reusable focal picker (events + sites) + `/locations` moved off the static file; PRs #263–#267, resolving feedback `fb_Su6LWtWJz2FI`. Prior: Volga hero refresh (#261/#262), event-content session (#254–#257). |
-| `main` HEAD | `f1e2b4c` (Merge #267 — focal-positioning doc sync) · re-pull for exact |
-| Tests | **2776 / 220 passing** |
+| Latest work | **2026-06-02 work-menu + deploy session** — applied migrations 0065–0070; shipped the marketing route-capability swap, the admin dark-theme contrast fix, RTL admin-page tests, visual baselines, and **item 6 (admin-editable event content end-to-end)**; **deployed twice** (`b342b39f` → `94dfb7a9`). M6 live-Stripe cutover DONE. Prior: focal-positioning + Locations (#263–#267), event-content (#254–#257). |
+| `main` HEAD | `f240b4c` · re-pull for exact |
+| Tests | **2823 / 227 passing** |
 | Build | clean · Lint 0 errors |
-| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — running `main` (auto-deploys via Workers Builds) |
-| D1 migrations on remote | **0001–0064 + 0071 + 0072 applied** — 0071/0072 applied **OUT-OF-BAND** so 0065–0070 stay deferred (⚠️ see memory `image-focal-positioning.md` before any `d1 migrations apply`); **0065–0070 in-repo, operator-applies** |
-| Open milestone | **M8** — items 1–4 done; JSX-coverage backfill for older M3+ pages (long tail) remains |
-| Open PRs | 0 (all merged through #267) |
+| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — deployed `94dfb7a9` (live Stripe; auto-deploys via Workers Builds) |
+| D1 migrations on remote | **0001–0072 ALL applied** (0065–0070 applied 2026-06-02; the out-of-band deferral is resolved — a `migrations apply` now finds nothing new) |
+| Open milestone | **M8** — work-menu items 1–7 + contrast pass done + deployed; **item 6 (event content) COMPLETE**. Remaining: item-1 RTL long tail + the admin design-consistency sweep |
+| Open PRs | 0 (all merged through #278) |
 
 **Post-M7 work-menu session (2026-05-31) — all merged to `main`:** 11c Reports polish (#231), representative-data visual baselines (#232), the **Marketing milestone B2–B6** (#234 / #243 / #236–#240 — campaigns + send pipeline + engagement tracking + automations + capability seed), M6 live-Stripe code-readiness audit (#233), and the **M8** start (#241 a11y region pass + #244 sidebar /me caps). **For the full current state + remaining work menu + consolidated operator-pending, use [docs/next-session.md](docs/next-session.md).** The M7-in-progress tables below are preserved as a historical record.
 

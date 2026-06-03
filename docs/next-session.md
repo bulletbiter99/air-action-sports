@@ -1,11 +1,7 @@
-# Next-session entry point — post image focal-positioning + data-driven Locations
+# Next-session entry point — post 2026-06-02 work-menu + deploy session
 
-Fresh-session entry point for Air Action Sports. **Updated 2026-06-02** (admin image focal-point positioning + data-driven `/locations`; feedback `fb_Su6LWtWJz2FI` resolved).
-M7 is CLOSED + DEPLOYED; the native **Marketing milestone (B1–B6)** is CODE-COMPLETE + merged; **M8**'s
-work-menu items 1–4 are done (RTL+jsdom infra, ARIA `table` roles, Reports/Campaigns coverage, visual
-baselines); and a follow-on **event-content session (2026-06-02)** shipped the first **data-driven event
-pages** and fully built out the **Volga Flank** + **Foxtrot** events (PRs #254/#255/#256/#257 merged;
-#1 closed). Most recently (2026-06-02): the **Volga Flank hero refresh** (#261/#262) and a ~9-batch **admin image focal-point positioning + data-driven `/locations`** feature (PRs **#263–#267**), resolving feedback `fb_Su6LWtWJz2FI`. What remains is M8's item-2 long tail + the standing operator-pending list.
+Fresh-session entry point for Air Action Sports. **Updated 2026-06-03** (close of a large work-menu + deploy session).
+M7 closed + deployed; the native Marketing milestone shipped; the **M6 live-Stripe cutover is DONE** (production takes real payments). The **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains:** the item-1 RTL long tail, the full admin **design-consistency sweep**, and operator activation (Marketing send + Resend webhook + FTS flag). Detail below.
 
 ---
 
@@ -13,13 +9,29 @@ pages** and fully built out the **Volga Flank** + **Foxtrot** events (PRs #254/#
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `6c06d81` (Merge #272 — admin contrast fix) · re-pull for exact |
-| Tests | **2808 / 225** (+32 RTL admin-page backfill) |
+| `main` HEAD | `f240b4c` (re-pull for exact) |
+| Tests | **2823 / 227** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed **`b342b39f`** (2026-06-02) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — **live Stripe** + Marketing/deliverability schema now active |
-| Migrations on remote | **0001–0072 ALL applied** — 0065–0070 applied 2026-06-02 (Marketing campaigns/tracking/automations/caps + M7 email_events/alert-templates). The prior **out-of-band 0071/0072 deferral is RESOLVED** — every migration is now recorded, so a future `migrations apply` finds nothing new. |
-| Open PRs | doc-sync + capture-baselines (this PR) |
-| Open milestone | **M8** — items 1–5 + contrast pass done + deployed; **item 6** (admin-editable event content) in progress; older-pages RTL tail remains |
+| Production | deployed **`94dfb7a9`** (2026-06-02; latest) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — **live Stripe** + Marketing/deliverability schema active |
+| Migrations on remote | **0001–0072 ALL applied** — 0065–0070 applied 2026-06-02. The out-of-band 0071/0072 deferral is **resolved**; a `migrations apply` now finds nothing new. |
+| Open PRs | 0 |
+| Open milestone | **M8** — items 1–7 of the work menu + the contrast pass done + deployed; **item 6 (event content) COMPLETE**. Remaining: item-1 RTL long tail + the admin design-consistency sweep. |
+
+---
+
+## What shipped — 2026-06-02 work-menu + deploy session (most recent)
+
+A large session worked a 6-item work menu + an injected dark-theme contrast pass, then merged + **deployed twice** (`b342b39f` → `94dfb7a9`). All PRs (#269–#278) merged to `main`.
+
+- **Item 2 — Marketing route-capability swap** ([#273](https://github.com/bulletbiter99/air-action-sports/pull/273)): applied migrations **0065–0070** to remote (verified 10 marketing caps / 10 owner bindings / 5 new tables), then swapped segments/campaigns/automations from `requireAuth` to a method-aware `requireCapability('marketing.*')` (GET/preview→read, DELETE→delete, else→write). Route tests bind the caps via `bindCapabilities`.
+- **Item 3 — Stripe live-cutover marked DONE** ([#270](https://github.com/bulletbiter99/air-action-sports/pull/270)): operator confirmed all 5 items; checklist/docs/memory flipped. **Production takes real payments.**
+- **Item 4 — `role="table"` re-confirmed** (skip ARIA-grid cell nav) ([#270](https://github.com/bulletbiter99/air-action-sports/pull/270)).
+- **Item 5 — representative-data visual baselines** ([#271](https://github.com/bulletbiter99/air-action-sports/pull/271) + recapture [#274](https://github.com/bulletbiter99/air-action-sports/pull/274) + flake fix [#278](https://github.com/bulletbiter99/air-action-sports/pull/278)): Customers / Segments / Taxes&Fees populated baselines added; all admin baselines recaptured.
+- **Item 6 — admin-editable event content (COMPLETE)**: server **`normalizeEventDetails`** sanitizer ([#275](https://github.com/bulletbiter99/air-action-sports/pull/275)) → admin **"Detail page content" editor** in `AdminEvents` ([#276](https://github.com/bulletbiter99/air-action-sports/pull/276)) → **Foxtrot seeded live** (mission briefing + reuse hero as card; [#277](https://github.com/bulletbiter99/air-action-sports/pull/277)). Operators now edit any event's detail-page fields (mission briefing / timeline / FPS / rules / docs / terrain / faction links) in the form; blank fields fall back to the site default. `src/admin/eventDetailsForm.js` converts form text ↔ the `details_json` payload; the server sanitizes + URL-guards.
+- **Item 1 — RTL admin-page test backfill (batch 1)** ([#269](https://github.com/bulletbiter99/air-action-sports/pull/269)): AdminSegments / Customers / CustomerDetail / TaxesFees / PromoCodes (+32 tests). **Long tail remains.**
+- **Contrast pass** ([#272](https://github.com/bulletbiter99/air-action-sports/pull/272)): the app is **one dark theme**; a cluster of admin surfaces (FilterBar on every list page, Field Rentals, Sites, ImageFocalPicker, customer modals, Events conflict banner) rendered **undefined "phantom" light-theme tokens** → invisible dark text + white boxes. Fixed by aliasing the phantom tokens onto the real `--color-*` tokens in `tokens.css` + re-theming the few hardcoded-white inputs. See memory `admin-dark-theme-contrast.md`.
+
+**Durable lessons** (full detail in memory `work-menu-deploy-session.md`): D1 quirk #1 ("wrangler rejects `TRANSACTION` even in comments") is **overstated** — disproven by 19 applied migrations that contain it in comments; admin pages are **auth-gated → not visually verifiable in the dev preview** (use the visual-admin CI harness + operator eyeball); the `capture-baselines` label flow; `bindCapabilities` for cap-swap tests.
 
 ---
 
@@ -52,7 +64,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 - **`/locations` is now data-driven** — public `GET /api/sites` → `src/hooks/useSites.js` → `src/pages/Locations.jsx`. The 3 locations are seeded into the `sites` table (`scripts/seed-location-content.sql`). **Home's locations preview stays STATIC** (`src/data/locations.js`, untouched — different card shape, avoids home-page visual churn). Ghost Town crop fixed (`photo_position='50% 30%'`).
 - Tests **2776 / 220**; both visual-regression suites green; the position value is sanitized server-side (`normalizeImagePosition`).
 
-**⚠️ OUT-OF-BAND MIGRATION STATE — read before any `wrangler d1 migrations apply --remote`:** 0071 + 0072 were applied to remote out-of-band (`d1 execute --file` for the ALTERs + a manual `INSERT INTO d1_migrations`) **specifically so the deferred 0065–0070 (Marketing + M7) stay un-applied**. `d1_migrations` now reads 0064 → **0071, 0072** (out of order — harmless). A future `migrations apply` applies 0065–0070 (still pending) and skips 0071/0072 (already recorded). The operator-pending list below is **UNCHANGED**.
+**✅ MIGRATION STATE RESOLVED (2026-06-02):** all **0001–0072 are now applied/recorded** — the prior out-of-band deferral is closed, and a `wrangler d1 migrations apply --remote` finds nothing new. (History: 0071/0072 were applied out-of-band first; the work-menu session then applied 0065–0070, so `d1_migrations` is recorded out-of-order — harmless.)
 
 ---
 
@@ -77,12 +89,14 @@ Migrations **0065–0070 are now applied** and the **marketing route-capability 
 
 | # | Track | Notes |
 |---|---|---|
-| 1 | **M8 — JSX coverage backfill (long tail)** | RTL tests for older M3+ JSX-only pages: `AdminCustomers`, `AdminCustomerDetail`, `AdminSegments`, … Reuse `renderWithAdmin` + `installClientFetch`. The repetitive remainder of item 2. |
+| 1 | **M8 — JSX coverage backfill (long tail)** ⭐ next | **Batch 1 done** ([#269](https://github.com/bulletbiter99/air-action-sports/pull/269): AdminSegments/Customers/CustomerDetail/TaxesFees/PromoCodes). Remaining: AdminBookings(+Detail), AdminEvents, AdminWaivers, AdminVendors, AdminFieldRentals(+Detail/New), AdminStaff(+Detail), AdminRoster, AdminScan, … Reuse `renderWithAdmin` + `installClientFetch` (+ the sized-ResizeObserver stub for VirtualizedList pages). |
 | 2 | **Marketing route capability swap** | ✅ **DONE 2026-06-02** (deployed) — segments/campaigns/automations now `requireCapability('marketing.*')`, method-aware, with caps bound in the route tests. Remaining marketing polish: optional `date_relative` automation trigger + a formal sidebar "Marketing" group + **send activation** (operator-pending #1–2 above). |
 | 3 | **M6 live-Stripe cutover** | ✅ **DONE 2026-06-02** — all 5 operator items complete; production takes real payments. [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). |
 | 4 | ~~Full ARIA-grid cell navigation~~ | ✅ **Re-confirmed SKIP 2026-06-02** — keep `role="table"`. Roving-tabindex cell-nav can't reach un-rendered (virtualized) rows, so `grid` would be a fragile half-pattern; the tables already expose full row/cell + position semantics with no nav obligation. Operator decision stands (see CLAUDE.md M8 lesson #6). |
-| 5 | **Representative-data baselines for more admin pages** | The #232/#248 pattern (`installAdminMocks` overrides → `capture-baselines`) for any other populated tables worth pixel-locking. |
-| 6 | **More event content** | Build out / customize any event via `events.details_json` (memory `event-content-data-driven.md`; Volga is the template). Upload images to R2 via `wrangler r2 object put` (the deploy token has R2 access). |
+| 5 | ~~Representative-data baselines~~ | ✅ **Customers/Segments/TaxesFees added + all admin baselines recaptured 2026-06-02.** The `installAdminMocks` overrides → `capture-baselines` pattern is available for any further populated tables. |
+| 6 | **More event content** (operator, now self-serve) | Item 6's admin editor is **LIVE** — add per-event content (mission briefing / timeline / FPS / rules / docs / terrain / faction links) via `/admin/events` → "Detail page content". Foxtrot's mission briefing is seeded; the operator fills the rest there. Images → R2 via `wrangler r2 object put`. |
+| 7 | **Admin design-consistency sweep** ⭐ | Re-theme the legible-but-off-theme **light pills / alert boxes** to the dark theme: field-rental status/COI pills (`AdminFieldRentals` `classifyStatus`/`classifyCoiStatus` light bg+dark text), Contact-form alert boxes, the selected-customer box, the `dangerBtn`. Contrast (legibility) is already fixed; this is visual consistency. Memory `admin-dark-theme-contrast.md`. |
+| 8 | **Operator activation** | Marketing send (`MARKETING_POSTAL_ADDRESS` + Resend upgrade) + `RESEND_WEBHOOK_SECRET` + Resend webhook + flip `audit_log_fts` — see Operator-pending above + runbooks. |
 
 ---
 
@@ -92,7 +106,7 @@ Migrations **0065–0070 are now applied** and the **marketing route-capability 
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 2776 / 220
+npm test -- --run | tail -3        # expect 2823 / 227
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
