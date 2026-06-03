@@ -24,6 +24,16 @@ import { requireAuth } from '../../lib/auth.js';
 import { requireCapability } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { siteId as newSiteId, fieldId as newFieldId, blackoutId as newBlackoutId, slugify } from '../../lib/ids.js';
+import { normalizeImagePosition } from './events.js';
+
+function safeJsonArray(str) {
+    try {
+        const v = str ? JSON.parse(str) : [];
+        return Array.isArray(v) ? v : [];
+    } catch {
+        return [];
+    }
+}
 
 const adminSites = new Hono();
 adminSites.use('*', requireAuth);
@@ -51,6 +61,16 @@ function formatSite(row) {
         defaultBlackoutWindow: row.default_blackout_window,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
+        // Public /locations content (migration 0072)
+        photoUrl: row.photo_url,
+        photoPosition: row.photo_position,
+        badge: row.badge,
+        siteNumber: row.site_number,
+        sortOrder: row.sort_order,
+        locationBlurb: row.location_blurb,
+        features: safeJsonArray(row.features_json),
+        gameTypes: safeJsonArray(row.game_types_json),
+        showOnLocations: !!row.show_on_locations,
     };
 }
 
@@ -86,7 +106,7 @@ function formatBlackout(row) {
 // Body parsers
 // ────────────────────────────────────────────────────────────────────
 
-function parseSiteBody(body, { partial = false } = {}) {
+export function parseSiteBody(body, { partial = false } = {}) {
     const patch = {};
     if (body.name !== undefined) patch.name = String(body.name).trim();
     if (body.slug !== undefined) patch.slug = body.slug === null ? null : slugify(body.slug);
@@ -113,6 +133,25 @@ function parseSiteBody(body, { partial = false } = {}) {
     if (body.defaultBlackoutWindow !== undefined) {
         patch.default_blackout_window = body.defaultBlackoutWindow === null ? null : String(body.defaultBlackoutWindow);
     }
+    // Public /locations content (migration 0072)
+    if (body.photoUrl !== undefined) patch.photo_url = body.photoUrl === null ? null : String(body.photoUrl).trim();
+    if (body.photoPosition !== undefined) patch.photo_position = normalizeImagePosition(body.photoPosition);
+    if (body.badge !== undefined) patch.badge = body.badge === null ? null : String(body.badge).trim();
+    if (body.siteNumber !== undefined) patch.site_number = body.siteNumber === null ? null : String(body.siteNumber).trim();
+    if (body.sortOrder !== undefined) {
+        const n = Number(body.sortOrder);
+        patch.sort_order = Number.isFinite(n) ? Math.round(n) : 0;
+    }
+    if (body.features !== undefined) {
+        if (body.features !== null && !Array.isArray(body.features)) return { error: 'features must be an array' };
+        patch.features_json = body.features ? JSON.stringify(body.features.map((f) => String(f))) : null;
+    }
+    if (body.gameTypes !== undefined) {
+        if (body.gameTypes !== null && !Array.isArray(body.gameTypes)) return { error: 'gameTypes must be an array' };
+        patch.game_types_json = body.gameTypes ? JSON.stringify(body.gameTypes.map((g) => String(g))) : null;
+    }
+    if (body.locationBlurb !== undefined) patch.location_blurb = body.locationBlurb === null ? null : String(body.locationBlurb).trim();
+    if (body.showOnLocations !== undefined) patch.show_on_locations = body.showOnLocations ? 1 : 0;
 
     if (!partial) {
         if (!patch.name) return { error: 'name is required' };

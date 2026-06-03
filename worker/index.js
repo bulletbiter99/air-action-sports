@@ -32,6 +32,7 @@ const runCampaignSendSweep = _runCampaignSendSweep;
 const runAutomationSweep = _runAutomationSweep;
 
 import events from './routes/events.js';
+import publicSites from './routes/sites.js';
 import bookings from './routes/bookings.js';
 import webhooks from './routes/webhooks.js';
 import waivers from './routes/waivers.js';
@@ -146,6 +147,7 @@ app.use('/api/*', async (c, next) => {
 app.get('/api/health', (c) => c.json({ ok: true, ts: Date.now() }));
 
 app.route('/api/events', events);
+app.route('/api/sites', publicSites);
 app.route('/api/bookings', bookings);
 app.route('/api/webhooks', webhooks);
 app.route('/api/waivers', waivers);
