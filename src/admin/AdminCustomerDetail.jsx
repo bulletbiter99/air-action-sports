@@ -522,7 +522,7 @@ function BusinessFieldsEditModal({ customer, onClose, onSaved }) {
 
                         <label style={{ display: 'block', marginBottom: '0.85rem' }}>
                             <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>
-                                EIN / Tax ID <small style={{ color: '#6b7280', fontWeight: 'normal' }}>(encrypted at rest)</small>
+                                EIN / Tax ID <small style={{ color: 'var(--color-text-muted)', fontWeight: 'normal' }}>(encrypted at rest)</small>
                             </span>
                             <input
                                 type="text"
@@ -535,7 +535,7 @@ function BusinessFieldsEditModal({ customer, onClose, onSaved }) {
                         </label>
 
                         <h3 style={{ marginTop: '1.25rem', marginBottom: '0.5rem' }}>
-                            Billing address <small style={{ color: '#6b7280', fontWeight: 'normal' }}>(encrypted at rest)</small>
+                            Billing address <small style={{ color: 'var(--color-text-muted)', fontWeight: 'normal' }}>(encrypted at rest)</small>
                         </h3>
                         <label style={{ display: 'block', marginBottom: '0.5rem' }}>
                             <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Line 1</span>

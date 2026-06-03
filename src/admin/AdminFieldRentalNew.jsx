@@ -115,13 +115,13 @@ const primaryBtn = {
     padding: '10px 20px', borderRadius: 4, cursor: 'pointer', fontWeight: 600, fontSize: 14,
 };
 const ghostBtn = {
-    background: 'white', color: 'var(--text-primary, #333)', border: '1px solid var(--border-soft, #d0d0d0)',
+    background: 'var(--color-bg-page)', color: 'var(--text-primary, #333)', border: '1px solid var(--border-soft, #d0d0d0)',
     padding: '10px 20px', borderRadius: 4, cursor: 'pointer', fontSize: 14,
 };
 const errorStyle = { background: '#fef0f0', border: '1px solid #d4541a', padding: 'var(--space-12)', borderRadius: 4, marginBottom: 'var(--space-12)' };
 const conflictBannerStyle = { background: '#fef3c7', border: '1px solid #f59e0b', padding: 'var(--space-12)', borderRadius: 4, marginBottom: 'var(--space-12)' };
 const dropdownStyle = {
-    position: 'absolute', top: '100%', left: 0, right: 0, background: 'white',
+    position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--color-bg-elevated)',
     border: '1px solid var(--border-soft, #d0d0d0)', borderRadius: 4,
     maxHeight: 240, overflowY: 'auto', zIndex: 100, marginTop: 2,
 };
