@@ -6,6 +6,12 @@ Treat this file as a worksheet — fill in outcomes as you complete each item; p
 
 ---
 
+## ✅ CUTOVER COMPLETE — 2026-06-02
+
+**All 5 operator items are done. Production Stripe is LIVE.** Operator-confirmed 2026-06-02: live `sk_live_` API key, live webhook endpoint + `whsec_` secret, DMARC/SPF/DKIM DNS records, and the $1 live e2e test (charge + saved-PM + refund + refund email all verified). The booking flow now takes real payments. `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` confirmed present in `wrangler secret list`. B5/B6/B7/B9 live behavior (saved-PM on checkout, dispute consumer, damage-charge off-session, remove-saved-PM) is now fully active. The per-item worksheet below is retained as the historical record.
+
+---
+
 ## Code-readiness audit — ✅ re-verified 2026-06-01 (first verified 2026-05-31, post-M7 / PR #233)
 
 A post-M7 read-through (PR #233, 2026-05-31) confirmed every code path that activates when these operator items land is **present, wired, and unregressed since M6 close**, and a **2026-06-01 re-verification** (main `ce59ab9`, 2682 tests) re-confirms it. The Stripe surfaces are **byte-identical to M6 close** — the `/api/webhooks/stripe` handler (`worker/routes/webhooks.js`) and `verifyWebhookSignature` (`worker/lib/stripe.js`) are unchanged. The only post-M6 edits to these payment files are **additive and on the separate `/api/webhooks/resend` route** — M7 B8's bounce/complaint consumer + the native Marketing milestone's B4 campaign-event tracking — none of which touch the Stripe handler, the signature verifier, or the B5/B6/B7/B9 paths. **No code work blocks the cutover — only the 5 operator items below remain.**
@@ -24,7 +30,7 @@ Group A + B Stripe regression tests remain green (138/138 at M6 close; 149/149 w
 
 ## Item 1 — Live Stripe API key
 
-**Status:** ☐ Not done
+**Status:** ✅ Done 2026-06-02 — live `sk_live_` key set via `wrangler secret put STRIPE_SECRET_KEY`
 
 ```bash
 # From Stripe dashboard > Developers > API keys > Reveal live key
@@ -46,7 +52,7 @@ After running, the deployed worker uses the live key on next request. The first 
 
 ## Item 2 — Live Stripe webhook secret
 
-**Status:** ☐ Not done (depends on Item 3 being completed first)
+**Status:** ✅ Done 2026-06-02 — live `whsec_` secret set via `wrangler secret put STRIPE_WEBHOOK_SECRET`
 
 ```bash
 # After configuring the live webhook endpoint (Item 3), Stripe shows the
@@ -66,7 +72,7 @@ CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler secret put STRIPE_WEBHOO
 
 ## Item 3 — Live Stripe webhook endpoint
 
-**Status:** ☐ Not done
+**Status:** ✅ Done 2026-06-02 — live endpoint configured at `/api/webhooks/stripe` (checkout.session.completed + charge.dispute.created)
 
 1. Stripe dashboard > Developers > Webhooks > Add endpoint
 2. URL: `https://airactionsport.com/api/webhooks/stripe`
@@ -89,7 +95,7 @@ Events:          checkout.session.completed, charge.dispute.created
 
 ## Item 4 — DMARC + SPF + DKIM DNS records
 
-**Status:** ☐ Not done
+**Status:** ✅ Done 2026-06-02 — SPF + DKIM + DMARC TXT records present for airactionsport.com
 
 Cloudflare DNS > `airactionsport.com` zone > Records. Verify the three TXT records that authorize Resend to send mail on behalf of this domain.
 
@@ -105,7 +111,7 @@ If any are missing, copy the values from Resend's Domain settings page for `aira
 
 ## Item 5 — $1 live e2e test
 
-**Status:** ☐ Not done (depends on Items 1-4 + B5 merge)
+**Status:** ✅ Done 2026-06-02 — $1 live e2e passed: charge succeeded, customer auto-created, payment method saved, refund + refund email verified
 
 After Items 1-4 are complete AND B5 is merged + deployed:
 

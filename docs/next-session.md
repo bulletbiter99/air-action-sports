@@ -75,7 +75,7 @@ Everything below is safe-deployed — routes degrade gracefully (empty lists / n
 6. **Flip the FTS flag:** `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';`
 7. **Eyeball** the 4 virtualized lists' sticky headers + the Reports custom-range UI.
 
-**Carried from M6 — ⚠️ the #1 go-live blocker:** **live-Stripe cutover items 1–5** — [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). The booking flow works end-to-end but **takes no real payments** until this is done (Stripe is still in SANDBOX). Code is verified live-ready (**#233 audit + #249 re-audit**); only the 5 operator items remain.
+**Carried from M6 — ✅ DONE 2026-06-02:** **live-Stripe cutover is COMPLETE** — all 5 operator items (live `sk_live_` key + live webhook/`whsec_` + DMARC/SPF/DKIM + $1 live e2e) are done and **production now takes real payments**. [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md) is flipped to ✅ at the top. (Code was verified live-ready by #233 + #249.)
 
 ---
 
@@ -85,8 +85,8 @@ Everything below is safe-deployed — routes degrade gracefully (empty lists / n
 |---|---|---|
 | 1 | **M8 — JSX coverage backfill (long tail)** | RTL tests for older M3+ JSX-only pages: `AdminCustomers`, `AdminCustomerDetail`, `AdminSegments`, … Reuse `renderWithAdmin` + `installClientFetch`. The repetitive remainder of item 2. |
 | 2 | **Marketing route capability swap** | After 0070 is on remote: swap segments/campaigns/automations to `requireCapability('marketing.*')` + bind caps in the route tests. + optional `date_relative` automation trigger + formal sidebar "Marketing" group. |
-| 3 | **M6 live-Stripe cutover** | The 5 operator items + $1 e2e — code verified live-ready (#233 + #249). **#1 go-live blocker.** [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). |
-| 4 | **Full ARIA-grid cell navigation** (optional) | Only if wanted: roving-tabindex arrow-key cell nav on the virtualized tables. Deliberately NOT built — the data tables expose `role="table"` (no nav obligation). |
+| 3 | **M6 live-Stripe cutover** | ✅ **DONE 2026-06-02** — all 5 operator items complete; production takes real payments. [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). |
+| 4 | ~~Full ARIA-grid cell navigation~~ | ✅ **Re-confirmed SKIP 2026-06-02** — keep `role="table"`. Roving-tabindex cell-nav can't reach un-rendered (virtualized) rows, so `grid` would be a fragile half-pattern; the tables already expose full row/cell + position semantics with no nav obligation. Operator decision stands (see CLAUDE.md M8 lesson #6). |
 | 5 | **Representative-data baselines for more admin pages** | The #232/#248 pattern (`installAdminMocks` overrides → `capture-baselines`) for any other populated tables worth pixel-locking. |
 | 6 | **More event content** | Build out / customize any event via `events.details_json` (memory `event-content-data-driven.md`; Volga is the template). Upload images to R2 via `wrangler r2 object put` (the deploy token has R2 access). |
 
