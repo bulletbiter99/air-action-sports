@@ -1,0 +1,90 @@
+/* ImageFocalPicker — admin focal-point control. Self-contained; the orange
+   accent falls back when the brand token isn't in scope. */
+
+.ifp { display: flex; flex-direction: column; gap: 8px; }
+
+.ifp__label {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--admin-muted, #6b7280);
+}
+
+.ifp__row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+
+.ifp__stage {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+  background: #0d0f0c;
+}
+.ifp__stage:focus-visible { outline: 2px solid var(--orange, #e2683c); outline-offset: 2px; }
+.ifp__stage.is-dragging { cursor: grabbing; }
+
+.ifp__img {
+  display: block;
+  width: auto; height: auto;
+  max-width: 320px; max-height: 360px;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.ifp__marker {
+  position: absolute;
+  width: 22px; height: 22px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px var(--orange, #e2683c), 0 1px 5px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.ifp__marker::after {
+  content: '';
+  position: absolute; inset: 7px;
+  border-radius: 50%;
+  background: var(--orange, #e2683c);
+}
+
+.ifp__preview-wrap { display: flex; flex-direction: column; gap: 4px; }
+.ifp__preview-label {
+  font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--admin-muted, #9ca3af);
+}
+.ifp__preview {
+  width: 180px;
+  background-size: cover;
+  background-repeat: no-repeat;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 6px;
+}
+
+.ifp__footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ifp__value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; color: var(--admin-text, #374151);
+  background: rgba(0, 0, 0, 0.06); padding: 3px 8px; border-radius: 4px;
+}
+.ifp__reset {
+  font-size: 12px; background: none;
+  border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 4px;
+  padding: 3px 10px; cursor: pointer; color: inherit;
+}
+.ifp__reset:hover:not(:disabled) { background: rgba(0, 0, 0, 0.04); }
+.ifp__reset:disabled { opacity: 0.5; cursor: default; }
+
+.ifp__hint {
+  font-size: 12px; color: var(--admin-muted, #6b7280);
+  line-height: 1.45; max-width: 520px;
+}
+.ifp__placeholder {
+  font-size: 13px; color: var(--admin-muted, #9ca3af);
+  padding: 16px; border: 1px dashed rgba(0, 0, 0, 0.2);
+  border-radius: 6px; text-align: center;
+}
+
+.ifp--disabled { opacity: 0.6; }
