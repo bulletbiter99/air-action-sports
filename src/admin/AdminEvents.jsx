@@ -7,6 +7,7 @@ import EmptyState from '../components/admin/EmptyState.jsx';
 import FilterBar from '../components/admin/FilterBar.jsx';
 import VirtualizedList from './VirtualizedList.jsx';
 import ImageFocalPicker from '../components/admin/ImageFocalPicker.jsx';
+import { formStateToDetailsPayload, detailsToFormState, emptyDetailsFormState } from './eventDetailsForm.js';
 
 // "6:30 AM" | "18:30" → "HH:MM" (24h) for <input type="time">. Returns '' if unparseable.
 function to24h(s) {
@@ -253,6 +254,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
     shortDescription: '',
     published: false, past: false, featured: false,
     addons: [], gameModes: [], customQuestions: [],
+    details: emptyDetailsFormState(),
   });
   const [ticketTypes, setTicketTypes] = useState([]);
   const [savingEvent, setSavingEvent] = useState(false);
@@ -290,6 +292,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
           published: !!event.published, past: !!event.past, featured: !!event.featured,
           addons: event.addons || [], gameModes: event.gameModes || [],
           customQuestions: event.customQuestions || [],
+          details: detailsToFormState(event.details),
         });
         setTicketTypes(ticketTypes || []);
       }
@@ -309,9 +312,14 @@ function EventEditor({ eventId, onClose, onSaved }) {
       // M5.5 B3 — when re-submitting after a conflict, include
       // acknowledgeConflicts: true so the API audit-logs the override
       // and proceeds with the create/update.
+      // Convert the operator-friendly detail-content text fields into the
+      // details_json payload; the server (normalizeEventDetails) sanitizes +
+      // strips empties. Always sent — but loaded from event.details on edit, so
+      // an event with existing content round-trips it (no accidental wipe).
+      const base = { ...form, details: formStateToDetailsPayload(form.details) };
       const body = options.acknowledge
-        ? { ...form, acknowledgeConflicts: true }
-        : form;
+        ? { ...base, acknowledgeConflicts: true }
+        : base;
       const res = await fetch(url, {
         method, credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -520,6 +528,9 @@ function EventEditor({ eventId, onClose, onSaved }) {
             questions={form.customQuestions}
             onChange={(v) => updateField('customQuestions', v)}
           />
+
+          <div style={sectionLabel}>Detail page content (optional — blank fields fall back to the site default)</div>
+          <EventDetailsEditor value={form.details} onChange={(v) => updateField('details', v)} />
 
           <div style={sectionLabel}>Publishing</div>
           <div style={publishRow}>
@@ -819,6 +830,48 @@ function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChang
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// M8 item-6b — editor for events.details_json (the public event detail page's
+// optional content). Every field is plain text; eventDetailsForm.js converts to
+// the payload and the server (normalizeEventDetails) sanitizes + URL-guards.
+// Blank fields are dropped → the public page uses its hardcoded fallback, so
+// this never forces an empty section onto an event that doesn't set it.
+function EventDetailsEditor({ value, onChange }) {
+  const set = (k) => (e) => onChange({ ...value, [k]: e.target.value });
+  const box = { display: 'flex', flexDirection: 'column', gap: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: 16, marginBottom: 16 };
+  const row = { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 };
+  const ta = { ...input, resize: 'vertical' };
+  return (
+    <div style={box}>
+      <Field label="Mission briefing (paragraphs — separate with a blank line)">
+        <textarea rows={4} value={value.missionBriefing} onChange={set('missionBriefing')} style={ta} placeholder={'The heat hangs heavy over the treeline…\n\nOperators muster at staging for the brief…'} />
+      </Field>
+      <Field label="Operation timeline (one &quot;time | label&quot; per line)">
+        <textarea rows={4} value={value.schedule} onChange={set('schedule')} style={ta} placeholder={'7:00 AM | Check-in\n8:00 AM | First game\n2:00 PM | Exfil'} />
+      </Field>
+      <div style={row}>
+        <Field label="Timeline note"><input value={value.scheduleNote} onChange={set('scheduleNote')} style={input} placeholder="Times approximate" /></Field>
+        <Field label="First-game label"><input value={value.firstGameLabel} onChange={set('firstGameLabel')} style={input} placeholder="Squad TDM" /></Field>
+        <Field label="FPS limit label"><input value={value.fpsLabel} onChange={set('fpsLabel')} style={input} placeholder="350 / 450" /></Field>
+      </div>
+      <Field label="Rules (one per line — replaces the default rules list)">
+        <textarea rows={4} value={value.rules} onChange={set('rules')} style={ta} placeholder={'Minimum age 12 (12–17 with guardian on-site)\nFull-seal eye protection mandatory'} />
+      </Field>
+      <Field label="Required documents (one &quot;label | url | note&quot; per line — url/note optional)">
+        <textarea rows={3} value={value.documents} onChange={set('documents')} style={ta} placeholder={'Liability waiver | https://forms.example/waiver | sign before arrival\nField map | /uploads/map.pdf | '} />
+      </Field>
+      <Field label="Terrain description">
+        <textarea rows={2} value={value.terrain} onChange={set('terrain')} style={ta} placeholder="Dense jungle with narrow trails and contested clearings." />
+      </Field>
+      <Field label="Faction signup links (one &quot;Faction name | url&quot; per line — pairs with a faction custom question)">
+        <textarea rows={2} value={value.factionLinks} onChange={set('factionLinks')} style={ta} placeholder={'Kraken | https://forms.example/kraken\nBolotnik | https://forms.example/bolotnik'} />
+      </Field>
+      <Field label="Collaboration banner image URL (partner logos)">
+        <input value={value.collabBannerUrl} onChange={set('collabBannerUrl')} style={input} placeholder="/uploads/events/partners.png" />
+      </Field>
     </div>
   );
 }
