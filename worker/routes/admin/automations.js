@@ -19,6 +19,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
+import { requireCapability } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { automationId } from '../../lib/ids.js';
 import {
@@ -29,8 +30,17 @@ import {
 
 const adminAutomations = new Hono();
 adminAutomations.use('*', requireAuth);
-
-// TODO(B6 closing): requireCapability('marketing.automations.read|write|delete')
+// Marketing-capability gating (migration 0070). GET → read; DELETE → delete;
+// create / update / activate / pause → write.
+adminAutomations.use('*', (c, next) => {
+    const m = c.req.method;
+    const cap = m === 'GET'
+        ? 'marketing.automations.read'
+        : m === 'DELETE'
+            ? 'marketing.automations.delete'
+            : 'marketing.automations.write';
+    return requireCapability(cap)(c, next);
+});
 
 adminAutomations.get('/', async (c) => {
     const url = new URL(c.req.url);

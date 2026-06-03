@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import worker from '../../../worker/index.js';
 import { createMockEnv } from '../../helpers/mockEnv.js';
 import { createAdminSession } from '../../helpers/adminSession.js';
+import { bindCapabilities } from '../../helpers/personFixture.js';
 
 let env;
 let cookieHeader;
@@ -36,6 +37,7 @@ beforeEach(async () => {
     env = createMockEnv();
     const session = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
     cookieHeader = session.cookieHeader;
+    bindCapabilities(env.DB, 'u_owner', ['marketing.read', 'marketing.segments.read', 'marketing.segments.write', 'marketing.segments.delete']);
 });
 
 describe('GET /api/admin/segments — list', () => {
