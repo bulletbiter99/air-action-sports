@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import { siteConfig } from '../data/siteConfig';
-import { locations } from '../data/locations';
+import { useSites } from '../hooks/useSites';
 import '../styles/pages/locations.css';
 
 export default function Locations() {
+  const { sites, error } = useSites();
+
   return (
     <>
       <SEO
@@ -22,12 +24,18 @@ export default function Locations() {
           From dense woodland to tight urban quarters, each of our sites delivers a unique tactical experience. Explore the venues below and find the battlefield that suits your style.
         </p>
 
-        {locations.map((site, index) => (
-          <div className="site-section" id={site.id} key={site.id}>
+        {error && (
+          <p className="section-sub" style={{ color: 'var(--orange)' }}>
+            We couldn&rsquo;t load our sites right now. Please refresh or try again shortly.
+          </p>
+        )}
+
+        {sites.map((site) => (
+          <div className="site-section" id={site.slug} key={site.id}>
             <div className="site-header">
               <div>
                 <div className="site-name">{site.name}</div>
-                <div className="site-meta">{site.address}</div>
+                <div className="site-meta">{site.locationBlurb}</div>
               </div>
               <span className={`site-badge ${site.badge === 'open' ? 'open' : 'coming-soon'}`}>
                 {site.badge === 'open' ? 'Open' : 'Coming Soon'}
@@ -36,10 +44,10 @@ export default function Locations() {
 
             <div
               className="site-photo"
-              style={site.photo ? {
-                backgroundImage: `url('${site.photo}')`,
+              style={site.photoUrl ? {
+                backgroundImage: `url('${site.photoUrl}')`,
                 backgroundSize: 'cover',
-                backgroundPosition: 'center',
+                backgroundPosition: site.photoPosition || 'center',
               } : {}}
             >
               {/* Site photo */}
@@ -49,7 +57,7 @@ export default function Locations() {
               <div>
                 <div className="site-features-title">Site Features</div>
                 <ul className="site-features">
-                  {(site.fullFeatures || site.features).map((f, i) => (
+                  {(site.features || []).map((f, i) => (
                     <li key={i}>{f}</li>
                   ))}
                 </ul>
@@ -57,7 +65,7 @@ export default function Locations() {
               <div>
                 <div className="site-features-title">Game Types Available</div>
                 <ul className="site-features">
-                  {site.gameTypes.map((g, i) => (
+                  {(site.gameTypes || []).map((g, i) => (
                     <li key={i}>{g}</li>
                   ))}
                 </ul>
