@@ -14,14 +14,14 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 | Metric | Value |
 |---|---|
-| Latest work | **Event-content session (2026-06-02)** — first data-driven event pages + Volga/Foxtrot fully built (PRs #254/#255/#256/#257 merged; #1 closed). Prior: M8 session (#246–#252) + post-M7 work-menu session. |
-| `main` HEAD | `8adc7ae` (Merge #259 — rename Volga Flank) |
-| Tests | **2744 / 217 passing** (event session added no unit tests — JSX + data; visual-regression covers the render) |
+| Latest work | **Image focal-point positioning + data-driven Locations (2026-06-02)** — reusable focal picker (events + sites) + `/locations` moved off the static file; PRs #263–#267, resolving feedback `fb_Su6LWtWJz2FI`. Prior: Volga hero refresh (#261/#262), event-content session (#254–#257). |
+| `main` HEAD | `f1e2b4c` (Merge #267 — focal-positioning doc sync) · re-pull for exact |
+| Tests | **2776 / 220 passing** |
 | Build | clean · Lint 0 errors |
 | Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — running `main` (auto-deploys via Workers Builds) |
-| D1 migrations on remote | **0001–0064 applied**; **0065–0070 in-repo, operator-applies** (M7's 0065/0066 + Marketing 0067–0070; event session added none) |
+| D1 migrations on remote | **0001–0064 + 0071 + 0072 applied** — 0071/0072 applied **OUT-OF-BAND** so 0065–0070 stay deferred (⚠️ see memory `image-focal-positioning.md` before any `d1 migrations apply`); **0065–0070 in-repo, operator-applies** |
 | Open milestone | **M8** — items 1–4 done; JSX-coverage backfill for older M3+ pages (long tail) remains |
-| Open PRs | 0 (all merged through #257) |
+| Open PRs | 0 (all merged through #267) |
 
 **Post-M7 work-menu session (2026-05-31) — all merged to `main`:** 11c Reports polish (#231), representative-data visual baselines (#232), the **Marketing milestone B2–B6** (#234 / #243 / #236–#240 — campaigns + send pipeline + engagement tracking + automations + capability seed), M6 live-Stripe code-readiness audit (#233), and the **M8** start (#241 a11y region pass + #244 sidebar /me caps). **For the full current state + remaining work menu + consolidated operator-pending, use [docs/next-session.md](docs/next-session.md).** The M7-in-progress tables below are preserved as a historical record.
 

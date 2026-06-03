@@ -1,11 +1,11 @@
-# Next-session entry point — post-M8 + Volga/Foxtrot event-content session
+# Next-session entry point — post image focal-positioning + data-driven Locations
 
-Fresh-session entry point for Air Action Sports. **Updated 2026-06-02** (event-content session + Volga Flank hero-photo refresh).
+Fresh-session entry point for Air Action Sports. **Updated 2026-06-02** (admin image focal-point positioning + data-driven `/locations`; feedback `fb_Su6LWtWJz2FI` resolved).
 M7 is CLOSED + DEPLOYED; the native **Marketing milestone (B1–B6)** is CODE-COMPLETE + merged; **M8**'s
 work-menu items 1–4 are done (RTL+jsdom infra, ARIA `table` roles, Reports/Campaigns coverage, visual
 baselines); and a follow-on **event-content session (2026-06-02)** shipped the first **data-driven event
 pages** and fully built out the **Volga Flank** + **Foxtrot** events (PRs #254/#255/#256/#257 merged;
-#1 closed). What remains is M8's item-2 long tail + the standing operator-pending list.
+#1 closed). Most recently (2026-06-02): the **Volga Flank hero refresh** (#261/#262) and a ~9-batch **admin image focal-point positioning + data-driven `/locations`** feature (PRs **#263–#267**), resolving feedback `fb_Su6LWtWJz2FI`. What remains is M8's item-2 long tail + the standing operator-pending list.
 
 ---
 
@@ -13,12 +13,12 @@ pages** and fully built out the **Volga Flank** + **Foxtrot** events (PRs #254/#
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `45ee41f` (Merge #266 — data-driven /locations) · docs-sync PR may be open |
+| `main` HEAD | `f1e2b4c` (Merge #267 — focal-positioning doc sync) · re-pull for exact |
 | Tests | **2776 / 220** (+32 from the focal-positioning feature) |
 | Build | clean · Lint **0 errors** |
 | Production | `https://airactionsport.com/api/health` → `{"ok":true,...}` — auto-deploys from `main` via Workers Builds |
 | Migrations on remote | **0001–0064 + 0071 + 0072 applied** — 0071/0072 applied **OUT-OF-BAND** so 0065–0070 stay deferred (⚠️ see the focal-positioning section); **0065–0070 in-repo, operator-applies** |
-| Open PRs | docs-sync only |
+| Open PRs | 0 |
 | Open milestone | **M8** — items 1–4 done; remaining = JSX-coverage backfill for older M3+ pages (long tail) |
 
 ---
@@ -98,7 +98,7 @@ Everything below is safe-deployed — routes degrade gracefully (empty lists / n
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 2744 / 217
+npm test -- --run | tail -3        # expect 2776 / 220
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
@@ -114,6 +114,8 @@ curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 | `HANDOFF.md` | full session-start onboarding (stack, schema, API surface) |
 | `src/pages/EventDetail.jsx` + `src/hooks/useEvents.js` | **per-event `details_json` rendering** (overrides w/ hardcoded fallbacks) — event-content session |
 | memory `event-content-data-driven.md` | how to customize one event's page (details_json) + upload event images to R2 |
+| memory `image-focal-positioning.md` | the focal-positioning feature + ⚠️ the **out-of-band 0071/0072 migration state** |
+| `src/components/admin/ImageFocalPicker.jsx` + `src/hooks/useSites.js` | reusable focal picker + the `/api/sites` hook (focal-positioning feature) |
 | `scripts/update-volga-*.sql` / `update-foxtrot-time.sql` | audit record of the Volga/Foxtrot content + image + faction-link writes |
 | `tests/helpers/renderComponent.jsx` | RTL/jsdom render helpers (`render` / `renderWithRouter` / `renderWithAdmin`) — M8 |
 | `tests/helpers/mockClientFetch.js` | client-side `fetch` mock for component tests — M8 |
