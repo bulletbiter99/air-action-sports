@@ -251,3 +251,58 @@ export function mockAutomationList() {
         { id: 'auto_mock_5', name: 'Win-back (paused)', status: 'paused', triggerType: 'recurring', triggerConfig: { intervalDays: 60 }, sentCount: 0, lastRunAt: null },
     ];
 }
+
+/**
+ * Customers list payload (`GET /api/admin/customers` → { total, customers }).
+ * M3 B8b list page — plain <table>; rows carry class `admin-customers__row`.
+ * lastBookingAt renders via toLocaleDateString (deterministic under the
+ * populated describe's pinned UTC/en-US); LTV via formatMoney. Row 5 + 10 are
+ * archived (merged) so both pill states paint.
+ */
+export function mockCustomerList() {
+    const out = [];
+    for (let i = 1; i <= 10; i++) {
+        const archived = i % 5 === 0;
+        out.push({
+            id: `cus_mock_${i}`,
+            name: `Customer ${i}`,
+            email: `customer${i}@example.com`,
+            totalBookings: i,
+            totalAttendees: i * 2,
+            lifetimeValueCents: 12000 * i,
+            refundCount: i % 4 === 0 ? 1 : 0,
+            lastBookingAt: 1_750_377_600_000 + i * 86_400_000,
+            archivedAt: archived ? 1_750_000_000_000 : null,
+            archivedReason: archived ? 'merged' : null,
+        });
+    }
+    return out;
+}
+
+/**
+ * Segments list payload (`GET /api/admin/segments` → { segments }). Marketing B1
+ * list page — plain <table>. updatedAt values are fixed >30-day-old constants so
+ * formatRelative() renders a stable absolute date (see mockCampaignList).
+ */
+export function mockSegmentList() {
+    return [
+        { id: 'seg_mock_1', name: 'VIP locals', querySummary: 'tags any: vip · LTV ≥ $500', lastPreviewCount: 42, shared: true, updatedAt: 1_770_249_600_000 },
+        { id: 'seg_mock_2', name: 'Lapsed 180d', querySummary: 'tags any: lapsed', lastPreviewCount: 318, shared: false, updatedAt: 1_768_867_200_000 },
+        { id: 'seg_mock_3', name: 'New this month', querySummary: 'tags any: new', lastPreviewCount: 27, shared: true, updatedAt: 1_767_571_200_000 },
+        { id: 'seg_mock_4', name: 'Frequent ≥5 bookings', querySummary: 'bookings ≥ 5', lastPreviewCount: 64, shared: false, updatedAt: 1_767_225_600_000 },
+    ];
+}
+
+/**
+ * Taxes & fees payload (`GET /api/admin/taxes-fees` → { taxesFees }). The page
+ * splits rows into Taxes + Fees groups, each a <table> inside .admin-table-wrap.
+ * percent/fixed display strings are server-computed (no client date rendering).
+ */
+export function mockTaxFeeList() {
+    return [
+        { id: 'tf_mock_1', name: 'Utah State Sales Tax', shortLabel: 'UT Sales Tax', category: 'tax', percentDisplay: '7.25%', fixedDisplay: null, perUnit: 'booking', appliesTo: 'all', active: true },
+        { id: 'tf_mock_2', name: 'County Recreation Tax', shortLabel: null, category: 'tax', percentDisplay: '1.00%', fixedDisplay: null, perUnit: 'ticket', appliesTo: 'tickets', active: true },
+        { id: 'tf_mock_3', name: 'Booking Service Fee', shortLabel: 'Service', category: 'fee', percentDisplay: null, fixedDisplay: '$2.50', perUnit: 'booking', appliesTo: 'all', active: true },
+        { id: 'tf_mock_4', name: 'Card Processing', shortLabel: null, category: 'fee', percentDisplay: '2.90%', fixedDisplay: '$0.30', perUnit: 'booking', appliesTo: 'all', active: false },
+    ];
+}
