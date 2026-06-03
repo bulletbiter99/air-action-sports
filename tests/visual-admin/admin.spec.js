@@ -24,6 +24,9 @@ import {
     mockRentalAssignmentList,
     mockCampaignList,
     mockAutomationList,
+    mockCustomerList,
+    mockSegmentList,
+    mockTaxFeeList,
 } from './adminMocks.js';
 
 // The sidebar nav renders on every authenticated admin page (AdminLayout),
@@ -161,5 +164,35 @@ test.describe('admin visual baselines — populated tables', () => {
         await page.goto('/admin/automations');
         await prepareAdminPage(page, 'table');
         await shot(page, 'admin-automations-populated.png');
+    });
+
+    // Item-5 additions — populated baselines for three more list pages (the same
+    // pages item-1 RTL-covered). Customers/Segments render plain <table>s;
+    // Taxes & Fees splits into two .admin-table-wrap groups.
+    test('customers — populated', async ({ page }) => {
+        await installAdminMocks(page, {
+            overrides: [{ match: '/api/admin/customers', body: { total: 10, customers: mockCustomerList() } }],
+        });
+        await page.goto('/admin/customers');
+        await prepareAdminPage(page, '.admin-customers__row');
+        await shot(page, 'admin-customers-populated.png');
+    });
+
+    test('segments — populated', async ({ page }) => {
+        await installAdminMocks(page, {
+            overrides: [{ match: '/api/admin/segments', body: { segments: mockSegmentList() } }],
+        });
+        await page.goto('/admin/segments');
+        await prepareAdminPage(page, 'table');
+        await shot(page, 'admin-segments-populated.png');
+    });
+
+    test('taxes & fees — populated', async ({ page }) => {
+        await installAdminMocks(page, {
+            overrides: [{ match: '/api/admin/taxes-fees', body: { taxesFees: mockTaxFeeList() } }],
+        });
+        await page.goto('/admin/taxes-fees');
+        await prepareAdminPage(page, TABLE);
+        await shot(page, 'admin-taxes-fees-populated.png');
     });
 });
