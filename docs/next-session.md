@@ -1,6 +1,6 @@
 # Next-session entry point — post-M8 + Volga/Foxtrot event-content session
 
-Fresh-session entry point for Air Action Sports. **Updated 2026-06-02** (event-content session).
+Fresh-session entry point for Air Action Sports. **Updated 2026-06-02** (event-content session + Volga Flank hero-photo refresh).
 M7 is CLOSED + DEPLOYED; the native **Marketing milestone (B1–B6)** is CODE-COMPLETE + merged; **M8**'s
 work-menu items 1–4 are done (RTL+jsdom infra, ARIA `table` roles, Reports/Campaigns coverage, visual
 baselines); and a follow-on **event-content session (2026-06-02)** shipped the first **data-driven event
@@ -13,12 +13,12 @@ pages** and fully built out the **Volga Flank** + **Foxtrot** events (PRs #254/#
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `8adc7ae` (Merge #259 — rename Volga Flank) |
+| `main` HEAD | `5d9c385` (Merge #260 — docs HEAD sync) · **open PR [#261](https://github.com/bulletbiter99/air-action-sports/pull/261)** (Volga hero refresh) pending |
 | Tests | **2744 / 217** (the event session added no unit tests — JSX + data; public visual-regression covers the render) |
 | Build | clean · Lint **0 errors** |
 | Production | `https://airactionsport.com/api/health` → `{"ok":true,...}` — auto-deploys from `main` via Workers Builds |
 | Migrations on remote | **0001–0064 applied** (event session added none); **0065–0070 in-repo, operator-applies** (see below) |
-| Open PRs | 0 |
+| Open PRs | **1** — [#261](https://github.com/bulletbiter99/air-action-sports/pull/261) (Volga Flank hero photo refresh: audit SQL + doc sync) |
 | Open milestone | **M8** — items 1–4 done; remaining = JSX-coverage backfill for older M3+ pages (long tail) |
 
 ---
@@ -32,6 +32,14 @@ Operator-driven content build for two live events + the reusable plumbing behind
 - **Foxtrot Jungle Warfare:** time window → `7:00 AM – 2:00 PM` + stale `display_date` fix (data only; `scripts/update-foxtrot-time.sql`).
 - **Volga Flank — fully built (data + R2):** `details_json` (Squad Force on Force label, 18-hr MILSIM timeline, blind-fire-allowed + Joule-FPS rules override, mission briefing, Required Documents [RSTS SOP + Kraken/NATO + Bolotnik/RUSFOR forms], Foxtrot-site terrain, FPS) + a per-attendee **faction selector** (Kraken/Bolotnik, required) with an **inline per-faction registration link** (`details.factionLinks`) + quick-facts alignment + 3 images uploaded to R2 (hero = night group photo, card = recon photo, logos = MILSIM CITY/AAS/RSTS banner). Audit SQL: #256 (images) + #257 (Bolotnik RUSFOR link). `scripts/update-volga-*.sql`.
 - **New reusable capability:** events are now content-drivable via `details_json` — full how-to in memory `event-content-data-driven.md`. **Volga Flank (`volga-initiative`, slug `volga-flank` — renamed from "Volga Initiative" 2026-06-02 via `scripts/update-volga-rename.sql`; id unchanged so booking FKs + the old URL still resolve) is the live built example; Foxtrot (`foxtrot-vietnam`) uses the hardcoded fallbacks.**
+
+---
+
+## Follow-up — Volga Flank hero photo refresh (2026-06-02)
+
+The Volga Flank hero photo was swapped. `serveUpload` serves `/uploads/*` with `Cache-Control: …, immutable` (1yr) + CDN edge cache, so an in-place overwrite would NOT reach visitors — instead the new photo went to a **fresh content-hashed key** `events/volga-hero-be1eee1d2f74.jpg` and `events.hero_image_url` was repointed (1 row; verified live at `/api/events/volga-flank`, rendered + screenshotted on prod). Audit SQL `scripts/update-volga-hero-refresh.sql` + this doc sync are in **open PR [#261](https://github.com/bulletbiter99/air-action-sports/pull/261)**. The reusable gotcha (image replacement ≠ overwrite) is now CLAUDE.md event-content **lesson #5** + memory `event-content-data-driven.md`.
+
+- **Optional operator cleanup (not blocking):** the old hero object `events/volga-hero-3dfe99d37edd.jpg` is now an orphan in R2 — harmless, fully de-referenced (no D1 row, no code ref). Its bytes are the only copy, so deleting is irreversible. To remove it, run yourself: `source .claude/.env && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler r2 object delete "air-action-sports-uploads/events/volga-hero-3dfe99d37edd.jpg" --remote`
 
 ---
 
