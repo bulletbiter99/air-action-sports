@@ -55,6 +55,78 @@ export function normalizeImagePosition(value) {
     return `${Math.round(x)}% ${Math.round(y)}%`;
 }
 
+// Per-event detail-page content (events.details_json). Admin-authored but it
+// renders into the public event page: most fields are text (React-escaped, so
+// safe), but documents[].url / factionLinks values / collabBannerUrl land in
+// href/src. So we sanitize: coerce each field to its shape, DROP empties (a
+// blank field in the admin form → absent here → the public page hides that
+// section or uses its hardcoded fallback), and reject any URL that isn't
+// http(s) or root-relative (no javascript:/data: injection). Returns a clean
+// object, or null when nothing usable remains (clears details_json).
+export function normalizeEventDetails(input) {
+    if (input == null || typeof input !== 'object' || Array.isArray(input)) return null;
+    const out = {};
+    const str = (v) => (typeof v === 'string' ? v.trim() : '');
+    const url = (v) => {
+        const s = str(v);
+        if (!s) return null;
+        if (s.startsWith('/')) return s;           // root-relative
+        return /^https?:\/\//i.test(s) ? s : null; // http(s) absolute only
+    };
+    const strList = (v) => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
+
+    const missionBriefing = strList(input.missionBriefing);
+    if (missionBriefing.length) out.missionBriefing = missionBriefing;
+    const rules = strList(input.rules);
+    if (rules.length) out.rules = rules;
+
+    if (Array.isArray(input.schedule)) {
+        const schedule = input.schedule
+            .map((r) => ({ time: str(r?.time), label: str(r?.label) }))
+            .filter((r) => r.time || r.label);
+        if (schedule.length) out.schedule = schedule;
+    }
+    const scheduleNote = str(input.scheduleNote);
+    if (scheduleNote) out.scheduleNote = scheduleNote;
+
+    if (Array.isArray(input.documents)) {
+        const documents = input.documents
+            .map((d) => {
+                const label = str(d?.label);
+                if (!label) return null;
+                const doc = { label };
+                const u = url(d?.url);
+                if (u) doc.url = u;
+                const note = str(d?.note);
+                if (note) doc.note = note;
+                return doc;
+            })
+            .filter(Boolean);
+        if (documents.length) out.documents = documents;
+    }
+
+    if (input.factionLinks && typeof input.factionLinks === 'object' && !Array.isArray(input.factionLinks)) {
+        const factionLinks = {};
+        for (const [k, v] of Object.entries(input.factionLinks)) {
+            const key = str(k);
+            const u = url(v);
+            if (key && u) factionLinks[key] = u;
+        }
+        if (Object.keys(factionLinks).length) out.factionLinks = factionLinks;
+    }
+
+    const terrain = str(input.terrain);
+    if (terrain) out.terrain = terrain;
+    const firstGameLabel = str(input.firstGameLabel);
+    if (firstGameLabel) out.firstGameLabel = firstGameLabel;
+    const fpsLabel = str(input.fpsLabel);
+    if (fpsLabel) out.fpsLabel = fpsLabel;
+    const collabBannerUrl = url(input.collabBannerUrl);
+    if (collabBannerUrl) out.collabBannerUrl = collabBannerUrl;
+
+    return Object.keys(out).length ? out : null;
+}
+
 export function parseEventBody(body, { partial = false } = {}) {
     const patch = {};
     // camelCase → snake_case fields
@@ -126,7 +198,10 @@ export function parseEventBody(body, { partial = false } = {}) {
         patch.game_modes_json = JSON.stringify(body.gameModes);
     }
     if (body.details !== undefined) {
-        patch.details_json = body.details === null ? null : JSON.stringify(body.details);
+        // Sanitize + strip-empties (see normalizeEventDetails). An all-empty
+        // payload normalizes to null → clears details_json (public falls back).
+        const normalized = body.details === null ? null : normalizeEventDetails(body.details);
+        patch.details_json = normalized ? JSON.stringify(normalized) : null;
     }
     if (body.customQuestions !== undefined) {
         if (!Array.isArray(body.customQuestions)) return { error: 'customQuestions must be an array' };
