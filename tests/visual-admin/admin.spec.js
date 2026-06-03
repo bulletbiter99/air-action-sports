@@ -193,6 +193,11 @@ test.describe('admin visual baselines — populated tables', () => {
         });
         await page.goto('/admin/taxes-fees');
         await prepareAdminPage(page, TABLE);
+        // Two .admin-table-wrap groups render (Taxes then Fees); wait for a
+        // Fees-group row (renders last) so the full-page screenshot captures the
+        // settled height — a bare .admin-table-wrap wait raced a short capture
+        // (baseline came out 1440×900 vs the real 1440×5556).
+        await page.getByText('Card Processing').first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
         await shot(page, 'admin-taxes-fees-populated.png');
     });
 });
