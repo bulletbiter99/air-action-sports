@@ -23,6 +23,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
+import { requireCapability } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { campaignId, campaignRecipientId } from '../../lib/ids.js';
 import {
@@ -37,9 +38,17 @@ import { getCampaignStats } from '../../lib/campaignTracking.js';
 
 const adminCampaigns = new Hono();
 adminCampaigns.use('*', requireAuth);
-
-// TODO(B6 closing): wrap handlers in requireCapability('marketing.campaigns.read|write|delete')
-// once migration 06xx seeds the marketing.* capability set + role bindings.
+// Marketing-capability gating (migration 0070). GET + preview-recipients → read;
+// DELETE → delete; create / update / send / cancel → write.
+adminCampaigns.use('*', (c, next) => {
+    const m = c.req.method;
+    const cap = (m === 'GET' || c.req.path.endsWith('/preview-recipients'))
+        ? 'marketing.campaigns.read'
+        : m === 'DELETE'
+            ? 'marketing.campaigns.delete'
+            : 'marketing.campaigns.write';
+    return requireCapability(cap)(c, next);
+});
 
 const ENQUEUE_CHUNK = 50; // D1 batch size for the recipient snapshot insert
 

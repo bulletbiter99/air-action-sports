@@ -20,6 +20,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
+import { requireCapability } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { randomId } from '../../lib/ids.js';
 import {
@@ -30,9 +31,19 @@ import {
 
 const adminSegments = new Hono();
 adminSegments.use('*', requireAuth);
-
-// TODO(B6 closing): wrap each handler in requireCapability('marketing.segments.read|write|delete')
-// once migration 06xx seeds the marketing.* capability set + role bindings.
+// Marketing-capability gating (migration 0070 seeds marketing.* caps + owner /
+// marketing_manager bindings). requireAuth above sets the user; this picks the
+// cap by method: reads (incl. preview counts) → .read, deletes → .delete,
+// create/update → .write. requireCapability lazy-loads + checks the set.
+adminSegments.use('*', (c, next) => {
+    const m = c.req.method;
+    const cap = (m === 'GET' || c.req.path.endsWith('/preview'))
+        ? 'marketing.segments.read'
+        : m === 'DELETE'
+            ? 'marketing.segments.delete'
+            : 'marketing.segments.write';
+    return requireCapability(cap)(c, next);
+});
 
 function segmentId() {
     return `seg_${randomId(14)}`;
