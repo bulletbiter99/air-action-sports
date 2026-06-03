@@ -26,7 +26,7 @@
   z-index: -2;
   background-image: var(--hero-bg-image);
   background-size: cover;
-  background-position: center;
+  background-position: var(--hero-image-position, center);
   filter: blur(28px) brightness(0.55);
   /* Scale up to hide the blur's faded edges from showing through. */
   transform: scale(1.15);

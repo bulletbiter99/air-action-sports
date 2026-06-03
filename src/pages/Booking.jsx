@@ -398,6 +398,7 @@ function StepTicketsAndAddons({
               ? {
                   '--banner-bg-image': `url("${selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl}")`,
                   '--banner-overlay-alpha': selectedEvent.bannerOverlayOpacity ?? 0.80,
+                  '--banner-image-position': selectedEvent.bannerImagePosition || 'center',
                 }
               : undefined
           }
