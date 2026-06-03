@@ -297,7 +297,7 @@ export default function Home() {
                 <div className="gallery-tag">&#9632; Echo Urban &mdash; CQB</div>
               </div>
             </Link>
-            <Link to="/locations#foxtrot-fields" className="gallery-item gallery-item--link" aria-label="View Foxtrot Fields details">
+            <Link to="/locations#foxtrot" className="gallery-item gallery-item--link" aria-label="View Foxtrot Fields details">
               <div className="gallery-photo g3"></div>
               <div className="gallery-overlay">
                 <div className="gallery-tag">&#9632; Foxtrot Fields</div>

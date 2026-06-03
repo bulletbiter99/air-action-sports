@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import ImageFocalPicker from '../components/admin/ImageFocalPicker.jsx';
 
 const containerStyle = { padding: 'var(--space-24)' };
 const backLinkStyle = { color: 'var(--text-secondary, #666)', textDecoration: 'none', fontSize: 13 };
@@ -141,6 +142,7 @@ export default function AdminSiteDetail() {
             {err && <div style={errorStyle}>{err}</div>}
 
             <MetadataSection site={site} stats={data.stats} onChange={load} setErr={setErr} />
+            <LocationsContentSection site={site} onChange={load} setErr={setErr} />
             <FieldsSection siteId={site.id} fields={data.fields} archived={!!site.archivedAt} onChange={load} setErr={setErr} />
             <BlackoutsSection siteId={site.id} blackouts={data.blackouts} archived={!!site.archivedAt} onChange={load} setErr={setErr} />
         </div>
@@ -154,6 +156,142 @@ export default function AdminSiteDetail() {
 // ────────────────────────────────────────────────────────────────────
 // MetadataSection — site fields with edit + archive
 // ────────────────────────────────────────────────────────────────────
+
+function siteToLocForm(site) {
+    return {
+        photoUrl: site.photoUrl || '',
+        photoPosition: site.photoPosition || '',
+        badge: site.badge || 'coming-soon',
+        siteNumber: site.siteNumber || '',
+        sortOrder: site.sortOrder ?? 0,
+        locationBlurb: site.locationBlurb || '',
+        features: (site.features || []).join('\n'),
+        gameTypes: (site.gameTypes || []).join('\n'),
+        showOnLocations: !!site.showOnLocations,
+    };
+}
+
+// Public /locations page content for this site (migration 0072) — photo +
+// focal point + the marketing fields. Reuses the shared ImageFocalPicker.
+function LocationsContentSection({ site, onChange, setErr }) {
+    const [form, setForm] = useState(siteToLocForm(site));
+    const [saving, setSaving] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    useEffect(() => { setForm(siteToLocForm(site)); }, [site]);
+
+    const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+    const uploadPhoto = async (file) => {
+        if (!file) return;
+        setUploading(true); setErr('');
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('prefix', 'sites');
+            const res = await fetch('/api/admin/uploads/image', { method: 'POST', credentials: 'include', body: fd });
+            if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Upload failed'); }
+            const d = await res.json();
+            set('photoUrl', d.url);
+        } catch (e) { setErr(e.message); } finally { setUploading(false); }
+    };
+
+    const save = async () => {
+        if (saving) return;
+        setSaving(true); setErr('');
+        try {
+            const body = {
+                photoUrl: form.photoUrl.trim() || null,
+                photoPosition: form.photoPosition || null,
+                badge: form.badge || null,
+                siteNumber: form.siteNumber.trim() || null,
+                sortOrder: Number(form.sortOrder) || 0,
+                locationBlurb: form.locationBlurb.trim() || null,
+                features: form.features.split('\n').map((s) => s.trim()).filter(Boolean),
+                gameTypes: form.gameTypes.split('\n').map((s) => s.trim()).filter(Boolean),
+                showOnLocations: form.showOnLocations,
+            };
+            const res = await fetch(`/api/admin/sites/${site.id}`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `HTTP ${res.status}`); }
+            onChange();
+        } catch (e) { setErr(e.message); } finally { setSaving(false); }
+    };
+
+    return (
+        <>
+            <div style={sectionHeaderStyle}>
+                <h3 style={sectionTitleStyle}>Locations page content</h3>
+            </div>
+            <div style={cardStyle}>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary, #666)', marginTop: 0 }}>
+                    Controls how this site appears on the public <strong>/locations</strong> page.
+                    Drag the marker to set the photo&rsquo;s focal point so the important part stays visible when it&rsquo;s cropped.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <label style={{ ...fieldRow, gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input type="checkbox" checked={form.showOnLocations} onChange={(e) => set('showOnLocations', e.target.checked)} />
+                        <span style={{ fontWeight: 600 }}>Show on /locations</span>
+                    </label>
+                    <div style={fieldRow}>
+                        <label style={fieldLabel}>Badge</label>
+                        <select value={form.badge} onChange={(e) => set('badge', e.target.value)} style={inputStyle}>
+                            <option value="open">Open</option>
+                            <option value="coming-soon">Coming soon</option>
+                        </select>
+                    </div>
+                    <div style={fieldRow}>
+                        <label style={fieldLabel}>Site number</label>
+                        <input value={form.siteNumber} onChange={(e) => set('siteNumber', e.target.value)} style={inputStyle} placeholder="01" />
+                    </div>
+                    <div style={fieldRow}>
+                        <label style={fieldLabel}>Sort order</label>
+                        <input type="number" value={form.sortOrder} onChange={(e) => set('sortOrder', e.target.value)} style={inputStyle} />
+                    </div>
+                    <div style={{ ...fieldRow, gridColumn: '1 / -1' }}>
+                        <label style={fieldLabel}>Tagline (shown under the name)</label>
+                        <input value={form.locationBlurb} onChange={(e) => set('locationBlurb', e.target.value)} style={inputStyle} placeholder="Rural Neighborhood — 19 Buildings" />
+                    </div>
+                    <div style={fieldRow}>
+                        <label style={fieldLabel}>Features (one per line)</label>
+                        <textarea value={form.features} onChange={(e) => set('features', e.target.value)} style={{ ...inputStyle, minHeight: 110, resize: 'vertical' }} />
+                    </div>
+                    <div style={fieldRow}>
+                        <label style={fieldLabel}>Game types (one per line)</label>
+                        <textarea value={form.gameTypes} onChange={(e) => set('gameTypes', e.target.value)} style={{ ...inputStyle, minHeight: 110, resize: 'vertical' }} />
+                    </div>
+                    <div style={{ ...fieldRow, gridColumn: '1 / -1' }}>
+                        <label style={fieldLabel}>Photo</label>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                            <input value={form.photoUrl} onChange={(e) => set('photoUrl', e.target.value)} style={{ ...inputStyle, flex: 1 }} placeholder="/images/… or upload →" />
+                            <label style={{ ...secondaryBtn, display: 'inline-block', cursor: uploading ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
+                                {uploading ? 'Uploading…' : '↑ Upload'}
+                                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} onChange={(e) => uploadPhoto(e.target.files?.[0])} style={{ display: 'none' }} />
+                            </label>
+                        </div>
+                        {form.photoUrl && (
+                            <ImageFocalPicker
+                                image={form.photoUrl}
+                                value={form.photoPosition}
+                                onChange={(v) => set('photoPosition', v)}
+                                label="Photo focal point"
+                                previewAspect="16 / 9"
+                            />
+                        )}
+                    </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-12)' }}>
+                    <button type="button" onClick={save} disabled={saving} style={primaryBtn}>
+                        {saving ? 'Saving…' : 'Save locations content'}
+                    </button>
+                </div>
+            </div>
+        </>
+    );
+}
 
 function MetadataSection({ site, stats, onChange, setErr }) {
     const navigate = useNavigate();
