@@ -13,13 +13,13 @@ pages** and fully built out the **Volga Flank** + **Foxtrot** events (PRs #254/#
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `f1e2b4c` (Merge #267 — focal-positioning doc sync) · re-pull for exact |
-| Tests | **2776 / 220** (+32 from the focal-positioning feature) |
+| `main` HEAD | `6c06d81` (Merge #272 — admin contrast fix) · re-pull for exact |
+| Tests | **2808 / 225** (+32 RTL admin-page backfill) |
 | Build | clean · Lint **0 errors** |
-| Production | `https://airactionsport.com/api/health` → `{"ok":true,...}` — auto-deploys from `main` via Workers Builds |
-| Migrations on remote | **0001–0064 + 0071 + 0072 applied** — 0071/0072 applied **OUT-OF-BAND** so 0065–0070 stay deferred (⚠️ see the focal-positioning section); **0065–0070 in-repo, operator-applies** |
-| Open PRs | 0 |
-| Open milestone | **M8** — items 1–4 done; remaining = JSX-coverage backfill for older M3+ pages (long tail) |
+| Production | deployed **`b342b39f`** (2026-06-02) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — **live Stripe** + Marketing/deliverability schema now active |
+| Migrations on remote | **0001–0072 ALL applied** — 0065–0070 applied 2026-06-02 (Marketing campaigns/tracking/automations/caps + M7 email_events/alert-templates). The prior **out-of-band 0071/0072 deferral is RESOLVED** — every migration is now recorded, so a future `migrations apply` finds nothing new. |
+| Open PRs | doc-sync + capture-baselines (this PR) |
+| Open milestone | **M8** — items 1–5 + contrast pass done + deployed; **item 6** (admin-editable event content) in progress; older-pages RTL tail remains |
 
 ---
 
@@ -56,26 +56,20 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 
 ---
 
-## ⚠️ Operator-pending (unchanged — deferred features are inert / use fallbacks until done)
+## ⚠️ Operator-pending (what's LEFT after the 2026-06-02 deploy)
 
-Everything below is safe-deployed — routes degrade gracefully (empty lists / no-op cron) until activated. **The event-content session changed none of this** (it added no migrations and touched no marketing/M7/M6 surfaces).
+Migrations **0065–0070 are now applied** and the **marketing route-capability swap is deployed** (`b342b39f`). What remains is env/secret/flag activation — every feature degrades gracefully (empty lists / no-op cron / 500 on the unset webhook) until then.
 
-**Marketing (post-M7 / Marketing milestone) — full detail in [docs/runbooks/marketing-deploy.md](runbooks/marketing-deploy.md):**
-1. **Apply migrations 0067–0070** to remote (campaigns / tracking / automations / marketing caps).
-2. **`MARKETING_POSTAL_ADDRESS`** (CAN-SPAM, required) + **Resend plan upgrade** + (optional) marketing
-   subdomain — the campaign/automation send cron **no-ops** until the address + Resend are set.
-3. **Resend webhook** now also feeds campaign tracking — subscribe `email.delivered`/`opened`/`clicked`
-   too (alongside the bounced/complained M7 already needs).
-4. **Marketing route capability swap** (deferred) — segments/campaigns/automations stay `requireAuth`;
-   swap to `requireCapability(...)` only AFTER 0070 is verified on remote (else it 403s owners + breaks
-   the route tests). Caps are seeded by 0070. Functionally identical today (all admins are owners).
+**Activate marketing sends + deliverability tracking** — full detail in [docs/runbooks/marketing-deploy.md](runbooks/marketing-deploy.md) + [docs/runbooks/m7-deploy.md](runbooks/m7-deploy.md):
+1. **`MARKETING_POSTAL_ADDRESS`** (CAN-SPAM, required) + **Resend plan upgrade** (+ optional marketing subdomain) — the campaign/automation send cron **no-ops** until both are set.
+2. **`wrangler secret put RESEND_WEBHOOK_SECRET`** + add the Resend dashboard webhook → `https://airactionsport.com/api/webhooks/resend`, subscribing `email.bounced`/`complained` (M7 deliverability alerts) **and** `email.delivered`/`opened`/`clicked` (campaign tracking). Until set, `/api/webhooks/resend` returns 500 + campaign stats stay at 0.
+3. **Flip the FTS flag:** `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';`
 
-**Carried from M7 — full detail in [docs/runbooks/m7-deploy.md](runbooks/m7-deploy.md):**
-5. **Apply migrations 0065 (email_events) + 0066 (alert templates)** + **`wrangler secret put RESEND_WEBHOOK_SECRET`** + add the Resend dashboard webhook → `https://airactionsport.com/api/webhooks/resend`.
-6. **Flip the FTS flag:** `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';`
-7. **Eyeball** the 4 virtualized lists' sticky headers + the Reports custom-range UI.
+**Eyeball (no automated coverage):**
+4. The M7 virtualized lists' sticky headers + the Reports custom-range UI.
+5. The **dark-theme contrast pass**: `/admin/field-rentals` (+`/new`), `/admin/sites`, an image picker, and any list page's **FilterBar + filter chips** should now render dark + legible (were invisible/white before).
 
-**Carried from M6 — ✅ DONE 2026-06-02:** **live-Stripe cutover is COMPLETE** — all 5 operator items (live `sk_live_` key + live webhook/`whsec_` + DMARC/SPF/DKIM + $1 live e2e) are done and **production now takes real payments**. [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md) is flipped to ✅ at the top. (Code was verified live-ready by #233 + #249.)
+**✅ DONE 2026-06-02 (deployed `b342b39f`):** live-Stripe cutover (all 5 items — production takes real payments) · migrations 0065–0070 applied (Marketing + M7 deliverability) · marketing route-capability swap (`requireCapability`) · admin dark-theme contrast fix. The prior out-of-band-migration deferral is resolved.
 
 ---
 
@@ -84,7 +78,7 @@ Everything below is safe-deployed — routes degrade gracefully (empty lists / n
 | # | Track | Notes |
 |---|---|---|
 | 1 | **M8 — JSX coverage backfill (long tail)** | RTL tests for older M3+ JSX-only pages: `AdminCustomers`, `AdminCustomerDetail`, `AdminSegments`, … Reuse `renderWithAdmin` + `installClientFetch`. The repetitive remainder of item 2. |
-| 2 | **Marketing route capability swap** | After 0070 is on remote: swap segments/campaigns/automations to `requireCapability('marketing.*')` + bind caps in the route tests. + optional `date_relative` automation trigger + formal sidebar "Marketing" group. |
+| 2 | **Marketing route capability swap** | ✅ **DONE 2026-06-02** (deployed) — segments/campaigns/automations now `requireCapability('marketing.*')`, method-aware, with caps bound in the route tests. Remaining marketing polish: optional `date_relative` automation trigger + a formal sidebar "Marketing" group + **send activation** (operator-pending #1–2 above). |
 | 3 | **M6 live-Stripe cutover** | ✅ **DONE 2026-06-02** — all 5 operator items complete; production takes real payments. [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). |
 | 4 | ~~Full ARIA-grid cell navigation~~ | ✅ **Re-confirmed SKIP 2026-06-02** — keep `role="table"`. Roving-tabindex cell-nav can't reach un-rendered (virtualized) rows, so `grid` would be a fragile half-pattern; the tables already expose full row/cell + position semantics with no nav obligation. Operator decision stands (see CLAUDE.md M8 lesson #6). |
 | 5 | **Representative-data baselines for more admin pages** | The #232/#248 pattern (`installAdminMocks` overrides → `capture-baselines`) for any other populated tables worth pixel-locking. |
