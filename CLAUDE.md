@@ -75,6 +75,28 @@ Operator-driven content build for two live events + the reusable per-event rende
 
 ---
 
+## Image focal-point positioning + data-driven Locations session — 2026-06-02
+
+Feature session resolving feedback `fb_Su6LWtWJz2FI` ("position uploaded images for best visibility — see the Ghost Town image"). **9 batches, 4 PRs (#263–#266) all merged + deployed.** Tests **2744 → 2776 / 220**, build clean, 0 lint errors. Full how-to in memory `image-focal-positioning.md`; current state + the ⚠️ out-of-band migration note in [docs/next-session.md](docs/next-session.md).
+
+| PR | Batch | What |
+|---|---|---|
+| #263 | A1+A2 | migration 0071 (`events.*_image_position`) + reusable `src/components/admin/ImageFocalPicker.jsx` (drag focal point + cropped preview + a11y nudge; 15 tests) |
+| #264 | A3+A4 | event positioning end-to-end — `parseEventBody`/`formatEvent` (+ `normalizeImagePosition` sanitizer) + `EventImagePicker` integration + public render swap (card/hero/banner → `var(--*-image-position, center)`); 9 tests |
+| #265 | B1+B2 | migration 0072 (sites public-content cols) + seed + public `GET /api/sites` + admin `formatSite`/`parseSiteBody` extension; 8 tests |
+| #266 | B3+B4 | `AdminSiteDetail` "Locations page content" editor (2nd picker consumer) + data-driven `/locations` (`useSites` hook); Home preview left static |
+
+**Durable lessons:**
+1. **Mirror the `*_overlay_opacity` precedent for any per-image setting** — column → `parseEventBody` → `formatEvent` (DNT, additive) → CSS var; a default keyword (`center`) keeps untouched images byte-identical. The same shape ports to sites (`photo_position`).
+2. **Image-position values render into inline styles → sanitize server-side.** `normalizeImagePosition` (exported from `worker/routes/admin/events.js`, reused by `admin/sites.js`) coerces to strict `"x% y%"`/null and rejects CSS-injection.
+3. **⚠️ Out-of-band migration apply (0071/0072).** Because the next-pending migrations 0065–0070 are deliberately deferred (Marketing/M7), running `wrangler d1 migrations apply` would also apply them. Instead: `d1 execute --file` the ALTERs, then `INSERT INTO d1_migrations (name) VALUES ('00NN_*.sql')` so the runner skips it. Leaves `d1_migrations` out-of-order (0064 → 0071, 0072 — harmless). Operator chose this over un-deferring marketing/M7.
+4. **A faithful static→D1 rewrite keeps the visual baseline green** — seed the D1 content to mirror exactly what the static page rendered (features = the old `fullFeatures`, same photos, `center`), so `/locations`'s public visual-regression baseline passes unchanged.
+5. **Home's locations preview uses a different card shape** (`cardLabel`/`photoClass` via CSS classes) than `/api/sites`, and the home page is in the visual baseline — left static (`src/data/locations.js` NOT retired) to avoid disproportionate churn. Only `/locations` (the feedback target) went data-driven.
+
+**Operator-pending UNCHANGED** — 0065–0070 + the M6/M7/Marketing items are all untouched.
+
+---
+
 ## 2026-05-06 — initial CLAUDE.md (Phase 1 audit close)
 
 Created at the close of the Phase 1 admin audit. The audit branch is `audit/phase-1`; full output in [docs/audit/](docs/audit/) starting at [docs/audit/00-overview.md](docs/audit/00-overview.md).

@@ -13,12 +13,12 @@ pages** and fully built out the **Volga Flank** + **Foxtrot** events (PRs #254/#
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `84ed53d` (Merge #261 — Volga hero refresh: audit SQL + doc sync) |
-| Tests | **2744 / 217** (the event session added no unit tests — JSX + data; public visual-regression covers the render) |
+| `main` HEAD | `45ee41f` (Merge #266 — data-driven /locations) · docs-sync PR may be open |
+| Tests | **2776 / 220** (+32 from the focal-positioning feature) |
 | Build | clean · Lint **0 errors** |
 | Production | `https://airactionsport.com/api/health` → `{"ok":true,...}` — auto-deploys from `main` via Workers Builds |
-| Migrations on remote | **0001–0064 applied** (event session added none); **0065–0070 in-repo, operator-applies** (see below) |
-| Open PRs | 0 |
+| Migrations on remote | **0001–0064 + 0071 + 0072 applied** — 0071/0072 applied **OUT-OF-BAND** so 0065–0070 stay deferred (⚠️ see the focal-positioning section); **0065–0070 in-repo, operator-applies** |
+| Open PRs | docs-sync only |
 | Open milestone | **M8** — items 1–4 done; remaining = JSX-coverage backfill for older M3+ pages (long tail) |
 
 ---
@@ -40,6 +40,19 @@ Operator-driven content build for two live events + the reusable plumbing behind
 The Volga Flank hero photo was swapped. `serveUpload` serves `/uploads/*` with `Cache-Control: …, immutable` (1yr) + CDN edge cache, so an in-place overwrite would NOT reach visitors — instead the new photo went to a **fresh content-hashed key** `events/volga-hero-be1eee1d2f74.jpg` and `events.hero_image_url` was repointed (1 row; verified live at `/api/events/volga-flank`, rendered + screenshotted on prod). Audit SQL `scripts/update-volga-hero-refresh.sql` + this doc sync are **merged in PR [#261](https://github.com/bulletbiter99/air-action-sports/pull/261)** (`main` @ `84ed53d`). The reusable gotcha (image replacement ≠ overwrite) is now CLAUDE.md event-content **lesson #5** + memory `event-content-data-driven.md`.
 
 - **Optional operator cleanup (not blocking):** the old hero object `events/volga-hero-3dfe99d37edd.jpg` is now an orphan in R2 — harmless, fully de-referenced (no D1 row, no code ref). Its bytes are the only copy, so deleting is irreversible. To remove it, run yourself: `source .claude/.env && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler r2 object delete "air-action-sports-uploads/events/volga-hero-3dfe99d37edd.jpg" --remote`
+
+---
+
+## What shipped — admin image focal-point positioning + data-driven Locations (2026-06-02)
+
+A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedback **`fb_Su6LWtWJz2FI`** ("position uploaded images for best visibility — see the Ghost Town image"). Full how-to in memory `image-focal-positioning.md`.
+
+- **Reusable `ImageFocalPicker`** (`src/components/admin/ImageFocalPicker.jsx`) — drag a focal point + live cropped preview + keyboard nudge. Two consumers: the event image picker (`AdminEvents`) and the admin site editor (`AdminSiteDetail` → "Locations page content").
+- **Events** (migration **0071**): `card/hero/banner_image_position` mirror the `*_overlay_opacity` path; applied on the public card / hero backdrop / booking banner. **Sites** (migration **0072**): `photo_position` + public-content columns (`badge`/`features_json`/`game_types_json`/`location_blurb`/`show_on_locations`/…).
+- **`/locations` is now data-driven** — public `GET /api/sites` → `src/hooks/useSites.js` → `src/pages/Locations.jsx`. The 3 locations are seeded into the `sites` table (`scripts/seed-location-content.sql`). **Home's locations preview stays STATIC** (`src/data/locations.js`, untouched — different card shape, avoids home-page visual churn). Ghost Town crop fixed (`photo_position='50% 30%'`).
+- Tests **2776 / 220**; both visual-regression suites green; the position value is sanitized server-side (`normalizeImagePosition`).
+
+**⚠️ OUT-OF-BAND MIGRATION STATE — read before any `wrangler d1 migrations apply --remote`:** 0071 + 0072 were applied to remote out-of-band (`d1 execute --file` for the ALTERs + a manual `INSERT INTO d1_migrations`) **specifically so the deferred 0065–0070 (Marketing + M7) stay un-applied**. `d1_migrations` now reads 0064 → **0071, 0072** (out of order — harmless). A future `migrations apply` applies 0065–0070 (still pending) and skips 0071/0072 (already recorded). The operator-pending list below is **UNCHANGED**.
 
 ---
 
