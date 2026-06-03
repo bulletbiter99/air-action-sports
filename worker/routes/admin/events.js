@@ -21,8 +21,41 @@ const EVENT_INT_FIELDS = [
 const EVENT_OPACITY_FIELDS = [
     'card_overlay_opacity', 'hero_overlay_opacity', 'banner_overlay_opacity',
 ];
+const EVENT_POSITION_FIELDS = [
+    'card_image_position', 'hero_image_position', 'banner_image_position',
+];
 
-function parseEventBody(body, { partial = false } = {}) {
+// Normalize a CSS background-position into a strict, injection-safe form:
+// either null (→ the page's default `center`) or a canonical "x% y%" string.
+// Admin-only input, but it renders into an inline style on the public site,
+// so we re-emit a sanitized value rather than trusting it verbatim.
+export function normalizeImagePosition(value) {
+    if (value == null) return null;
+    const v = String(value).trim().toLowerCase();
+    if (v === '' || v === 'center') return null;
+    const KW = { left: 0, right: 100, top: 0, bottom: 100, center: 50 };
+    const clamp = (n) => Math.max(0, Math.min(100, n));
+    const toPct = (p) => {
+        if (p in KW) return KW[p];
+        const m = /^(-?\d+(?:\.\d+)?)%$/.exec(p);
+        return m ? clamp(parseFloat(m[1])) : null;
+    };
+    const parts = v.split(/\s+/).slice(0, 2);
+    if (parts.length === 1) {
+        const p = parts[0];
+        if (p === 'top' || p === 'bottom') return `50% ${KW[p]}%`;
+        if (p === 'left' || p === 'right') return `${KW[p]}% 50%`;
+        const px = toPct(p);
+        return px == null ? null : `${Math.round(px)}% 50%`;
+    }
+    const x = toPct(parts[0]);
+    const y = toPct(parts[1]);
+    if (x == null || y == null) return null;
+    if (Math.round(x) === 50 && Math.round(y) === 50) return null;
+    return `${Math.round(x)}% ${Math.round(y)}%`;
+}
+
+export function parseEventBody(body, { partial = false } = {}) {
     const patch = {};
     // camelCase → snake_case fields
     const map = {
@@ -36,6 +69,9 @@ function parseEventBody(body, { partial = false } = {}) {
         cardOverlayOpacity: 'card_overlay_opacity',
         heroOverlayOpacity: 'hero_overlay_opacity',
         bannerOverlayOpacity: 'banner_overlay_opacity',
+        cardImagePosition: 'card_image_position',
+        heroImagePosition: 'hero_image_position',
+        bannerImagePosition: 'banner_image_position',
         shortDescription: 'short_description',
         basePriceCents: 'base_price_cents', totalSlots: 'total_slots',
         salesCloseAt: 'sales_close_at',
@@ -53,6 +89,8 @@ function parseEventBody(body, { partial = false } = {}) {
                 if (!Number.isFinite(n)) return { error: `${k} must be a number between 0 and 1` };
                 patch[col] = Math.max(0, Math.min(1, n));
             }
+        } else if (EVENT_POSITION_FIELDS.includes(col)) {
+            patch[col] = normalizeImagePosition(body[k]);
         } else if (EVENT_STRING_FIELDS.includes(col)) {
             let v = body[k] === null ? null : String(body[k]).trim();
             // slug must be URL-safe. Instead of rejecting non-conforming
@@ -377,6 +415,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         'sales_close_at', 'published', 'past', 'featured',
         'cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url',
         'card_overlay_opacity', 'hero_overlay_opacity', 'banner_overlay_opacity',
+        'card_image_position', 'hero_image_position', 'banner_image_position',
         'short_description', 'slug', 'created_at', 'updated_at',
     ];
     const vals = {
@@ -411,6 +450,9 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         card_overlay_opacity: patch.card_overlay_opacity ?? null,
         hero_overlay_opacity: patch.hero_overlay_opacity ?? null,
         banner_overlay_opacity: patch.banner_overlay_opacity ?? null,
+        card_image_position: patch.card_image_position ?? null,
+        hero_image_position: patch.hero_image_position ?? null,
+        banner_image_position: patch.banner_image_position ?? null,
         short_description: patch.short_description || null,
         slug: patch.slug,
         created_at: now,

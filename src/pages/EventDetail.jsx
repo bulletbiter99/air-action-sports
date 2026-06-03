@@ -86,6 +86,7 @@ export default function EventDetail() {
           ? {
               '--hero-bg-image': `url("${event.heroImageUrl || event.coverImageUrl}")`,
               '--hero-overlay-alpha': event.heroOverlayOpacity ?? 0.70,
+              '--hero-image-position': event.heroImagePosition || 'center',
             }
           : undefined}
       >

@@ -6,6 +6,7 @@ import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import EmptyState from '../components/admin/EmptyState.jsx';
 import FilterBar from '../components/admin/FilterBar.jsx';
 import VirtualizedList from './VirtualizedList.jsx';
+import ImageFocalPicker from '../components/admin/ImageFocalPicker.jsx';
 
 // "6:30 AM" | "18:30" → "HH:MM" (24h) for <input type="time">. Returns '' if unparseable.
 function to24h(s) {
@@ -248,6 +249,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
     basePriceCents: 8000, totalSlots: 100,
     coverImageUrl: '', cardImageUrl: '', heroImageUrl: '', bannerImageUrl: '', ogImageUrl: '',
     cardOverlayOpacity: '', heroOverlayOpacity: '', bannerOverlayOpacity: '',
+    cardImagePosition: '', heroImagePosition: '', bannerImagePosition: '',
     shortDescription: '',
     published: false, past: false, featured: false,
     addons: [], gameModes: [], customQuestions: [],
@@ -281,6 +283,9 @@ function EventEditor({ eventId, onClose, onSaved }) {
           cardOverlayOpacity: event.cardOverlayOpacity ?? '',
           heroOverlayOpacity: event.heroOverlayOpacity ?? '',
           bannerOverlayOpacity: event.bannerOverlayOpacity ?? '',
+          cardImagePosition: event.cardImagePosition ?? '',
+          heroImagePosition: event.heroImagePosition ?? '',
+          bannerImagePosition: event.bannerImagePosition ?? '',
           shortDescription: event.shortDescription || '',
           published: !!event.published, past: !!event.past, featured: !!event.featured,
           addons: event.addons || [], gameModes: event.gameModes || [],
@@ -386,6 +391,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
               defaultValue: 0.65,
               help: 'Darkens the bottom of the card so the title stays legible. Higher = darker.',
             }}
+            position={{ value: form.cardImagePosition, onChange: (v) => updateField('cardImagePosition', v) }}
           />
           <EventImagePicker
             label="Event hero"
@@ -401,6 +407,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
               defaultValue: 0.78,
               help: 'Drives both the home hero (flat dim) and event detail hero (gradient peak). Higher = darker.',
             }}
+            position={{ value: form.heroImagePosition, onChange: (v) => updateField('heroImagePosition', v) }}
           />
           <EventImagePicker
             label="Booking banner"
@@ -416,6 +423,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
               defaultValue: 0.80,
               help: 'Darkens the bottom of the banner on the booking page. Higher = darker.',
             }}
+            position={{ value: form.bannerImagePosition, onChange: (v) => updateField('bannerImagePosition', v) }}
           />
           <EventImagePicker
             label="Social / OG"
@@ -685,7 +693,7 @@ function AddonEditor({ addons, onChange }) {
   );
 }
 
-function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChange, fallback, overlay }) {
+function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChange, fallback, overlay, position }) {
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -743,7 +751,17 @@ function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChang
         <span style={imagePickerHint}>Max 5 MB · JPEG / PNG / WebP / GIF</span>
       </div>
       {err && <div style={errorText}>{err}</div>}
-      {previewSrc && (
+      {previewSrc && (position ? (
+        <div style={{ marginTop: 'var(--space-8)' }}>
+          <ImageFocalPicker
+            image={previewSrc}
+            value={position.value}
+            onChange={position.onChange}
+            previewAspect={ratio}
+            label={usingFallback ? 'Focal point — positioning the Cover fallback for this surface' : 'Focal point'}
+          />
+        </div>
+      ) : (
         <div style={{ marginTop: 'var(--space-8)' }}>
           <div
             style={{
@@ -765,7 +783,7 @@ function EventImagePicker({ label, ratioHint, recommended, ratio, value, onChang
               : `Cropped preview at ${ratioHint.split('·')[0].trim()}`}
           </div>
         </div>
-      )}
+      ))}
       {overlay && (
         <div style={{ marginTop: 'var(--space-12)', paddingTop: 'var(--space-12)', borderTop: '1px solid var(--color-border)' }}>
           <div style={imagePickerLabel}>Overlay opacity</div>
