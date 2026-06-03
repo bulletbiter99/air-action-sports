@@ -13,12 +13,12 @@ pages** and fully built out the **Volga Flank** + **Foxtrot** events (PRs #254/#
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `5d9c385` (Merge #260 — docs HEAD sync) · **open PR [#261](https://github.com/bulletbiter99/air-action-sports/pull/261)** (Volga hero refresh) pending |
+| `main` HEAD | `84ed53d` (Merge #261 — Volga hero refresh: audit SQL + doc sync) |
 | Tests | **2744 / 217** (the event session added no unit tests — JSX + data; public visual-regression covers the render) |
 | Build | clean · Lint **0 errors** |
 | Production | `https://airactionsport.com/api/health` → `{"ok":true,...}` — auto-deploys from `main` via Workers Builds |
 | Migrations on remote | **0001–0064 applied** (event session added none); **0065–0070 in-repo, operator-applies** (see below) |
-| Open PRs | **1** — [#261](https://github.com/bulletbiter99/air-action-sports/pull/261) (Volga Flank hero photo refresh: audit SQL + doc sync) |
+| Open PRs | 0 |
 | Open milestone | **M8** — items 1–4 done; remaining = JSX-coverage backfill for older M3+ pages (long tail) |
 
 ---
@@ -37,7 +37,7 @@ Operator-driven content build for two live events + the reusable plumbing behind
 
 ## Follow-up — Volga Flank hero photo refresh (2026-06-02)
 
-The Volga Flank hero photo was swapped. `serveUpload` serves `/uploads/*` with `Cache-Control: …, immutable` (1yr) + CDN edge cache, so an in-place overwrite would NOT reach visitors — instead the new photo went to a **fresh content-hashed key** `events/volga-hero-be1eee1d2f74.jpg` and `events.hero_image_url` was repointed (1 row; verified live at `/api/events/volga-flank`, rendered + screenshotted on prod). Audit SQL `scripts/update-volga-hero-refresh.sql` + this doc sync are in **open PR [#261](https://github.com/bulletbiter99/air-action-sports/pull/261)**. The reusable gotcha (image replacement ≠ overwrite) is now CLAUDE.md event-content **lesson #5** + memory `event-content-data-driven.md`.
+The Volga Flank hero photo was swapped. `serveUpload` serves `/uploads/*` with `Cache-Control: …, immutable` (1yr) + CDN edge cache, so an in-place overwrite would NOT reach visitors — instead the new photo went to a **fresh content-hashed key** `events/volga-hero-be1eee1d2f74.jpg` and `events.hero_image_url` was repointed (1 row; verified live at `/api/events/volga-flank`, rendered + screenshotted on prod). Audit SQL `scripts/update-volga-hero-refresh.sql` + this doc sync are **merged in PR [#261](https://github.com/bulletbiter99/air-action-sports/pull/261)** (`main` @ `84ed53d`). The reusable gotcha (image replacement ≠ overwrite) is now CLAUDE.md event-content **lesson #5** + memory `event-content-data-driven.md`.
 
 - **Optional operator cleanup (not blocking):** the old hero object `events/volga-hero-3dfe99d37edd.jpg` is now an orphan in R2 — harmless, fully de-referenced (no D1 row, no code ref). Its bytes are the only copy, so deleting is irreversible. To remove it, run yourself: `source .claude/.env && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler r2 object delete "air-action-sports-uploads/events/volga-hero-3dfe99d37edd.jpg" --remote`
 
