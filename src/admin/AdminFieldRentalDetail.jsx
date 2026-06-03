@@ -122,7 +122,7 @@ const primaryBtn = {
     padding: '8px 16px', borderRadius: 4, cursor: 'pointer', fontWeight: 600, fontSize: 13,
 };
 const ghostBtn = {
-    background: 'white', color: 'var(--text-primary, #333)', border: '1px solid var(--border-soft, #d0d0d0)',
+    background: 'transparent', color: 'var(--text-primary, #333)', border: '1px solid var(--border-soft, #d0d0d0)',
     padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 13,
 };
 const dangerBtn = {

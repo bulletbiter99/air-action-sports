@@ -126,6 +126,43 @@
   --color-info: #4a90c2;
   --color-info-soft: rgba(74, 144, 194, 0.12);
 
+  /* ----- Compat aliases (contrast pass 2026-06-02) -----
+     The field-rentals / sites / events / booking-charge admin pages were
+     authored against a light-theme token set that was NEVER defined, so every
+     reference fell back to its light hardcoded fallback (e.g.
+     var(--text-secondary, #666)) — dark-gray text + light-gray surfaces that
+     render near-invisible on this dark admin theme. Aliasing those phantom
+     names onto the real dark-theme tokens makes all of them legible at once.
+     New token NAMES only (no existing token changed); pages already on the
+     --color-* set are unaffected. */
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-muted);
+  --text-tertiary: var(--color-text-subtle);
+  --surface-elevated: var(--color-bg-elevated);
+  --surface-card: var(--color-bg-elevated);
+  --border-soft: var(--color-border-strong);
+  --orange-strong: var(--orange);
+  --orange-soft: var(--color-accent);
+  --orange-soft-bg: var(--color-accent-soft);
+  --status-active: var(--color-success);
+  --danger-soft: var(--color-danger);
+  --color-error: var(--color-danger);
+  --color-error-soft: var(--color-danger-soft);
+
+  /* FilterBar (on every admin list page) + ImageFocalPicker carry the same
+     orphaned-light-theme tokens: white inputs/cards + near-black text via
+     fallbacks, and the active-filter chips rendered near-black text on a
+     translucent-orange chip (low contrast). Aliasing these re-themes both
+     shared components to the dark surface + restores legibility. NOTE: this
+     visibly changes the FilterBar (white → dark inputs/dropdowns), so the
+     admin visual baselines on FilterBar pages need a capture-baselines refresh. */
+  --fg: var(--color-text);
+  --bg-input: var(--color-bg-page);
+  --bg-card: var(--color-bg-elevated);
+  --border: var(--color-border-strong);
+  --admin-text: var(--color-text);
+  --admin-muted: var(--color-text-muted);
+
   /* ----- Shadows (M5 Batch 0) ----- */
   --shadow-sm: 0 1px 2px var(--color-shadow-soft);
   --shadow-md: 0 4px 12px var(--color-shadow-soft);

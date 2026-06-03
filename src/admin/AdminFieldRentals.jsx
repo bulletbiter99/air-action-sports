@@ -133,7 +133,7 @@ const filterBarStyle = {
 };
 const selectStyle = {
     padding: '6px 10px', border: '1px solid var(--border-soft, #d0d0d0)',
-    borderRadius: 4, fontSize: 13, background: 'white',
+    borderRadius: 4, fontSize: 13, background: 'var(--color-bg-page)', color: 'var(--color-text)',
 };
 const inputStyle = {
     padding: '6px 10px', border: '1px solid var(--border-soft, #d0d0d0)',
@@ -148,7 +148,7 @@ const thStyle = {
 const tdStyle = { padding: '12px', borderBottom: '1px solid var(--border-soft, #f0f0f0)', fontSize: 14 };
 const rowStyle = { cursor: 'pointer' };
 const archivedRowStyle = { opacity: 0.55 };
-const errorStyle = { background: '#fef0f0', border: '1px solid #d4541a', padding: 'var(--space-12)', borderRadius: 4, marginBottom: 'var(--space-12)' };
+const errorStyle = { background: 'var(--color-danger-soft)', border: '1px solid var(--color-danger)', color: 'var(--color-text)', padding: 'var(--space-12)', borderRadius: 4, marginBottom: 'var(--space-12)' };
 const badgeStyle = (cls) => ({
     display: 'inline-block', padding: '2px 8px', borderRadius: 12,
     background: cls.bg, color: cls.color, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
@@ -160,7 +160,7 @@ const emptyStateStyle = {
 const paginationStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--space-12)', fontSize: 13 };
 const pageBtnStyle = {
     padding: '6px 12px', border: '1px solid var(--border-soft, #d0d0d0)',
-    borderRadius: 4, background: 'white', cursor: 'pointer',
+    borderRadius: 4, background: 'transparent', color: 'var(--color-text)', cursor: 'pointer',
 };
 
 function formatDate(ms) {
