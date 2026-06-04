@@ -18,6 +18,19 @@ const DEFAULT_RULES = [
   'Completed waiver required (emailed after booking)',
 ];
 
+// Colorize partner names within a rentals heading (e.g. "MilSim City" in the
+// partner's brand green). Splits the heading on each partner name and wraps the
+// matches in a colored span; returns the plain string when no partners are set.
+function colorizePartners(heading, partners) {
+  if (!heading || !Array.isArray(partners) || partners.length === 0) return heading;
+  const escaped = partners.map((p) => p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const re = new RegExp(`(${escaped.join('|')})`, 'g');
+  return heading.split(re).map((part, i) => {
+    const match = partners.find((p) => p.name === part);
+    return match ? <span key={i} style={{ color: match.color }}>{part}</span> : part;
+  });
+}
+
 export default function EventDetail() {
   const { slug } = useParams();
   const [event, setEvent] = useState(null);
@@ -269,12 +282,63 @@ export default function EventDetail() {
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Individual (BYO gear)</td>
+                    <td>
+                      {event.details?.admissionLabel || 'Individual (BYO gear)'}
+                      {event.details?.admissionNote && (
+                        <>
+                          <br />
+                          <span style={{ fontSize: '12px', color: 'var(--olive-light)' }}>{event.details.admissionNote}</span>
+                        </>
+                      )}
+                    </td>
                     <td>{event.price.replace('/head', '')}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
+
+            {/* Gear Rentals — outbound rentals fulfilled by event partners
+                (event.details.partnerRentals). Each item links out to the
+                partner's store in a new tab; additive + data-driven so events
+                without the field render byte-identically. */}
+            {event.details?.partnerRentals?.items?.length > 0 && (
+              <div className="detail-section">
+                <h2>
+                  {event.details.partnerRentals.heading
+                    ? colorizePartners(event.details.partnerRentals.heading, event.details.partnerRentals.partners)
+                    : 'Gear Rentals — via our event partner'}
+                </h2>
+                <table className="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Type</th>
+                      <th>Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {event.details.partnerRentals.items.map((item, i) => (
+                      <tr key={i}>
+                        <td>
+                          {item.url ? (
+                            <a href={item.url} target="_blank" rel="noopener noreferrer">
+                              {item.name} &#8599;
+                            </a>
+                          ) : (
+                            item.name
+                          )}
+                        </td>
+                        <td>{item.price}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {event.details.partnerRentals.note && (
+                  <p style={{ fontSize: '12px', fontStyle: 'italic', marginTop: '0.75rem', color: 'var(--olive-light)' }}>
+                    {event.details.partnerRentals.note}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Rules & Requirements */}
             <div className="detail-section">
