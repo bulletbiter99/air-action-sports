@@ -1086,4 +1086,144 @@ adminBookings.get('/stats/summary', async (c) => {
     });
 });
 
+// POST /api/admin/bookings/:id/reschedule — move a booking to a different event.
+//
+// Remaps the booking's event_id + every ticket line item + every attendee to the
+// chosen target event + ticket type, and corrects both events' sold counts. The
+// same booking id + attendee QR tokens carry over. Payment is PRESERVED — a
+// reschedule never changes what was paid; if the target event's ticket price
+// differs, the response returns priceDifferenceCents for the operator to settle
+// separately (refund/charge). Comps stay $0. Reminder timestamps are cleared so
+// the new event's reminders fire. Writes a booking.rescheduled audit row, and
+// optionally re-sends the booking confirmation (rendered for the new event) when
+// resendConfirmation is set.
+//
+// Guards: booking must be paid/comp; target event must exist + be published;
+// target ticket type must belong to the target event + be active; target must
+// differ from the current event; and NO attendee may already be checked in.
+//
+// Body: { targetEventId, targetTicketTypeId, resendConfirmation? }
+adminBookings.post('/:id/reschedule', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body !== 'object') return c.json({ error: 'JSON body required' }, 400);
+
+    const targetEventId = body.targetEventId ? String(body.targetEventId).trim() : '';
+    const targetTicketTypeId = body.targetTicketTypeId ? String(body.targetTicketTypeId).trim() : '';
+    if (!targetEventId || !targetTicketTypeId) {
+        return c.json({ error: 'targetEventId and targetTicketTypeId are required' }, 400);
+    }
+
+    const booking = await c.env.DB.prepare(`SELECT * FROM bookings WHERE id = ?`).bind(id).first();
+    if (!booking) return c.json({ error: 'Booking not found' }, 404);
+    if (!['paid', 'comp'].includes(booking.status)) {
+        return c.json({ error: `Cannot reschedule a booking with status: ${booking.status}` }, 409);
+    }
+    if (booking.event_id === targetEventId) {
+        return c.json({ error: 'Booking is already on that event' }, 409);
+    }
+
+    const targetEvent = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(targetEventId).first();
+    if (!targetEvent) return c.json({ error: 'Target event not found' }, 404);
+    if (!targetEvent.published) return c.json({ error: 'Target event is not published' }, 409);
+
+    const targetType = await c.env.DB.prepare(
+        `SELECT id, event_id, name, price_cents, active FROM ticket_types WHERE id = ?`
+    ).bind(targetTicketTypeId).first();
+    if (!targetType || targetType.event_id !== targetEventId) {
+        return c.json({ error: 'Target ticket type does not belong to the target event' }, 400);
+    }
+    if (!targetType.active) {
+        return c.json({ error: 'Target ticket type is not active' }, 409);
+    }
+
+    // Block moving a booking that has a checked-in attendee.
+    const attendeesRes = await c.env.DB.prepare(
+        `SELECT id, checked_in_at FROM attendees WHERE booking_id = ?`
+    ).bind(id).all();
+    if ((attendeesRes.results || []).some((a) => a.checked_in_at)) {
+        return c.json({ error: 'Cannot reschedule — an attendee on this booking is already checked in' }, 409);
+    }
+
+    const now = Date.now();
+    const lineItems = safeJson(booking.line_items_json, []);
+
+    // Tally ticket qty per old ticket type; remap ticket rows to the target type
+    // (qty + prices preserved — payment is unchanged). Non-ticket rows untouched.
+    const qtyByOldType = new Map();
+    let totalTicketQty = 0;
+    let paidTicketCents = 0;
+    const newLineItems = lineItems.map((item) => {
+        if (item.type !== 'ticket') return item;
+        const qty = item.qty || 0;
+        qtyByOldType.set(item.ticket_type_id, (qtyByOldType.get(item.ticket_type_id) || 0) + qty);
+        totalTicketQty += qty;
+        paidTicketCents += (item.unit_price_cents || 0) * qty;
+        return { ...item, ticket_type_id: targetTicketTypeId };
+    });
+
+    // Informational only — positive = target costs more than what they paid.
+    const priceDifferenceCents = (targetType.price_cents * totalTicketQty) - paidTicketCents;
+
+    await c.env.DB.prepare(
+        `UPDATE bookings SET event_id = ?, line_items_json = ?, reminder_sent_at = NULL, reminder_1hr_sent_at = NULL WHERE id = ?`
+    ).bind(targetEventId, JSON.stringify(newLineItems), id).run();
+
+    await c.env.DB.prepare(
+        `UPDATE attendees SET ticket_type_id = ? WHERE booking_id = ?`
+    ).bind(targetTicketTypeId, id).run();
+
+    // Release inventory on each old ticket type, claim it on the target.
+    for (const [oldTypeId, qty] of qtyByOldType.entries()) {
+        await c.env.DB.prepare(
+            `UPDATE ticket_types SET sold = MAX(0, sold - ?), updated_at = ? WHERE id = ?`
+        ).bind(qty, now, oldTypeId).run();
+    }
+    if (totalTicketQty > 0) {
+        await c.env.DB.prepare(
+            `UPDATE ticket_types SET sold = sold + ?, updated_at = ? WHERE id = ?`
+        ).bind(totalTicketQty, now, targetTicketTypeId).run();
+    }
+
+    await c.env.DB.prepare(
+        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+         VALUES (?, 'booking.rescheduled', 'booking', ?, ?, ?)`
+    ).bind(user.id, id, JSON.stringify({
+        from_event: booking.event_id,
+        to_event: targetEventId,
+        to_ticket_type: targetTicketTypeId,
+        ticket_qty: totalTicketQty,
+        price_difference_cents: priceDifferenceCents,
+    }), now).run();
+
+    // Optional: re-send the booking confirmation, now rendered for the new event.
+    let emailResult = null;
+    if (body.resendConfirmation) {
+        try {
+            const updated = await c.env.DB.prepare(`SELECT * FROM bookings WHERE id = ?`).bind(id).first();
+            const attendeesFull = await c.env.DB.prepare(`SELECT id, waiver_id FROM attendees WHERE booking_id = ?`).bind(id).all();
+            emailResult = await sendBookingConfirmation(c.env, {
+                booking: updated,
+                event: targetEvent,
+                attendees: attendeesFull.results || [],
+            });
+        } catch (err) {
+            console.error('reschedule resend-confirmation failed:', err.message);
+            emailResult = { error: err.message };
+        }
+    }
+
+    return c.json({
+        ok: true,
+        bookingId: id,
+        fromEvent: booking.event_id,
+        toEvent: targetEventId,
+        toEventTitle: targetEvent.title,
+        ticketQty: totalTicketQty,
+        priceDifferenceCents,
+        emailResult,
+    });
+});
+
 export default adminBookings;

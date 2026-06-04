@@ -53,6 +53,8 @@ export default function AdminBookingsDetail() {
     // M6 B9 — detach-saved-PM confirm + busy state
     const [detachPmOpen, setDetachPmOpen] = useState(false);
     const [detaching, setDetaching] = useState(false);
+    // Move-to-another-event modal
+    const [rescheduleOpen, setRescheduleOpen] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -175,6 +177,8 @@ export default function AdminBookingsDetail() {
     // M6 B9 — detach saved PM: owner-only, requires non-synthetic Stripe PI
     // (synthetic prefixes are cash_/venmo_/etc., no real Stripe PM behind them).
     const canDetachPM = canOwnerActions && stripeIntent && !isExternalIntent;
+    // Reschedule: a paid/comp booking that hasn't been refunded can move events.
+    const canReschedule = ['paid', 'comp'].includes(booking.status) && !booking.refundedAt;
 
     return (
         <div className="abd">
@@ -352,7 +356,16 @@ export default function AdminBookingsDetail() {
                                         Record out-of-band refund
                                     </button>
                                 )}
-                                {!canRefundStripe && !canRefundExternal && !canResend && !canDetachPM && (
+                                {canReschedule && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setRescheduleOpen(true)}
+                                        className="abd-action-btn"
+                                    >
+                                        ↪ Move to another event
+                                    </button>
+                                )}
+                                {!canRefundStripe && !canRefundExternal && !canResend && !canDetachPM && !canReschedule && (
                                     <p className="abd-empty">No actions available for this booking's status.</p>
                                 )}
                             </div>
@@ -428,6 +441,22 @@ export default function AdminBookingsDetail() {
             )}
 
             {/* M6 B9 — Remove-saved-card confirm modal */}
+            {rescheduleOpen && (
+                <RescheduleModal
+                    booking={booking}
+                    currentEventId={event?.id || booking.eventId}
+                    onClose={() => setRescheduleOpen(false)}
+                    onSuccess={(j) => {
+                        setRescheduleOpen(false);
+                        load();
+                        const diff = j.priceDifferenceCents;
+                        const diffNote = booking.status === 'paid' && diff ? ` Price difference ${formatMoney(diff)} — settle separately.` : '';
+                        const mailNote = j.emailResult && !j.emailResult.error ? ' Confirmation re-sent.' : '';
+                        flashMsg('ok', `Moved to ${j.toEventTitle}.${mailNote}${diffNote}`, 7000);
+                    }}
+                />
+            )}
+
             {detachPmOpen && (
                 <div className="abd-modal-backdrop" onClick={() => !detaching && setDetachPmOpen(false)}>
                     <div className="abd-modal" onClick={(e) => e.stopPropagation()}>
@@ -462,6 +491,130 @@ export default function AdminBookingsDetail() {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+// Move-to-another-event modal. Loads events (+ their active ticket types) from
+// GET /api/admin/events, lets the operator pick a target event + ticket type,
+// optionally re-send the confirmation, then POSTs /reschedule.
+function RescheduleModal({ booking, currentEventId, onClose, onSuccess }) {
+    const [events, setEvents] = useState(null);
+    const [loadErr, setLoadErr] = useState(null);
+    const [targetEventId, setTargetEventId] = useState('');
+    const [targetTicketTypeId, setTargetTicketTypeId] = useState('');
+    const [resend, setResend] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState(null);
+
+    useEffect(() => {
+        let alive = true;
+        fetch('/api/admin/events', { credentials: 'include', cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+            .then((j) => { if (alive) setEvents((j.events || []).filter((e) => e.id !== currentEventId)); })
+            .catch((e) => { if (alive) setLoadErr(e?.message || 'Failed to load events'); });
+        return () => { alive = false; };
+    }, [currentEventId]);
+
+    const targetEvent = (events || []).find((e) => e.id === targetEventId);
+    const ticketTypes = targetEvent?.ticketTypes || [];
+    const targetTicket = ticketTypes.find((t) => t.id === targetTicketTypeId);
+
+    const lineItems = Array.isArray(booking.lineItems) ? booking.lineItems : [];
+    const ticketQty = lineItems.filter((i) => i.type === 'ticket').reduce((s, i) => s + (i.qty || 0), 0) || booking.playerCount || 1;
+    const paidTicketCents = lineItems.filter((i) => i.type === 'ticket').reduce((s, i) => s + (i.unitPriceCents || 0) * (i.qty || 0), 0);
+    const priceDiff = targetTicket ? (targetTicket.priceCents || 0) * ticketQty - paidTicketCents : 0;
+
+    const submit = async () => {
+        setErr(null); setBusy(true);
+        try {
+            const res = await fetch(`/api/admin/bookings/${encodeURIComponent(booking.id)}/reschedule`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetEventId, targetTicketTypeId, resendConfirmation: resend }),
+            });
+            const j = await res.json().catch(() => ({}));
+            if (res.ok && j.ok) onSuccess(j);
+            else setErr(j.error || `Failed (${res.status})`);
+        } catch (e) {
+            setErr(e?.message || 'Network error');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const labelStyle = { display: 'block', fontSize: '13px', marginBottom: '0.25rem', marginTop: '0.85rem' };
+
+    return (
+        <div className="abd-modal-backdrop" onClick={() => !busy && onClose()}>
+            <div className="abd-modal" onClick={(e) => e.stopPropagation()}>
+                <h2>Move to another event</h2>
+                <p>
+                    Moves this booking and its {ticketQty} attendee{ticketQty === 1 ? '' : 's'} to a different event.
+                    The same booking ID and QR ticket{ticketQty === 1 ? '' : 's'} stay valid.
+                </p>
+                {loadErr && <p className="abd-msg abd-msg--err">{loadErr}</p>}
+                {!events && !loadErr && <p className="abd-empty">Loading events…</p>}
+                {events && (
+                    <>
+                        <label style={labelStyle}>Target event</label>
+                        <select
+                            style={{ width: '100%' }}
+                            value={targetEventId}
+                            onChange={(e) => { setTargetEventId(e.target.value); setTargetTicketTypeId(''); }}
+                        >
+                            <option value="">Select an event…</option>
+                            {events.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+                        </select>
+
+                        {targetEvent && (
+                            <>
+                                <label style={labelStyle}>Ticket type</label>
+                                <select
+                                    style={{ width: '100%' }}
+                                    value={targetTicketTypeId}
+                                    onChange={(e) => setTargetTicketTypeId(e.target.value)}
+                                >
+                                    <option value="">Select a ticket type…</option>
+                                    {ticketTypes.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name}{t.priceCents != null ? ` — ${formatMoney(t.priceCents)}` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                {ticketTypes.length === 0 && (
+                                    <p className="abd-modal-footnote">This event has no active ticket types.</p>
+                                )}
+                            </>
+                        )}
+
+                        {targetTicket && booking.status === 'paid' && priceDiff !== 0 && (
+                            <p className="abd-modal-footnote">
+                                They paid {formatMoney(paidTicketCents)} for tickets; {targetTicket.name} is{' '}
+                                {formatMoney((targetTicket.priceCents || 0) * ticketQty)} ({priceDiff > 0 ? '+' : ''}{formatMoney(priceDiff)}).{' '}
+                                <strong>Moving won&apos;t change what they paid</strong> — settle any difference separately via refund.
+                            </p>
+                        )}
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+                            <input type="checkbox" checked={resend} onChange={(e) => setResend(e.target.checked)} />
+                            <span>Email the customer an updated confirmation for the new event</span>
+                        </label>
+                    </>
+                )}
+                {err && <p className="abd-msg abd-msg--err" style={{ marginTop: '0.75rem' }}>{err}</p>}
+                <div className="abd-modal-actions">
+                    <button type="button" onClick={onClose} disabled={busy} className="abd-action-btn">Cancel</button>
+                    <button
+                        type="button"
+                        onClick={submit}
+                        disabled={busy || !targetEventId || !targetTicketTypeId}
+                        className="abd-action-btn"
+                    >
+                        {busy ? 'Moving…' : 'Move booking'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
