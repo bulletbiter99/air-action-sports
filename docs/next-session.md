@@ -9,7 +9,7 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-03** (close o
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `63156b2` (re-pull for exact) |
+| `main` HEAD | `dfabd36` (re-pull for exact) |
 | Tests | **2834 / 228** all green |
 | Build | clean · Lint **0 errors** |
 | Production | deployed from `main` (`3eb5f4d`) via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — **live Stripe REALLY cut over 2026-06-03** (was in TEST mode until then) + Marketing/deliverability schema active |
@@ -88,6 +88,8 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 Migrations **0065–0070 are now applied** and the **marketing route-capability swap is deployed** (`b342b39f`). What remains is env/secret/flag activation — every feature degrades gracefully (empty lists / no-op cron / 500 on the unset webhook) until then.
 
 **Collect the final 2 cutover-remediation invoices (2026-06-03):** the 4 test-mode "paid" bookings collected $0; live Stripe invoices were sent. **Still owed:** Kayden Case (`bk_HabP7q2dPblyHA`, $27.75) + Eduardo Ames (`bk_BusRxaodwLrQN6`, $27.75). When each pays: clear the dead test `stripe_payment_intent` (set NULL) + write an `audit_log booking.payment_reconciled` row — method in memory `stripe-live-cutover-fixed-2026-06-03.md`. (Tyson Wright + Kyle Kitagawa already paid + reconciled.)
+
+  **Update 2026-06-04 (revenue reconciliation):** the dashboard's paid total was $55.50 ahead of Stripe because it counted these 2 as paid. Fixed — both set to `status='unpaid'` (test PIs cleared) so they drop out of paid-revenue, and the event-day check-in scanner now flags **"⚠ Payment due"** for them (PR [#286](https://github.com/bulletbiter99/air-action-sports/pull/286), `src/event-day/AttendeeDetail.jsx` — flags any scanned booking whose status ≠ paid/comp). Also cleaned up the $0.56 e2e test booking (cancelled — it had re-paid via a delayed Stripe webhook retry; lesson: a redelivery re-pays any non-`paid` booking). Dashboard paid is now **$497.80 = Stripe net volume**. When Case/Ames pay, reconcile to `status='paid'`.
 
 **Activate marketing sends + deliverability tracking** — full detail in [docs/runbooks/marketing-deploy.md](runbooks/marketing-deploy.md) + [docs/runbooks/m7-deploy.md](runbooks/m7-deploy.md):
 1. **`MARKETING_POSTAL_ADDRESS`** (CAN-SPAM, required) + **Resend plan upgrade** (+ optional marketing subdomain) — the campaign/automation send cron **no-ops** until both are set.
