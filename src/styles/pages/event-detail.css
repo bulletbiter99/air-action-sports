@@ -79,6 +79,12 @@
 .pricing-table th { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(200,184,154,0.15); }
 .pricing-table td { font-size: 14px; color: var(--tan-light); padding: 10px 12px; border-bottom: 1px solid rgba(200,184,154,0.06); }
 .pricing-table td:last-child { color: var(--orange); font-weight: 700; }
+/* Fixed-width price column so the Admission + Gear Rentals tables (Volga) align
+   their PRICE columns despite differing TYPE-cell content. Modifier-scoped so the
+   other pricing-tables (Schedule, Timeline) keep their auto layout. */
+.pricing-table--cols { table-layout: fixed; }
+.pricing-table--cols th:last-child,
+.pricing-table--cols td:last-child { width: 6rem; }
 .info-card { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); padding: 1.5rem; margin-bottom: 1.5rem; }
 .info-card-title { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--orange); margin-bottom: 1rem; }
 .info-card-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(200,184,154,0.06); font-size: 13px; }
