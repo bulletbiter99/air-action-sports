@@ -14,9 +14,9 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 | Metric | Value |
 |---|---|
-| Latest work | **2026-06-03 session** — fixed the Stripe live cutover (production was silently in TEST mode despite the "DONE 2026-06-02" record; really cut over + e2e-verified 2026-06-03) + added data-driven Volga rental content (PRs #280/#281/#282). Prior **2026-06-02 work-menu session**: migrations 0065–0070, marketing route-capability swap, dark-theme contrast fix, RTL tests, visual baselines, item 6 (admin-editable event content). |
-| `main` HEAD | `067ed80` · re-pull for exact |
-| Tests | **2823 / 227 passing** |
+| Latest work | **2026-06-03 session** — fixed the Stripe live cutover (production was silently in TEST mode despite the "DONE 2026-06-02" record; really cut over + e2e-verified 2026-06-03) + added data-driven Volga rental content (PRs #280/#281/#282) + an admin **"Move to another event"** booking-reschedule action ([#284](https://github.com/bulletbiter99/air-action-sports/pull/284)). Prior **2026-06-02 work-menu session**: migrations 0065–0070, marketing route-capability swap, dark-theme contrast fix, RTL tests, visual baselines, item 6 (admin-editable event content). |
+| `main` HEAD | `63156b2` · re-pull for exact |
+| Tests | **2834 / 228 passing** |
 | Build | clean · Lint 0 errors |
 | Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — deployed from `main` via Workers Builds; **live Stripe (really cut over 2026-06-03)** |
 | D1 migrations on remote | **0001–0072 ALL applied** (0065–0070 applied 2026-06-02; the out-of-band deferral is resolved — a `migrations apply` now finds nothing new) |
