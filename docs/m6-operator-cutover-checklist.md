@@ -6,9 +6,11 @@ Treat this file as a worksheet — fill in outcomes as you complete each item; p
 
 ---
 
-## ✅ CUTOVER COMPLETE — 2026-06-02
+## ✅ CUTOVER COMPLETE — REALLY done 2026-06-03 (the 2026-06-02 record below was inaccurate)
 
-**All 5 operator items are done. Production Stripe is LIVE.** Operator-confirmed 2026-06-02: live `sk_live_` API key, live webhook endpoint + `whsec_` secret, DMARC/SPF/DKIM DNS records, and the $1 live e2e test (charge + saved-PM + refund + refund email all verified). The booking flow now takes real payments. `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` confirmed present in `wrangler secret list`. B5/B6/B7/B9 live behavior (saved-PM on checkout, dispute consumer, damage-charge off-session, remove-saved-PM) is now fully active. The per-item worksheet below is retained as the historical record.
+⚠️ **The 2026-06-02 "complete" claim was wrong.** Production was silently still in Stripe **TEST mode** (every checkout session `cs_test_`) until **2026-06-03**, when the cutover was actually performed + verified end-to-end. The operator's reported symptom: "tickets purchased but not showing in Stripe" — test-mode payments only appear in Stripe's Test dashboard and move no real money. Root cause: the deployed `STRIPE_SECRET_KEY` was still an `sk_test_` key, and the recorded "$1 live e2e" never ran in live mode.
+
+**Actually completed 2026-06-03 (secrets only, no code change):** live `STRIPE_WEBHOOK_SECRET` then live `STRIPE_SECRET_KEY` set (webhook-secret-before-API-key = safe order); a bad first `whsec_` copy threw 400s → re-copied from the live webhook destination (**`upbeat-harmony`**) → 200. Verified e2e with a real $0.56 booking (`cs_live_` → webhook auto-confirmed → live `cus_` + saved card + attendee → booking-confirmation + waiver emails to inbox → refunded). **Production now takes real payments**, and B5/B6/B7/B9 live behavior (saved-PM on checkout, dispute consumer, damage-charge off-session, remove-saved-PM) is genuinely active. Durable diagnosis signal: the `bookings.stripe_session_id` prefix (`cs_test_` vs `cs_live_`) is the source of truth for Stripe mode. Full detail: memory `stripe-live-cutover-fixed-2026-06-03.md`. The per-item worksheet below is retained as the historical record (its "✅ Done 2026-06-02" item stamps were inaccurate).
 
 ---
 
