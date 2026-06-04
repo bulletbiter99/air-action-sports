@@ -125,7 +125,7 @@ Migrations **0065–0070 are now applied** and the **marketing route-capability 
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 2823 / 227
+npm test -- --run | tail -3        # expect 2834 / 228
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
