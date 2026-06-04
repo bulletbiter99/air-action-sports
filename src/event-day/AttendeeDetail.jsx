@@ -182,6 +182,11 @@ export default function AttendeeDetail() {
 
             <section className="aas-event-day__card">
                 <div className={`aas-event-day__status ${status.cls}`}>{status.label}</div>
+                {booking && !['paid', 'comp'].includes(booking.status) && (
+                    <div className="aas-event-day__status aas-event-day__status--warn" style={{ marginTop: '0.5rem' }}>
+                        ⚠ Payment due — booking is {booking.status}. Collect payment before admitting.
+                    </div>
+                )}
                 <dl className="aas-event-day__defs">
                     <dt>Ticket</dt><dd>{attendee.ticketTypeName || attendee.ticketTypeId || '—'}</dd>
                     <dt>Event</dt><dd>{booking?.eventId || '—'}</dd>
