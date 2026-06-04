@@ -273,7 +273,7 @@ export default function EventDetail() {
             {/* Admission Pricing */}
             <div className="detail-section">
               <h2>Admission</h2>
-              <table className="pricing-table">
+              <table className={`pricing-table${event.details?.partnerRentals?.items?.length > 0 ? ' pricing-table--cols' : ''}`}>
                 <thead>
                   <tr>
                     <th>Type</th>
@@ -308,7 +308,7 @@ export default function EventDetail() {
                     ? colorizePartners(event.details.partnerRentals.heading, event.details.partnerRentals.partners)
                     : 'Gear Rentals — via our event partner'}
                 </h2>
-                <table className="pricing-table">
+                <table className="pricing-table pricing-table--cols">
                   <thead>
                     <tr>
                       <th>Type</th>
