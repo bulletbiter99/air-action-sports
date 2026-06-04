@@ -9,8 +9,8 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-03** (close o
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `3eb5f4d` (re-pull for exact) |
-| Tests | **2823 / 227** all green |
+| `main` HEAD | `63156b2` (re-pull for exact) |
+| Tests | **2834 / 228** all green |
 | Build | clean · Lint **0 errors** |
 | Production | deployed from `main` (`3eb5f4d`) via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — **live Stripe REALLY cut over 2026-06-03** (was in TEST mode until then) + Marketing/deliverability schema active |
 | Migrations on remote | **0001–0072 ALL applied** — 0065–0070 applied 2026-06-02. The out-of-band 0071/0072 deferral is **resolved**; a `migrations apply` now finds nothing new. |
@@ -30,6 +30,7 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-03** (close o
   - `admissionLabel` / `admissionNote` — overrides the BYO-gear row label + adds a restriction sub-line ("No Black Plate Carriers & Clothes (Tops/Bottoms) Black Rucks okay.").
   - `.pricing-table--cols` CSS modifier — fixed-width price column aligning the Admission + Gear Rentals tables; applied only when an event has rentals.
   - `scripts/update-volga-partner-rentals.sql` is the applied D1 record. **To add rentals/restrictions to another event (e.g. Foxtrot): same pattern — `json_set` the fields into `events.details_json`; no code change needed.**
+- **Admin booking reschedule — "Move to another event"** (PR [#284](https://github.com/bulletbiter99/air-action-sports/pull/284), merged + live; +11 tests → **2834 / 228**). New `POST /api/admin/bookings/:id/reschedule` (owner/manager — **no new capability or migration**) + a button + modal on `/admin/bookings/:id`. Remaps the booking's event + line-item ticket types + every attendee + both events' `sold` counts; same booking id/QR carry over; payment preserved (price differences flagged, not auto-settled); checked-in bookings blocked; reminders reset; optional confirmation re-send; `booking.rescheduled` audit. Built after a comp was created on the wrong event (`bk_jNcrJZxc7FtP9f`, Volga→Foxtrot, fixed by hand first). Memory `booking-reschedule-feature.md`.
 
 ---
 
