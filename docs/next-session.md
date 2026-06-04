@@ -1,7 +1,7 @@
-# Next-session entry point — post 2026-06-02 work-menu + deploy session
+# Next-session entry point — post 2026-06-03 Stripe-cutover-fix + Volga-rentals session
 
-Fresh-session entry point for Air Action Sports. **Updated 2026-06-03** (close of a large work-menu + deploy session).
-M7 closed + deployed; the native Marketing milestone shipped; the **M6 live-Stripe cutover is DONE** (production takes real payments). The **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains:** the item-1 RTL long tail, the full admin **design-consistency sweep**, and operator activation (Marketing send + Resend webhook + FTS flag). Detail below.
+Fresh-session entry point for Air Action Sports. **Updated 2026-06-03** (close of an operator-driven Stripe-cutover-fix + Volga-rental-content session).
+⚠️ **Heads-up on the cutover:** earlier docs recorded the M6 live-Stripe cutover as "DONE 2026-06-02," but it was actually **broken** — production was silently still in Stripe **TEST mode** (every checkout session `cs_test_`) until it was really cut over + e2e-verified on **2026-06-03**. Production now collects real money correctly. See the **2026-06-03 section** below + memory `stripe-live-cutover-fixed-2026-06-03.md`. The earlier **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains:** the item-1 RTL long tail, the full admin **design-consistency sweep**, and operator activation (Marketing send + Resend webhook + FTS flag). Detail below.
 
 ---
 
@@ -9,17 +9,31 @@ M7 closed + deployed; the native Marketing milestone shipped; the **M6 live-Stri
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `f240b4c` (re-pull for exact) |
+| `main` HEAD | `3eb5f4d` (re-pull for exact) |
 | Tests | **2823 / 227** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed **`94dfb7a9`** (2026-06-02; latest) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — **live Stripe** + Marketing/deliverability schema active |
+| Production | deployed from `main` (`3eb5f4d`) via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — **live Stripe REALLY cut over 2026-06-03** (was in TEST mode until then) + Marketing/deliverability schema active |
 | Migrations on remote | **0001–0072 ALL applied** — 0065–0070 applied 2026-06-02. The out-of-band 0071/0072 deferral is **resolved**; a `migrations apply` now finds nothing new. |
 | Open PRs | 0 |
 | Open milestone | **M8** — items 1–7 of the work menu + the contrast pass done + deployed; **item 6 (event content) COMPLETE**. Remaining: item-1 RTL long tail + the admin design-consistency sweep. |
 
 ---
 
-## What shipped — 2026-06-02 work-menu + deploy session (most recent)
+## What shipped — 2026-06-03 session (Stripe live-cutover FIX + Volga rentals) ⭐ most recent
+
+⚠️ **The "cutover DONE 2026-06-02" records below were inaccurate.** Production was silently in Stripe **TEST mode** (every checkout `cs_test_`) — the operator reported "tickets purchased but not showing in Stripe." Full root-cause + fix in memory `stripe-live-cutover-fixed-2026-06-03.md`.
+
+- **Stripe live cutover — actually completed + e2e-verified 2026-06-03 (secrets only, no code change).** Operator set the live `STRIPE_WEBHOOK_SECRET` then `STRIPE_SECRET_KEY` (webhook-secret-before-API-key = safe order, no real-charge-but-unconfirmed window); a first bad `whsec_` copy threw 400s → re-copied from the destination → 200. Verified end-to-end with a real **$0.56** booking: `cs_live_` session → webhook auto-confirmed → live `cus_` + attendee/QR created → booking-confirmation + waiver emails delivered to the operator's **inbox** (SPF/DKIM/DMARC OK) → **$0.56 refunded**. Live Stripe webhook destination = **`upbeat-harmony`** → `/api/webhooks/stripe` (`checkout.session.completed` + `charge.dispute.created`). **Production now collects real money correctly.**
+- **4 test-mode "paid" bookings collected $0** (real cards can't complete a test-mode checkout). Operator kept their bookings + QR tickets and sent each a **live Stripe invoice** to collect. **Reconciliation method:** on payment, clear the dead test `stripe_payment_intent` (NULL; status stays `paid`) + write an `audit_log booking.payment_reconciled` row. **✅ Paid + reconciled:** Tyson Wright (`bk_v8JmtpX9L6lclQ`), Kyle Kitagawa (`bk_9keBjkqsBhw7Et`). **⏳ Still owed:** Kayden Case (`bk_HabP7q2dPblyHA`, $27.75) + Eduardo Ames (`bk_BusRxaodwLrQN6`, $27.75) — see Operator-pending.
+- **Volga Flank rental content — PRs [#280](https://github.com/bulletbiter99/air-action-sports/pull/280) + [#281](https://github.com/bulletbiter99/air-action-sports/pull/281), merged + live.** New data-driven `event.details` fields rendered in `EventDetail.jsx` (all additive — events without them render byte-identically, so the `operation-nightfall` visual baseline is untouched + CI passed clean):
+  - `partnerRentals` (`{heading, note, partners[], items[]}`) — a **Gear Rentals** table under Admission; each `item` (`{name, price, url}`) is an outbound new-tab link (PVS-14 NVG **$80** + Rental Rifle Package **$25**, both on MilSim City's store); `partners[]` (`{name, color}`) tints each partner name in the heading its brand color (MilSim City green `#A8C036`, RSTS red `#E42A30`, sampled from the collab-banner logos) via the new `colorizePartners` helper.
+  - `admissionLabel` / `admissionNote` — overrides the BYO-gear row label + adds a restriction sub-line ("No Black Plate Carriers & Clothes (Tops/Bottoms) Black Rucks okay.").
+  - `.pricing-table--cols` CSS modifier — fixed-width price column aligning the Admission + Gear Rentals tables; applied only when an event has rentals.
+  - `scripts/update-volga-partner-rentals.sql` is the applied D1 record. **To add rentals/restrictions to another event (e.g. Foxtrot): same pattern — `json_set` the fields into `events.details_json`; no code change needed.**
+
+---
+
+## What shipped — 2026-06-02 work-menu + deploy session
 
 A large session worked a 6-item work menu + an injected dark-theme contrast pass, then merged + **deployed twice** (`b342b39f` → `94dfb7a9`). All PRs (#269–#278) merged to `main`.
 
@@ -72,6 +86,8 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 
 Migrations **0065–0070 are now applied** and the **marketing route-capability swap is deployed** (`b342b39f`). What remains is env/secret/flag activation — every feature degrades gracefully (empty lists / no-op cron / 500 on the unset webhook) until then.
 
+**Collect the final 2 cutover-remediation invoices (2026-06-03):** the 4 test-mode "paid" bookings collected $0; live Stripe invoices were sent. **Still owed:** Kayden Case (`bk_HabP7q2dPblyHA`, $27.75) + Eduardo Ames (`bk_BusRxaodwLrQN6`, $27.75). When each pays: clear the dead test `stripe_payment_intent` (set NULL) + write an `audit_log booking.payment_reconciled` row — method in memory `stripe-live-cutover-fixed-2026-06-03.md`. (Tyson Wright + Kyle Kitagawa already paid + reconciled.)
+
 **Activate marketing sends + deliverability tracking** — full detail in [docs/runbooks/marketing-deploy.md](runbooks/marketing-deploy.md) + [docs/runbooks/m7-deploy.md](runbooks/m7-deploy.md):
 1. **`MARKETING_POSTAL_ADDRESS`** (CAN-SPAM, required) + **Resend plan upgrade** (+ optional marketing subdomain) — the campaign/automation send cron **no-ops** until both are set.
 2. **`wrangler secret put RESEND_WEBHOOK_SECRET`** + add the Resend dashboard webhook → `https://airactionsport.com/api/webhooks/resend`, subscribing `email.bounced`/`complained` (M7 deliverability alerts) **and** `email.delivered`/`opened`/`clicked` (campaign tracking). Until set, `/api/webhooks/resend` returns 500 + campaign stats stay at 0.
@@ -81,7 +97,7 @@ Migrations **0065–0070 are now applied** and the **marketing route-capability 
 4. The M7 virtualized lists' sticky headers + the Reports custom-range UI.
 5. The **dark-theme contrast pass**: `/admin/field-rentals` (+`/new`), `/admin/sites`, an image picker, and any list page's **FilterBar + filter chips** should now render dark + legible (were invisible/white before).
 
-**✅ DONE 2026-06-02 (deployed `b342b39f`):** live-Stripe cutover (all 5 items — production takes real payments) · migrations 0065–0070 applied (Marketing + M7 deliverability) · marketing route-capability swap (`requireCapability`) · admin dark-theme contrast fix. The prior out-of-band-migration deferral is resolved.
+**✅ DONE:** migrations 0065–0070 applied (Marketing + M7 deliverability, 2026-06-02) · marketing route-capability swap (`requireCapability`, 2026-06-02) · admin dark-theme contrast fix (2026-06-02) · **live-Stripe cutover REALLY completed + e2e-verified 2026-06-03** — the 2026-06-02 "done" record was inaccurate (prod was silently in Stripe TEST mode until then); production now takes real payments. The prior out-of-band-migration deferral is resolved.
 
 ---
 
@@ -91,7 +107,7 @@ Migrations **0065–0070 are now applied** and the **marketing route-capability 
 |---|---|---|
 | 1 | **M8 — JSX coverage backfill (long tail)** ⭐ next | **Batch 1 done** ([#269](https://github.com/bulletbiter99/air-action-sports/pull/269): AdminSegments/Customers/CustomerDetail/TaxesFees/PromoCodes). Remaining: AdminBookings(+Detail), AdminEvents, AdminWaivers, AdminVendors, AdminFieldRentals(+Detail/New), AdminStaff(+Detail), AdminRoster, AdminScan, … Reuse `renderWithAdmin` + `installClientFetch` (+ the sized-ResizeObserver stub for VirtualizedList pages). |
 | 2 | **Marketing route capability swap** | ✅ **DONE 2026-06-02** (deployed) — segments/campaigns/automations now `requireCapability('marketing.*')`, method-aware, with caps bound in the route tests. Remaining marketing polish: optional `date_relative` automation trigger + a formal sidebar "Marketing" group + **send activation** (operator-pending #1–2 above). |
-| 3 | **M6 live-Stripe cutover** | ✅ **DONE 2026-06-02** — all 5 operator items complete; production takes real payments. [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). |
+| 3 | **M6 live-Stripe cutover** | ✅ **DONE 2026-06-03** (the 2026-06-02 record was inaccurate — prod was silently in Stripe TEST mode until then). Production now takes real payments, verified e2e. ⏳ 2 invoice-remediation payments still outstanding — see Operator-pending. [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). |
 | 4 | ~~Full ARIA-grid cell navigation~~ | ✅ **Re-confirmed SKIP 2026-06-02** — keep `role="table"`. Roving-tabindex cell-nav can't reach un-rendered (virtualized) rows, so `grid` would be a fragile half-pattern; the tables already expose full row/cell + position semantics with no nav obligation. Operator decision stands (see CLAUDE.md M8 lesson #6). |
 | 5 | ~~Representative-data baselines~~ | ✅ **Customers/Segments/TaxesFees added + all admin baselines recaptured 2026-06-02.** The `installAdminMocks` overrides → `capture-baselines` pattern is available for any further populated tables. |
 | 6 | **More event content** (operator, now self-serve) | Item 6's admin editor is **LIVE** — add per-event content (mission briefing / timeline / FPS / rules / docs / terrain / faction links) via `/admin/events` → "Detail page content". Foxtrot's mission briefing is seeded; the operator fills the rest there. Images → R2 via `wrangler r2 object put`. |
