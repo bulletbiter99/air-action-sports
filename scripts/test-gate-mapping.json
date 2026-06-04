@@ -134,7 +134,8 @@
         "GET /api/admin/bookings/export.csv — M4 B2b",
         "GET /api/admin/bookings/:id (detail with customer card + activity log + PII masking + audit) — M4 B3a",
         "POST /api/admin/bookings/:id/refund-external (5 methods, always-notify customer per D06) — M4 B3a",
-        "POST /api/admin/bookings/:id/detach-saved-pm (M6 B9 — privacy: detach Stripe PM from Customer)"
+        "POST /api/admin/bookings/:id/detach-saved-pm (M6 B9 — privacy: detach Stripe PM from Customer)",
+        "POST /api/admin/bookings/:id/reschedule (move booking to another event — remap event/ticket-type/attendees + adjust sold counts; payment preserved)"
       ],
       "audit_group": "E + M6 B9",
       "tests": [
@@ -150,7 +151,8 @@
         "tests/unit/admin/bookings/export-csv.test.js",
         "tests/unit/admin/bookings/detail-view.test.js",
         "tests/unit/admin/bookings/refund-external.test.js",
-        "tests/unit/admin/bookings/detach-saved-pm.test.js"
+        "tests/unit/admin/bookings/detach-saved-pm.test.js",
+        "tests/unit/admin/bookings/reschedule.test.js"
       ]
     },
     "worker/lib/capabilities.js": {
