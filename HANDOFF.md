@@ -14,11 +14,11 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 | Metric | Value |
 |---|---|
-| Latest work | **2026-06-02 work-menu + deploy session** — applied migrations 0065–0070; shipped the marketing route-capability swap, the admin dark-theme contrast fix, RTL admin-page tests, visual baselines, and **item 6 (admin-editable event content end-to-end)**; **deployed twice** (`b342b39f` → `94dfb7a9`). M6 live-Stripe cutover DONE. Prior: focal-positioning + Locations (#263–#267), event-content (#254–#257). |
-| `main` HEAD | `f240b4c` · re-pull for exact |
+| Latest work | **2026-06-03 session** — fixed the Stripe live cutover (production was silently in TEST mode despite the "DONE 2026-06-02" record; really cut over + e2e-verified 2026-06-03) + added data-driven Volga rental content (PRs #280/#281/#282). Prior **2026-06-02 work-menu session**: migrations 0065–0070, marketing route-capability swap, dark-theme contrast fix, RTL tests, visual baselines, item 6 (admin-editable event content). |
+| `main` HEAD | `067ed80` · re-pull for exact |
 | Tests | **2823 / 227 passing** |
 | Build | clean · Lint 0 errors |
-| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — deployed `94dfb7a9` (live Stripe; auto-deploys via Workers Builds) |
+| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — deployed from `main` via Workers Builds; **live Stripe (really cut over 2026-06-03)** |
 | D1 migrations on remote | **0001–0072 ALL applied** (0065–0070 applied 2026-06-02; the out-of-band deferral is resolved — a `migrations apply` now finds nothing new) |
 | Open milestone | **M8** — work-menu items 1–7 + contrast pass done + deployed; **item 6 (event content) COMPLETE**. Remaining: item-1 RTL long tail + the admin design-consistency sweep |
 | Open PRs | 0 (all merged through #278) |
@@ -592,8 +592,8 @@ Bindings:
 ## 5. Secrets & env vars
 
 **Secrets** (set via `wrangler secret put`, not in repo):
-- `STRIPE_SECRET_KEY` — Stripe sandbox `sk_test_...` (**swap to `sk_live_` when going live**)
-- `STRIPE_WEBHOOK_SECRET` — from Stripe dashboard → Webhooks → Reveal (**re-generate when flipping to live**)
+- `STRIPE_SECRET_KEY` — Stripe **live** `sk_live_...` (cut over 2026-06-03; was `sk_test_` until then)
+- `STRIPE_WEBHOOK_SECRET` — live `whsec_` from the live Stripe webhook destination `upbeat-harmony` (set 2026-06-03)
 - `RESEND_API_KEY` — from Resend dashboard → API Keys
 - `SESSION_SECRET` — 32 random bytes, used to sign admin session cookies
 
@@ -946,7 +946,7 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **3 taxes/fees** seeded (City Tax, State Tax, Processing Fees — configure via `/admin/settings/taxes-fees`)
 - **5 resolved feedback tickets** (4 smoke/dogfood from when the system shipped 2026-04-23/24, plus `fb_Tp9RIpHdKgWw` — Jesse's Rules of Engagement page request, shipped 2026-04-29). 0 open tickets.
 - **Cloudflare Workers Builds**: deploy command in dashboard is `npm run build && npx wrangler deploy` (must be both — see §13). Auto-deploys on `git push origin main`.
-- **Booking flow live**: `/booking` is the canonical Book Now path; Peek widget removed from `index.html`. Stripe still in **sandbox** mode — real-money cutover is the next pre-launch step.
+- **Booking flow live**: `/booking` is the canonical Book Now path; Peek widget removed from `index.html`. **Stripe is LIVE** (real-money cutover completed + e2e-verified 2026-06-03; was sandbox until then).
 - **All migrations 0001–0029 applied to remote D1** (0021–0025 applied during M3 2026-05-07; 0026 saved_views + 0027 bookings_refund_external + email template seed + 0028 users.persona column + role-based backfill + 0029 command_palette flag all applied during M4 2026-05-07).
 - **2 customer rows on remote** (operator's own test bookings; backfill 2026-05-07 via M3 B4 idempotent script).
 - **4 admin user rows on remote** — all backfilled by 0028 to `persona='owner'` (mapping from `role='owner'`). Override via SQL `UPDATE users SET persona='<value>' WHERE id='<id>'` if you want to test a different persona view.
@@ -1022,7 +1022,7 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 
 ### ⚠ Post-M6 (current state — 2026-05-27)
 
-**M6 is CLOSED. No in-flight milestone code work.** Production runs all M6 batches on Stripe sandbox keys; live cutover is the only outstanding item and is operator-only.
+**M6 is CLOSED. No in-flight milestone code work.** Production runs all M6 batches on **live** Stripe keys (cutover really completed 2026-06-03 — it had been silently stuck in test mode despite the 2026-06-02 record; see memory `stripe-live-cutover-fixed-2026-06-03.md`). Remaining from that: 2 outstanding cutover-remediation invoices (Kayden Case, Eduardo Ames).
 
 **Use [docs/next-session.md](docs/next-session.md) for the post-M6 entry point.** It has:
 - Current production state (test counts, deploy version, etc.)
