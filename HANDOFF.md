@@ -14,8 +14,8 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 | Metric | Value |
 |---|---|
-| Latest work | **2026-06-03 session** — fixed the Stripe live cutover (production was silently in TEST mode despite the "DONE 2026-06-02" record; really cut over + e2e-verified 2026-06-03) + added data-driven Volga rental content (PRs #280/#281/#282) + an admin **"Move to another event"** booking-reschedule action ([#284](https://github.com/bulletbiter99/air-action-sports/pull/284)). Prior **2026-06-02 work-menu session**: migrations 0065–0070, marketing route-capability swap, dark-theme contrast fix, RTL tests, visual baselines, item 6 (admin-editable event content). |
-| `main` HEAD | `63156b2` · re-pull for exact |
+| Latest work | **2026-06-03 session** — fixed the Stripe live cutover (production was silently in TEST mode despite the "DONE 2026-06-02" record; really cut over + e2e-verified 2026-06-03) + added data-driven Volga rental content (PRs #280/#281/#282) + an admin **"Move to another event"** booking-reschedule action ([#284](https://github.com/bulletbiter99/air-action-sports/pull/284)) + a check-in **"Payment due"** flag ([#286](https://github.com/bulletbiter99/air-action-sports/pull/286)) with the 2 outstanding cutover invoices marked `unpaid`. Prior **2026-06-02 work-menu session**: migrations 0065–0070, marketing route-capability swap, dark-theme contrast fix, RTL tests, visual baselines, item 6 (admin-editable event content). |
+| `main` HEAD | `dfabd36` · re-pull for exact |
 | Tests | **2834 / 228 passing** |
 | Build | clean · Lint 0 errors |
 | Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — deployed from `main` via Workers Builds; **live Stripe (really cut over 2026-06-03)** |
