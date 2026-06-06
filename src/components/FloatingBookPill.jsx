@@ -1,9 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { siteConfig } from '../data/siteConfig';
 
 export default function FloatingBookPill() {
   const [visible, setVisible] = useState(false);
+  const location = useLocation();
+
+  // On an event detail page (/events/:slug), carry that event into the
+  // booking flow so the pill pre-selects it instead of dropping the user
+  // onto a blank event picker.
+  const eventMatch = location.pathname.match(/^\/events\/([^/]+)$/);
+  const bookTarget = eventMatch
+    ? `${siteConfig.bookingLink}?event=${eventMatch[1]}`
+    : siteConfig.bookingLink;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -18,7 +27,7 @@ export default function FloatingBookPill() {
   }, []);
 
   return (
-    <Link to={siteConfig.bookingLink} className={`floating-book${visible ? ' visible' : ''}`}>
+    <Link to={bookTarget} className={`floating-book${visible ? ' visible' : ''}`}>
       &#9658; Book Now
     </Link>
   );

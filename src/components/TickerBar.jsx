@@ -29,7 +29,7 @@ export default function TickerBar() {
       {next ? (
         <>
           Next Mission: {next.title} &mdash; {shortLocation(next.location)}, {shortDate(next.dateIso)}
-          {' '}<Link to="/booking">Book Now &rarr;</Link>
+          {' '}<Link to={`/booking?event=${next.slug}`}>Book Now &rarr;</Link>
         </>
       ) : (
         <>
