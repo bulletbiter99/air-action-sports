@@ -158,10 +158,12 @@ export default function GameArchive() {
             </div>
 
             {/* Forward CTA — this page previously had NO booking/next-event path,
-                leaking peak post-highlight intent. Convert it into the next booking. */}
-            <div className="cta-band">
-                <h2>Don&rsquo;t Miss the Next Operation.</h2>
-                <p>Watching the highlights is good. Being in the next reel is better.</p>
+                leaking peak post-highlight intent. Convert it into the next booking.
+                Inline-styled (this page imports no page CSS; .cta-band lives only in
+                page-specific stylesheets) to match the orange band on other pages. */}
+            <div style={ctaBand}>
+                <h2 style={ctaBandTitle}>Don&rsquo;t Miss the Next Operation.</h2>
+                <p style={ctaBandText}>Watching the highlights is good. Being in the next reel is better.</p>
                 <Link to={siteConfig.bookingLink} className="btn-white">&#9658; Book Your Battle</Link>
             </div>
         </>
@@ -201,3 +203,8 @@ const photoCard = { display: 'flex', flexDirection: 'column', alignItems: 'cente
 const photoImg = { width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: 2 };
 const photoPlaceholder = { width: '100%', aspectRatio: '4/3', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', borderRadius: 2 };
 const photoTitle = { fontSize: '0.85rem', textAlign: 'center' };
+// CTA band — mirrors `.cta-band` from the page stylesheets (not in global.css),
+// inlined because this page imports no page CSS.
+const ctaBand = { background: 'var(--orange)', textAlign: 'center', padding: '4rem 2rem' };
+const ctaBandTitle = { fontSize: 'clamp(28px, 5vw, 48px)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'white', margin: '0 0 0.5rem' };
+const ctaBandText = { color: 'rgba(255,255,255,0.8)', fontSize: 15, letterSpacing: 1, margin: '0 0 2rem' };
