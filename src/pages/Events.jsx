@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import { useEvents } from '../hooks/useEvents';
+import { spotsSignal } from '../utils/eventSlots';
 import '../styles/pages/events.css';
 
 export default function Events() {
@@ -87,7 +88,9 @@ export default function Events() {
 
         {/* Events Grid */}
         <div className="events-grid">
-          {filteredEvents.map((ev) => (
+          {filteredEvents.map((ev) => {
+            const sig = spotsSignal(ev.slots.taken, ev.slots.total);
+            return (
             <div className={`event-card${ev.featured ? ' event-card-featured' : ''}`} key={ev.id}>
               {(ev.cardImageUrl || ev.coverImageUrl) && (
                 <Link
@@ -122,19 +125,16 @@ export default function Events() {
                   <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
                   <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
                 </div>
-                <div className="slots-bar">
-                  <div
-                    className="slots-fill"
-                    style={{ width: `${Math.round((ev.slots.taken / ev.slots.total) * 100)}%` }}
-                  ></div>
-                </div>
-                <div className="slots-text">
-                  {ev.slots.taken} of {ev.slots.total} spots taken
-                </div>
+                {sig && (
+                  <div style={{ fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', fontWeight: sig.tone === 'urgent' ? 800 : 700, color: sig.tone === 'urgent' ? 'var(--orange)' : sig.tone === 'soldout' ? 'var(--olive-light)' : 'var(--cream)', margin: '0.5rem 0 0.85rem' }}>
+                    {sig.text}
+                  </div>
+                )}
                 <Link to={`/events/${ev.slug}`} className="btn-book">&#9658; View Details</Link>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Empty State */}

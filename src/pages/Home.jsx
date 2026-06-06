@@ -152,7 +152,7 @@ export default function Home() {
       {/* ============================================================
           UPCOMING EVENTS SECTION
           ============================================================ */}
-      <section style={{ background: 'var(--mid)', padding: '5rem 2rem' }} id="events">
+      <section style={{ background: 'var(--dark)', padding: '5rem 2rem' }} id="events">
         <div className="container">
           <div className="section-label fade-in">&#9632; Upcoming Events</div>
           <h2 className="section-title">Next Deployments.</h2>
@@ -366,7 +366,7 @@ export default function Home() {
       {/* ============================================================
           WHY CHOOSE US SECTION
           ============================================================ */}
-      <section style={{ background: 'var(--dark)', padding: '5rem 2rem' }}>
+      <section style={{ background: 'var(--mid)', padding: '5rem 2rem' }}>
         <div className="container">
           <div className="section-label fade-in">&#9632; Why Choose Us</div>
           <h2 className="section-title">No-Nonsense.<br />All Action.</h2>

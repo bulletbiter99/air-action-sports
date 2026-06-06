@@ -14,7 +14,7 @@
 // total <= 0 (no capacity data) → null.
 
 export const LOW_LEFT = 20;       // "Only N spots left" once remaining hits this
-export const MIN_MOMENTUM = 10;   // need at least this many sales to brag
+export const MIN_MOMENTUM = 50;   // don't surface a head-count until sales pass this mark
 
 export function spotsSignal(taken, total) {
   const cap = Number(total) || 0;

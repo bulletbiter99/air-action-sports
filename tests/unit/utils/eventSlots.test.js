@@ -8,15 +8,16 @@ describe('spotsSignal', () => {
     expect(spotsSignal(5, undefined)).toBeNull();
   });
 
-  it('returns null for thin early sign-ups (no reverse social proof)', () => {
-    // Few sold, plenty left → show nothing rather than an empty-looking bar.
+  it('returns null below the head-count threshold (no reverse social proof)', () => {
+    // Below MIN_MOMENTUM (50): show nothing rather than a small/unimpressive count.
     expect(spotsSignal(3, 150)).toBeNull();
+    expect(spotsSignal(11, 150)).toBeNull();
     expect(spotsSignal(MIN_MOMENTUM - 1, 150)).toBeNull();
   });
 
   it('shows positive momentum once sign-ups cross the threshold', () => {
-    expect(spotsSignal(MIN_MOMENTUM, 150)).toEqual({ tone: 'momentum', text: '10 players locked in' });
-    expect(spotsSignal(11, 150)).toEqual({ tone: 'momentum', text: '11 players locked in' });
+    expect(spotsSignal(MIN_MOMENTUM, 150)).toEqual({ tone: 'momentum', text: `${MIN_MOMENTUM} players locked in` });
+    expect(spotsSignal(75, 150)).toEqual({ tone: 'momentum', text: '75 players locked in' });
   });
 
   it('escalates to urgent scarcity when few spots remain', () => {
