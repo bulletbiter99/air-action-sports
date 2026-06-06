@@ -20,7 +20,7 @@ export default function Navbar({ showTicker, onHamburgerClick, isMobileMenuOpen 
       <nav className={`site-nav${scrolled ? ' scrolled' : ''}`}>
         <Link to="/" className="nav-logo">&#9658; Air Action Sports</Link>
         <div className="nav-links">
-          <NavLink to="/#games">Games</NavLink>
+          <NavLink to="/games">Games</NavLink>
           <NavLink to="/locations">Locations</NavLink>
           <NavLink to="/events">Events</NavLink>
           <NavLink to="/new-players">New Players</NavLink>

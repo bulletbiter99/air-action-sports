@@ -12,7 +12,7 @@ export default function MobileMenu({ isOpen, onClose }) {
 
   return (
     <div className={`mobile-menu${isOpen ? ' active' : ''}`}>
-      <Link to="/#games" onClick={onClose}>Games</Link>
+      <Link to="/games" onClick={onClose}>Games</Link>
       <Link to="/locations" onClick={onClose}>Locations</Link>
       <Link to="/events" onClick={onClose}>Events</Link>
       <Link to="/new-players" onClick={onClose}>New Players</Link>
