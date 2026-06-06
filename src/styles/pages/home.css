@@ -171,9 +171,9 @@
 /* ============================================================
    TESTIMONIALS SECTION
    ============================================================ */
-.testimonials { background: var(--mid); }
+.testimonials { background: var(--dark); }
 .test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
-.test-card { background: var(--dark); border: 1px solid rgba(200,184,154,0.1); padding: 1.75rem; }
+.test-card { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); padding: 1.75rem; }
 .test-stars { color: var(--orange); font-size: 14px; letter-spacing: 2px; margin-bottom: 1rem; }
 .test-text { font-size: 14px; color: var(--tan-light); line-height: 1.7; font-style: italic; margin-bottom: 1.25rem; }
 .test-author { display: flex; align-items: center; gap: 12px; }
