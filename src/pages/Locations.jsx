@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import { siteConfig } from '../data/siteConfig';
 import { useSites } from '../hooks/useSites';
+import SocialProof from '../components/SocialProof';
 import '../styles/pages/locations.css';
 
 export default function Locations() {
@@ -73,11 +74,13 @@ export default function Locations() {
             </div>
 
             <div className="site-cta">
-              <Link to={siteConfig.bookingLink} className="btn-primary">&#9658; {site.badge === 'open' ? 'Book This Site' : 'Register Interest'}</Link>
+              <Link to={site.badge === 'open' ? siteConfig.bookingLink : '/contact'} className="btn-primary">&#9658; {site.badge === 'open' ? 'Book This Site' : 'Register Interest'}</Link>
             </div>
           </div>
         ))}
       </div>
+
+      <SocialProof />
 
       {/* CTA Band */}
       <div className="cta-band">

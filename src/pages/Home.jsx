@@ -4,6 +4,7 @@ import TickerBar from '../components/TickerBar';
 import CountdownTimer from '../components/CountdownTimer';
 import { siteConfig } from '../data/siteConfig';
 import { useEvents } from '../hooks/useEvents';
+import { spotsSignal } from '../utils/eventSlots';
 import { locations } from '../data/locations';
 import { testimonials } from '../data/testimonials';
 import '../styles/pages/home.css';
@@ -109,7 +110,7 @@ export default function Home() {
             Airsoft events across multiple elite outdoor sites.
           </p>
           <div className="hero-btns">
-            <Link to={siteConfig.bookingLink} className="btn-primary">&#9658; Book Your Battle</Link>
+            <Link to={featuredEvent ? `${siteConfig.bookingLink}?event=${featuredEvent.slug}` : siteConfig.bookingLink} className="btn-primary">&#9658; Book Your Battle</Link>
             <Link to="/events" className="btn-secondary">View Upcoming Events</Link>
           </div>
           <div className="hero-stats">
@@ -147,6 +148,49 @@ export default function Home() {
           <div className="countdown-sub">&#9632; Limited slots available &mdash; secure your position now &#9632;</div>
         </div>
       )}
+
+      {/* ============================================================
+          UPCOMING EVENTS SECTION
+          ============================================================ */}
+      <section style={{ background: 'var(--mid)', padding: '5rem 2rem' }} id="events">
+        <div className="container">
+          <div className="section-label fade-in">&#9632; Upcoming Events</div>
+          <h2 className="section-title">Next Deployments.</h2>
+          <div className="divider"></div>
+          <p className="section-sub">Spots fill fast. Check dates, pick your battle, and lock in your squad.</p>
+          <div className="events-grid">
+            {upcomingEvents.map((ev) => {
+              const sig = spotsSignal(ev.slots.taken, ev.slots.total);
+              return (
+              <div className="event-card" key={ev.id}>
+                <div className="event-header">
+                  <div className="event-date">
+                    <div className="event-day">{ev.date.day}</div>
+                    <div className="event-month">{ev.date.month}</div>
+                  </div>
+                  <span className={`event-type ${ev.type}`}>{ev.type.charAt(0).toUpperCase() + ev.type.slice(1)}</span>
+                </div>
+                <div className="event-body">
+                  <Link to={`/events/${ev.slug}`} className="event-title" style={{ textDecoration: 'none', color: 'var(--cream)' }}>{ev.title}</Link>
+                  <div className="event-loc">&#9679; {ev.location}</div>
+                  <div className="event-meta">
+                    <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
+                    <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
+                    <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
+                  </div>
+                  {sig && (
+                    <div style={{ fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', fontWeight: sig.tone === 'urgent' ? 800 : 700, color: sig.tone === 'urgent' ? 'var(--orange)' : sig.tone === 'soldout' ? 'var(--olive-light)' : 'var(--cream)', margin: '0 0 0.85rem' }}>
+                      {sig.text}
+                    </div>
+                  )}
+                  <Link to={`/events/${ev.slug}`} className="btn-book">&#9658; View Details</Link>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       {/* ============================================================
           ABOUT SECTION
@@ -320,41 +364,6 @@ export default function Home() {
       </section>
 
       {/* ============================================================
-          UPCOMING EVENTS SECTION
-          ============================================================ */}
-      <section style={{ background: 'var(--mid)', padding: '5rem 2rem' }} id="events">
-        <div className="container">
-          <div className="section-label fade-in">&#9632; Upcoming Events</div>
-          <h2 className="section-title">Next Deployments.</h2>
-          <div className="divider"></div>
-          <p className="section-sub">Spots fill fast. Check dates, pick your battle, and lock in your squad.</p>
-          <div className="events-grid">
-            {upcomingEvents.map((ev) => (
-              <div className="event-card" key={ev.id}>
-                <div className="event-header">
-                  <div className="event-date">
-                    <div className="event-day">{ev.date.day}</div>
-                    <div className="event-month">{ev.date.month}</div>
-                  </div>
-                  <span className={`event-type ${ev.type}`}>{ev.type.charAt(0).toUpperCase() + ev.type.slice(1)}</span>
-                </div>
-                <div className="event-body">
-                  <Link to={`/events/${ev.slug}`} className="event-title" style={{ textDecoration: 'none', color: 'var(--cream)' }}>{ev.title}</Link>
-                  <div className="event-loc">&#9679; {ev.location}</div>
-                  <div className="event-meta">
-                    <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
-                    <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
-                    <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
-                  </div>
-                  <Link to={`/events/${ev.slug}`} className="btn-book">&#9658; View Details</Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================
           WHY CHOOSE US SECTION
           ============================================================ */}
       <section style={{ background: 'var(--dark)', padding: '5rem 2rem' }}>
@@ -429,7 +438,7 @@ export default function Home() {
       <div className="cta-band">
         <h2>Ready to Deploy?</h2>
         <p>Slots go fast. Don't miss the next operation.</p>
-        <Link to={siteConfig.bookingLink} className="btn-white">&#9658; Book Your Battle Now</Link>
+        <Link to={featuredEvent ? `${siteConfig.bookingLink}?event=${featuredEvent.slug}` : siteConfig.bookingLink} className="btn-white">&#9658; Book Your Battle Now</Link>
       </div>
     </>
   );

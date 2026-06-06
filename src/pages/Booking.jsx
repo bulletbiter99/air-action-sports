@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import SEO from '../components/SEO';
 import '../styles/pages/booking.css';
 
 const fmt = (cents) => `$${(cents / 100).toFixed(2)}`;
 
 export default function Booking() {
+  const [searchParams] = useSearchParams();
+  const eventParam = searchParams.get('event');
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
   const [taxesFees, setTaxesFees] = useState([]);
@@ -35,9 +37,18 @@ export default function Booking() {
     ])
       .then(([ev, tf]) => {
         if (cancelled) return;
-        setEvents(ev.events || []);
+        const list = ev.events || [];
+        setEvents(list);
         setTaxesFees(tf.taxesFees || []);
-        if (ev.events?.length === 1) setSelectedEventId(ev.events[0].id);
+        // Pre-select from a ?event=<id|slug> deep-link (event detail page,
+        // ticker, hero CTAs) so the buyer isn't dropped onto a blank picker
+        // for the event they just came from. Falls back to single-event
+        // auto-select, then to the manual picker.
+        const preselected = eventParam
+          ? list.find((e) => e.id === eventParam || e.slug === eventParam)
+          : null;
+        if (preselected) setSelectedEventId(preselected.id);
+        else if (list.length === 1) setSelectedEventId(list[0].id);
         setLoading(false);
       })
       .catch(() => {
@@ -46,7 +57,7 @@ export default function Booking() {
         setLoading(false);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [eventParam]);
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
 
@@ -763,10 +774,14 @@ function StepReview({
         <div className="summary-row"><span>Subtotal</span><span>{fmt(totals.subtotalCents)}</span></div>
         {totals.taxAndFeesCents > 0 && <div className="summary-row"><span>Taxes &amp; Fees</span><span>{fmt(totals.taxAndFeesCents)}</span></div>}
         <div className="summary-row total"><span>Total</span><span>{fmt(totals.totalCents)}</span></div>
-        <p className="summary-note">You'll be redirected to Stripe to complete payment. Your booking will be confirmed once payment succeeds.</p>
+        <p className="summary-note">&#128274; Secure checkout via Stripe — you'll be redirected to complete payment. Your booking is confirmed the moment payment succeeds.</p>
         <button type="button" className="form-submit" onClick={onSubmit} disabled={submitting}>
           {submitting ? 'Redirecting to Stripe…' : `▶ Pay ${fmt(totals.totalCents)}`}
         </button>
+        <p className="summary-note" style={{ marginTop: '0.85rem' }}>
+          Plans change? Cancel 48h+ before game day for full event credit.{' '}
+          <Link to="/faq" style={{ color: 'var(--orange)' }}>Cancellation policy</Link>
+        </p>
       </div>
     </>
   );

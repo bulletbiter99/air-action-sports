@@ -23,6 +23,7 @@ export default function Navbar({ showTicker, onHamburgerClick, isMobileMenuOpen 
           <NavLink to="/#games">Games</NavLink>
           <NavLink to="/locations">Locations</NavLink>
           <NavLink to="/events">Events</NavLink>
+          <NavLink to="/new-players">New Players</NavLink>
           <NavLink to="/pricing">Pricing</NavLink>
           <NavLink to="/faq">FAQ</NavLink>
           <NavLink to="/rules-of-engagement">ROE</NavLink>

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import SocialProof from '../components/SocialProof';
 import useCountdown from '../hooks/useCountdown';
 import { siteConfig } from '../data/siteConfig';
 import { fetchEventBySlug, useEvents } from '../hooks/useEvents';
+import { spotsSignal } from '../utils/eventSlots';
 import '../styles/pages/event-detail.css';
 import '../styles/pages/rules-of-engagement.css';
 
@@ -78,6 +80,8 @@ export default function EventDetail() {
   const dateFull = event.date?.month
     ? `${event.date.month.replace(/\d{4}/, '').trim()} ${event.date.day}, ${event.date.month.match(/\d{4}/)?.[0] || '2026'}`
     : event.dateIso?.slice(0, 10) || '';
+
+  const spots = spotsSignal(event.slots?.taken, event.slots?.total);
 
   return (
     <>
@@ -439,9 +443,26 @@ export default function EventDetail() {
               </div>
             </div>
 
+            {/* Spots-left urgency — positive framing only (see utils/eventSlots.js) */}
+            {spots && (
+              <div
+                style={{
+                  textAlign: 'center',
+                  fontSize: 13,
+                  letterSpacing: 1,
+                  textTransform: 'uppercase',
+                  fontWeight: spots.tone === 'urgent' ? 800 : 700,
+                  color: spots.tone === 'urgent' ? 'var(--orange)' : spots.tone === 'soldout' ? 'var(--olive-light)' : 'var(--cream)',
+                  marginBottom: '0.75rem',
+                }}
+              >
+                {spots.text}
+              </div>
+            )}
+
             {/* Book Now Button */}
             <Link
-              to={siteConfig.bookingLink}
+              to={`${siteConfig.bookingLink}?event=${slug}`}
               className="form-submit"
               style={{ display: 'block', textAlign: 'center', textDecoration: 'none', marginBottom: '1.5rem' }}
             >
@@ -487,8 +508,11 @@ export default function EventDetail() {
         </div>
       </div>
 
+      {/* Social proof near the booking decision */}
+      <SocialProof limit={2} />
+
       {/* Related Events */}
-      <section style={{ background: 'var(--mid)', padding: '5rem 2rem' }}>
+      <section style={{ background: 'var(--dark)', padding: '5rem 2rem' }}>
         <div className="container">
           <div className="section-label">&#9632; More Upcoming Events</div>
           <h2 className="section-title">Other Operations.</h2>

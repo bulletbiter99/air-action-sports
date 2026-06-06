@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import FeedbackModal from './FeedbackModal';
+import NewsletterSignup from './NewsletterSignup';
 
 export default function Footer() {
   const year = new Date().getFullYear();
@@ -48,10 +49,7 @@ export default function Footer() {
           <p style={{ fontSize: '12px', color: 'var(--olive-light)', marginBottom: '10px' }}>
             Get event alerts and early access.
           </p>
-          <div className="newsletter">
-            <input type="email" placeholder="Your email..." />
-            <button onClick={(e) => { e.preventDefault(); alert('Newsletter signup coming soon!'); }}>Join</button>
-          </div>
+          <NewsletterSignup />
         </div>
       </div>
       <div className="footer-bottom">

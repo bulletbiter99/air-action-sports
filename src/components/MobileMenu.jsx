@@ -15,6 +15,7 @@ export default function MobileMenu({ isOpen, onClose }) {
       <Link to="/#games" onClick={onClose}>Games</Link>
       <Link to="/locations" onClick={onClose}>Locations</Link>
       <Link to="/events" onClick={onClose}>Events</Link>
+      <Link to="/new-players" onClick={onClose}>New Players</Link>
       <Link to="/pricing" onClick={onClose}>Pricing</Link>
       <Link to="/faq" onClick={onClose}>FAQ</Link>
       <Link to="/rules-of-engagement" onClick={onClose}>Rules of Engagement</Link>
