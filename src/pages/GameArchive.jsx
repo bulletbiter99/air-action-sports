@@ -8,6 +8,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { siteConfig } from '../data/siteConfig';
 
 export default function GameArchive() {
     const [events, setEvents] = useState([]);
@@ -83,9 +84,12 @@ export default function GameArchive() {
                 {error && <p style={errorMsg}>Error loading archive: {error}</p>}
 
                 {!loading && !error && filtered.length === 0 && (
-                    <p style={emptyMsg}>
-                        No archived games yet. Check back after the next operation wraps.
-                    </p>
+                    <div style={emptyMsg}>
+                        <p style={{ margin: 0 }}>No archived games yet — the next operation could be your first highlight.</p>
+                        <p style={{ marginTop: '1.25rem' }}>
+                            <Link to="/events" className="btn-primary">&#9658; View Upcoming Events</Link>
+                        </p>
+                    </div>
                 )}
 
                 {!loading && !error && filtered.map((event) => (
@@ -151,6 +155,14 @@ export default function GameArchive() {
                         )}
                     </article>
                 ))}
+            </div>
+
+            {/* Forward CTA — this page previously had NO booking/next-event path,
+                leaking peak post-highlight intent. Convert it into the next booking. */}
+            <div className="cta-band">
+                <h2>Don&rsquo;t Miss the Next Operation.</h2>
+                <p>Watching the highlights is good. Being in the next reel is better.</p>
+                <Link to={siteConfig.bookingLink} className="btn-white">&#9658; Book Your Battle</Link>
             </div>
         </>
     );

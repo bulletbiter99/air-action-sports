@@ -5,6 +5,20 @@ import { faqCategories } from '../data/faq';
 import '../styles/pages/faq.css';
 
 export default function FAQ() {
+  // FAQPage structured data — makes the page eligible for Google's rich-result
+  // FAQ accordions. Built from the same faqCategories the page renders.
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqCategories.flatMap((cat) =>
+      cat.items.map((item) => ({
+        '@type': 'Question',
+        name: item.question,
+        acceptedAnswer: { '@type': 'Answer', text: item.answer },
+      })),
+    ),
+  };
+
   return (
     <>
       <SEO
@@ -12,7 +26,9 @@ export default function FAQ() {
         description="Frequently asked questions about Air Action Sports airsoft events. Everything you need to know before your first game."
         canonical="https://airactionsport.com/faq"
         ogImage="https://airactionsport.com/images/og-image.jpg"
-      />
+      >
+        <script type="application/ld+json">{JSON.stringify(faqSchema)}</script>
+      </SEO>
 
       <div className="page-content">
         <div className="section-label">&#9632; FAQ</div>
