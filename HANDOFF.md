@@ -14,14 +14,14 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 | Metric | Value |
 |---|---|
-| Latest work | **2026-06-03 session** — fixed the Stripe live cutover (production was silently in TEST mode despite the "DONE 2026-06-02" record; really cut over + e2e-verified 2026-06-03) + added data-driven Volga rental content (PRs #280/#281/#282) + an admin **"Move to another event"** booking-reschedule action ([#284](https://github.com/bulletbiter99/air-action-sports/pull/284)) + a check-in **"Payment due"** flag ([#286](https://github.com/bulletbiter99/air-action-sports/pull/286)) with the 2 outstanding cutover invoices marked `unpaid`. Prior **2026-06-02 work-menu session**: migrations 0065–0070, marketing route-capability swap, dark-theme contrast fix, RTL tests, visual baselines, item 6 (admin-editable event content). |
-| `main` HEAD | `dfabd36` · re-pull for exact |
-| Tests | **2834 / 228 passing** |
+| Latest work | **2026-06-11 session** — customer-driven waiver work: failed-submit UX (scroll-to-first-error + alert summary, [#292](https://github.com/bulletbiter99/air-action-sports/pull/292)), inline-styled error boxes ([#293](https://github.com/bulletbiter99/air-action-sports/pull/293)), the **waiver-confirmation email feature** (auto-receipt on every signing + admin per-booking resend; migration **0073**; [#294](https://github.com/bulletbiter99/air-action-sports/pull/294)/[#295](https://github.com/bulletbiter99/air-action-sports/pull/295)), and a sales-series test calendar-time-bomb fix ([#291](https://github.com/bulletbiter99/air-action-sports/pull/291)). Prior: **2026-06-06** homepage reorder + polish (#289/#290); **2026-06-03** Stripe live-cutover FIX (prod had silently been in TEST mode) + Volga rental content + booking-reschedule (#284) + check-in "Payment due" flag (#286). |
+| `main` HEAD | `d9b4f6a` · re-pull for exact |
+| Tests | **2860 / 233 passing** |
 | Build | clean · Lint 0 errors |
-| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — deployed from `main` via Workers Builds; **live Stripe (really cut over 2026-06-03)** |
-| D1 migrations on remote | **0001–0072 ALL applied** (0065–0070 applied 2026-06-02; the out-of-band deferral is resolved — a `migrations apply` now finds nothing new) |
+| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — deployed from `main` via Workers Builds; **live Stripe (really cut over 2026-06-03)**; waiver-confirmation receipts live |
+| D1 migrations on remote | **0001–0073 ALL applied** (0073 `waiver_confirmation` template applied 2026-06-11; a `migrations apply` finds nothing new) |
 | Open milestone | **M8** — work-menu items 1–7 + contrast pass done + deployed; **item 6 (event content) COMPLETE**. Remaining: item-1 RTL long tail + the admin design-consistency sweep |
-| Open PRs | 0 (all merged through #278) |
+| Open PRs | 0 (all merged through #295) |
 
 **Post-M7 work-menu session (2026-05-31) — all merged to `main`:** 11c Reports polish (#231), representative-data visual baselines (#232), the **Marketing milestone B2–B6** (#234 / #243 / #236–#240 — campaigns + send pipeline + engagement tracking + automations + capability seed), M6 live-Stripe code-readiness audit (#233), and the **M8** start (#241 a11y region pass + #244 sidebar /me caps). **For the full current state + remaining work menu + consolidated operator-pending, use [docs/next-session.md](docs/next-session.md).** The M7-in-progress tables below are preserved as a historical record.
 
@@ -1020,9 +1020,9 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 
 ## Prompt for fresh session
 
-### ⚠ Post-M6 (current state — 2026-05-27)
+### ⚠ Current state (2026-06-11)
 
-**M6 is CLOSED. No in-flight milestone code work.** Production runs all M6 batches on **live** Stripe keys (cutover really completed 2026-06-03 — it had been silently stuck in test mode despite the 2026-06-02 record; see memory `stripe-live-cutover-fixed-2026-06-03.md`). Remaining from that: 2 outstanding cutover-remediation invoices (Kayden Case, Eduardo Ames).
+**M1–M7 CLOSED; M8 in progress (RTL long tail + admin design sweep remaining). No in-flight milestone branch.** Production runs on **live** Stripe keys (cutover really completed 2026-06-03 — it had been silently stuck in test mode despite the 2026-06-02 record; see memory `stripe-live-cutover-fixed-2026-06-03.md`). Waiver signing now emails a confirmation receipt (2026-06-11, migration 0073). Remaining operator items: 2 outstanding cutover-remediation invoices (Kayden Case, Eduardo Ames) + the marketing/Resend/FTS activation steps in docs/next-session.md.
 
 **Use [docs/next-session.md](docs/next-session.md) for the post-M6 entry point.** It has:
 - Current production state (test counts, deploy version, etc.)
@@ -1042,9 +1042,10 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 Copy and paste the following into a new Claude Code session:
 
 ```
-I'm resuming work on the Air Action Sports booking system. M6 is closed
-(2026-05-27); production stable at main=84c2478, worker=2ee51d5a,
-tests 2292/184 passing. Read these in order:
+I'm resuming work on the Air Action Sports booking system. M1-M7 are
+closed, M8 is in progress; production stable at main=d9b4f6a (re-pull
+for exact), tests 2860/233 passing, migrations 0001-0073 applied, live
+Stripe. Read these in order:
 
   1. docs/next-session.md — current state + available tracks to
      work on next + copy-paste prompt template.
