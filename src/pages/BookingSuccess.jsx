@@ -121,7 +121,10 @@ export default function BookingSuccess() {
               if (signedCount === totalCount) {
                 return (
                   <p className="booking-section-desc" style={{ color: '#7ed99b' }}>
-                    &#10003; All {totalCount} player{totalCount === 1 ? '' : 's'} already have a valid waiver on file. You&rsquo;re cleared for game day &mdash; nothing to sign.
+                    &#10003; {totalCount === 1
+                      ? <>Your player&rsquo;s waiver is already on file.</>
+                      : <>All {totalCount} players already have a valid waiver on file.</>}
+                    {' '}You&rsquo;re cleared for game day &mdash; nothing to sign.
                   </p>
                 );
               }

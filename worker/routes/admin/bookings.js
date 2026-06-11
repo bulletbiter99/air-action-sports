@@ -3,7 +3,7 @@ import { requireAuth, requireRole } from '../../lib/auth.js';
 import { formatBooking, formatEvent, safeJson } from '../../lib/formatters.js';
 import { issueRefund, createCheckoutSession, retrievePaymentIntent, detachPaymentMethod } from '../../lib/stripe.js';
 import { bookingId, attendeeId, qrToken } from '../../lib/ids.js';
-import { sendBookingConfirmation, sendWaiverRequest, sendRefundRecordedExternal } from '../../lib/emailSender.js';
+import { sendBookingConfirmation, sendWaiverRequest, sendRefundRecordedExternal, sendWaiverConfirmation } from '../../lib/emailSender.js';
 import { findExistingValidWaiver } from '../../lib/waiverLookup.js';
 import { loadActiveTaxesFees } from '../../lib/pricing.js';
 import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
@@ -975,6 +975,59 @@ adminBookings.post('/:id/resend-confirmation', requireRole('owner', 'manager'), 
     ).bind(user.id, id, JSON.stringify({ to: booking.email }), Date.now()).run();
 
     return c.json({ success: true, sentTo: booking.email });
+});
+
+// POST /api/admin/bookings/:id/resend-waiver-confirmation — re-send the
+// waiver-confirmation receipt for every signed attendee on the booking.
+// Support tool for "did my waiver go through?"; sibling of the
+// /resend-confirmation + /bulk/resend-waiver-request endpoints. Not gated on
+// booking payment status — waiver receipts are about waivers, not money.
+adminBookings.post('/:id/resend-waiver-confirmation', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const booking = await c.env.DB.prepare(`SELECT * FROM bookings WHERE id = ?`).bind(id).first();
+    if (!booking) return c.json({ error: 'Booking not found' }, 404);
+
+    const event = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(booking.event_id).first();
+    if (!event) return c.json({ error: 'Event not found' }, 404);
+
+    const signedRes = await c.env.DB.prepare(
+        `SELECT a.id AS attendee_id, a.booking_id,
+                w.email, w.player_name, w.signed_at, w.claim_period_expires_at
+         FROM attendees a
+         JOIN waivers w ON w.id = a.waiver_id
+         WHERE a.booking_id = ? AND a.cancelled_at IS NULL`
+    ).bind(id).all();
+    const signed = signedRes.results || [];
+    if (signed.length === 0) {
+        return c.json({ error: 'No signed waivers on this booking yet' }, 409);
+    }
+
+    const results = { sent: 0, skipped: 0, failed: 0 };
+    const now = Date.now();
+    for (const row of signed) {
+        try {
+            const result = await sendWaiverConfirmation(c.env, {
+                waiver: row,
+                attendee: { id: row.attendee_id, booking_id: row.booking_id },
+                event,
+            });
+            if (result?.skipped) {
+                results.skipped++;
+                continue;
+            }
+            results.sent++;
+            await c.env.DB.prepare(
+                `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+                 VALUES (?, 'booking.waiver_confirmation_resent', 'attendee', ?, ?, ?)`
+            ).bind(user.id, row.attendee_id, JSON.stringify({ booking_id: id, to: row.email }), now).run();
+        } catch (err) {
+            console.error('resend-waiver-confirmation failed for attendee', row.attendee_id, err);
+            results.failed++;
+        }
+    }
+
+    return c.json(results);
 });
 
 // M6 B9 — POST /:id/detach-saved-pm

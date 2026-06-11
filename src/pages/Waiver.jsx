@@ -364,6 +364,11 @@ export default function Waiver() {
           <p>
             Your waiver has been received. You're cleared for action. See you on the battlefield.
           </p>
+          {formData.email && (
+            <p style={{ fontSize: 14, color: 'var(--olive-light)' }}>
+              A confirmation email is on its way to <strong style={{ color: 'var(--tan)' }}>{formData.email}</strong>.
+            </p>
+          )}
           <Link to="/" className="form-submit" style={{ textDecoration: 'none', display: 'inline-block' }}>
             Back to Home
           </Link>
