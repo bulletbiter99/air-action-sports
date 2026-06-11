@@ -1,6 +1,6 @@
-# Next-session entry point — post 2026-06-03 Stripe-cutover-fix + Volga-rentals session
+# Next-session entry point — post 2026-06-11 waiver-UX + confirmation-email session
 
-Fresh-session entry point for Air Action Sports. **Updated 2026-06-03** (close of an operator-driven Stripe-cutover-fix + Volga-rental-content session).
+Fresh-session entry point for Air Action Sports. **Updated 2026-06-11** (close of a customer-support-driven session: waiver-form UX fixes + the new **waiver-confirmation email** feature — PRs #291–#295 + migration 0073, all merged + deployed + live-verified). Two sessions happened since the prior sync: **2026-06-06** homepage reorder/polish (#289/#290) and **2026-06-11** (both summarized below).
 ⚠️ **Heads-up on the cutover:** earlier docs recorded the M6 live-Stripe cutover as "DONE 2026-06-02," but it was actually **broken** — production was silently still in Stripe **TEST mode** (every checkout session `cs_test_`) until it was really cut over + e2e-verified on **2026-06-03**. Production now collects real money correctly. See the **2026-06-03 section** below + memory `stripe-live-cutover-fixed-2026-06-03.md`. The earlier **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains:** the item-1 RTL long tail, the full admin **design-consistency sweep**, and operator activation (Marketing send + Resend webhook + FTS flag). Detail below.
 
 ---
@@ -9,17 +9,36 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-03** (close o
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `dfabd36` (re-pull for exact) |
-| Tests | **2834 / 228** all green |
+| `main` HEAD | `d9b4f6a` (re-pull for exact) |
+| Tests | **2860 / 233** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed from `main` (`3eb5f4d`) via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — **live Stripe REALLY cut over 2026-06-03** (was in TEST mode until then) + Marketing/deliverability schema active |
-| Migrations on remote | **0001–0072 ALL applied** — 0065–0070 applied 2026-06-02. The out-of-band 0071/0072 deferral is **resolved**; a `migrations apply` now finds nothing new. |
-| Open PRs | 0 |
+| Production | deployed from `main` (`d9b4f6a`) via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + **waiver-confirmation receipts live (2026-06-11)** |
+| Migrations on remote | **0001–0073 ALL applied** — 0073 (`waiver_confirmation` email template) applied 2026-06-11; a `migrations apply` finds nothing new. |
+| Open PRs | 0 (all merged through #295) |
 | Open milestone | **M8** — items 1–7 of the work menu + the contrast pass done + deployed; **item 6 (event content) COMPLETE**. Remaining: item-1 RTL long tail + the admin design-consistency sweep. |
 
 ---
 
-## What shipped — 2026-06-03 session (Stripe live-cutover FIX + Volga rentals) ⭐ most recent
+## What shipped — 2026-06-11 session (waiver UX + confirmation-email feature) ⭐ most recent
+
+Triggered by a customer email (Max Prudden, `foxtrot-vietnam`): *"I believe I got my waiver all signed… but it kept taking to the top of the page whenever I clicked submit."* His waiver WAS signed (verified in prod D1 — the final submit succeeded); the session then fixed everything the report exposed. **5 PRs (#291–#295) merged + deployed + live-verified; migration 0073 applied; tests 2834 → 2860 / 233.**
+
+- **Waiver failed-submit UX** ([#292](https://github.com/bulletbiter99/air-action-sports/pull/292)): the failed-validation branch did a bare scroll-to-top while the error highlights sat below the fold — looked like a silent reset. Now: scroll to + focus the **first invalid field** (visual order via `FIELD_ORDER`, honors reduced-motion) + a `role="alert"` count banner above Submit + per-field errors clear as the user edits. Ships the **first public-page RTL suite** (`tests/unit/pages/Waiver.test.jsx`).
+- **Error boxes unstyled on direct loads** ([#293](https://github.com/bulletbiter99/air-action-sports/pull/293)): `.booking-error` lives only in the Booking route's lazy chunk, so Waiver's `submitError` + under-12 BLOCKED boxes rendered transparent on a direct `/waiver` visit. Inlined via a module-level `ERROR_BOX_STYLE` (per-side border longhands — mixing the `border` shorthand with `borderLeft` in one React style object draws the mixed-shorthand warning). Scope note: **BookingSuccess.jsx imports booking.css itself — needed no fix.**
+- **Waiver-confirmation email feature** ([#294](https://github.com/bulletbiter99/air-action-sports/pull/294) + migration **0073** + [#295](https://github.com/bulletbiter99/air-action-sports/pull/295)): signing was completely silent, email-wise. Now every successful signing emails the signer a receipt — `waiver_confirmation` template (house dark style, signed date + valid-through + ticket link; editable at `/admin/email-templates`) + append-only `sendWaiverConfirmation` + an **additive guarded `waitUntil` hook in the Critical-DNT waiver POST** (whole queued body inside its own catch — can never affect the signing transaction; all Group C gate tests stayed byte-green). Admin: `POST /api/admin/bookings/:id/resend-waiver-confirmation` + a **"✉ Resend waiver confirmation"** button on `/admin/bookings/:id` (shown when any attendee has signed; deliberately NOT payment-gated). The post-sign screen now says "A confirmation email is on its way to {email}".
+- **Grammar fix in 3 mirrors:** the all-signed single-player summary read "All 1 player already have a valid waiver on file" → now "Your player's waiver is already on file…" in `emailSender.js` + `emailTemplatePreview.js` (kept byte-identical) + `BookingSuccess.jsx`.
+- **Sales-series test calendar time bomb** ([#291](https://github.com/bulletbiter99/air-action-sports/pull/291)): a mocked row hardcoded to `2026-05-09` vs the endpoint's trailing-30-day window — expired 2026-06-08 and was the only red test on `main`. Now derives the date dynamically. **Durable lesson: never hardcode dates inside relative-window assertions.**
+- **Customer closed out end-to-end:** operator clicked the new resend on `bk_0W0OhROeOgUb65` → `booking.waiver_confirmation_resent` audit row → receipt delivered to the customer (doubled as the feature's production e2e).
+
+---
+
+## What shipped — 2026-06-06 session (homepage reorder + polish)
+
+PRs [#289](https://github.com/bulletbiter99/air-action-sports/pull/289) + [#290](https://github.com/bulletbiter99/air-action-sports/pull/290): homepage section reorder + conversion improvements; section background dark/mid alternation restored; attendee counters now render only at **≥50** (shared helper — Home + Event Detail + Events listing); nav **"Games" → `/games`** archive (was the `/#games` anchor). ⚠️ The home/events **public visual baselines were last captured at #289** — #290's background changes postdate them (a Cloudflare edge-cache race blocked the recapture; memory `visual-baseline-cf-cache-gotcha`). Visual CI has passed consistently since; if a diff ever appears, recapture via the `capture-baselines` label. A "cache-bust visual test URLs" background-task chip exists for the durable fix.
+
+---
+
+## What shipped — 2026-06-03 session (Stripe live-cutover FIX + Volga rentals)
 
 ⚠️ **The "cutover DONE 2026-06-02" records below were inaccurate.** Production was silently in Stripe **TEST mode** (every checkout `cs_test_`) — the operator reported "tickets purchased but not showing in Stripe." Full root-cause + fix in memory `stripe-live-cutover-fixed-2026-06-03.md`.
 
@@ -85,7 +104,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 
 ## ⚠️ Operator-pending (what's LEFT after the 2026-06-02 deploy)
 
-Migrations **0065–0070 are now applied** and the **marketing route-capability swap is deployed** (`b342b39f`). What remains is env/secret/flag activation — every feature degrades gracefully (empty lists / no-op cron / 500 on the unset webhook) until then.
+**Unchanged by the 2026-06-06 + 2026-06-11 sessions.** Migrations **0065–0070 are now applied** and the **marketing route-capability swap is deployed** (`b342b39f`). What remains is env/secret/flag activation — every feature degrades gracefully (empty lists / no-op cron / 500 on the unset webhook) until then.
 
 **Collect the final 2 cutover-remediation invoices (2026-06-03):** the 4 test-mode "paid" bookings collected $0; live Stripe invoices were sent. **Still owed:** Kayden Case (`bk_HabP7q2dPblyHA`, $27.75) + Eduardo Ames (`bk_BusRxaodwLrQN6`, $27.75). When each pays: clear the dead test `stripe_payment_intent` (set NULL) + write an `audit_log booking.payment_reconciled` row — method in memory `stripe-live-cutover-fixed-2026-06-03.md`. (Tyson Wright + Kyle Kitagawa already paid + reconciled.)
 
@@ -125,7 +144,7 @@ Migrations **0065–0070 are now applied** and the **marketing route-capability 
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 2834 / 228
+npm test -- --run | tail -3        # expect 2860 / 233
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
@@ -144,7 +163,8 @@ curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 | memory `image-focal-positioning.md` | the focal-positioning feature + ⚠️ the **out-of-band 0071/0072 migration state** |
 | `src/components/admin/ImageFocalPicker.jsx` + `src/hooks/useSites.js` | reusable focal picker + the `/api/sites` hook (focal-positioning feature) |
 | `scripts/update-volga-*.sql` / `update-foxtrot-time.sql` | audit record of the Volga/Foxtrot content + image + faction-link writes |
-| `tests/helpers/renderComponent.jsx` | RTL/jsdom render helpers (`render` / `renderWithRouter` / `renderWithAdmin`) — M8 |
+| `tests/helpers/renderComponent.jsx` | RTL/jsdom render helpers (`render` / `renderWithRouter` / `renderWithAdmin`) — M8; `tests/unit/pages/Waiver.test.jsx` is the first PUBLIC-page RTL suite |
+| `worker/lib/emailSender.js` `sendWaiverConfirmation` + the hook in `worker/routes/waivers.js` | **waiver-confirmation receipt** (auto on signing; admin per-booking resend on `/admin/bookings/:id`) — 2026-06-11 |
 | `tests/helpers/mockClientFetch.js` | client-side `fetch` mock for component tests — M8 |
 | `docs/runbooks/marketing-deploy.md` | Marketing B1–B6 deploy + activation (migrations 0067–0070) |
 | `docs/runbooks/m7-deploy.md` | M7 deploy + its operator-pending (0065/0066, Resend, FTS flag) |
