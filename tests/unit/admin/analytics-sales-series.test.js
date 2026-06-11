@@ -49,12 +49,22 @@ describe('GET /api/admin/analytics/sales-series — refund accounting', () => {
         const env = createMockEnv();
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
-        // Simulate two days in the window: May 9 had 2 refunded bookings
-        // ($320 total), May 10 had nothing. Without the fix, May 9 would
-        // be a $0 day. With the fix, May 9 shows its lifetime gross.
+        // A day safely inside the trailing 30-day window no matter when the
+        // suite runs, derived the same way the endpoint keys its series days
+        // (local midnight → toISOString date). A hardcoded date here rots:
+        // the original '2026-05-09' fell out of the window on 2026-06-08 and
+        // the test started failing on pure calendar time.
+        const target = new Date();
+        target.setDate(target.getDate() - 2);
+        target.setHours(0, 0, 0, 0);
+        const refundedDay = target.toISOString().slice(0, 10);
+
+        // Simulate a window where that day had 2 refunded bookings ($320
+        // total). Without the fix it would be a $0 day; with the fix it
+        // shows its lifetime gross.
         env.DB.__on(/FROM bookings\s+WHERE[\s\S]+?GROUP BY d/, {
             results: [
-                { d: '2026-05-09', bookings: 2, players: 4, gross_cents: 32000 },
+                { d: refundedDay, bookings: 2, players: 4, gross_cents: 32000 },
             ],
         }, 'all');
 
@@ -64,11 +74,11 @@ describe('GET /api/admin/analytics/sales-series — refund accounting', () => {
             {},
         );
         const json = await res.json();
-        const may9 = json.series.find((d) => d.date === '2026-05-09');
-        expect(may9).toBeDefined();
-        expect(may9.bookings).toBe(2);
-        expect(may9.players).toBe(4);
-        expect(may9.grossCents).toBe(32000);
+        const day = json.series.find((d) => d.date === refundedDay);
+        expect(day).toBeDefined();
+        expect(day.bookings).toBe(2);
+        expect(day.players).toBe(4);
+        expect(day.grossCents).toBe(32000);
     });
 
     it('event_id filter still scopes by event', async () => {
