@@ -53,6 +53,7 @@ export default function AdminBookingsDetail() {
     // M6 B9 — detach-saved-PM confirm + busy state
     const [detachPmOpen, setDetachPmOpen] = useState(false);
     const [detaching, setDetaching] = useState(false);
+    const [resendingWaiverConf, setResendingWaiverConf] = useState(false);
     // Move-to-another-event modal
     const [rescheduleOpen, setRescheduleOpen] = useState(false);
 
@@ -101,6 +102,25 @@ export default function AdminBookingsDetail() {
             flashMsg('err', e?.message || 'Network error');
         } finally {
             setResending(false);
+        }
+    };
+
+    const resendWaiverConfirmation = async () => {
+        setResendingWaiverConf(true);
+        try {
+            const res = await fetch(`/api/admin/bookings/${encodeURIComponent(id)}/resend-waiver-confirmation`, {
+                method: 'POST', credentials: 'include',
+            });
+            const j = await res.json().catch(() => ({}));
+            if (res.ok) {
+                flashMsg('ok', `Waiver confirmation re-sent (${j.sent || 0} sent${j.skipped ? `, ${j.skipped} skipped` : ''}${j.failed ? `, ${j.failed} failed` : ''})`);
+            } else {
+                flashMsg('err', j.error || 'Resend failed');
+            }
+        } catch (e) {
+            flashMsg('err', e?.message || 'Network error');
+        } finally {
+            setResendingWaiverConf(false);
         }
     };
 
@@ -174,6 +194,9 @@ export default function AdminBookingsDetail() {
     // External refund: paid or comp, not already refunded.
     const canRefundExternal = ['paid', 'comp'].includes(booking.status) && !booking.refundedAt;
     const canResend = ['paid', 'comp'].includes(booking.status);
+    // Waiver receipts are about waivers, not payment — gate on a signed
+    // waiver existing, matching the server's 409 when none are signed.
+    const hasSignedWaiver = (attendees || []).some((a) => a.waiverSigned);
     // M6 B9 — detach saved PM: owner-only, requires non-synthetic Stripe PI
     // (synthetic prefixes are cash_/venmo_/etc., no real Stripe PM behind them).
     const canDetachPM = canOwnerActions && stripeIntent && !isExternalIntent;
@@ -336,6 +359,16 @@ export default function AdminBookingsDetail() {
                                         className="abd-action-btn"
                                     >
                                         {resending ? 'Sending…' : '✉ Resend confirmation'}
+                                    </button>
+                                )}
+                                {hasSignedWaiver && (
+                                    <button
+                                        type="button"
+                                        onClick={resendWaiverConfirmation}
+                                        disabled={resendingWaiverConf}
+                                        className="abd-action-btn"
+                                    >
+                                        {resendingWaiverConf ? 'Sending…' : '✉ Resend waiver confirmation'}
                                     </button>
                                 )}
                                 {canRefundStripe && (

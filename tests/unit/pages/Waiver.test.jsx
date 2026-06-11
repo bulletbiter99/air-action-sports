@@ -97,6 +97,11 @@ describe('Waiver validation UX', () => {
         expect(JSON.parse(post[1].body).signature).toBe('Max Prudden');
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
         expect(scrollToSpy).toHaveBeenCalledWith(0, 0);
+        // The confirmation screen tells the signer a receipt email is coming
+        // (the auto-send shipped alongside this UX) and names the address.
+        expect(screen.getByText(
+            (_, el) => el?.tagName === 'P' && /A confirmation email is on its way to max@example\.com/.test(el.textContent || ''),
+        )).toBeInTheDocument();
     });
 
     it('already-signed attendee sees the On File state, not the form', async () => {
