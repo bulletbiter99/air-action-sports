@@ -23,7 +23,9 @@ export async function sendBookingConfirmation(env, { booking, event, attendees =
     let waiverSummary = '';
     if (totalAttendees > 0) {
         if (signedCount === totalAttendees) {
-            waiverSummary = `All ${totalAttendees} ${totalAttendees === 1 ? 'player' : 'players'} already have a valid waiver on file — you're cleared for game day, nothing to sign.`;
+            waiverSummary = totalAttendees === 1
+                ? `Your player's waiver is already on file — you're cleared for game day, nothing to sign.`
+                : `All ${totalAttendees} players already have a valid waiver on file — you're cleared for game day, nothing to sign.`;
         } else if (signedCount > 0) {
             waiverSummary = `${signedCount} of ${totalAttendees} players already have a valid waiver on file. The remaining ${totalAttendees - signedCount} ${totalAttendees - signedCount === 1 ? 'player needs' : 'players need'} to sign before game day.`;
         } else {
@@ -613,5 +615,44 @@ export async function sendComplaintAlert(env, { emailEvent }) {
         html: rendered.html,
         text: rendered.text,
         tags: [{ name: 'type', value: 'complaint_alert' }],
+    });
+}
+
+// Waiver-confirmation receipt — sent to the signer (the email typed on the
+// waiver form) after a successful POST /api/waivers/:qrToken, and resendable
+// per booking from the admin booking detail page. `waiver` carries the
+// signing facts (player_name / email / signed_at / claim_period_expires_at);
+// `attendee` supplies booking_id for the ticket link + id for the tag.
+export async function sendWaiverConfirmation(env, { waiver, attendee, event }) {
+    if (!waiver?.email) return { skipped: 'no_signer_email' };
+
+    const template = await loadTemplate(env.DB, 'waiver_confirmation');
+    if (!template) return { skipped: 'template_missing' };
+
+    const fmtDate = (ms) => new Date(ms).toLocaleDateString('en-US', {
+        day: 'numeric', month: 'long', year: 'numeric',
+    });
+    const vars = {
+        player_name: waiver.player_name || 'Player',
+        event_name: event.title,
+        event_date: event.display_date || event.displayDate,
+        signed_date: fmtDate(waiver.signed_at),
+        valid_through: waiver.claim_period_expires_at ? fmtDate(waiver.claim_period_expires_at) : '',
+        ticket_link: `${env.SITE_URL}/booking/success?token=${attendee.booking_id || attendee.bookingId}`,
+    };
+    const rendered = renderTemplate(template, vars);
+
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: waiver.email,
+        replyTo: env.REPLY_TO_EMAIL,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: 'waiver_confirmation' },
+            { name: 'attendee_id', value: attendee.id },
+        ],
     });
 }

@@ -3,6 +3,7 @@ import { formatEvent } from '../lib/formatters.js';
 import { randomId } from '../lib/ids.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { readJson, BODY_LIMITS } from '../lib/bodyGuard.js';
+import { sendWaiverConfirmation } from '../lib/emailSender.js';
 
 const MAX_SIGNATURE_LEN = 200;
 const MAX_FIELD_LEN = 200;
@@ -315,6 +316,35 @@ waivers.post('/:qrToken', rateLimit('RL_TOKEN_LOOKUP'), async (c) => {
         ip,
         nowMs,
     ).run();
+
+    // Additive (2026-06-11): queue a waiver-confirmation receipt to the signer.
+    // Fire-and-forget via waitUntil, mirroring the /stripe consumer's pattern —
+    // the ENTIRE body (event lookup included) sits inside the catch so an email
+    // or lookup problem can never reject or affect the signing transaction.
+    if (c.executionCtx?.waitUntil) {
+        const signerEmail = body.email.trim();
+        const signerName = body.name.trim();
+        c.executionCtx.waitUntil((async () => {
+            try {
+                const eventRow = await c.env.DB.prepare(
+                    `SELECT e.* FROM events e JOIN bookings b ON b.event_id = e.id WHERE b.id = ?`
+                ).bind(attendee.booking_id).first();
+                if (!eventRow) return;
+                await sendWaiverConfirmation(c.env, {
+                    waiver: {
+                        email: signerEmail,
+                        player_name: signerName,
+                        signed_at: nowMs,
+                        claim_period_expires_at: claimPeriodExpiresAt,
+                    },
+                    attendee,
+                    event: eventRow,
+                });
+            } catch (err) {
+                console.error('waiver_confirmation email failed:', err?.message || err);
+            }
+        })());
+    }
 
     return c.json({
         success: true,
