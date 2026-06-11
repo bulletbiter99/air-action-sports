@@ -3,6 +3,29 @@ import { Link, useSearchParams } from 'react-router-dom';
 import SEO from '../components/SEO';
 import '../styles/pages/waiver.css';
 
+// Visual top-to-bottom order of the validatable fields — scrollToFirstError
+// walks this (not the errs object's key order) so a failed submit always lands
+// on the first highlighted field on the page.
+const FIELD_ORDER = [
+  'name', 'dob', 'email', 'phone', 'emergencyName', 'emergencyPhone',
+  'agree', 'erecordsConsent', 'signature', 'juryTrialInitials',
+  'parentName', 'parentConsent', 'parentSignature', 'parentInitials',
+  'supervisingAdultName', 'supervisingAdultSignature',
+];
+
+function scrollToFirstError(errs) {
+  const first = FIELD_ORDER.find((key) => errs[key]);
+  const el = first ? document.querySelector(`#waiver-form [name="${first}"]`) : null;
+  if (!el) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  const reduceMotion = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+  if (typeof el.focus === 'function') el.focus({ preventScroll: true });
+}
+
 export default function Waiver() {
   const [params] = useSearchParams();
   const token = params.get('token');
@@ -140,6 +163,14 @@ export default function Waiver() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((p) => ({ ...p, [name]: type === 'checkbox' ? checked : value }));
+    // Editing a flagged field clears its error immediately, so the red
+    // highlight (and the summary count) track the user's fixes between submits.
+    setErrors((p) => {
+      if (!p[name]) return p;
+      const next = { ...p };
+      delete next[name];
+      return next;
+    });
   };
 
   const validate = () => {
@@ -189,7 +220,7 @@ export default function Waiver() {
     const errs = validate();
     setErrors(errs);
     if (Object.keys(errs).length) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollToFirstError(errs);
       return;
     }
     setSubmitting(true);
@@ -245,6 +276,7 @@ export default function Waiver() {
   // different URL. Won't trigger before 2027-05 (365 days after the
   // earliest possible wd_v4 signature) but better to ship correct now.
   const expiredCheck = !!(attendee?.claimPeriodExpiresAt && Date.now() > attendee.claimPeriodExpiresAt);
+  const errorCount = Object.keys(errors).length;
   if (alreadySigned && !expiredCheck) {
     const signedDate = attendee?.signedAt
       ? new Date(attendee.signedAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -667,6 +699,24 @@ export default function Waiver() {
                   </p>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Inline-styled (not .booking-error): that class ships in the
+              Booking route's chunk, so it's unstyled on a direct /waiver visit. */}
+          {errorCount > 0 && (
+            <div role="alert" style={{
+              marginBottom: '1rem',
+              padding: '1rem 1.25rem',
+              background: 'rgba(231, 76, 60, 0.08)',
+              border: '1px solid rgba(231, 76, 60, 0.25)',
+              borderLeft: '4px solid #e74c3c',
+              color: 'var(--cream)',
+              fontSize: 14,
+              fontWeight: 600,
+            }}>
+              Please fix the {errorCount === 1 ? 'highlighted field' : `${errorCount} highlighted fields`} above
+              — each one is marked in red with what&rsquo;s needed.
             </div>
           )}
 
