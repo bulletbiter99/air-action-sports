@@ -26,6 +26,25 @@ function scrollToFirstError(errs) {
   if (typeof el.focus === 'function') el.focus({ preventScroll: true });
 }
 
+// The .booking-error class lives in the Booking route's chunk (booking.css),
+// which never loads on a direct /waiver visit — so this page's error boxes
+// inline the same look instead of referencing the class.
+const ERROR_BOX_STYLE = {
+  padding: '1rem 1.25rem',
+  marginBottom: '1.5rem',
+  background: 'rgba(231, 76, 60, 0.1)',
+  // Per-side longhands: mixing the `border` shorthand with a `borderLeft`
+  // override in one React style object draws a mixed-shorthand warning and
+  // can mis-apply on rerenders.
+  borderTop: '1px solid rgba(231, 76, 60, 0.3)',
+  borderRight: '1px solid rgba(231, 76, 60, 0.3)',
+  borderBottom: '1px solid rgba(231, 76, 60, 0.3)',
+  borderLeft: '4px solid #e74c3c',
+  color: '#ff8a7e',
+  fontSize: 14,
+  fontWeight: 600,
+};
+
 export default function Waiver() {
   const [params] = useSearchParams();
   const token = params.get('token');
@@ -219,12 +238,14 @@ export default function Waiver() {
     e.preventDefault();
     const errs = validate();
     setErrors(errs);
+    // Clear any prior server error up front so a failed re-validation doesn't
+    // show a stale POST error alongside the field-error summary.
+    setSubmitError(null);
     if (Object.keys(errs).length) {
       scrollToFirstError(errs);
       return;
     }
     setSubmitting(true);
-    setSubmitError(null);
     try {
       const res = await fetch(`/api/waivers/${encodeURIComponent(token)}`, {
         method: 'POST',
@@ -389,7 +410,7 @@ export default function Waiver() {
         )}
 
         {submitError && (
-          <div className="booking-error" style={{ marginBottom: '1.5rem' }}>{submitError}</div>
+          <div role="alert" style={ERROR_BOX_STYLE}>{submitError}</div>
         )}
 
         <form id="waiver-form" onSubmit={handleSubmit} noValidate>
@@ -465,7 +486,7 @@ export default function Waiver() {
             {/* Age tier hint when DOB is filled. Renders an outright error when
                 the participant is under 12 (we hard-block; they can't sign). */}
             {ageTier === 'BLOCKED' && (
-              <div className="booking-error" style={{ marginTop: '0.75rem' }}>
+              <div style={{ ...ERROR_BOX_STYLE, marginTop: '0.75rem' }}>
                 <strong>Sorry — players must be at least 12 years old.</strong> Please contact us if you have questions.
               </div>
             )}
@@ -702,19 +723,8 @@ export default function Waiver() {
             </div>
           )}
 
-          {/* Inline-styled (not .booking-error): that class ships in the
-              Booking route's chunk, so it's unstyled on a direct /waiver visit. */}
           {errorCount > 0 && (
-            <div role="alert" style={{
-              marginBottom: '1rem',
-              padding: '1rem 1.25rem',
-              background: 'rgba(231, 76, 60, 0.08)',
-              border: '1px solid rgba(231, 76, 60, 0.25)',
-              borderLeft: '4px solid #e74c3c',
-              color: 'var(--cream)',
-              fontSize: 14,
-              fontWeight: 600,
-            }}>
+            <div role="alert" style={{ ...ERROR_BOX_STYLE, marginBottom: '1rem' }}>
               Please fix the {errorCount === 1 ? 'highlighted field' : `${errorCount} highlighted fields`} above
               — each one is marked in red with what&rsquo;s needed.
             </div>
