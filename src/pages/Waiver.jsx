@@ -702,8 +702,19 @@ export default function Waiver() {
             </div>
           )}
 
+          {/* Inline-styled (not .booking-error): that class ships in the
+              Booking route's chunk, so it's unstyled on a direct /waiver visit. */}
           {errorCount > 0 && (
-            <div className="booking-error" role="alert" style={{ marginBottom: '1rem' }}>
+            <div role="alert" style={{
+              marginBottom: '1rem',
+              padding: '1rem 1.25rem',
+              background: 'rgba(231, 76, 60, 0.08)',
+              border: '1px solid rgba(231, 76, 60, 0.25)',
+              borderLeft: '4px solid #e74c3c',
+              color: 'var(--cream)',
+              fontSize: 14,
+              fontWeight: 600,
+            }}>
               Please fix the {errorCount === 1 ? 'highlighted field' : `${errorCount} highlighted fields`} above
               — each one is marked in red with what&rsquo;s needed.
             </div>
