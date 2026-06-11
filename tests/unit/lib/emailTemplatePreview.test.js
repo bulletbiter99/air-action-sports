@@ -257,7 +257,12 @@ describe('buildVarsFromEntity — booking_confirmation', () => {
             },
             ENV
         );
-        expect(vars.waiver_summary).toContain('All 1 player already have');
+        // Deliberate copy change (2026-06-11): was "All 1 player already have
+        // a valid waiver on file" — awkward singular grammar in a customer
+        // email. Both mirrors (emailSender + emailTemplatePreview) updated.
+        expect(vars.waiver_summary).toBe(
+            "Your player's waiver is already on file — you're cleared for game day, nothing to sign."
+        );
     });
 
     it('handles empty attendees with fallback summary', () => {

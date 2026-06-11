@@ -120,7 +120,8 @@
         "tests/unit/waiver/audit-log-waiver-signed.test.js",
         "tests/unit/waiver/already-signed-409.test.js",
         "tests/unit/waiver/integrity-fail-on-post.test.js",
-        "tests/unit/waiver/integrity-fail-on-get.test.js"
+        "tests/unit/waiver/integrity-fail-on-get.test.js",
+        "tests/unit/waiver/confirmation-email-sent.test.js"
       ]
     },
     "worker/routes/admin/bookings.js": {

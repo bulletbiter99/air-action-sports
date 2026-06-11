@@ -138,7 +138,9 @@ function bookingConfirmationVars({ booking, event, attendees }, env) {
     let waiverSummary;
     if (totalAttendees > 0) {
         if (signedCount === totalAttendees) {
-            waiverSummary = `All ${totalAttendees} ${totalAttendees === 1 ? 'player' : 'players'} already have a valid waiver on file — you're cleared for game day, nothing to sign.`;
+            waiverSummary = totalAttendees === 1
+                ? `Your player's waiver is already on file — you're cleared for game day, nothing to sign.`
+                : `All ${totalAttendees} players already have a valid waiver on file — you're cleared for game day, nothing to sign.`;
         } else if (signedCount > 0) {
             waiverSummary = `${signedCount} of ${totalAttendees} players already have a valid waiver on file. The remaining ${totalAttendees - signedCount} ${totalAttendees - signedCount === 1 ? 'player needs' : 'players need'} to sign before game day.`;
         } else {
