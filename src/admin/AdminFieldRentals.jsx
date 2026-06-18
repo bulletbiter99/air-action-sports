@@ -138,7 +138,8 @@ const inputStyle = {
     padding: '6px 10px', border: '1px solid var(--border-soft, #d0d0d0)',
     borderRadius: 4, fontSize: 13, minWidth: 200,
 };
-const tableStyle = { width: '100%', borderCollapse: 'collapse', background: 'var(--surface-card, white)', borderRadius: 4, overflow: 'hidden' };
+const tableBox = { background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', padding: 'var(--space-16)' };
+const tableStyle = { width: '100%', borderCollapse: 'collapse' };
 const thStyle = {
     textAlign: 'left', padding: '10px 12px',
     fontWeight: 800, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase',
@@ -326,6 +327,7 @@ export default function AdminFieldRentals() {
 
             {!loading && data.rentals.length > 0 && (
                 <>
+                    <div style={tableBox}>
                     <table style={tableStyle}>
                         <thead>
                             <tr>
@@ -362,6 +364,7 @@ export default function AdminFieldRentals() {
                             })}
                         </tbody>
                     </table>
+                    </div>
 
                     <div style={paginationStyle}>
                         <div>

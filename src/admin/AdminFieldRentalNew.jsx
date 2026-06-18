@@ -240,7 +240,7 @@ export default function AdminFieldRentalNew() {
             <AdminPageHeader
                 title="New field rental"
                 description="Create a private or corporate field booking. Fill the customer, schedule, and terms steps, then submit."
-                breadcrumb={[{ label: 'Field Rentals', to: '/admin/field-rentals' }, { label: 'New rental' }]}
+                breadcrumb={[{ label: 'Field Rentals', to: '/admin/field-rentals' }, { label: 'New field rental' }]}
             />
 
             <div style={stepperStyle}>
