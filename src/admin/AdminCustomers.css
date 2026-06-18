@@ -5,9 +5,9 @@
  * (table row padding picks up data-density="compact" tokens). */
 
 .admin-customers {
-    color: var(--cream);
-    padding: 1.5rem;
-    max-width: 1280px;
+    color: var(--color-text);
+    padding: var(--space-32);
+    max-width: 1200px;
     margin: 0 auto;
 }
 
@@ -41,27 +41,27 @@
 
 .admin-customers__loading,
 .admin-customers__empty {
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--color-text-muted);
     text-align: center;
-    padding: 1.5rem;
+    padding: var(--space-24);
 }
 
 .admin-customers__error {
-    color: #ff8888;
-    background: rgba(255, 0, 0, 0.08);
-    border-left: 3px solid #ff8888;
-    padding: 0.5rem 0.75rem;
-    margin: 0.75rem 0;
+    color: var(--color-text);
+    background: var(--color-danger-soft);
+    border-left: 3px solid var(--color-danger);
+    padding: var(--space-8) var(--space-12);
+    margin: var(--space-12) 0;
 }
 
 /* === Table === */
 
 .admin-customers__table-wrap {
     overflow-x: auto;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    margin-top: 1rem;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    padding: var(--space-24);
+    margin-top: var(--space-16);
 }
 
 .admin-customers__table {
@@ -70,21 +70,22 @@
 }
 
 .admin-customers__table thead th {
-    background: rgba(255, 255, 255, 0.05);
-    color: rgba(255, 255, 255, 0.7);
+    background: transparent;
+    color: var(--color-accent);
     text-align: left;
-    padding: 0.6rem 0.85rem;
-    font-size: 0.85rem;
-    font-weight: 600;
+    padding: var(--space-8) var(--space-12);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-extrabold);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    letter-spacing: var(--letter-spacing-wide);
+    border-bottom: 1px solid var(--color-border-strong);
 }
 
 .admin-customers__table tbody td {
-    padding: 0.65rem 0.85rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: var(--space-8) var(--space-12);
+    border-bottom: 1px solid var(--color-border-subtle);
     vertical-align: middle;
+    color: var(--color-text);
 }
 
 .admin-customers__table tbody tr:last-child td {
@@ -105,20 +106,20 @@
 }
 
 .admin-customers__name-link {
-    color: var(--cream);
+    color: var(--color-text);
     text-decoration: none;
-    font-weight: 600;
+    font-weight: var(--font-weight-bold);
 }
 
 .admin-customers__name-link:hover {
     text-decoration: underline;
-    color: var(--orange);
+    color: var(--color-accent);
 }
 
 .admin-customers__email {
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--color-text-muted);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.9rem;
+    font-size: var(--font-size-sm);
 }
 
 [data-density='compact'] .admin-customers__table thead th,
@@ -140,13 +141,13 @@
 }
 
 .admin-customers__pill--active {
-    background: rgba(120, 220, 120, 0.18);
-    color: #9ee79e;
+    background: var(--color-success-soft);
+    color: var(--color-success);
 }
 
 .admin-customers__pill--archived {
-    background: rgba(180, 180, 180, 0.18);
-    color: rgba(255, 255, 255, 0.65);
+    background: var(--color-bg-sunken);
+    color: var(--color-text-muted);
 }
 
 .admin-customers__status-pill {
@@ -239,11 +240,10 @@
 }
 
 .admin-customers__card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1rem;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    padding: var(--space-16) var(--space-24);
+    margin-bottom: var(--space-16);
 }
 
 .admin-customers__card--muted {
@@ -251,12 +251,12 @@
 }
 
 .admin-customers__card h2 {
-    margin: 0 0 0.85rem 0;
-    font-size: 1.05rem;
-    color: var(--cream);
+    margin: 0 0 var(--space-12) 0;
+    font-size: var(--font-size-base);
+    color: var(--color-accent);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: 600;
+    letter-spacing: var(--letter-spacing-wide);
+    font-weight: var(--font-weight-extrabold);
 }
 
 .admin-customers__card-header {
@@ -278,18 +278,18 @@
 }
 
 .admin-customers__dl dt {
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 0.88rem;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
 }
 
 .admin-customers__dl dd {
     margin: 0;
-    color: var(--cream);
+    color: var(--color-text);
 }
 
 .admin-customers__muted {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 0.88rem;
+    color: var(--color-text-subtle);
+    font-size: var(--font-size-sm);
 }
 
 .admin-customers__stats {
@@ -299,22 +299,21 @@
 }
 
 .admin-customers__stat {
-    background: rgba(255, 255, 255, 0.04);
-    padding: 0.65rem 0.85rem;
-    border-radius: 6px;
+    background: var(--color-bg-sunken);
+    padding: var(--space-12) var(--space-16);
 }
 
 .admin-customers__stat-label {
-    color: rgba(255, 255, 255, 0.55);
-    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--letter-spacing-wide);
 }
 
 .admin-customers__stat-value {
-    color: var(--cream);
-    font-size: 1.15rem;
-    font-weight: 600;
+    color: var(--color-text);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-extrabold);
     margin-top: 0.2rem;
     font-variant-numeric: tabular-nums;
 }
@@ -368,13 +367,12 @@
 /* === Buttons === */
 
 .admin-customers__btn {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--cream);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    padding: 0.45rem 1rem;
-    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border-strong);
+    padding: var(--space-8) var(--space-16);
     cursor: pointer;
-    font-size: 0.92rem;
+    font-size: var(--font-size-sm);
 }
 
 .admin-customers__btn:hover:not(:disabled) {
@@ -384,6 +382,22 @@
 .admin-customers__btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+}
+
+.admin-customers__btn--primary {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-accent-on-accent);
+    font-weight: var(--font-weight-extrabold);
+    letter-spacing: var(--letter-spacing-wide);
+    text-transform: uppercase;
+    font-size: var(--font-size-sm);
+    padding: var(--space-8) var(--space-16);
+}
+
+.admin-customers__btn--primary:hover:not(:disabled) {
+    background: var(--color-accent);
+    filter: brightness(1.08);
 }
 
 .admin-customers__btn--danger {

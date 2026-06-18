@@ -23,6 +23,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import FilterBar from '../components/admin/FilterBar.jsx';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import { formatMoney } from '../utils/money.js';
 import './AdminBookings.css';
 
@@ -237,12 +238,14 @@ export default function AdminBookings() {
 
     return (
         <div className="admin-bookings">
-            <header className="admin-bookings__header">
-                <h1>Bookings</h1>
-                {hasRole?.('manager') && (
+            <AdminPageHeader
+                title="Bookings"
+                description="Every booking across all events. Filter, bulk-resend, export, and open any booking for detail + refunds."
+                breadcrumb={[{ label: 'Bookings' }]}
+                primaryAction={hasRole?.('manager') && (
                     <Link to="/admin/new-booking" className="admin-bookings__cta">+ New Booking</Link>
                 )}
-            </header>
+            />
 
             <div className="admin-bookings__quick-filters">
                 {QUICK_FILTERS.map((qf) => (

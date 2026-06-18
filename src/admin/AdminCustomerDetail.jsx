@@ -144,8 +144,8 @@ export default function AdminCustomerDetail() {
                         <span
                             className="admin-customers__pill"
                             style={{
-                                background: isBusiness ? '#cffafe' : '#e5e7eb',
-                                color: isBusiness ? '#0e7490' : '#475569',
+                                background: isBusiness ? 'var(--color-info-soft)' : 'var(--color-bg-sunken)',
+                                color: isBusiness ? 'var(--color-info)' : 'var(--color-text-muted)',
                             }}
                         >
                             {isBusiness ? 'Business' : 'Individual'}

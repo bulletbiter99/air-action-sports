@@ -40,8 +40,8 @@ describe('AdminCustomers', () => {
         renderWithRouter(<AdminCustomers />);
         await waitFor(() => expect(screen.getByText('Sarah Chen')).toBeInTheDocument());
         expect(screen.getByText('mike@example.com')).toBeInTheDocument();
-        // header count
-        expect(screen.getByText('2 customers')).toBeInTheDocument();
+        // page header (AdminPageHeader renders the title as an h1)
+        expect(screen.getByRole('heading', { name: 'Customers' })).toBeInTheDocument();
         // active vs archived pills
         expect(screen.getByText('active')).toBeInTheDocument();
         expect(screen.getByText('merged')).toBeInTheDocument();
