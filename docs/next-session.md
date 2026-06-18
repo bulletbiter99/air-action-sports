@@ -1,7 +1,7 @@
-# Next-session entry point — post 2026-06-11 waiver-UX + confirmation-email session
+# Next-session entry point — post 2026-06-17 M8 design-sweep + RTL-coverage session
 
 Fresh-session entry point for Air Action Sports. **Updated 2026-06-11** (close of a customer-support-driven session: waiver-form UX fixes + the new **waiver-confirmation email** feature — PRs #291–#295 + migration 0073, all merged + deployed + live-verified). Two sessions happened since the prior sync: **2026-06-06** homepage reorder/polish (#289/#290) and **2026-06-11** (both summarized below).
-⚠️ **Heads-up on the cutover:** earlier docs recorded the M6 live-Stripe cutover as "DONE 2026-06-02," but it was actually **broken** — production was silently still in Stripe **TEST mode** (every checkout session `cs_test_`) until it was really cut over + e2e-verified on **2026-06-03**. Production now collects real money correctly. See the **2026-06-03 section** below + memory `stripe-live-cutover-fixed-2026-06-03.md`. The earlier **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains:** the item-1 RTL long tail, the full admin **design-consistency sweep**, and operator activation (Marketing send + Resend webhook + FTS flag). Detail below.
+⚠️ **Heads-up on the cutover:** earlier docs recorded the M6 live-Stripe cutover as "DONE 2026-06-02," but it was actually **broken** — production was silently still in Stripe **TEST mode** (every checkout session `cs_test_`) until it was really cut over + e2e-verified on **2026-06-03**. Production now collects real money correctly. See the **2026-06-03 section** below + memory `stripe-live-cutover-fixed-2026-06-03.md`. The earlier **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains (as of 2026-06-17):** operator activation only (Marketing send + Resend webhook + FTS flag) — the item-1 RTL long tail **and** the admin design-consistency sweep are now **DONE** (see the 2026-06-17 section below). Detail below.
 
 ---
 
@@ -9,17 +9,33 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-11** (close o
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `d9b4f6a` (re-pull for exact) |
-| Tests | **2860 / 233** all green |
+| `main` HEAD | `a681c41` (re-pull for exact) |
+| Tests | **2933 / 245** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed from `main` (`d9b4f6a`) via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + **waiver-confirmation receipts live (2026-06-11)** |
-| Migrations on remote | **0001–0073 ALL applied** — 0073 (`waiver_confirmation` email template) applied 2026-06-11; a `migrations apply` finds nothing new. |
-| Open PRs | 0 (all merged through #295) |
-| Open milestone | **M8** — items 1–7 of the work menu + the contrast pass done + deployed; **item 6 (event content) COMPLETE**. Remaining: item-1 RTL long tail + the admin design-consistency sweep. |
+| Production | deployed from `main` via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + waiver-confirmation receipts live (2026-06-11). The 2026-06-17 design sweep is deployed; the RTL batches are test-only. |
+| Migrations on remote | **0001–0073 ALL applied** — no new migrations since 2026-06-11; a `migrations apply` finds nothing new. |
+| Open PRs | 0 (all merged through #304) |
+| Open milestone | **M8 work menu CLEARED** — both ⭐ items done 2026-06-17: the **admin design-consistency sweep** (#298) + the **RTL coverage long tail** (#299–#304, all 12 admin pages). What's left is operator activation only (Marketing send + Resend webhook + FTS flag). |
 
 ---
 
-## What shipped — 2026-06-11 session (waiver UX + confirmation-email feature) ⭐ most recent
+## What shipped — 2026-06-17 session (M8 design sweep + RTL coverage long tail) ⭐ most recent
+
+Cleared **both ⭐ work-menu items**. **8 PRs merged + deployed** (#297 audit cleanup · #298 design sweep · #299–#304 RTL batches A1–A6). Tests **2860 → 2933 / 245** (+73). No `src/` runtime changes except the design sweep's token swaps; everything else is additive test files. No new migrations.
+
+- **Production test-data cleanup** ([#297](https://github.com/bulletbiter99/air-action-sports/pull/297)): swept 10 leftover test bookings (Glen Anderson's 5× $0.30 carts + the cutover-era $0.56 / "Cutover Verify" / 3× Tyson-Wright-TEST rows) + 1 orphaned operator customer from prod D1; recorded as audit SQL under `scripts/cleanup-*.sql`. Paid revenue untouched (prod bookings 56 → 46). The 2 outstanding cutover invoices (Kayden Case + Eduardo Ames, $27.75 ea) are still owed — see Operator-pending.
+- **Admin design-consistency sweep** ([#298](https://github.com/bulletbiter99/air-action-sports/pull/298)): re-themed the field-rental status/COI pills (shared `classifyStatus`/`classifyCoiStatus`), the `dangerBtn`, error/step/conflict boxes, the selected-customer box, and the public Contact alert boxes from light pastels to dark `--color-*-soft` tokens. **Per-element inline-style swaps only (no token-value edits) → zero visual-baseline ripple.** Contact verified rendering dark on the live public shell.
+- **M8 RTL coverage long tail** ([#299](https://github.com/bulletbiter99/air-action-sports/pull/299)–[#304](https://github.com/bulletbiter99/air-action-sports/pull/304), batches A1–A6): component-render tests for **all 12 remaining admin pages** — Waivers, Vendors, Bookings(+Detail), Events, Roster, FieldRentals(+Detail/New), Staff(+Detail), Scan. Combined with Batch 1 (#269), the JSX coverage long tail is complete.
+
+**Durable lessons (RTL):**
+1. **`userEvent` dismisses fixed-overlay modals opened by a row/action button** — its full pointer sequence closes the just-opened modal. Use `fireEvent.click` for those opens (header-button opens are fine with `userEvent`). The public Waiver suite already used `fireEvent` for the same reason.
+2. **Anchor row assertions on unique data, not status-pill text** — FilterBar status `<select>` options collide with the row status pills (same labels). Use ids / titles / totals.
+3. **An editor/duplicate cascade can leave a trailing fetch** — if a test ends before a cascaded `setEditingId → /detail` fetch resolves, it lands in the next test's window and trips the throw-on-unmocked guard. Await the cascade settling (e.g. the editor heading) in-test.
+4. **`vi.hoisted` mocks a hard import like `@zxing/browser`** — define the inner `vi.fn()`s with `vi.hoisted`, reference them in the `vi.mock` factory, and capture the decode callback to simulate a scan with no camera.
+
+---
+
+## What shipped — 2026-06-11 session (waiver UX + confirmation-email feature)
 
 Triggered by a customer email (Max Prudden, `foxtrot-vietnam`): *"I believe I got my waiver all signed… but it kept taking to the top of the page whenever I clicked submit."* His waiver WAS signed (verified in prod D1 — the final submit succeeded); the session then fixed everything the report exposed. **5 PRs (#291–#295) merged + deployed + live-verified; migration 0073 applied; tests 2834 → 2860 / 233.**
 
@@ -127,13 +143,13 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 
 | # | Track | Notes |
 |---|---|---|
-| 1 | **M8 — JSX coverage backfill (long tail)** ⭐ next | **Batch 1 done** ([#269](https://github.com/bulletbiter99/air-action-sports/pull/269): AdminSegments/Customers/CustomerDetail/TaxesFees/PromoCodes). Remaining: AdminBookings(+Detail), AdminEvents, AdminWaivers, AdminVendors, AdminFieldRentals(+Detail/New), AdminStaff(+Detail), AdminRoster, AdminScan, … Reuse `renderWithAdmin` + `installClientFetch` (+ the sized-ResizeObserver stub for VirtualizedList pages). |
+| 1 | ~~M8 — JSX coverage backfill (long tail)~~ | ✅ **DONE 2026-06-17.** Batch 1 (#269) + batches A1–A6 ([#299](https://github.com/bulletbiter99/air-action-sports/pull/299)–[#304](https://github.com/bulletbiter99/air-action-sports/pull/304)) cover all 12 target admin pages: Waivers, Vendors, Bookings(+Detail), Events, Roster, FieldRentals(+Detail/New), Staff(+Detail), Scan. Patterns: `renderWithAdmin`/`renderWithRouter` + `installClientFetch`; sized-`ResizeObserver` stub for VirtualizedList pages; `fireEvent` for fixed-overlay modals; `vi.hoisted` `@zxing/browser` mock for Scan. |
 | 2 | **Marketing route capability swap** | ✅ **DONE 2026-06-02** (deployed) — segments/campaigns/automations now `requireCapability('marketing.*')`, method-aware, with caps bound in the route tests. Remaining marketing polish: optional `date_relative` automation trigger + a formal sidebar "Marketing" group + **send activation** (operator-pending #1–2 above). |
 | 3 | **M6 live-Stripe cutover** | ✅ **DONE 2026-06-03** (the 2026-06-02 record was inaccurate — prod was silently in Stripe TEST mode until then). Production now takes real payments, verified e2e. ⏳ 2 invoice-remediation payments still outstanding — see Operator-pending. [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). |
 | 4 | ~~Full ARIA-grid cell navigation~~ | ✅ **Re-confirmed SKIP 2026-06-02** — keep `role="table"`. Roving-tabindex cell-nav can't reach un-rendered (virtualized) rows, so `grid` would be a fragile half-pattern; the tables already expose full row/cell + position semantics with no nav obligation. Operator decision stands (see CLAUDE.md M8 lesson #6). |
 | 5 | ~~Representative-data baselines~~ | ✅ **Customers/Segments/TaxesFees added + all admin baselines recaptured 2026-06-02.** The `installAdminMocks` overrides → `capture-baselines` pattern is available for any further populated tables. |
 | 6 | **More event content** (operator, now self-serve) | Item 6's admin editor is **LIVE** — add per-event content (mission briefing / timeline / FPS / rules / docs / terrain / faction links) via `/admin/events` → "Detail page content". Foxtrot's mission briefing is seeded; the operator fills the rest there. Images → R2 via `wrangler r2 object put`. |
-| 7 | **Admin design-consistency sweep** ⭐ | Re-theme the legible-but-off-theme **light pills / alert boxes** to the dark theme: field-rental status/COI pills (`AdminFieldRentals` `classifyStatus`/`classifyCoiStatus` light bg+dark text), Contact-form alert boxes, the selected-customer box, the `dangerBtn`. Contrast (legibility) is already fixed; this is visual consistency. Memory `admin-dark-theme-contrast.md`. |
+| 7 | ~~Admin design-consistency sweep~~ | ✅ **DONE 2026-06-17** ([#298](https://github.com/bulletbiter99/air-action-sports/pull/298)). Re-themed the field-rental status/COI pills (shared `classifyStatus`/`classifyCoiStatus`), the `dangerBtn`, error/step/conflict boxes, the selected-customer box, and the Contact-form alert boxes to dark `--color-*-soft` tokens. Per-element inline-style swaps only (no token-value edits) → zero visual-baseline ripple. Memory `admin-dark-theme-contrast.md`. |
 | 8 | **Operator activation** | Marketing send (`MARKETING_POSTAL_ADDRESS` + Resend upgrade) + `RESEND_WEBHOOK_SECRET` + Resend webhook + flip `audit_log_fts` — see Operator-pending above + runbooks. |
 
 ---
@@ -144,7 +160,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 2860 / 233
+npm test -- --run | tail -3        # expect 2933 / 245
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
