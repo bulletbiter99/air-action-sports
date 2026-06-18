@@ -1,6 +1,6 @@
 # Next-session entry point — post 2026-06-17 (admin design-consistency sweep COMPLETE)
 
-Fresh-session entry point for Air Action Sports. **Updated 2026-06-11** (close of a customer-support-driven session: waiver-form UX fixes + the new **waiver-confirmation email** feature — PRs #291–#295 + migration 0073, all merged + deployed + live-verified). Two sessions happened since the prior sync: **2026-06-06** homepage reorder/polish (#289/#290) and **2026-06-11** (both summarized below).
+Fresh-session entry point for Air Action Sports. **Updated 2026-06-17** (close of the admin design-consistency sweep — PRs #306 + #308–#315, all merged + deployed). The earlier 2026-06-17 session cleared both ⭐ M8 work-menu items (#297–#304); prior sessions: **2026-06-11** waiver-confirmation email + waiver UX (#291–#295, migration 0073) and **2026-06-06** homepage reorder/polish (#289/#290) — all summarized below.
 ⚠️ **Heads-up on the cutover:** earlier docs recorded the M6 live-Stripe cutover as "DONE 2026-06-02," but it was actually **broken** — production was silently still in Stripe **TEST mode** (every checkout session `cs_test_`) until it was really cut over + e2e-verified on **2026-06-03**. Production now collects real money correctly. See the **2026-06-03 section** below + memory `stripe-live-cutover-fixed-2026-06-03.md`. The earlier **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains (as of 2026-06-17):** operator activation only (Marketing send + Resend webhook + FTS flag) — the item-1 RTL long tail **and** the admin design-consistency sweep are now **DONE** (see the 2026-06-17 section below). Detail below.
 
 ---
@@ -9,13 +9,13 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-11** (close o
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `8a3fc07` (re-pull for exact) |
+| `main` HEAD | `f0d4bb7` (re-pull for exact) |
 | Tests | **2945 / 251** all green |
 | Build | clean · Lint **0 errors** |
 | Production | deployed from `main` via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + waiver-confirmation receipts live (2026-06-11). The admin design-consistency sweep is deployed (per-element token/header swaps; no behavior change). |
 | Migrations on remote | **0001–0073 ALL applied** — no new migrations since 2026-06-11; a `migrations apply` finds nothing new. |
-| Open PRs | 0 (all merged through #314) |
-| Open milestone | **None active.** The admin design-consistency sweep is **COMPLETE** (batches 1–5b, PRs #306 + #308–#314). Remaining work is operator activation only (Marketing send + Resend webhook + FTS flag + the 2 cutover invoices). |
+| Open PRs | 0 (all merged through #315) |
+| Open milestone | **None active.** The admin design-consistency sweep is **COMPLETE** (batches 1–5b + docs, PRs #306 + #308–#315). Remaining work is operator activation only (Marketing send + Resend webhook + FTS flag + the 2 cutover invoices). |
 
 ---
 
@@ -36,6 +36,7 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-11** (close o
 | [#312](https://github.com/bulletbiter99/air-action-sports/pull/312) | 4b | New Booking form (+ detail/sub-page review) |
 | [#313](https://github.com/bulletbiter99/air-action-sports/pull/313) | 5a | table-box wrappers (Segments/Campaigns/Automations) |
 | [#314](https://github.com/bulletbiter99/air-action-sports/pull/314) | 5b | Field Rentals → shared FilterBar + EmptyState + accent button |
+| [#315](https://github.com/bulletbiter99/air-action-sports/pull/315) | docs | handoff sync (next-session.md / CLAUDE.md / memory) |
 
 Result: every admin **list / index / create-form** page now uses `AdminPageHeader`; **detail** pages keep their on-theme bespoke headers (the `AdminBookingsDetail` `.abd-header` precedent); the bare cluster tables are wrapped in the house table-box; Field Rentals uses the shared chip-based `FilterBar`. Added/rewrote RTL render tests for the newly-covered pages (Staff New, EventArchive, Analytics, Staff Library, Today, New Booking) → **2945 / 251**.
 
@@ -193,7 +194,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 2933 / 245
+npm test -- --run | tail -3        # expect 2945 / 251
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
