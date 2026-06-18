@@ -9,6 +9,7 @@
 // address, per B2b) — nothing fires from this page directly.
 
 import { useState, useEffect, useCallback } from 'react';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 
 const SYSTEM_TAGS = ['vip', 'frequent', 'lapsed', 'new'];
 
@@ -56,17 +57,14 @@ export default function AdminAutomations() {
 
     return (
         <div style={pageWrap}>
-            <header style={pageHeader}>
-                <div>
-                    <h1 style={pageTitle}>Automations</h1>
-                    <p style={pageSub}>
-                        Standing rules that email customers when a trigger fires — a recurring send to a
-                        segment, or a one-time send when a customer earns a tag. Create paused, then
-                        activate. Every send respects marketing consent + includes an unsubscribe link.
-                    </p>
-                </div>
-                <button type="button" onClick={() => setEditing('new')} style={primaryBtn}>+ New automation</button>
-            </header>
+            <AdminPageHeader
+                title="Automations"
+                description="Standing rules that email customers when a trigger fires — a recurring send to a segment, or a one-time send when a customer earns a tag. Create paused, then activate. Every send respects marketing consent + includes an unsubscribe link."
+                breadcrumb={[{ label: 'Automations' }]}
+                primaryAction={
+                    <button type="button" onClick={() => setEditing('new')} style={primaryBtn}>+ New automation</button>
+                }
+            />
 
             {err && <p style={errStyle}>Error: {err}</p>}
             {loading && <p style={muted}>Loading…</p>}
@@ -281,9 +279,6 @@ function formatRelative(ms) {
 }
 
 const pageWrap = { maxWidth: 1100, margin: '0 auto', padding: '2rem' };
-const pageHeader = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem' };
-const pageTitle = { color: 'var(--color-text)', margin: 0 };
-const pageSub = { color: 'var(--color-text-muted)', marginTop: '0.25rem', maxWidth: 720 };
 const muted = { color: 'var(--color-text-muted)' };
 const errStyle = { color: 'var(--color-danger)' };
 const noticeStyle = { color: 'var(--color-success)' };
