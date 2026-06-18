@@ -116,7 +116,7 @@ const badgeStyle = (cls) => ({
     display: 'inline-block', padding: '2px 8px', borderRadius: 12,
     background: cls.bg, color: cls.color, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
 });
-const errorStyle = { background: '#fef0f0', border: '1px solid #d4541a', padding: 'var(--space-12)', borderRadius: 4, marginBottom: 'var(--space-12)' };
+const errorStyle = { background: 'var(--color-danger-soft)', border: '1px solid var(--color-danger)', color: 'var(--color-text)', padding: 'var(--space-12)', borderRadius: 4, marginBottom: 'var(--space-12)' };
 const primaryBtn = {
     background: 'var(--orange-strong, #d4541a)', color: 'white', border: 'none',
     padding: '8px 16px', borderRadius: 4, cursor: 'pointer', fontWeight: 600, fontSize: 13,
@@ -126,7 +126,7 @@ const ghostBtn = {
     padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 13,
 };
 const dangerBtn = {
-    background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca',
+    background: 'var(--color-danger)', color: '#fff', border: 'none',
     padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 13,
 };
 const modalBg = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '5vh', zIndex: 1000 };
@@ -618,7 +618,7 @@ export default function AdminFieldRentalDetail() {
                 <div style={{ display: 'flex', gap: 8 }}>
                     <span style={badgeStyle(status)}>{status.label}</span>
                     <span style={badgeStyle(coi)}>{coi.label}</span>
-                    {isArchived && <span style={badgeStyle({ label: 'Archived', color: '#475569', bg: '#e5e7eb' })}>Archived</span>}
+                    {isArchived && <span style={badgeStyle({ label: 'Archived', color: 'var(--color-text-muted)', bg: 'var(--color-bg-sunken)' })}>Archived</span>}
                 </div>
             </div>
 

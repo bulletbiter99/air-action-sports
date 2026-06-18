@@ -99,8 +99,8 @@ const backLinkStyle = { color: 'var(--text-secondary, #666)', textDecoration: 'n
 const stepperStyle = { display: 'flex', gap: 8, marginBottom: 'var(--space-16)' };
 const stepPillStyle = (active, done) => ({
     flex: 1, padding: '8px 12px', borderRadius: 4, fontSize: 13, fontWeight: 600,
-    background: active ? 'var(--orange-strong, #d4541a)' : done ? '#dcfce7' : 'var(--surface-elevated, #f5f5f5)',
-    color: active ? 'white' : done ? '#065f46' : 'var(--text-secondary, #666)',
+    background: active ? 'var(--orange-strong, #d4541a)' : done ? 'var(--color-success-soft)' : 'var(--surface-elevated, #f5f5f5)',
+    color: active ? 'white' : done ? 'var(--color-success)' : 'var(--text-secondary, #666)',
     textAlign: 'center',
 });
 const cardStyle = {
@@ -118,8 +118,8 @@ const ghostBtn = {
     background: 'var(--color-bg-page)', color: 'var(--text-primary, #333)', border: '1px solid var(--border-soft, #d0d0d0)',
     padding: '10px 20px', borderRadius: 4, cursor: 'pointer', fontSize: 14,
 };
-const errorStyle = { background: '#fef0f0', border: '1px solid #d4541a', padding: 'var(--space-12)', borderRadius: 4, marginBottom: 'var(--space-12)' };
-const conflictBannerStyle = { background: '#fef3c7', border: '1px solid #f59e0b', padding: 'var(--space-12)', borderRadius: 4, marginBottom: 'var(--space-12)' };
+const errorStyle = { background: 'var(--color-danger-soft)', border: '1px solid var(--color-danger)', color: 'var(--color-text)', padding: 'var(--space-12)', borderRadius: 4, marginBottom: 'var(--space-12)' };
+const conflictBannerStyle = { background: 'var(--color-warning-soft)', border: '1px solid var(--color-warning)', color: 'var(--color-text)', padding: 'var(--space-12)', borderRadius: 4, marginBottom: 'var(--space-12)' };
 const dropdownStyle = {
     position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--color-bg-elevated)',
     border: '1px solid var(--border-soft, #d0d0d0)', borderRadius: 4,
@@ -339,13 +339,13 @@ function Step1Customer({ state, update }) {
             </p>
 
             {state.customer ? (
-                <div style={{ padding: 12, background: '#dcfce7', borderRadius: 4 }}>
+                <div style={{ padding: 12, background: 'var(--color-success-soft)', border: '1px solid var(--color-success)', borderRadius: 4 }}>
                     <strong>{state.customer.name || '(no name)'}</strong>
-                    {state.customer.email && <span style={{ color: '#065f46' }}> · {state.customer.email}</span>}
+                    {state.customer.email && <span style={{ color: 'var(--color-success)' }}> · {state.customer.email}</span>}
                     {' '}
                     <button
                         type="button"
-                        style={{ background: 'none', border: 'none', color: '#065f46', cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}
+                        style={{ background: 'none', border: 'none', color: 'var(--color-success)', cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}
                         onClick={() => update({ customer: null })}
                     >
                         Change
@@ -515,10 +515,10 @@ function Step3Terms({ state, update }) {
                             value={a.cents}
                             onChange={(e) => editAddon(i, { cents: Number(e.target.value) || 0 })}
                         />
-                        <button type="button" onClick={() => removeAddon(i)} style={{ ...inputStyle, background: '#fee2e2', cursor: 'pointer', flex: '0 0 auto' }}>×</button>
+                        <button type="button" onClick={() => removeAddon(i)} style={{ ...inputStyle, background: 'var(--color-danger-soft)', color: 'var(--color-danger)', cursor: 'pointer', flex: '0 0 auto' }}>×</button>
                     </div>
                 ))}
-                <button type="button" onClick={addAddon} style={{ ...inputStyle, background: '#f5f5f5', cursor: 'pointer', textAlign: 'left' }}>+ Add addon</button>
+                <button type="button" onClick={addAddon} style={{ ...inputStyle, background: 'var(--color-bg-sunken)', cursor: 'pointer', textAlign: 'left' }}>+ Add addon</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -556,7 +556,7 @@ function Step3Terms({ state, update }) {
                 <textarea style={{ ...inputStyle, minHeight: 80 }} value={state.notes} onChange={(e) => update({ notes: e.target.value })} />
             </div>
 
-            <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 4, fontSize: 14 }}>
+            <div style={{ background: 'var(--color-bg-sunken)', padding: 12, borderRadius: 4, fontSize: 14 }}>
                 <strong>Total: ${(total / 100).toFixed(2)}</strong>
                 <span style={{ color: 'var(--text-secondary, #666)', marginLeft: 8 }}>
                     (site + addons − discount + tax; server recomputes on save)
