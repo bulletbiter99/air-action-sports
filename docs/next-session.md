@@ -1,4 +1,4 @@
-# Next-session entry point — post 2026-06-17 (M8 + admin design-consistency batch 1)
+# Next-session entry point — post 2026-06-17 (admin design-consistency sweep COMPLETE)
 
 Fresh-session entry point for Air Action Sports. **Updated 2026-06-11** (close of a customer-support-driven session: waiver-form UX fixes + the new **waiver-confirmation email** feature — PRs #291–#295 + migration 0073, all merged + deployed + live-verified). Two sessions happened since the prior sync: **2026-06-06** homepage reorder/polish (#289/#290) and **2026-06-11** (both summarized below).
 ⚠️ **Heads-up on the cutover:** earlier docs recorded the M6 live-Stripe cutover as "DONE 2026-06-02," but it was actually **broken** — production was silently still in Stripe **TEST mode** (every checkout session `cs_test_`) until it was really cut over + e2e-verified on **2026-06-03**. Production now collects real money correctly. See the **2026-06-03 section** below + memory `stripe-live-cutover-fixed-2026-06-03.md`. The earlier **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains (as of 2026-06-17):** operator activation only (Marketing send + Resend webhook + FTS flag) — the item-1 RTL long tail **and** the admin design-consistency sweep are now **DONE** (see the 2026-06-17 section below). Detail below.
@@ -9,38 +9,46 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-11** (close o
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `ec2726e` (re-pull for exact) |
-| Tests | **2933 / 245** all green |
+| `main` HEAD | `8a3fc07` (re-pull for exact) |
+| Tests | **2945 / 251** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed from `main` via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + waiver-confirmation receipts live (2026-06-11). The 2026-06-17 design sweep is deployed; the RTL batches are test-only. |
+| Production | deployed from `main` via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + waiver-confirmation receipts live (2026-06-11). The admin design-consistency sweep is deployed (per-element token/header swaps; no behavior change). |
 | Migrations on remote | **0001–0073 ALL applied** — no new migrations since 2026-06-11; a `migrations apply` finds nothing new. |
-| Open PRs | 0 (all merged through #304) |
-| Open milestone | **Admin design-consistency sweep IN PROGRESS** — batch 1 merged (#306: Bookings + Customers + detail → AdminPageHeader house style). M8 work menu was cleared 2026-06-17 (design sweep #298 + RTL long tail #299–#304). Remaining: consistency batches 2+ (Staff, Field Rentals, Segments, …) + operator activation. |
+| Open PRs | 0 (all merged through #314) |
+| Open milestone | **None active.** The admin design-consistency sweep is **COMPLETE** (batches 1–5b, PRs #306 + #308–#314). Remaining work is operator activation only (Marketing send + Resend webhook + FTS flag + the 2 cutover invoices). |
 
 ---
 
-## ⭐ IN PROGRESS — Admin design-consistency sweep (batch 1 done; continue with batch 2)
+## ✅ DONE — Admin design-consistency sweep (complete)
 
-**Why:** 2026-06-17 the operator noticed admin pages don't look the same (Bookings vs Customers). Root cause: ~21 pages roll their own `<h1>` header (a few with dedicated CSS using old tokens) while **19 pages use the shared `AdminPageHeader`**. **Operator-approved direction: conform the outliers to the AdminPageHeader house style.**
+**Why:** 2026-06-17 the operator noticed admin pages didn't look the same (Bookings vs Customers). Root cause: ~21 pages rolled their own `<h1>` header while 19 used the shared `AdminPageHeader`; the field-rental + marketing pages also had bespoke filter/table chrome. **Operator-approved direction: conform the outliers to the `AdminPageHeader` house style + standardize the chrome.** Full how-to + durable lessons in memory `admin-design-consistency-2026-06-17.md`.
 
-**House style (canonical):** `AdminPageHeader` (eyebrow breadcrumb + ALL-CAPS title + description + **orange** `primaryAction`) + shared `FilterBar` + a bordered table-box with **orange** `th`, all on the `--color-*` tokens. Reference pages: `AdminVendors` / `AdminTaxesFees` / `AdminEvents`.
+**House style (canonical):** `AdminPageHeader` (eyebrow breadcrumb + ALL-CAPS title + description + orange `primaryAction`) + shared `FilterBar` (chip-based) + bordered table-box with **orange** `th`, all on `--color-*` tokens. Reference pages: `AdminVendors` / `AdminTaxesFees` / `AdminEvents`.
 
-**Batch 1 — DONE ([#306](https://github.com/bulletbiter99/air-action-sports/pull/306), merged `ec2726e`):** Bookings (list) + Customers (list + detail). `AdminBookingsDetail` was already house-consistent → left alone. Customers was the genuinely-divergent one (gray headers, raw `rgba()`, an undefined `--primary` button, title-case header) → fully re-tokenized. Bookings just needed the header swap.
+**All batches merged + deployed:**
+| PR | Batch | What |
+|---|---|---|
+| [#306](https://github.com/bulletbiter99/air-action-sports/pull/306) | 1 | Bookings (list) + Customers (list + detail re-tokenized) |
+| [#308](https://github.com/bulletbiter99/air-action-sports/pull/308) | 2a | Staff list + create form |
+| [#309](https://github.com/bulletbiter99/air-action-sports/pull/309) | 2b | Field Rentals list + detail + new wizard |
+| [#310](https://github.com/bulletbiter99/air-action-sports/pull/310) | 3 | marketing/reports cluster (Segments/Campaigns/Automations/Reports/EventArchive) |
+| [#311](https://github.com/bulletbiter99/air-action-sports/pull/311) | 4a | Analytics + Staff Library + Today |
+| [#312](https://github.com/bulletbiter99/air-action-sports/pull/312) | 4b | New Booking form (+ detail/sub-page review) |
+| [#313](https://github.com/bulletbiter99/air-action-sports/pull/313) | 5a | table-box wrappers (Segments/Campaigns/Automations) |
+| [#314](https://github.com/bulletbiter99/air-action-sports/pull/314) | 5b | Field Rentals → shared FilterBar + EmptyState + accent button |
 
-**Technique (reuse for batch 2):**
-1. Swap the custom `<header><h1>…</h1>…</header>` for `<AdminPageHeader title="X" description="…" breadcrumb={[{ label: 'X' }]} primaryAction={…} />`. It auto-uppercases the title + adds the eyebrow. The accessible name stays the source text, so `getByRole('heading',{name:'X'})` RTL tests still pass; update any `getByText('N items')` subtitle assertion → the h1.
-2. **KEY INSIGHT:** the brand tokens `--cream`/`--mid`/`--orange`/`--tan` resolve to the SAME values as `--color-text`/`--color-bg-elevated`/`--color-accent`/…, so pages already using those (Bookings; likely Staff/FieldRentals) ALREADY look house-consistent and mostly need only the **header swap**. The pages needing real CSS work are ones using raw `rgba(255,255,255,X)` + **gray** headers (Customers was the main one).
-3. For a divergent page: orange `th` = `var(--color-accent)`; table-box = `var(--color-bg-elevated)` + `var(--color-border)`; pills = `var(--color-*-soft)` bg + `var(--color-*)` text; fix any hardcoded LIGHT pills (e.g. `#cffafe`).
+Result: every admin **list / index / create-form** page now uses `AdminPageHeader`; **detail** pages keep their on-theme bespoke headers (the `AdminBookingsDetail` `.abd-header` precedent); the bare cluster tables are wrapped in the house table-box; Field Rentals uses the shared chip-based `FilterBar`. Added/rewrote RTL render tests for the newly-covered pages (Staff New, EventArchive, Analytics, Staff Library, Today, New Booking) → **2945 / 251**.
 
-**Batch 2+ — remaining outliers** (custom `<h1>`, from `grep "<h1" src/admin`): `AdminStaff` (+New +Detail), `AdminFieldRentals` (+Detail +New), `AdminSegments`, `AdminCampaigns`, `AdminAutomations`, `AdminReports`, `AdminAnalytics`, `AdminEventArchive`, `AdminToday`, `AdminNewBooking`, `AdminDashboardPersona`. **Suggested next: Staff + Field Rentals (batch 2)** — both probably header-swap-only. Do per-batch PRs (operator reviews each).
+**Deliberately DECLINED (operator-agreed, NOT oversights):**
+- **AdminCampaigns FilterBar** — kept its clean segmented status-button row (the chip "+ Add filter" flow is more clicks for a single filter).
+- **AdminDashboardPersona header** — the `/admin` landing dashboard's personalized header (user + persona tag) is purpose-built, not a list/detail header.
+- **FieldRentals detail/new page primary buttons** — still rounded (minor; the FilterBar migration targeted the list page).
 
-**Verifying admin pages (auth-gated → NOT preview-verifiable):** use the visual-admin Playwright harness —
-```
-npx playwright test --config=playwright.admin.config.js -g "<page>"
-```
-It renders + writes an "actual" PNG at `test-results/…/<name>-actual.png` (no win32 baseline exists) → **Read that PNG** to see the result. ⚠️ It also drops a `*-win32.png` into `tests/visual-admin/admin.spec.js-snapshots/` — **delete it, never commit** (baselines are linux/CI-only). After merging a visual change, add the **`capture-baselines`** label to the PR → the bot recaptures the linux baselines + commits them to the branch BEFORE merge (worked cleanly for #306, so visual-admin stayed green on main). Not every page has a harness test (detail pages mostly don't) — fall back to build + RTL + operator eyeball.
-
-**Side finding to fix:** the `admin-taxes-fees` visual baseline actually captures the **public homepage**, not the admin page — a pre-existing broken baseline.
+**Durable lessons** (full detail in memory):
+- **`FilterBar` is chip-based**, not always-visible selects — migrating a page is a real UX shift, and its test must mock `/api/admin/saved-views` (FilterBar calls `useSavedViews` when `savedViewsKey` is set). Test filters URL-driven (`?status=sent` → assert the `Remove Status filter` chip + scoped fetch), not via the picker UI.
+- **Detail-page house style exists** (`AdminBookingsDetail.css` `.abd-header-row h1` — 24px/900/uppercase/`--cream` + tinted monospace `<code>` + `.abd-back`); conform a detail page only if it diverges from it.
+- **The `capture-baselines` recapture flow** (only needed when a changed page HAS an admin baseline — Bookings/Customers/Segments/Campaigns/Automations/Reports do; Staff/FieldRentals/Analytics/Today don't): add the label → bot recaptures → **then push an empty commit** to clear GitHub's anti-recursion `action_required` block so CI re-runs green.
+- **Side finding (still open, pre-existing):** the `admin-taxes-fees` visual baseline actually captures the public homepage, not the admin page — a broken baseline worth fixing someday.
 
 ---
 
