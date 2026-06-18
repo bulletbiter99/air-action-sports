@@ -5,6 +5,7 @@
 // match the backend: edit + save → DELETE + INSERT all.
 
 import { useState, useEffect, useCallback } from 'react';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import { useAdmin } from './AdminContext';
 
 export default function AdminEventArchive() {
@@ -35,11 +36,16 @@ export default function AdminEventArchive() {
 
     return (
         <div style={pageWrap}>
-            <h1 style={pageTitle}>Event Archive</h1>
-            <p style={pageSub}>
-                Add highlight videos and photo gallery links to past events.
-                Changes appear on the public <a href="/games" target="_blank" rel="noopener noreferrer">/games</a> page.
-            </p>
+            <AdminPageHeader
+                title="Event Archive"
+                breadcrumb={[{ label: 'Event Archive' }]}
+                description={
+                    <>
+                        Add highlight videos and photo gallery links to past events.
+                        Changes appear on the public <a href="/games" target="_blank" rel="noopener noreferrer">/games</a> page.
+                    </>
+                }
+            />
 
             {loading && <p style={muted}>Loading…</p>}
             {err && <p style={errStyle}>Error: {err}</p>}
@@ -189,8 +195,6 @@ function ArchiveEditor({ eventId, onSaved }) {
 }
 
 const pageWrap = { maxWidth: 1000, margin: '0 auto', padding: '2rem' };
-const pageTitle = { color: 'var(--color-text)', marginBottom: '0.5rem' };
-const pageSub = { color: 'var(--color-text-muted)', marginBottom: '1.5rem' };
 const muted = { color: 'var(--color-text-muted)' };
 const errStyle = { color: 'var(--color-danger)' };
 const eventRow = { background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', marginBottom: '0.75rem', padding: '0.75rem 1rem', borderRadius: 4 };

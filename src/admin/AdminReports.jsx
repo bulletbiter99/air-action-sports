@@ -13,6 +13,7 @@
 
 import { useState, useMemo, lazy, Suspense } from 'react';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import ReportEmptyState from './reports/ReportEmptyState.jsx';
 
 // Owner tab content (Batch 2). Lazy-loaded so the report bundle + chart
@@ -68,9 +69,7 @@ export default function AdminReports() {
     if (visibleTabs.length === 0) {
         return (
             <div style={pageWrap}>
-                <header style={pageHeader}>
-                    <h1 style={pageTitle}>Reports</h1>
-                </header>
+                <AdminPageHeader {...REPORTS_HEADER} />
                 <ReportEmptyState
                     kind="not-implemented"
                     title="No reports available for your role"
@@ -88,15 +87,7 @@ export default function AdminReports() {
 
     return (
         <div style={pageWrap}>
-            <header style={pageHeader}>
-                <div>
-                    <h1 style={pageTitle}>Reports</h1>
-                    <p style={pageSub}>
-                        Per-persona drilldowns into bookings, revenue, customers, and field
-                        rentals. Filters apply to all reports in the active tab.
-                    </p>
-                </div>
-            </header>
+            <AdminPageHeader {...REPORTS_HEADER} />
 
             <nav style={tabStrip} role="tablist">
                 {visibleTabs.map((tab) => (
@@ -149,10 +140,13 @@ export default function AdminReports() {
     );
 }
 
+const REPORTS_HEADER = {
+    title: 'Reports',
+    description: 'Per-persona drilldowns into bookings, revenue, customers, and field rentals. Filters apply to all reports in the active tab.',
+    breadcrumb: [{ label: 'Reports' }],
+};
+
 const pageWrap = { maxWidth: 1200, margin: '0 auto', padding: '2rem' };
-const pageHeader = { marginBottom: '1.5rem' };
-const pageTitle = { color: 'var(--color-text)', margin: 0 };
-const pageSub = { color: 'var(--color-text-muted)', marginTop: '0.25rem', maxWidth: 760 };
 const muted = { color: 'var(--color-text-muted)' };
 
 const tabStrip = {

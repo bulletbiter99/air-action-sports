@@ -5,6 +5,7 @@
 // count via POST /api/admin/segments/preview as the operator types.
 
 import { useState, useEffect, useCallback } from 'react';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 
 const SYSTEM_TAGS = ['vip', 'frequent', 'lapsed', 'new'];
 
@@ -46,19 +47,14 @@ export default function AdminSegments() {
 
     return (
         <div style={pageWrap}>
-            <header style={pageHeader}>
-                <div>
-                    <h1 style={pageTitle}>Segments</h1>
-                    <p style={pageSub}>
-                        Customer groups for analysis (Batch 1) and campaigns (Batch 2+). Each
-                        segment combines tags + LTV + booking count, AND-ed together. All
-                        segments respect customer email-marketing consent automatically.
-                    </p>
-                </div>
-                <button type="button" onClick={() => setEditingSegment('new')} style={primaryBtn}>
-                    + New segment
-                </button>
-            </header>
+            <AdminPageHeader
+                title="Segments"
+                description="Customer groups for analysis (Batch 1) and campaigns (Batch 2+). Each segment combines tags + LTV + booking count, AND-ed together. All segments respect customer email-marketing consent automatically."
+                breadcrumb={[{ label: 'Segments' }]}
+                primaryAction={
+                    <button type="button" onClick={() => setEditingSegment('new')} style={primaryBtn}>+ New segment</button>
+                }
+            />
 
             {err && <p style={errStyle}>Error: {err}</p>}
 
@@ -326,9 +322,6 @@ function formatRelative(ms) {
 }
 
 const pageWrap = { maxWidth: 1100, margin: '0 auto', padding: '2rem' };
-const pageHeader = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.5rem' };
-const pageTitle = { color: 'var(--color-text)', margin: 0 };
-const pageSub = { color: 'var(--color-text-muted)', marginTop: '0.25rem', maxWidth: 700 };
 const muted = { color: 'var(--color-text-muted)' };
 const errStyle = { color: 'var(--color-danger)' };
 const table = { width: '100%', borderCollapse: 'collapse', marginTop: '1rem' };

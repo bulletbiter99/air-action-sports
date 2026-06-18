@@ -10,6 +10,7 @@
 // 0/N delivered, which is expected pre-activation.
 
 import { useState, useEffect, useCallback } from 'react';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 
 const STATUS_FILTERS = ['', 'draft', 'scheduled', 'sending', 'sent', 'canceled'];
 const STATUS_COLORS = {
@@ -47,19 +48,14 @@ export default function AdminCampaigns() {
 
     return (
         <div style={pageWrap}>
-            <header style={pageHeader}>
-                <div>
-                    <h1 style={pageTitle}>Campaigns</h1>
-                    <p style={pageSub}>
-                        One-off marketing emails to a customer segment (or the whole marketing-opted
-                        base). Compose a draft, preview the audience, then send now or schedule.
-                        Every send respects marketing consent and includes an unsubscribe link.
-                    </p>
-                </div>
-                <button type="button" onClick={() => setEditing('new')} style={primaryBtn}>
-                    + New campaign
-                </button>
-            </header>
+            <AdminPageHeader
+                title="Campaigns"
+                description="One-off marketing emails to a customer segment (or the whole marketing-opted base). Compose a draft, preview the audience, then send now or schedule. Every send respects marketing consent and includes an unsubscribe link."
+                breadcrumb={[{ label: 'Campaigns' }]}
+                primaryAction={
+                    <button type="button" onClick={() => setEditing('new')} style={primaryBtn}>+ New campaign</button>
+                }
+            />
 
             <div style={filterRow}>
                 {STATUS_FILTERS.map((s) => (
@@ -376,9 +372,6 @@ function formatRelative(ms) {
 }
 
 const pageWrap = { maxWidth: 1100, margin: '0 auto', padding: '2rem' };
-const pageHeader = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem' };
-const pageTitle = { color: 'var(--color-text)', margin: 0 };
-const pageSub = { color: 'var(--color-text-muted)', marginTop: '0.25rem', maxWidth: 720 };
 const muted = { color: 'var(--color-text-muted)' };
 const errStyle = { color: 'var(--color-danger)' };
 const noticeStyle = { color: 'var(--color-success)' };
