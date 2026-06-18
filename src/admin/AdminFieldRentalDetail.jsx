@@ -100,9 +100,10 @@ export function allowedNextStatuses(from) {
 // ────────────────────────────────────────────────────────────────────
 
 const containerStyle = { padding: 'var(--space-24)' };
-const headerStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-16)' };
-const backLinkStyle = { color: 'var(--text-secondary, #666)', textDecoration: 'none', fontSize: 13 };
-const titleStyle = { fontSize: 24, fontWeight: 700, margin: '4px 0 0' };
+const headerStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 'var(--space-24)' };
+const backLinkStyle = { display: 'inline-block', marginBottom: '1rem', color: 'var(--tan-light)', textDecoration: 'none', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' };
+const titleStyle = { fontSize: 24, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.5px', color: 'var(--cream)', margin: '0 0 4px' };
+const titleCodeStyle = { fontFamily: "'SF Mono', 'Courier New', monospace", background: 'rgba(200, 184, 154, 0.08)', padding: '2px 8px', fontSize: 18, color: 'var(--tan)' };
 const gridStyle = { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--space-16)' };
 const cardStyle = {
     background: 'var(--surface-card, white)', border: '1px solid var(--border-soft, #e0e0e0)',
@@ -613,7 +614,7 @@ export default function AdminFieldRentalDetail() {
             <div style={headerStyle}>
                 <div>
                     <Link to="/admin/field-rentals" style={backLinkStyle}>← All field rentals</Link>
-                    <h1 style={titleStyle}>Rental <code style={{ fontSize: 18 }}>{rental.id}</code></h1>
+                    <h1 style={titleStyle}>Rental <code style={titleCodeStyle}>{rental.id}</code></h1>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                     <span style={badgeStyle(status)}>{status.label}</span>

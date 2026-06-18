@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import { ENGAGEMENT_TYPES } from './AdminFieldRentals.jsx';
 import { mergeConflictsForBanner } from './AdminFieldRentalDetail.jsx';
 
@@ -93,9 +94,6 @@ export function previewTotalCents(state) {
 // ────────────────────────────────────────────────────────────────────
 
 const containerStyle = { padding: 'var(--space-24)', maxWidth: 960 };
-const headerStyle = { marginBottom: 'var(--space-16)' };
-const titleStyle = { fontSize: 24, fontWeight: 700, margin: '4px 0 0' };
-const backLinkStyle = { color: 'var(--text-secondary, #666)', textDecoration: 'none', fontSize: 13 };
 const stepperStyle = { display: 'flex', gap: 8, marginBottom: 'var(--space-16)' };
 const stepPillStyle = (active, done) => ({
     flex: 1, padding: '8px 12px', borderRadius: 4, fontSize: 13, fontWeight: 600,
@@ -239,10 +237,11 @@ export default function AdminFieldRentalNew() {
 
     return (
         <div style={containerStyle}>
-            <div style={headerStyle}>
-                <Link to="/admin/field-rentals" style={backLinkStyle}>← All field rentals</Link>
-                <h1 style={titleStyle}>New field rental</h1>
-            </div>
+            <AdminPageHeader
+                title="New field rental"
+                description="Create a private or corporate field booking. Fill the customer, schedule, and terms steps, then submit."
+                breadcrumb={[{ label: 'Field Rentals', to: '/admin/field-rentals' }, { label: 'New rental' }]}
+            />
 
             <div style={stepperStyle}>
                 <div style={stepPillStyle(step === 1, step > 1)}>1. Customer</div>

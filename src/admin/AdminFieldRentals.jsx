@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 
 // ────────────────────────────────────────────────────────────────────
 // Pure helpers (exported for tests)
@@ -119,8 +120,6 @@ export function buildListQueryString(filters) {
 // ────────────────────────────────────────────────────────────────────
 
 const containerStyle = { padding: 'var(--space-24)' };
-const headerStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-16)' };
-const titleStyle = { fontSize: 24, fontWeight: 700, margin: 0 };
 const primaryBtn = {
     background: 'var(--orange-strong, #d4541a)', color: 'white', border: 'none',
     padding: '8px 16px', borderRadius: 4, cursor: 'pointer', fontWeight: 600,
@@ -141,9 +140,10 @@ const inputStyle = {
 };
 const tableStyle = { width: '100%', borderCollapse: 'collapse', background: 'var(--surface-card, white)', borderRadius: 4, overflow: 'hidden' };
 const thStyle = {
-    textAlign: 'left', padding: '10px 12px', background: 'var(--surface-elevated, #f5f5f5)',
-    fontWeight: 600, fontSize: 13, color: 'var(--text-secondary, #666)',
-    borderBottom: '1px solid var(--border-soft, #e0e0e0)',
+    textAlign: 'left', padding: '10px 12px',
+    fontWeight: 800, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase',
+    color: 'var(--color-accent)',
+    borderBottom: '1px solid var(--color-border-strong)',
 };
 const tdStyle = { padding: '12px', borderBottom: '1px solid var(--border-soft, #f0f0f0)', fontSize: 14 };
 const rowStyle = { cursor: 'pointer' };
@@ -267,10 +267,12 @@ export default function AdminFieldRentals() {
 
     return (
         <div style={containerStyle}>
-            <div style={headerStyle}>
-                <h1 style={titleStyle}>Field Rentals</h1>
-                <Link to="/admin/field-rentals/new" style={primaryBtn}>+ New Rental</Link>
-            </div>
+            <AdminPageHeader
+                title="Field Rentals"
+                description="Private and corporate field bookings. Track status, COI compliance, documents, and payments."
+                breadcrumb={[{ label: 'Field Rentals' }]}
+                primaryAction={<Link to="/admin/field-rentals/new" style={primaryBtn}>+ New Rental</Link>}
+            />
 
             {err && <div style={errorStyle}>{err}</div>}
 
