@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 
 const KINDS = [
     { value: '',          label: 'All' },
@@ -43,12 +44,14 @@ export default function AdminStaffLibrary() {
 
     return (
         <div style={page}>
-            <header style={header}>
-                <h1 style={h1}>Staff Document Library</h1>
-                {hasRole?.('manager') && (
+            <AdminPageHeader
+                title="Staff Document Library"
+                description="Versioned job descriptions, SOPs, checklists, policies, and training docs. Click a document to preview it or publish a new version."
+                breadcrumb={[{ label: 'Staff', to: '/admin/staff' }, { label: 'Document Library' }]}
+                primaryAction={hasRole?.('manager') && (
                     <Link to="/admin/staff/library/new" style={cta}>+ New Document</Link>
                 )}
-            </header>
+            />
 
             <div style={filterRow}>
                 <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} style={select}>
@@ -91,8 +94,6 @@ export default function AdminStaffLibrary() {
 }
 
 const page = { maxWidth: 1200, margin: '0 auto', padding: '2rem' };
-const header = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 };
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
 const cta = { padding: '10px 20px', background: 'var(--orange)', color: 'white', textDecoration: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', borderRadius: 4 };
 const filterRow = { display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16 };
 const select = { padding: '8px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13 };

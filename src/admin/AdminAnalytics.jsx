@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import { BarChart, ProgressBar } from './charts';
 import { formatMoney as $ } from '../utils/money.js';
 
@@ -65,23 +66,27 @@ export default function AdminAnalytics() {
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={h1}>Analytics</h1>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <select value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)} style={input}>
-            <option value="">All events</option>
-            {perEvent.map((e) => (
-              <option key={e.id} value={e.id}>{e.title}</option>
-            ))}
-          </select>
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))} style={input}>
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="365">Last 365 days</option>
-          </select>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Analytics"
+        description="Revenue, bookings, and per-event performance. Filter by event and date range."
+        breadcrumb={[{ label: 'Analytics' }]}
+        secondaryActions={
+          <>
+            <select value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)} style={input} aria-label="Event">
+              <option value="">All events</option>
+              {perEvent.map((e) => (
+                <option key={e.id} value={e.id}>{e.title}</option>
+              ))}
+            </select>
+            <select value={days} onChange={(e) => setDays(Number(e.target.value))} style={input} aria-label="Date range">
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last 365 days</option>
+            </select>
+          </>
+        }
+      />
 
       {loadingData && !overview && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
 
@@ -209,7 +214,6 @@ function StatCard({ label, value, sub, color }) {
   );
 }
 
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
 const h2 = { fontSize: 14, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2, color: 'var(--orange)', margin: '0 0 8px' };
 const input = { padding: '10px 14px', background: 'var(--dark)', border: '1px solid rgba(200,184,154,0.2)', color: 'var(--cream)', fontSize: 13, fontFamily: 'inherit' };
 const statsGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 };
