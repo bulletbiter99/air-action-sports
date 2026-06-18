@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import CustomerTypeahead from './CustomerTypeahead.jsx';
 import { pickRecallableBookings, formatBookingHint } from './walkUpHelpers.js';
 import { formatMoney as fmt } from '../utils/money.js';
@@ -294,10 +295,11 @@ export default function AdminNewBooking() {
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '2rem' }}>
-      <h1 style={h1}>New Booking</h1>
-      <p style={{ color: 'var(--olive-light)', fontSize: 13, marginBottom: 24 }}>
-        Create a booking directly in the system — walk-in, phone booking, or comp. Counts toward capacity.
-      </p>
+      <AdminPageHeader
+        title="New Booking"
+        description="Create a booking directly in the system — walk-in, phone booking, or comp. Counts toward capacity."
+        breadcrumb={[{ label: 'Bookings', to: '/admin/bookings' }, { label: 'New Booking' }]}
+      />
 
       {error && <div style={errBanner}>{error}</div>}
 
