@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import FilterBar from '../components/admin/FilterBar';
 import { formatMoney } from '../utils/money.js';
 import CustomerCreateModal from './CustomerCreateModal.jsx';
@@ -75,21 +76,20 @@ export default function AdminCustomers() {
 
     return (
         <div className="admin-customers">
-            <header className="admin-customers__header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
-                <div>
-                    <h1>Customers</h1>
-                    <p className="admin-customers__subtitle">
-                        {data.total} {data.total === 1 ? 'customer' : 'customers'}
-                    </p>
-                </div>
-                <button
-                    type="button"
-                    className="admin-customers__btn admin-customers__btn--primary"
-                    onClick={() => setCreateOpen(true)}
-                >
-                    + New customer
-                </button>
-            </header>
+            <AdminPageHeader
+                title="Customers"
+                description="Every booking customer. Search, filter, merge duplicates, and manage GDPR requests."
+                breadcrumb={[{ label: 'Customers' }]}
+                primaryAction={(
+                    <button
+                        type="button"
+                        className="admin-customers__btn admin-customers__btn--primary"
+                        onClick={() => setCreateOpen(true)}
+                    >
+                        + New customer
+                    </button>
+                )}
+            />
 
             <FilterBar
                 schema={FILTER_SCHEMA}
