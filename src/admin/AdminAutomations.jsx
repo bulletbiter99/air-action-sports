@@ -71,6 +71,7 @@ export default function AdminAutomations() {
             {!loading && automations.length === 0 && <p style={muted}>No automations yet.</p>}
 
             {!loading && automations.length > 0 && (
+                <div style={tableBox}>
                 <table style={table}>
                     <thead>
                         <tr>
@@ -101,6 +102,7 @@ export default function AdminAutomations() {
                         ))}
                     </tbody>
                 </table>
+                </div>
             )}
 
             {editing && (
@@ -282,7 +284,8 @@ const pageWrap = { maxWidth: 1100, margin: '0 auto', padding: '2rem' };
 const muted = { color: 'var(--color-text-muted)' };
 const errStyle = { color: 'var(--color-danger)' };
 const noticeStyle = { color: 'var(--color-success)' };
-const table = { width: '100%', borderCollapse: 'collapse', marginTop: '0.5rem' };
+const tableBox = { background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', padding: 'var(--space-16)', marginTop: '0.5rem' };
+const table = { width: '100%', borderCollapse: 'collapse' };
 const th = { textAlign: 'left', padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--color-border-strong)', color: 'var(--color-accent)', fontSize: '0.85rem', textTransform: 'uppercase' };
 const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
 const td = { padding: '0.5rem 0.75rem', color: 'var(--color-text)' };

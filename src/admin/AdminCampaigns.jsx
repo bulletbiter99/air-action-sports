@@ -78,6 +78,7 @@ export default function AdminCampaigns() {
             )}
 
             {!loading && campaigns.length > 0 && (
+                <div style={tableBox}>
                 <table style={table}>
                     <thead>
                         <tr>
@@ -106,6 +107,7 @@ export default function AdminCampaigns() {
                         ))}
                     </tbody>
                 </table>
+                </div>
             )}
 
             {editing && (
@@ -378,7 +380,8 @@ const noticeStyle = { color: 'var(--color-success)' };
 const filterRow = { display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' };
 const chip = { background: 'transparent', color: 'var(--color-text-muted)', border: '1px solid var(--color-border-strong)', padding: '0.25rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem' };
 const chipActive = { ...chip, background: 'var(--color-accent)', color: 'var(--color-accent-on-accent)', borderColor: 'var(--color-accent)', fontWeight: 700 };
-const table = { width: '100%', borderCollapse: 'collapse', marginTop: '0.5rem' };
+const tableBox = { background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', padding: 'var(--space-16)', marginTop: '0.5rem' };
+const table = { width: '100%', borderCollapse: 'collapse' };
 const th = { textAlign: 'left', padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--color-border-strong)', color: 'var(--color-accent)', fontSize: '0.85rem', textTransform: 'uppercase' };
 const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
 const td = { padding: '0.5rem 0.75rem', color: 'var(--color-text)' };

@@ -67,6 +67,7 @@ export default function AdminSegments() {
             )}
 
             {!loading && segments.length > 0 && (
+                <div style={tableBox}>
                 <table style={table}>
                     <thead>
                         <tr>
@@ -109,6 +110,7 @@ export default function AdminSegments() {
                         ))}
                     </tbody>
                 </table>
+                </div>
             )}
 
             {editingSegment && (
@@ -324,7 +326,8 @@ function formatRelative(ms) {
 const pageWrap = { maxWidth: 1100, margin: '0 auto', padding: '2rem' };
 const muted = { color: 'var(--color-text-muted)' };
 const errStyle = { color: 'var(--color-danger)' };
-const table = { width: '100%', borderCollapse: 'collapse', marginTop: '1rem' };
+const tableBox = { background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', padding: 'var(--space-16)', marginTop: '1rem' };
+const table = { width: '100%', borderCollapse: 'collapse' };
 const th = { textAlign: 'left', padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--color-border-strong)', color: 'var(--color-accent)', fontSize: '0.85rem', textTransform: 'uppercase' };
 const tr = { borderBottom: '1px solid var(--color-border-subtle)' };
 const td = { padding: '0.5rem 0.75rem', color: 'var(--color-text)' };
