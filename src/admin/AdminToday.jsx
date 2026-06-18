@@ -21,6 +21,9 @@
 
 import { Link } from 'react-router-dom';
 import { useTodayActive } from '../hooks/useWidgetData.js';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+
+const TODAY_HEADER = { title: 'Today', breadcrumb: [{ label: 'Today' }] };
 
 export default function AdminToday() {
   const todayState = useTodayActive();
@@ -51,9 +54,7 @@ export default function AdminToday() {
 function NoEventTodayState() {
   return (
     <div style={page}>
-      <header style={headerRow}>
-        <h1 style={h1}>Today</h1>
-      </header>
+      <AdminPageHeader {...TODAY_HEADER} />
       <div style={card}>
         <h2 style={h2}>No event today</h2>
         <p style={cardBody}>
@@ -72,9 +73,7 @@ function NoEventTodayState() {
 function AmbiguousState() {
   return (
     <div style={page}>
-      <header style={headerRow}>
-        <h1 style={h1}>Today</h1>
-      </header>
+      <AdminPageHeader {...TODAY_HEADER} />
       <div style={card}>
         <h2 style={h2}>Multiple events scheduled today</h2>
         <p style={cardBody}>
@@ -91,10 +90,7 @@ function ActiveEventTodayView({ eventId }) {
   const eventQs = `?event=${encodeURIComponent(eventId)}`;
   return (
     <div style={page}>
-      <header style={headerRow}>
-        <h1 style={h1}>Today</h1>
-        <p style={subtitle}>Event in progress · {eventId}</p>
-      </header>
+      <AdminPageHeader {...TODAY_HEADER} description={`Event in progress · ${eventId}`} />
       <div style={tilesGrid}>
         <ActionTile
           to={`/admin/roster${eventQs}`}
@@ -128,15 +124,6 @@ function ActionTile({ to, label, desc, accent }) {
 }
 
 const page = { maxWidth: 1100, margin: '0 auto', padding: '2rem' };
-const headerRow = { marginBottom: '2rem' };
-const h1 = {
-  fontSize: 28, fontWeight: 900, textTransform: 'uppercase',
-  letterSpacing: '-1px', color: 'var(--cream)', margin: 0,
-};
-const subtitle = {
-  marginTop: 6, color: 'var(--olive-light)', fontSize: 13,
-  fontFamily: 'monospace', letterSpacing: 0.5,
-};
 const card = {
   background: 'var(--mid)', border: '1px solid rgba(200,184,154,0.1)',
   padding: '1.75rem', maxWidth: 640,
