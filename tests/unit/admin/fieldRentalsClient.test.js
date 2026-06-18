@@ -71,8 +71,8 @@ describe('classifyStatus', () => {
             const r = classifyStatus(s);
             expect(typeof r.label).toBe('string');
             expect(r.label.length).toBeGreaterThan(0);
-            expect(r.color).toMatch(/^#[0-9a-f]{6}$/i);
-            expect(r.bg).toMatch(/^#[0-9a-f]{6}$/i);
+            expect(r.color).toMatch(/^var\(--color-/);
+            expect(r.bg).toMatch(/^var\(--color-/);
         }
     });
 
@@ -103,31 +103,31 @@ describe('classifyCoiStatus', () => {
     it('expired returns red expired label', () => {
         const r = classifyCoiStatus('expired');
         expect(r.label).toMatch(/expired/i);
-        expect(r.bg).toBe('#fee2e2');
+        expect(r.bg).toBe('var(--color-danger-soft)');
     });
 
     it('received w/ expires >30d: green received label', () => {
         const r = classifyCoiStatus('received', now + 60 * 86400000, now);
         expect(r.label).toMatch(/received/i);
-        expect(r.bg).toBe('#d1fae5');
+        expect(r.bg).toBe('var(--color-success-soft)');
     });
 
     it('received w/ expires <30d: amber warning', () => {
         const r = classifyCoiStatus('received', now + 14 * 86400000, now);
-        expect(r.bg).toBe('#fef3c7');
+        expect(r.bg).toBe('var(--color-warning-soft)');
         expect(r.label).toMatch(/d left/);
     });
 
     it('received w/ expires <7d: red urgent', () => {
         const r = classifyCoiStatus('received', now + 3 * 86400000, now);
-        expect(r.bg).toBe('#fee2e2');
+        expect(r.bg).toBe('var(--color-danger-soft)');
         expect(r.label).toMatch(/d left/);
     });
 
     it('received w/ expires in past: shows "COI expired"', () => {
         const r = classifyCoiStatus('received', now - 86400000, now);
         expect(r.label).toMatch(/expired/i);
-        expect(r.bg).toBe('#fee2e2');
+        expect(r.bg).toBe('var(--color-danger-soft)');
     });
 
     it('received without expires/now defaults to green received', () => {

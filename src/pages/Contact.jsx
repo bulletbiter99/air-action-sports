@@ -226,9 +226,9 @@ export default function Contact() {
                   style={{
                     marginTop: '1rem',
                     padding: '12px 16px',
-                    background: '#dcfce7',
-                    border: '1px solid #16a34a',
-                    color: '#166534',
+                    background: 'var(--color-success-soft, rgba(45,165,90,0.12))',
+                    border: '1px solid var(--color-success, #2da55a)',
+                    color: 'var(--color-text, #f2ede4)',
                     borderRadius: 4,
                   }}
                 >
@@ -242,9 +242,9 @@ export default function Contact() {
                   style={{
                     marginTop: '1rem',
                     padding: '12px 16px',
-                    background: '#fef3c7',
-                    border: '1px solid #f59e0b',
-                    color: '#92400e',
+                    background: 'var(--color-warning-soft, rgba(240,160,64,0.12))',
+                    border: '1px solid var(--color-warning, #f0a040)',
+                    color: 'var(--color-text, #f2ede4)',
                     borderRadius: 4,
                   }}
                 >
@@ -258,9 +258,9 @@ export default function Contact() {
                   style={{
                     marginTop: '1rem',
                     padding: '12px 16px',
-                    background: '#fef0f0',
-                    border: '1px solid #d4541a',
-                    color: '#991b1b',
+                    background: 'var(--color-danger-soft, rgba(231,76,60,0.12))',
+                    border: '1px solid var(--color-danger, #e74c3c)',
+                    color: 'var(--color-text, #f2ede4)',
                     borderRadius: 4,
                   }}
                 >

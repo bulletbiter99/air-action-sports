@@ -28,16 +28,16 @@ export const ARCHIVED_OPTIONS = ['active', 'archived', 'all'];
  */
 export function classifyStatus(status) {
     const map = {
-        lead:      { label: 'Lead',      color: '#94a3b8', bg: '#f1f5f9' },
-        draft:     { label: 'Draft',     color: '#475569', bg: '#e2e8f0' },
-        sent:      { label: 'Sent',      color: '#1d4ed8', bg: '#dbeafe' },
-        agreed:    { label: 'Agreed',    color: '#0e7490', bg: '#cffafe' },
-        paid:      { label: 'Paid',      color: '#065f46', bg: '#d1fae5' },
-        completed: { label: 'Completed', color: '#374151', bg: '#e5e7eb' },
-        cancelled: { label: 'Cancelled', color: '#991b1b', bg: '#fee2e2' },
-        refunded:  { label: 'Refunded',  color: '#9a3412', bg: '#fed7aa' },
+        lead:      { label: 'Lead',      color: 'var(--color-text-muted)', bg: 'var(--color-bg-sunken)' },
+        draft:     { label: 'Draft',     color: 'var(--color-text-muted)', bg: 'var(--color-bg-sunken)' },
+        sent:      { label: 'Sent',      color: 'var(--color-info)',       bg: 'var(--color-info-soft)' },
+        agreed:    { label: 'Agreed',    color: 'var(--color-info)',       bg: 'var(--color-info-soft)' },
+        paid:      { label: 'Paid',      color: 'var(--color-success)',    bg: 'var(--color-success-soft)' },
+        completed: { label: 'Completed', color: 'var(--color-text-muted)', bg: 'var(--color-bg-sunken)' },
+        cancelled: { label: 'Cancelled', color: 'var(--color-danger)',     bg: 'var(--color-danger-soft)' },
+        refunded:  { label: 'Refunded',  color: 'var(--color-warning)',    bg: 'var(--color-warning-soft)' },
     };
-    return map[status] || { label: status || '—', color: '#475569', bg: '#e2e8f0' };
+    return map[status] || { label: status || '—', color: 'var(--color-text-muted)', bg: 'var(--color-bg-sunken)' };
 }
 
 /**
@@ -45,21 +45,21 @@ export function classifyStatus(status) {
  * status is `received`, the color shifts to amber / red as expiry approaches.
  */
 export function classifyCoiStatus(coiStatus, expiresAtMs, nowMs) {
-    if (coiStatus === 'not_required') return { label: 'Not required', color: '#475569', bg: '#e5e7eb' };
-    if (coiStatus === 'pending') return { label: 'COI pending', color: '#92400e', bg: '#fef3c7' };
-    if (coiStatus === 'expired') return { label: 'COI expired', color: '#991b1b', bg: '#fee2e2' };
+    if (coiStatus === 'not_required') return { label: 'Not required', color: 'var(--color-text-muted)', bg: 'var(--color-bg-sunken)' };
+    if (coiStatus === 'pending') return { label: 'COI pending', color: 'var(--color-warning)', bg: 'var(--color-warning-soft)' };
+    if (coiStatus === 'expired') return { label: 'COI expired', color: 'var(--color-danger)', bg: 'var(--color-danger-soft)' };
     if (coiStatus === 'received') {
         const expires = Number(expiresAtMs);
         const now = Number(nowMs);
         if (Number.isFinite(expires) && Number.isFinite(now)) {
             const days = Math.floor((expires - now) / 86400000);
-            if (days < 0) return { label: 'COI expired', color: '#991b1b', bg: '#fee2e2' };
-            if (days < 7) return { label: `COI ${days}d left`, color: '#991b1b', bg: '#fee2e2' };
-            if (days < 30) return { label: `COI ${days}d left`, color: '#92400e', bg: '#fef3c7' };
+            if (days < 0) return { label: 'COI expired', color: 'var(--color-danger)', bg: 'var(--color-danger-soft)' };
+            if (days < 7) return { label: `COI ${days}d left`, color: 'var(--color-danger)', bg: 'var(--color-danger-soft)' };
+            if (days < 30) return { label: `COI ${days}d left`, color: 'var(--color-warning)', bg: 'var(--color-warning-soft)' };
         }
-        return { label: 'COI received', color: '#065f46', bg: '#d1fae5' };
+        return { label: 'COI received', color: 'var(--color-success)', bg: 'var(--color-success-soft)' };
     }
-    return { label: coiStatus || '—', color: '#475569', bg: '#e5e7eb' };
+    return { label: coiStatus || '—', color: 'var(--color-text-muted)', bg: 'var(--color-bg-sunken)' };
 }
 
 /**
