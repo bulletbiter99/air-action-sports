@@ -14,14 +14,14 @@ Session handoff doc. Skim top-to-bottom to get oriented; copy the [Prompt for fr
 
 | Metric | Value |
 |---|---|
-| Latest work | **2026-06-11 session** — customer-driven waiver work: failed-submit UX (scroll-to-first-error + alert summary, [#292](https://github.com/bulletbiter99/air-action-sports/pull/292)), inline-styled error boxes ([#293](https://github.com/bulletbiter99/air-action-sports/pull/293)), the **waiver-confirmation email feature** (auto-receipt on every signing + admin per-booking resend; migration **0073**; [#294](https://github.com/bulletbiter99/air-action-sports/pull/294)/[#295](https://github.com/bulletbiter99/air-action-sports/pull/295)), and a sales-series test calendar-time-bomb fix ([#291](https://github.com/bulletbiter99/air-action-sports/pull/291)). Prior: **2026-06-06** homepage reorder + polish (#289/#290); **2026-06-03** Stripe live-cutover FIX (prod had silently been in TEST mode) + Volga rental content + booking-reschedule (#284) + check-in "Payment due" flag (#286). |
-| `main` HEAD | `d9b4f6a` · re-pull for exact |
-| Tests | **2860 / 233 passing** |
+| Latest work | **2026-06-17 admin design-consistency sweep** — conformed every admin list/index/create-form page to the shared **AdminPageHeader** house style + chrome standardization (bordered table-box wrappers on the marketing-cluster tables + Field Rentals migrated to the shared chip-based FilterBar + EmptyState + accent button). PRs #306 (batch 1) + #308–#315, all merged + deployed; **NO schema/migration/behavior changes** (per-element token/header/chrome swaps + additive/rewritten RTL tests). Prior: the earlier 2026-06-17 session cleared both ⭐ M8 work-menu items (#297–#304); **2026-06-11** waiver-confirmation email + waiver UX (#291–#295, migration 0073); **2026-06-06** homepage reorder (#289/#290); **2026-06-03** Stripe live-cutover FIX + Volga rental content + booking-reschedule (#284) + check-in "Payment due" flag (#286). |
+| `main` HEAD | `f0d4bb7` · re-pull for exact |
+| Tests | **2945 / 251 passing** |
 | Build | clean · Lint 0 errors |
-| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — deployed from `main` via Workers Builds; **live Stripe (really cut over 2026-06-03)**; waiver-confirmation receipts live |
+| Production health | `https://airactionsport.com/api/health` → `{"ok":true,...}` — deployed from `main` via Workers Builds; **live Stripe (really cut over 2026-06-03)**; waiver-confirmation receipts live; admin design-consistency sweep deployed 2026-06-17 |
 | D1 migrations on remote | **0001–0073 ALL applied** (0073 `waiver_confirmation` template applied 2026-06-11; a `migrations apply` finds nothing new) |
-| Open milestone | **M8** — work-menu items 1–7 + contrast pass done + deployed; **item 6 (event content) COMPLETE**. Remaining: item-1 RTL long tail + the admin design-consistency sweep |
-| Open PRs | 0 (all merged through #295) |
+| Open milestone | **M8 work menu CLEARED** — all items done + deployed (item-1 RTL long tail #299–#304; admin design-consistency sweep #306 + #308–#315). No in-flight milestone. Remaining is operator activation only (Marketing send + Resend webhook + FTS flag) + 2 outstanding cutover invoices. |
+| Open PRs | 0 (all merged through #315) |
 
 **Post-M7 work-menu session (2026-05-31) — all merged to `main`:** 11c Reports polish (#231), representative-data visual baselines (#232), the **Marketing milestone B2–B6** (#234 / #243 / #236–#240 — campaigns + send pipeline + engagement tracking + automations + capability seed), M6 live-Stripe code-readiness audit (#233), and the **M8** start (#241 a11y region pass + #244 sidebar /me caps). **For the full current state + remaining work menu + consolidated operator-pending, use [docs/next-session.md](docs/next-session.md).** The M7-in-progress tables below are preserved as a historical record.
 
@@ -1003,16 +1003,16 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 
 ## 14. Resume checklist when starting fresh
 
-1. Read this file top-to-bottom. **Then read [CLAUDE.md](CLAUDE.md)** — it carries the do-not-touch list, stop-and-ask conditions, branch etiquette, the carry-forward D1 quirks subsection, and closing/in-progress summaries for Milestones 1, 2, 3, and 4. Skim [docs/audit/00-overview.md](docs/audit/00-overview.md) if more context on the present surface area is needed before touching admin code.
+1. Read this file top-to-bottom. **Then read [CLAUDE.md](CLAUDE.md)** — it carries the do-not-touch list, stop-and-ask conditions, branch etiquette, the carry-forward D1 quirks subsection, and closing summaries for Milestones 1 through 7 plus the dated M8 session sections (design sweep + RTL long tail). Skim [docs/audit/00-overview.md](docs/audit/00-overview.md) if more context on the present surface area is needed before touching admin code.
 2. Confirm the Cloudflare deploy credentials memory points to `.claude/.env` (token present).
 3. Sanity checks:
    - `curl https://airactionsport.com/api/health` → `{"ok":true,...}`
    - `curl https://airactionsport.com/api/events` → returns 1 event
-   - `npm test` → **917 passing across 100 files** (vitest unit suite post-M4 B12b — net -1 vs B12a from flag-off test cleanup).
-   - `npm run lint` → 0 errors / 293 warnings (M3 B0 made lint blocking; the +23 warnings vs M3's 270 are all JSX-usage false positives accumulated through M4's batches for internal helper components — `Stat`, `StatusPill`, `Link`, `ActionQueueStat`, `CapacityBar`, `PendingStat`, `NewSidebarNav`, `SidebarItem`, `SidebarGroup`, `CheckInBanner`, `CustomerTypeahead`, `CommandPalette`, `BarChart`. Same pattern as App.jsx's pre-existing 50+. Full fix is `eslint-plugin-react/jsx-uses-vars`, deferred).
+   - `npm test` → **2945 passing across 251 files** (vitest unit suite as of the 2026-06-17 admin design-consistency-sweep close).
+   - `npm run lint` → **0 errors** (the warning count has drifted across M5–M8 and is advisory only — all JSX-usage false positives for internal helper components; full fix is `eslint-plugin-react/jsx-uses-vars`, deferred). NOTE: `npm run lint` also lints `dist/` output (~24k pre-existing errors from minified bundles) — verify your changes with `npx eslint <files>` instead of trusting the global output.
    - `npm run test:coverage` → compare gated paths against `docs/runbooks/m3-baseline-coverage.txt` (any drop > 1% on a gated file is a signal — investigate before continuing). M4 B3a-extended `worker/routes/admin/bookings.js` should exceed 80%; B4b/B4d-extended `worker/routes/admin/dashboard.js` should be ~95% (covered by 11 today-active + 8 upcoming-readiness + 6 action-queue tests).
 4. Confirm admin login works (use `/admin/forgot-password` if needed).
-5. Check `wrangler deployments list` to see what's currently live. Most recent as of 2026-05-07 post-M4-B7: the deploy triggered by `59aaa4d` (B7 Command Palette + migration 0029, PR [#88](https://github.com/bulletbiter99/air-action-sports/pull/88)). M4 chronological tip: `1c0806b` B6 walk-up speed wins (PR #86) → `69f3e83` B5 sidebar IA reorg (PR #84) → `73eb30b` B4f Bookkeeper widgets (PR #82) → `971d42f` B4d Owner extension (PR #78) → `2f1ea13` B4e Marketing widgets (PR #80) → `5dc1a7e` B4c BC widgets (PR #76) → `301f30e` B4b foundation (PR #74) → `de0e05d` B4a migration 0028 (PR #72) → `661e19f` B3c docs refresh (PR #70). M3 final close: `87da972` (PR [#53](https://github.com/bulletbiter99/air-action-sports/pull/53)). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
+5. Check `wrangler deployments list` to see what's currently live. Most recent: the **2026-06-17 admin design-consistency-sweep deploy** (`main` `f0d4bb7`, via Workers Builds). The M4-era chain below is **historical only** (kept for reference): the deploy triggered by `59aaa4d` (B7 Command Palette + migration 0029, PR [#88](https://github.com/bulletbiter99/air-action-sports/pull/88)). M4 chronological tip: `1c0806b` B6 walk-up speed wins (PR #86) → `69f3e83` B5 sidebar IA reorg (PR #84) → `73eb30b` B4f Bookkeeper widgets (PR #82) → `971d42f` B4d Owner extension (PR #78) → `2f1ea13` B4e Marketing widgets (PR #80) → `5dc1a7e` B4c BC widgets (PR #76) → `301f30e` B4b foundation (PR #74) → `de0e05d` B4a migration 0028 (PR #72) → `661e19f` B3c docs refresh (PR #70). M3 final close: `87da972` (PR [#53](https://github.com/bulletbiter99/air-action-sports/pull/53)). Auto-deploy via Workers Builds is wired correctly (see §13 + the **Workers Builds auto-deploy wiring** row in §10).
 6. If touching anything in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) `gates`: run the listed test paths first to confirm baseline; after editing, re-run them. If a test reveals current behavior conflicting with audit-documented behavior, **stop and ask** — do not adapt the test to match the new code.
 7. If picking up feedback triage: run `/feedback` in-session (or pull directly: `npx wrangler d1 execute air-action-sports-db --remote --command="SELECT id, type, priority, status, title FROM feedback WHERE status IN ('new','triaged','in-progress') ORDER BY created_at DESC"`).
 
@@ -1020,9 +1020,9 @@ Each surface has its own dedicated image column (added in migration 0019). When 
 
 ## Prompt for fresh session
 
-### ⚠ Current state (2026-06-11)
+### ⚠ Current state (2026-06-17)
 
-**M1–M7 CLOSED; M8 in progress (RTL long tail + admin design sweep remaining). No in-flight milestone branch.** Production runs on **live** Stripe keys (cutover really completed 2026-06-03 — it had been silently stuck in test mode despite the 2026-06-02 record; see memory `stripe-live-cutover-fixed-2026-06-03.md`). Waiver signing now emails a confirmation receipt (2026-06-11, migration 0073). Remaining operator items: 2 outstanding cutover-remediation invoices (Kayden Case, Eduardo Ames) + the marketing/Resend/FTS activation steps in docs/next-session.md.
+**M1–M7 CLOSED; M8 work menu CLEARED — the RTL coverage long tail (#299–#304) and the admin design-consistency sweep (#306 + #308–#315) are both done + deployed. No in-flight milestone branch.** Production runs on **live** Stripe keys (cutover really completed 2026-06-03 — it had been silently stuck in test mode despite the 2026-06-02 record; see memory `stripe-live-cutover-fixed-2026-06-03.md`). Waiver signing emails a confirmation receipt (2026-06-11, migration 0073). The 2026-06-17 sweep conformed every admin list/index/create-form page to the shared **AdminPageHeader** house style + bordered table-box chrome + Field Rentals on the shared FilterBar (doc/test/CSS only — no schema/migration/behavior changes). Remaining operator items: 2 outstanding cutover-remediation invoices (Kayden Case, Eduardo Ames) + the marketing/Resend/FTS activation steps in docs/next-session.md.
 
 **Use [docs/next-session.md](docs/next-session.md) for the post-M6 entry point.** It has:
 - Current production state (test counts, deploy version, etc.)
@@ -1043,9 +1043,10 @@ Copy and paste the following into a new Claude Code session:
 
 ```
 I'm resuming work on the Air Action Sports booking system. M1-M7 are
-closed, M8 is in progress; production stable at main=d9b4f6a (re-pull
-for exact), tests 2860/233 passing, migrations 0001-0073 applied, live
-Stripe. Read these in order:
+closed and M8's work menu is cleared (RTL long tail + admin
+design-consistency sweep both done + deployed); production stable at
+main=f0d4bb7 (re-pull for exact), tests 2945/251 passing, migrations
+0001-0073 applied, live Stripe. Read these in order:
 
   1. docs/next-session.md — current state + available tracks to
      work on next + copy-paste prompt template.
@@ -1059,8 +1060,8 @@ Stripe. Read these in order:
      rejected, NOT NULL via column-rename pattern, wrangler --json
      prefix garbage), the **Test gate enforcement** subsection pointing
      at scripts/test-gate-mapping.json, and the closed-state summaries
-     for M1 / M2 / M3 / M4 / M5 / M5.5 / **M6** (M6 batch table at
-     B0-B11 all ✓).
+     for M1 / M2 / M3 / M4 / M5 / M5.5 / M6 / **M7** plus the dated
+     M8 session sections (design sweep + RTL long tail).
   4. docs/m6-batch-tracker.md (if M6 cutover questions arise) and
      docs/m6-operator-cutover-checklist.md (the 5 live-cutover items
      that gate B5/B6/B7/B9 live verification).
