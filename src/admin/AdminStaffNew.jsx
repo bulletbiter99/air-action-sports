@@ -10,6 +10,13 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+
+const HEADER_PROPS = {
+    title: 'Add Staff',
+    description: 'Create a new team member. They appear in the staff directory immediately; assign roles, certifications, and portal access from their profile.',
+    breadcrumb: [{ label: 'Staff', to: '/admin/staff' }, { label: 'Add Staff' }],
+};
 
 const STATUS_OPTIONS = [
     { value: 'onboarding',  label: 'Onboarding (default)' },
@@ -111,8 +118,7 @@ export default function AdminStaffNew() {
     if (!canCreate) {
         return (
             <div style={page}>
-                <Link to="/admin/staff" style={breadcrumb}>← Staff</Link>
-                <h1 style={h1}>Add Staff</h1>
+                <AdminPageHeader {...HEADER_PROPS} />
                 <p style={errorBox}>You don&apos;t have permission to create staff records. Ask an owner or manager.</p>
             </div>
         );
@@ -120,8 +126,7 @@ export default function AdminStaffNew() {
 
     return (
         <div style={page}>
-            <Link to="/admin/staff" style={breadcrumb}>← Staff</Link>
-            <h1 style={h1}>New Person</h1>
+            <AdminPageHeader {...HEADER_PROPS} />
 
             <form onSubmit={submit} style={section}>
                 {error && <div style={errorBox}>{error}</div>}
@@ -184,8 +189,6 @@ export default function AdminStaffNew() {
 }
 
 const page = { maxWidth: 720, margin: '0 auto', padding: '2rem' };
-const breadcrumb = { color: 'var(--orange)', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' };
-const h1 = { fontSize: 32, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: '8px 0 24px' };
 const section = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: 16 };
 const lblBlock = { display: 'block', fontSize: 12, color: 'var(--tan-light)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 };
 const twoCol = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 };

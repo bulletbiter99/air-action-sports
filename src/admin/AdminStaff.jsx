@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import FilterBar from '../components/admin/FilterBar.jsx';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 
 const STATUS_OPTIONS = [
     { value: 'active',      label: 'Active' },
@@ -88,12 +89,14 @@ export default function AdminStaff() {
 
     return (
         <div style={page}>
-            <header style={header}>
-                <h1 style={h1}>Staff</h1>
-                {hasRole?.('manager') && (
+            <AdminPageHeader
+                title="Staff"
+                description="Your team directory — profiles, roles, certifications, and event-day access. Email and phone are masked unless your role grants staff.read.pii."
+                breadcrumb={[{ label: 'Staff' }]}
+                primaryAction={hasRole?.('manager') && (
                     <Link to="/admin/staff/new" style={cta}>+ Add Staff</Link>
                 )}
-            </header>
+            />
 
             <FilterBar
                 schema={FILTER_SCHEMA}
@@ -157,8 +160,6 @@ export default function AdminStaff() {
 }
 
 const page = { maxWidth: 1200, margin: '0 auto', padding: '2rem' };
-const header = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 };
-const h1 = { fontSize: 28, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', color: 'var(--cream)', margin: 0 };
 const cta = { padding: '10px 20px', background: 'var(--orange)', color: 'white', textDecoration: 'none', fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', borderRadius: 4 };
 const tableBox = { background: 'var(--mid)', border: '1px solid var(--color-border)', padding: '1.5rem', marginTop: 16 };
 const table = { width: '100%', borderCollapse: 'collapse' };
