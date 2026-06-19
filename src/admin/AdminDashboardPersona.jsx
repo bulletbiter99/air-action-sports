@@ -16,6 +16,7 @@
 
 import { Link } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import { resolveLayout, personaLabel } from './personaLayouts.js';
 import { WIDGETS } from './widgets/PersonaWidgets.jsx';
 import './widgets/PersonaWidgets.css';
@@ -29,22 +30,24 @@ export default function AdminDashboardPersona() {
 
     return (
         <div className="admin-persona-dashboard">
-            <header className="admin-persona-dashboard__header">
-                <div>
-                    <h1>Dashboard</h1>
-                    <p className="admin-persona-dashboard__subtitle">
+            <AdminPageHeader
+                title="Dashboard"
+                description={
+                    <>
                         {user?.displayName || user?.email || 'Admin'}{' '}
                         <span className="admin-persona-dashboard__persona-tag">
                             {personaLabel(personaKey)}
                         </span>
-                    </p>
-                </div>
-                {hasRole?.('owner', 'manager') && (
-                    <Link to="/admin/new-booking" className="admin-persona-dashboard__cta">
-                        + New Booking
-                    </Link>
-                )}
-            </header>
+                    </>
+                }
+                primaryAction={
+                    hasRole?.('owner', 'manager') ? (
+                        <Link to="/admin/new-booking" className="admin-persona-dashboard__cta">
+                            + New Booking
+                        </Link>
+                    ) : null
+                }
+            />
 
             <div className="admin-persona-dashboard__grid">
                 {layout.map((widgetKey) => {

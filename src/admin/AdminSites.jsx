@@ -6,15 +6,9 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 
 const containerStyle = { padding: 'var(--space-24)' };
-const headerStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 'var(--space-16)',
-};
-const titleStyle = { fontSize: 24, fontWeight: 700, margin: 0 };
 const primaryBtn = {
     background: 'var(--orange-strong, #d4541a)',
     color: 'white',
@@ -47,8 +41,9 @@ const tdStyle = {
 const rowStyle = { cursor: 'pointer' };
 const archivedRowStyle = { opacity: 0.5 };
 const errorStyle = {
-    background: '#fef0f0',
-    border: '1px solid #d4541a',
+    background: 'var(--color-danger-soft)',
+    border: '1px solid var(--color-danger)',
+    color: 'var(--color-text)',
     padding: 'var(--space-12)',
     borderRadius: 4,
     marginBottom: 'var(--space-12)',
@@ -122,10 +117,12 @@ export default function AdminSites() {
 
     return (
         <div style={containerStyle}>
-            <div style={headerStyle}>
-                <h2 style={titleStyle}>Sites</h2>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <AdminPageHeader
+                title="Sites"
+                description="Physical locations where events and field rentals run — manage fields, blackout dates, and the public /locations content."
+                breadcrumb={[{ label: 'Sites' }]}
+                secondaryActions={
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--color-text-muted)' }}>
                         <input
                             type="checkbox"
                             checked={includeArchived}
@@ -133,11 +130,13 @@ export default function AdminSites() {
                         />
                         Include archived
                     </label>
+                }
+                primaryAction={
                     <button type="button" onClick={() => setShowCreate(true)} style={primaryBtn}>
                         + New site
                     </button>
-                </div>
-            </div>
+                }
+            />
 
             {err && <div style={errorStyle}>{err}</div>}
 

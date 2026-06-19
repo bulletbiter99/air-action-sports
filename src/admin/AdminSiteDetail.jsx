@@ -8,7 +8,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import ImageFocalPicker from '../components/admin/ImageFocalPicker.jsx';
 
 const containerStyle = { padding: 'var(--space-24)' };
-const backLinkStyle = { color: 'var(--text-secondary, #666)', textDecoration: 'none', fontSize: 13 };
+const backLinkStyle = { display: 'inline-block', marginBottom: '1rem', color: 'var(--tan-light)', textDecoration: 'none', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' };
+const titleStyle = { fontSize: 24, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.5px', color: 'var(--cream)', margin: '0 0 4px' };
 const sectionHeaderStyle = {
     display: 'flex',
     justifyContent: 'space-between',
@@ -77,8 +78,9 @@ const thStyle = {
 };
 const tdStyle = { padding: '10px 12px', borderBottom: '1px solid var(--border-soft, #f0f0f0)', fontSize: 14 };
 const errorStyle = {
-    background: '#fef0f0',
-    border: '1px solid #d4541a',
+    background: 'var(--color-danger-soft)',
+    border: '1px solid var(--color-danger)',
+    color: 'var(--color-text)',
     padding: '10px 14px',
     borderRadius: 4,
     marginBottom: 'var(--space-12)',
@@ -132,12 +134,12 @@ export default function AdminSiteDetail() {
     return (
         <div style={containerStyle}>
             <Link to="/admin/sites" style={backLinkStyle}>← Back to sites</Link>
-            <h2 style={{ fontSize: 24, fontWeight: 700, margin: '8px 0 0' }}>
+            <h1 style={titleStyle}>
                 {site.name}
                 {site.archivedAt && (
-                    <span style={{ marginLeft: 12, fontSize: 14, color: 'var(--text-secondary, #999)', fontWeight: 400 }}>(Archived)</span>
+                    <span style={{ marginLeft: 12, fontSize: 14, color: 'var(--text-secondary, #999)', fontWeight: 400, textTransform: 'none', letterSpacing: 'normal' }}>(Archived)</span>
                 )}
-            </h2>
+            </h1>
 
             {err && <div style={errorStyle}>{err}</div>}
 
