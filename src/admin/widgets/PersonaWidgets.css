@@ -11,24 +11,9 @@
     margin: 0 auto;
 }
 
-.admin-persona-dashboard__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-    margin-bottom: 1.25rem;
-}
-
-.admin-persona-dashboard__header h1 {
-    margin: 0;
-    color: var(--cream);
-}
-
-.admin-persona-dashboard__subtitle {
-    color: rgba(255, 255, 255, 0.65);
-    margin: 0.25rem 0 0;
-}
+/* The dashboard header is the shared <AdminPageHeader>; the persona tag below
+ * renders inline inside its description. The old bespoke __header / __subtitle
+ * rules were retired when the dashboard was conformed to the house style. */
 
 .admin-persona-dashboard__persona-tag {
     display: inline-block;
