@@ -1,6 +1,6 @@
-# Next-session entry point — post 2026-06-17 (admin design-consistency sweep COMPLETE)
+# Next-session entry point — post 2026-06-18 (admin design-consistency sweep COMPLETE incl. #317 close-off)
 
-Fresh-session entry point for Air Action Sports. **Updated 2026-06-17** (close of the admin design-consistency sweep — PRs #306 + #308–#315, all merged + deployed). The earlier 2026-06-17 session cleared both ⭐ M8 work-menu items (#297–#304); prior sessions: **2026-06-11** waiver-confirmation email + waiver UX (#291–#295, migration 0073) and **2026-06-06** homepage reorder/polish (#289/#290) — all summarized below.
+Fresh-session entry point for Air Action Sports. **Updated 2026-06-18** (close-off of the admin design-consistency sweep — PRs #306 + #308–#315 + the **#317 close-off** [home dashboard + Sites cluster], all merged + deployed). The earlier 2026-06-17 session cleared both ⭐ M8 work-menu items (#297–#304); prior sessions: **2026-06-11** waiver-confirmation email + waiver UX (#291–#295, migration 0073) and **2026-06-06** homepage reorder/polish (#289/#290) — all summarized below.
 ⚠️ **Heads-up on the cutover:** earlier docs recorded the M6 live-Stripe cutover as "DONE 2026-06-02," but it was actually **broken** — production was silently still in Stripe **TEST mode** (every checkout session `cs_test_`) until it was really cut over + e2e-verified on **2026-06-03**. Production now collects real money correctly. See the **2026-06-03 section** below + memory `stripe-live-cutover-fixed-2026-06-03.md`. The earlier **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains (as of 2026-06-17):** operator activation only (Marketing send + Resend webhook + FTS flag) — the item-1 RTL long tail **and** the admin design-consistency sweep are now **DONE** (see the 2026-06-17 section below). Detail below.
 
 ---
@@ -9,13 +9,13 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-17** (close o
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `f0d4bb7` (re-pull for exact) |
+| `main` HEAD | `51559fb` (re-pull for exact) |
 | Tests | **2945 / 251** all green |
 | Build | clean · Lint **0 errors** |
 | Production | deployed from `main` via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + waiver-confirmation receipts live (2026-06-11). The admin design-consistency sweep is deployed (per-element token/header swaps; no behavior change). |
 | Migrations on remote | **0001–0073 ALL applied** — no new migrations since 2026-06-11; a `migrations apply` finds nothing new. |
-| Open PRs | 0 (all merged through #315) |
-| Open milestone | **None active.** The admin design-consistency sweep is **COMPLETE** (batches 1–5b + docs, PRs #306 + #308–#315). Remaining work is operator activation only (Marketing send + Resend webhook + FTS flag + the 2 cutover invoices). |
+| Open PRs | 0 (all merged through #317) |
+| Open milestone | **None active.** The admin design-consistency sweep is **COMPLETE** (batches 1–5b + docs, PRs #306 + #308–#315, plus the **#317 close-off** — home dashboard + Sites cluster). Remaining work is operator activation only (Marketing send + Resend webhook + FTS flag + the 2 cutover invoices). |
 
 ---
 
