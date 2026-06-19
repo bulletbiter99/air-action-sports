@@ -40,10 +40,13 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-17** (close o
 
 Result: every admin **list / index / create-form** page now uses `AdminPageHeader`; **detail** pages keep their on-theme bespoke headers (the `AdminBookingsDetail` `.abd-header` precedent); the bare cluster tables are wrapped in the house table-box; Field Rentals uses the shared chip-based `FilterBar`. Added/rewrote RTL render tests for the newly-covered pages (Staff New, EventArchive, Analytics, Staff Library, Today, New Booking) → **2945 / 251**.
 
+**Follow-on close-off ([#317](https://github.com/bulletbiter99/air-action-sports/pull/317), 2026-06-18):** conformed the two surfaces the batch table never reached — the **home dashboard** (`AdminDashboardPersona`, which the operator flagged as "not updated along with the rest") and the **Sites cluster** (`AdminSites` list + `AdminSiteDetail` detail, never in the original batch list). Dashboard bespoke header → `<AdminPageHeader>` (personalized greeting + persona-tag pill move into the description; `+ New Booking` becomes the `primaryAction`, owner/manager only; the dead `__header`/`__subtitle` CSS retired). Sites list → `<AdminPageHeader>`; Site detail → the detail-page precedent (uppercase `--tan-light` back link + 24/900 `--cream` `<h1>`). Both Sites pages' leftover hardcoded light error boxes (`#fef0f0` / `#d4541a`, which the tokens.css alias layer doesn't cover) → dark `--color-danger-soft`. Per-element swaps, no behavior/schema change; the `/admin/dashboard` visual baseline is refreshed via `capture-baselines` (Sites has no baseline).
+
 **Deliberately DECLINED (operator-agreed, NOT oversights):**
 - **AdminCampaigns FilterBar** — kept its clean segmented status-button row (the chip "+ Add filter" flow is more clicks for a single filter).
-- **AdminDashboardPersona header** — the `/admin` landing dashboard's personalized header (user + persona tag) is purpose-built, not a list/detail header.
 - **FieldRentals detail/new page primary buttons** — still rounded (minor; the FilterBar migration targeted the list page).
+
+(The **AdminDashboardPersona header** was previously on this declined list; the operator reversed that on 2026-06-18 → conformed in #317 above.)
 
 **Durable lessons** (full detail in memory):
 - **`FilterBar` is chip-based**, not always-visible selects — migrating a page is a real UX shift, and its test must mock `/api/admin/saved-views` (FilterBar calls `useSavedViews` when `savedViewsKey` is set). Test filters URL-driven (`?status=sent` → assert the `Remove Status filter` chip + scoped fetch), not via the picker UI.
