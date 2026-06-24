@@ -429,6 +429,48 @@ export function computeBudgetVsActual({ budgetRows = [], expenseRows = [], reven
     return { categories, totals };
 }
 
+/**
+ * Per-event P&L — each event's earned revenue minus the expenses tagged to it
+ * (expenses.event_id) = contribution margin. eventRows carry the per-event
+ * earned revenue (lifetime over the event's paid/comp bookings); costRows are
+ * per-event tagged-expense sums. marginPct is null when an event has no
+ * revenue (avoids divide-by-zero). Totals roll up across the listed events.
+ *
+ * @param {{ eventRows?: Array<{id?:string, title?:string, date_iso?:string, earned_cents?:number, paid_bookings?:number}>,
+ *           costRows?: Array<{event_id?:string, cost_cents?:number}> }} input
+ */
+export function computePerEventPnl({ eventRows = [], costRows = [] } = {}) {
+    const costByEvent = new Map();
+    for (const r of costRows) {
+        const id = r.event_id ?? r.eventId;
+        if (id == null) continue;
+        costByEvent.set(id, (costByEvent.get(id) || 0) + Number(r.cost_cents ?? r.costCents ?? 0));
+    }
+    const events = eventRows.map((e) => {
+        const eventId = e.id ?? e.eventId;
+        const earnedCents = Number(e.earned_cents ?? e.earnedCents ?? 0);
+        const directCostsCents = costByEvent.get(eventId) || 0;
+        const marginCents = earnedCents - directCostsCents;
+        return {
+            eventId,
+            title: e.title,
+            dateIso: e.date_iso ?? e.dateIso,
+            paidBookings: Number(e.paid_bookings ?? e.paidBookings ?? 0),
+            earnedCents,
+            directCostsCents,
+            marginCents,
+            marginPct: earnedCents > 0 ? marginCents / earnedCents : null,
+        };
+    });
+    const totals = events.reduce((t, e) => ({
+        earnedCents: t.earnedCents + e.earnedCents,
+        directCostsCents: t.directCostsCents + e.directCostsCents,
+        marginCents: t.marginCents + e.marginCents,
+    }), { earnedCents: 0, directCostsCents: 0, marginCents: 0 });
+    totals.marginPct = totals.earnedCents > 0 ? totals.marginCents / totals.earnedCents : null;
+    return { events, totals };
+}
+
 // ────────────────────────────────────────────────────────────────────
 // Marketing report shapers (Batch 4)
 // ────────────────────────────────────────────────────────────────────

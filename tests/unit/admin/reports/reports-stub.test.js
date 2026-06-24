@@ -39,6 +39,24 @@ describe('GET /api/admin/reports/* — Owner endpoints (Batch 2 — implemented)
         expect(typeof data.totalCents).toBe('number');
     });
 
+    it('per-event-pnl returns 200 with events + totals (margin)', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.owner']);
+        const res = await worker.fetch(req('/api/admin/reports/owner/per-event-pnl'), env, {});
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.report).toBe('per-event-pnl');
+        expect(Array.isArray(data.events)).toBe(true);
+        expect(data.totals).toHaveProperty('marginCents');
+    });
+
+    it('per-event-pnl CSV export returns text/csv with reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.owner', 'reports.export']);
+        const res = await worker.fetch(req('/api/admin/reports/owner/per-event-pnl?format=csv'), env, {});
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/csv');
+        expect(await res.text()).toContain('Event,Date,Revenue,Direct Costs,Margin');
+    });
+
     it('owner endpoint returns 403 without reports.read.owner', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read']);
         const res = await worker.fetch(req('/api/admin/reports/owner/aov-trend'), env, {});
@@ -226,6 +244,7 @@ describe('All 16 endpoints mounted', () => {
             '/api/admin/reports/owner/refund-rate',
             '/api/admin/reports/owner/repeat-customers',
             '/api/admin/reports/owner/aov-trend',
+            '/api/admin/reports/owner/per-event-pnl',
         ];
         for (const path of paths) {
             const res = await worker.fetch(req(path), env, {});
