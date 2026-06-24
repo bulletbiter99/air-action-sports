@@ -360,6 +360,17 @@
         "tests/unit/admin/analytics-deferred-revenue.test.js"
       ]
     },
+    "worker/routes/admin/finances.js": {
+      "tier": "high",
+      "covers": [
+        "GET/POST/PUT/DELETE /api/admin/expenses (operating-cost CRUD, finances.read/write gated — migration 0074)",
+        "GET/PUT(upsert)/DELETE /api/admin/budgets (monthly per-category budget targets, finances.read/write gated)"
+      ],
+      "audit_group": "(2026-06-24 expenses + budgets foundation for per-event P&L + P&L-vs-budget)",
+      "tests": [
+        "tests/unit/admin/finances-route.test.js"
+      ]
+    },
     "src/hooks/useWidgetData.js": {
       "tier": "high",
       "covers": [
