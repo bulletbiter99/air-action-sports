@@ -95,6 +95,45 @@ export async function retrievePaymentIntent(paymentIntentId, apiKey) {
 }
 
 /**
+ * Read-only: retrieve a charge's TRUE Stripe fee + net from its
+ * balance_transaction. Used by the runStripeFeeSync reconciliation cron to
+ * record what Stripe actually took per booking (vs the operator-entered
+ * pass-through in bookings.fee_cents). Never moves money — additive, the
+ * existing payment functions are untouched.
+ *
+ * Expands latest_charge.balance_transaction on the PaymentIntent (API version
+ * 2026-04-22.dahlia exposes the single `latest_charge`, not a `charges[]`
+ * list). The query string is appended to the path directly — stripeFetch only
+ * form-encodes the POST body, so GET expansion params ride on the URL.
+ *
+ * Returns null fee/net when the charge hasn't settled to a balance_transaction
+ * yet; the caller leaves the booking uncaptured so the next sweep retries it.
+ *
+ * @param {string} paymentIntentId  pi_...
+ * @param {string} apiKey
+ * @returns {Promise<{ feeCents:number|null, netCents:number|null, balanceTransactionId:string|null, chargeId:string|null }>}
+ */
+export async function retrieveChargeFees(paymentIntentId, apiKey) {
+    if (!paymentIntentId) throw new Error('retrieveChargeFees: paymentIntentId required');
+    const pi = await stripeFetch(
+        `/payment_intents/${encodeURIComponent(paymentIntentId)}?expand[]=latest_charge.balance_transaction`,
+        { apiKey, method: 'GET' },
+    );
+    const charge = pi?.latest_charge;
+    const chargeId = charge ? (typeof charge === 'string' ? charge : charge.id) : null;
+    const bt = charge && typeof charge === 'object' ? charge.balance_transaction : null;
+    if (!bt || typeof bt !== 'object') {
+        return { feeCents: null, netCents: null, balanceTransactionId: null, chargeId };
+    }
+    return {
+        feeCents: Number(bt.fee ?? 0),
+        netCents: Number(bt.net ?? 0),
+        balanceTransactionId: String(bt.id),
+        chargeId,
+    };
+}
+
+/**
  * M6 B7 — off-session charge against a saved payment method.
  *
  * Requires that B5's `setup_future_usage: 'off_session'` was on the
