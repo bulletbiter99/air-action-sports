@@ -44,6 +44,8 @@ const AdminRentalQrSheet = lazy(() => import('./admin/AdminRentals').then((m) =>
 const AdminRentalAssignments = lazy(() => import('./admin/AdminRentalAssignments'));
 const AdminEvents = lazy(() => import('./admin/AdminEvents'));
 const AdminPromoCodes = lazy(() => import('./admin/AdminPromoCodes'));
+const AdminExpenses = lazy(() => import('./admin/AdminExpenses'));
+const AdminBudgets = lazy(() => import('./admin/AdminBudgets'));
 const AdminAnalytics = lazy(() => import('./admin/AdminAnalytics'));
 const AdminAcceptInvite = lazy(() => import('./admin/AdminAcceptInvite'));
 const AdminAuditLog = lazy(() => import('./admin/AdminAuditLog'));
@@ -165,6 +167,8 @@ export default function App() {
             <Route path="rentals/assignments" element={<AdminRentalAssignments />} />
             <Route path="events" element={<AdminEvents />} />
             <Route path="promo-codes" element={<AdminPromoCodes />} />
+            <Route path="expenses" element={<AdminExpenses />} />
+            <Route path="budgets" element={<AdminBudgets />} />
             <Route path="analytics" element={<AdminAnalytics />} />
             {/* M5 R17: legacy /admin/users decommissioned. Staff management
                 lives at /admin/staff (M5 B4+). Bookmarked URLs redirect. */}

@@ -52,6 +52,12 @@ export const SIDEBAR = [
     // Feedback) before marketing/partner ops (Promo Codes / Vendors).
     { type: 'item', to: '/admin/analytics', label: 'Analytics' },
     { type: 'item', to: '/admin/reports', label: 'Reports', capability: 'reports.read' },
+    // Finances (migration 0074) — operating expenses + monthly budgets,
+    // gated on finances.read (owner + bookkeeper presets). The real /me cap
+    // set surfaces these for the bookkeeper preset; the legacy stub maps
+    // finances.read → manager so owners see them before /me caps load.
+    { type: 'item', to: '/admin/expenses', label: 'Expenses', capability: 'finances.read' },
+    { type: 'item', to: '/admin/budgets', label: 'Budgets', capability: 'finances.read' },
     { type: 'item', to: '/admin/segments', label: 'Segments' },
     { type: 'item', to: '/admin/campaigns', label: 'Campaigns' },
     { type: 'item', to: '/admin/automations', label: 'Automations' },
@@ -117,6 +123,11 @@ const CAPABILITY_TO_LEGACY_ROLE = {
     // site_coordinator) gets the nav entry from its real binding — this stub
     // stays as the fallback when /me caps aren't loaded.
     'reports.read': 'manager',
+    // Finances (expenses + budgets, migration 0074) — manager + above see the
+    // entries via the stub; the DB-backed requireCapability('finances.*') still
+    // gates the routes (owner + bookkeeper presets), and the /me cap union
+    // surfaces them for a bookkeeper preset regardless of legacy role.
+    'finances.read': 'manager',
 };
 
 /**
