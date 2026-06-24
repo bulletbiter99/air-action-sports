@@ -17,6 +17,7 @@ import {
     computePeriodComparison,
     computeBudgetVsActual,
     computePerEventPnl,
+    computeStripeFees,
     computeConversionFunnel,
     computePromoPerformance,
     computeCustomerCohorts,
@@ -489,6 +490,32 @@ describe('computePerEventPnl', () => {
         const out = computePerEventPnl({});
         expect(out.events).toEqual([]);
         expect(out.totals).toEqual({ earnedCents: 0, directCostsCents: 0, marginCents: 0, marginPct: null });
+    });
+});
+
+describe('computeStripeFees', () => {
+    it('sums fees/net/kept + computes coverage and effective fee rate', () => {
+        const out = computeStripeFees({
+            monthlyRows: [
+                // $1000 gross (reconciled), $59 Stripe fee, $941 net, $67.50 tax → kept 873.50.
+                { month: '2026-06', gross_cents: 100000, fee_cents: 5900, net_cents: 94100, tax_cents: 6750, paid_count: 10, captured_count: 8 },
+            ],
+        });
+        const row = out.series[0];
+        expect(row.keptCents).toBe(94100 - 6750); // net − tax
+        expect(out.totals.feeCents).toBe(5900);
+        expect(out.totals.keptCents).toBe(87350);
+        // Coverage: 8 of 10 reconciled.
+        expect(out.coverage).toEqual({ captured: 8, total: 10, pct: 0.8 });
+        // Effective fee rate = 5900 / 100000.
+        expect(out.effectiveFeeRate).toBeCloseTo(0.059);
+    });
+
+    it('coverage pct is 1 and fee rate null when there are no paid bookings', () => {
+        const out = computeStripeFees({});
+        expect(out.coverage).toEqual({ captured: 0, total: 0, pct: 1 });
+        expect(out.effectiveFeeRate).toBeNull();
+        expect(out.totals.keptCents).toBe(0);
     });
 });
 

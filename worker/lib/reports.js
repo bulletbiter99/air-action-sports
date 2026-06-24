@@ -471,6 +471,53 @@ export function computePerEventPnl({ eventRows = [], costRows = [] } = {}) {
     return { events, totals };
 }
 
+/**
+ * Stripe fees & true net — monthly ACTUAL Stripe fee + net (from each charge's
+ * balance_transaction, captured by runStripeFeeSync) vs the gross charged, plus
+ * "kept" = net deposited − sales tax remitted. The money columns are computed
+ * over the RECONCILED subset (bookings whose fee is captured) so they stay
+ * internally consistent while the nightly backfill catches up; `coverage`
+ * reports how many paid bookings are reconciled vs total. effectiveFeeRate =
+ * fee / gross over the reconciled subset.
+ *
+ * @param {{ monthlyRows?: Array<{month?:string, gross_cents?:number, fee_cents?:number,
+ *   net_cents?:number, tax_cents?:number, paid_count?:number, captured_count?:number}> }} input
+ */
+export function computeStripeFees({ monthlyRows = [] } = {}) {
+    const series = monthlyRows.map((r) => {
+        const grossCents = Number(r.gross_cents ?? 0);
+        const feeCents = Number(r.fee_cents ?? 0);
+        const netCents = Number(r.net_cents ?? 0);
+        const taxCents = Number(r.tax_cents ?? 0);
+        return {
+            month: r.month ?? r.m,
+            grossCents,
+            feeCents,
+            netCents,
+            taxCents,
+            keptCents: netCents - taxCents,
+            paidCount: Number(r.paid_count ?? 0),
+            capturedCount: Number(r.captured_count ?? 0),
+        };
+    });
+    const totals = series.reduce((t, r) => ({
+        grossCents: t.grossCents + r.grossCents,
+        feeCents: t.feeCents + r.feeCents,
+        netCents: t.netCents + r.netCents,
+        taxCents: t.taxCents + r.taxCents,
+        keptCents: t.keptCents + r.keptCents,
+        paidCount: t.paidCount + r.paidCount,
+        capturedCount: t.capturedCount + r.capturedCount,
+    }), { grossCents: 0, feeCents: 0, netCents: 0, taxCents: 0, keptCents: 0, paidCount: 0, capturedCount: 0 });
+    const coverage = {
+        captured: totals.capturedCount,
+        total: totals.paidCount,
+        pct: totals.paidCount > 0 ? totals.capturedCount / totals.paidCount : 1,
+    };
+    const effectiveFeeRate = totals.grossCents > 0 ? totals.feeCents / totals.grossCents : null;
+    return { series, totals, coverage, effectiveFeeRate };
+}
+
 // ────────────────────────────────────────────────────────────────────
 // Marketing report shapers (Batch 4)
 // ────────────────────────────────────────────────────────────────────
