@@ -52,25 +52,27 @@ describe('SIDEBAR config', () => {
             type: 'item', to: '/admin/scan', label: 'Scan', capability: 'scan.use',
         });
         expect(SIDEBAR[13]).toMatchObject({ type: 'separator' });
-        // Operational: Analytics (14) · Reports (15) · Segments (16) ·
-        // Campaigns (17, B3) · Automations (18, B5) · Feedback (19) ·
-        // Promo Codes (20) · Vendors (21) · sep (22)
+        // Operational: Analytics (14) · Reports (15) · Expenses (16) ·
+        // Budgets (17) · Segments (18) · Campaigns (19) · Automations (20) ·
+        // Feedback (21) · Promo Codes (22) · Vendors (23) · sep (24)
         expect(SIDEBAR[14]).toMatchObject({ type: 'item', to: '/admin/analytics', label: 'Analytics' });
         expect(SIDEBAR[15]).toMatchObject({ type: 'item', to: '/admin/reports', label: 'Reports', capability: 'reports.read' });
-        expect(SIDEBAR[16]).toMatchObject({ type: 'item', to: '/admin/segments', label: 'Segments' });
-        expect(SIDEBAR[17]).toMatchObject({ type: 'item', to: '/admin/campaigns', label: 'Campaigns' });
-        expect(SIDEBAR[18]).toMatchObject({ type: 'item', to: '/admin/automations', label: 'Automations' });
-        expect(SIDEBAR[19]).toMatchObject({
+        expect(SIDEBAR[16]).toMatchObject({ type: 'item', to: '/admin/expenses', label: 'Expenses', capability: 'finances.read' });
+        expect(SIDEBAR[17]).toMatchObject({ type: 'item', to: '/admin/budgets', label: 'Budgets', capability: 'finances.read' });
+        expect(SIDEBAR[18]).toMatchObject({ type: 'item', to: '/admin/segments', label: 'Segments' });
+        expect(SIDEBAR[19]).toMatchObject({ type: 'item', to: '/admin/campaigns', label: 'Campaigns' });
+        expect(SIDEBAR[20]).toMatchObject({ type: 'item', to: '/admin/automations', label: 'Automations' });
+        expect(SIDEBAR[21]).toMatchObject({
             type: 'item', to: '/admin/feedback', label: 'Feedback', badgeKey: 'newFeedback',
         });
-        expect(SIDEBAR[20]).toMatchObject({ type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' });
-        expect(SIDEBAR[21]).toMatchObject({ type: 'item', to: '/admin/vendors', label: 'Vendors' });
-        expect(SIDEBAR[22]).toMatchObject({ type: 'separator' });
+        expect(SIDEBAR[22]).toMatchObject({ type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' });
+        expect(SIDEBAR[23]).toMatchObject({ type: 'item', to: '/admin/vendors', label: 'Vendors' });
+        expect(SIDEBAR[24]).toMatchObject({ type: 'separator' });
     });
 
     it('Settings group sits at the end, separated by a divider', () => {
         const groupIdx = SIDEBAR.findIndex((e) => e.type === 'group');
-        expect(groupIdx).toBe(23);
+        expect(groupIdx).toBe(25);
         expect(SIDEBAR[groupIdx]).toMatchObject({ type: 'group', label: 'Settings' });
         // The separator immediately precedes the group.
         expect(SIDEBAR[groupIdx - 1]).toMatchObject({ type: 'separator' });
@@ -165,16 +167,17 @@ describe('userHasCapabilityStub (M5 B0)', () => {
 });
 
 describe('getVisibleItems', () => {
-    it('owner with today active sees all 18 items + 5 separators + Settings group = 24', () => {
-        // 18 top-level items: Home, Today, Events, Bookings, Customers,
+    it('owner with today active sees all 20 items + 5 separators + Settings group = 26', () => {
+        // 20 top-level items: Home, Today, Events, Bookings, Customers,
         // Sites, Field Rentals, Rentals, Roster, Scan, Analytics, Reports,
-        // Segments (B1), Campaigns (B3), Automations (B5), Feedback, Promo
-        // Codes, Vendors. Plus 5 visual-chunk separators + Settings group = 24.
+        // Expenses, Budgets, Segments (B1), Campaigns (B3), Automations (B5),
+        // Feedback, Promo Codes, Vendors. Plus 5 visual-chunk separators +
+        // Settings group = 26.
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: true, eventId: 'evt_1', checkInOpen: false },
             userRole: 'owner',
         });
-        expect(visible).toHaveLength(24);
+        expect(visible).toHaveLength(26);
         expect(visible.filter((e) => e.type === 'separator')).toHaveLength(5);
         expect(visible.find((e) => e.label === 'Today')).toBeDefined();
         expect(visible.find((e) => e.label === 'Customers')).toBeDefined();
@@ -185,6 +188,8 @@ describe('getVisibleItems', () => {
         expect(visible.find((e) => e.label === 'Scan')).toBeDefined();
         expect(visible.find((e) => e.label === 'Analytics')).toBeDefined();
         expect(visible.find((e) => e.label === 'Reports')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Expenses')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Budgets')).toBeDefined();
         expect(visible.find((e) => e.label === 'Segments')).toBeDefined();
         expect(visible.find((e) => e.label === 'Campaigns')).toBeDefined();
         expect(visible.find((e) => e.label === 'Automations')).toBeDefined();
