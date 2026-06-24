@@ -91,6 +91,25 @@ describe('GET /api/admin/reports/* — Bookkeeper endpoints (Batch 3 — impleme
         expect(data.metrics).toHaveLength(7);
     });
 
+    it('budget-vs-actual returns 200 with categories + totals (incl. netCents)', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper']);
+        const res = await worker.fetch(req('/api/admin/reports/bookkeeper/budget-vs-actual'), env, {});
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.report).toBe('budget-vs-actual');
+        expect(Array.isArray(data.categories)).toBe(true);
+        expect(data.totals).toBeTruthy();
+        expect(typeof data.totals.netCents).toBe('number');
+    });
+
+    it('budget-vs-actual CSV export returns text/csv with reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper', 'reports.export']);
+        const res = await worker.fetch(req('/api/admin/reports/bookkeeper/budget-vs-actual?format=csv'), env, {});
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/csv');
+        expect(await res.text()).toContain('Category,Budgeted,Spent,Variance');
+    });
+
     it('returns 403 without reports.read.bookkeeper', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read.owner']);  // owner cap, not bookkeeper
         const res = await worker.fetch(req('/api/admin/reports/bookkeeper/tax-fee-summary'), env, {});
@@ -214,12 +233,13 @@ describe('All 16 endpoints mounted', () => {
         }
     });
 
-    it('every Bookkeeper report endpoint returns 200 (3 endpoints; 1099 thresholds links elsewhere)', async () => {
+    it('every Bookkeeper report endpoint returns 200 (4 endpoints; 1099 thresholds links elsewhere)', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper']);
         const paths = [
             '/api/admin/reports/bookkeeper/payouts',
             '/api/admin/reports/bookkeeper/tax-fee-summary',
             '/api/admin/reports/bookkeeper/period-comparison',
+            '/api/admin/reports/bookkeeper/budget-vs-actual',
         ];
         for (const path of paths) {
             const res = await worker.fetch(req(path), env, {});

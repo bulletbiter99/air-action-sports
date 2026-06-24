@@ -376,6 +376,59 @@ export function computePeriodComparison({ current = {}, prior = {} } = {}) {
     return { metrics };
 }
 
+/**
+ * Budget vs actual (P&L-vs-budget) — aggregate per-category budget targets vs
+ * recorded expenses over the window, plus the overall P&L. Expenses + budgets
+ * are summed per category across the window's months. varianceCents = budget −
+ * spent (positive = under budget / favorable). earnedCents is passed already
+ * summed (earned-revenue basis: total − tax − fee, excl refunds); netCents =
+ * earned − spent. Categories are sorted by spend (biggest first).
+ *
+ * @param {{ budgetRows?: Array<{category?:string, budgeted_cents?:number}>,
+ *           expenseRows?: Array<{category?:string, spent_cents?:number}>,
+ *           revenueRows?: Array<{earned_cents?:number}> }} input
+ */
+export function computeBudgetVsActual({ budgetRows = [], expenseRows = [], revenueRows = [] } = {}) {
+    const budgetByCat = new Map();
+    for (const b of budgetRows) {
+        const cat = b.category;
+        if (!cat) continue;
+        budgetByCat.set(cat, (budgetByCat.get(cat) || 0) + Number(b.budgeted_cents ?? b.budgetedCents ?? 0));
+    }
+    const spentByCat = new Map();
+    for (const e of expenseRows) {
+        const cat = e.category;
+        if (!cat) continue;
+        spentByCat.set(cat, (spentByCat.get(cat) || 0) + Number(e.spent_cents ?? e.spentCents ?? 0));
+    }
+
+    const cats = new Set([...budgetByCat.keys(), ...spentByCat.keys()]);
+    const categories = [...cats].map((category) => {
+        const budgetedCents = budgetByCat.get(category) || 0;
+        const spentCents = spentByCat.get(category) || 0;
+        const varianceCents = budgetedCents - spentCents;
+        return {
+            category,
+            budgetedCents,
+            spentCents,
+            varianceCents,
+            variancePct: budgetedCents > 0 ? varianceCents / budgetedCents : null,
+        };
+    }).sort((a, b) => b.spentCents - a.spentCents || (a.category < b.category ? -1 : a.category > b.category ? 1 : 0));
+
+    const earnedCents = revenueRows.reduce((s, r) => s + Number(r.earned_cents ?? r.earnedCents ?? 0), 0);
+    const budgetedCents = categories.reduce((s, c) => s + c.budgetedCents, 0);
+    const spentCents = categories.reduce((s, c) => s + c.spentCents, 0);
+    const totals = {
+        budgetedCents,
+        spentCents,
+        varianceCents: budgetedCents - spentCents,
+        earnedCents,
+        netCents: earnedCents - spentCents,
+    };
+    return { categories, totals };
+}
+
 // ────────────────────────────────────────────────────────────────────
 // Marketing report shapers (Batch 4)
 // ────────────────────────────────────────────────────────────────────

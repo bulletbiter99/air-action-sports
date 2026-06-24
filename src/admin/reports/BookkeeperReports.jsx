@@ -21,6 +21,7 @@ import ReportEmptyState from './ReportEmptyState.jsx';
 import ReportTable from './ReportTable.jsx';
 import MetricCard from './charts/MetricCard.jsx';
 import { formatMoney } from '../../utils/money.js';
+import { categoryLabel } from '../../utils/expenseCategories.js';
 
 const BK_BASE = '/api/admin/reports/bookkeeper';
 
@@ -136,6 +137,60 @@ function PeriodComparisonCard({ filters }) {
     );
 }
 
+function VarianceCell({ cents }) {
+    const c = Number(cents) || 0;
+    if (c === 0) return <span style={{ color: 'var(--color-text-muted)' }}>{money(0)}</span>;
+    const good = c > 0; // under budget = favorable
+    const color = good ? 'var(--color-success)' : 'var(--color-danger)';
+    return <span style={{ color, fontWeight: 700 }}>{good ? '▼ ' : '▲ '}{money(Math.abs(c))}</span>;
+}
+
+function BudgetVsActualCard({ filters }) {
+    const { data, loading, error } = useReport('budget-vs-actual', filters);
+    const totals = data?.totals;
+    const categories = (data?.categories || []).map((r) => ({ ...r, label: categoryLabel(r.category) }));
+    const columns = [
+        { key: 'label', label: 'Category' },
+        { key: 'budgetedCents', label: 'Budgeted', align: 'right', render: money },
+        { key: 'spentCents', label: 'Spent', align: 'right', render: money },
+        { key: 'varianceCents', label: 'Variance', align: 'right', render: (v) => <VarianceCell cents={v} /> },
+    ];
+    const footer = totals
+        ? { label: 'Total', budgetedCents: totals.budgetedCents, spentCents: totals.spentCents, varianceCents: totals.varianceCents }
+        : null;
+    const hasAnything = totals && (categories.length > 0 || totals.earnedCents !== 0);
+    return (
+        <ReportLayout
+            title="P&L vs budget"
+            description="Recorded expenses vs your monthly budgets by category, plus net income (earned revenue − expenses). Org-wide — not affected by the event filter."
+            loading={loading}
+            error={error}
+            onExportCsv={() => downloadCsv('budget-vs-actual', filters)}
+        >
+            {!hasAnything ? (
+                <ReportEmptyState kind="no-data" />
+            ) : (
+                <div style={chartRow}>
+                    <div style={chartCol}>
+                        {categories.length > 0
+                            ? <ReportTable columns={columns} rows={categories} footer={footer} />
+                            : <p style={note}>No expenses or budgets recorded in this period.</p>}
+                    </div>
+                    <div style={metricStack}>
+                        <MetricCard label="Earned revenue" value={money(totals.earnedCents)} />
+                        <MetricCard
+                            label="Total expenses"
+                            value={money(totals.spentCents)}
+                            sublabel={totals.budgetedCents > 0 ? `${money(totals.budgetedCents)} budgeted` : 'no budget set'}
+                        />
+                        <MetricCard label="Net income" value={money(totals.netCents)} sublabel="revenue − expenses" />
+                    </div>
+                </div>
+            )}
+        </ReportLayout>
+    );
+}
+
 function Thresholds1099Card() {
     return (
         <ReportLayout
@@ -162,6 +217,7 @@ export default function BookkeeperReports() {
                 <ReportFilters value={filters} onChange={setFilters} showEventScope showComparison={false} />
             </div>
             <PayoutsCard filters={filters} />
+            <BudgetVsActualCard filters={filters} />
             <TaxFeeCard filters={filters} />
             <PeriodComparisonCard filters={filters} />
             <Thresholds1099Card />
@@ -172,6 +228,7 @@ export default function BookkeeperReports() {
 // ── styles ───────────────────────────────────────────────────────────
 const chartRow = { display: 'flex', gap: '1.25rem', alignItems: 'flex-start', flexWrap: 'wrap' };
 const chartCol = { flex: '1 1 420px', minWidth: 0 };
+const metricStack = { display: 'flex', flexDirection: 'column', gap: '0.75rem' };
 const note = { color: 'var(--color-text-subtle)', fontSize: '0.8rem', fontStyle: 'italic', marginTop: '0.5rem' };
 const linkWrap = { display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start' };
 const linkBtn = {
