@@ -323,3 +323,61 @@ describe('GET /api/admin/analytics/overview — refund accounting', () => {
         expect(json.totals.refundedCents).toBe(20000);
     });
 });
+
+// Earned-income basis (operator definition, 2026-06-23): Gross / Net /
+// Refunded back out BOTH sales tax and the Stripe processing-fee pass-through
+// from each booking, so the figures reflect what the business actually earned
+// (the discounted ticket + add-on subtotal), not the full amount charged.
+//   earned = total_cents − tax_cents − fee_cents
+describe('GET /api/admin/analytics/overview — earned-income basis', () => {
+    it('excludes tax + processing fee from gross/net (no refunds)', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        // $1000 charged, of which $67.50 sales tax + $30 processing fee.
+        // Earned = 100000 − 6750 − 3000 = 90250 ($902.50).
+        env.DB.__on(/FROM bookings[\s\S]*?GROUP BY status/, {
+            results: [{ status: 'paid', n: 10, gross_cents: 100000, tax_cents: 6750, fee_cents: 3000 }],
+        }, 'all');
+        env.DB.__on(/FROM attendees a/, { n: 10, checked_in: 0, waivers_signed: 0 }, 'first');
+
+        const res = await worker.fetch(
+            makeReq(PATH, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        const json = await res.json();
+        expect(json.totals.grossRevenueCents).toBe(90250);
+        expect(json.totals.netRevenueCents).toBe(90250);
+        expect(json.totals.refundedCents).toBe(0);
+        // avgOrder is also on the earned basis: 90250 / 10 = 9025.
+        expect(json.totals.avgOrderCents).toBe(9025);
+        // Full tax + fee collected is still surfaced for remittance visibility.
+        expect(json.totals.taxCents).toBe(6750);
+        expect(json.totals.feeCents).toBe(3000);
+    });
+
+    it('mixed paid + refunded: every figure on the earned basis', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        // paid: earned 100000−6750−3000 = 90250; refunded: 32000−2160−960 = 28880.
+        env.DB.__on(/FROM bookings[\s\S]*?GROUP BY status/, {
+            results: [
+                { status: 'paid', n: 10, gross_cents: 100000, tax_cents: 6750, fee_cents: 3000 },
+                { status: 'refunded', n: 4, gross_cents: 32000, tax_cents: 2160, fee_cents: 960 },
+            ],
+        }, 'all');
+        env.DB.__on(/FROM attendees a/, { n: 10, checked_in: 0, waivers_signed: 0 }, 'first');
+
+        const res = await worker.fetch(
+            makeReq(PATH, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        const json = await res.json();
+        expect(json.totals.netRevenueCents).toBe(90250);            // paid earned
+        expect(json.totals.grossRevenueCents).toBe(90250 + 28880);  // paid + refunded earned
+        expect(json.totals.refundedCents).toBe(28880);              // refunded earned
+    });
+});
