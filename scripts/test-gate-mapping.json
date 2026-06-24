@@ -45,7 +45,18 @@
         "tests/unit/webhook/signature-constant-time.test.js",
         "tests/unit/lib/stripe-setup-future-usage.test.js",
         "tests/unit/lib/stripe-off-session-charge.test.js",
-        "tests/unit/lib/stripe-detach-pm.test.js"
+        "tests/unit/lib/stripe-detach-pm.test.js",
+        "tests/unit/lib/stripeFeeSync.test.js"
+      ]
+    },
+    "worker/lib/stripeFeeSync.js": {
+      "tier": "high",
+      "covers": [
+        "runStripeFeeSync (nightly reconciliation cron: backfills bookings.stripe_fee_cents/_net/_balance_transaction_id from each charge's true Stripe fee; per-row guarded; idempotent via the stripe_fee_cents IS NULL candidate filter)"
+      ],
+      "audit_group": "(2026-06-24 true Stripe-fee capture)",
+      "tests": [
+        "tests/unit/lib/stripeFeeSync.test.js"
       ]
     },
     "worker/routes/bookings.js": {
