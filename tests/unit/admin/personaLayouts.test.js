@@ -43,9 +43,10 @@ describe('PERSONA_LAYOUTS registry', () => {
         ]);
     });
 
-    it('owner widget set ships the 7-widget M4 B4d order', () => {
+    it('owner widget set ships RevenueSummary → DeferredRevenue first', () => {
         expect(PERSONA_LAYOUTS.owner).toEqual([
             'RevenueSummary',
+            'DeferredRevenue',
             'ActionQueue',
             'UpcomingEventsReadiness',
             'TodayEvents',
@@ -65,9 +66,10 @@ describe('PERSONA_LAYOUTS registry', () => {
         ]);
     });
 
-    it('bookkeeper widget set ships its 4 widgets (stale Staff1099Thresholds placeholder removed pre-launch)', () => {
+    it('bookkeeper widget set ships its 5 widgets incl. DeferredRevenue', () => {
         expect(PERSONA_LAYOUTS.bookkeeper).toEqual([
             'BookkeeperKPIs',
+            'DeferredRevenue',
             'RevenueTrend',
             'TaxFeeSummary',
             'RefundActivity',
