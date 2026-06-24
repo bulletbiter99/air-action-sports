@@ -131,6 +131,72 @@ adminAnalytics.get('/overview', async (c) => {
     });
 });
 
+// GET /api/admin/analytics/deferred-revenue
+//
+// Revenue-recognition split of EARNED revenue on paid bookings. "Earned"
+// uses the same income basis as /overview: total_cents − tax_cents − fee_cents
+// (excludes pass-through sales tax + Stripe processing fee).
+//   - Deferred   = earned on paid bookings whose EVENT is still in the
+//                  future — cash collected, the experience not yet
+//                  delivered, i.e. an unearned-revenue LIABILITY.
+//   - Recognized = earned on paid bookings whose event has already
+//                  occurred (or has no/undated event) — performance
+//                  obligation satisfied.
+// deferred + recognized == /overview's netRevenueCents (paid earned), so
+// the two cards reconcile.
+//
+// events.date_iso carries a time component (e.g. "2026-06-20T07:00:00"),
+// so normalize with date() and compare the calendar date against
+// date('now') (UTC, consistent with the ?period=mtd month boundary).
+// An event whose date is exactly today counts as recognized (the event
+// day is treated as the recognition point).
+adminAnalytics.get('/deferred-revenue', async (c) => {
+    const earned = `(b.total_cents - COALESCE(b.tax_cents, 0) - COALESCE(b.fee_cents, 0))`;
+
+    const totals = await c.env.DB.prepare(
+        `SELECT
+            COALESCE(SUM(CASE WHEN date(e.date_iso) > date('now')
+                              THEN ${earned} ELSE 0 END), 0) AS deferred_cents,
+            COALESCE(SUM(CASE WHEN date(e.date_iso) IS NULL OR date(e.date_iso) <= date('now')
+                              THEN ${earned} ELSE 0 END), 0) AS recognized_cents
+         FROM bookings b
+         LEFT JOIN events e ON e.id = b.event_id
+         WHERE b.status = 'paid'`
+    ).first();
+
+    // Per-upcoming-event breakdown — what balance is held for each future
+    // event, soonest first. Only events that actually hold money appear.
+    const upcoming = await c.env.DB.prepare(
+        `SELECT e.id, e.title, e.date_iso,
+                COUNT(b.id) AS paid_bookings,
+                COALESCE(SUM(COALESCE(b.player_count, 0)), 0) AS seats_sold,
+                COALESCE(SUM(${earned}), 0) AS deferred_cents
+         FROM events e
+         JOIN bookings b ON b.event_id = e.id AND b.status = 'paid'
+         WHERE date(e.date_iso) > date('now')
+         GROUP BY e.id
+         HAVING deferred_cents > 0
+         ORDER BY date(e.date_iso) ASC`
+    ).all();
+
+    const deferredCents = totals?.deferred_cents || 0;
+    const recognizedCents = totals?.recognized_cents || 0;
+
+    return c.json({
+        deferredCents,
+        recognizedCents,
+        totalPaidEarnedCents: deferredCents + recognizedCents,
+        upcomingEvents: (upcoming.results || []).map((r) => ({
+            eventId: r.id,
+            title: r.title,
+            dateIso: r.date_iso,
+            deferredCents: r.deferred_cents,
+            paidBookings: r.paid_bookings,
+            seatsSold: r.seats_sold,
+        })),
+    });
+});
+
 // GET /api/admin/analytics/sales-series?event_id=&days=30
 // Daily paid-booking count + gross revenue for the trailing window. Fills
 // missing days with zeros so the chart is continuous.

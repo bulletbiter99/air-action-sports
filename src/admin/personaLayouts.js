@@ -33,6 +33,7 @@ export const PERSONA_LAYOUTS = {
     // context → system pulse.
     owner: [
         'RevenueSummary',
+        'DeferredRevenue',
         'ActionQueue',
         'UpcomingEventsReadiness',
         'TodayEvents',
@@ -63,6 +64,7 @@ export const PERSONA_LAYOUTS = {
     // fallback path is exercised only when user.persona is null/unknown.
     bookkeeper: [
         'BookkeeperKPIs',
+        'DeferredRevenue',
         'RevenueTrend',
         'TaxFeeSummary',
         'RefundActivity',

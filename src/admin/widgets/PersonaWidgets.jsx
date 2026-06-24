@@ -63,6 +63,56 @@ export function RevenueSummary() {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// DeferredRevenue — revenue-recognition split. Of the earned revenue on
+// paid bookings, how much is for events that have ALREADY happened
+// (recognized) vs events still UPCOMING (deferred — cash collected, the
+// experience still owed, i.e. an unearned-revenue liability). Lists the
+// upcoming events holding that balance, soonest first.
+// Owner + Bookkeeper personas. Reads /api/admin/analytics/deferred-revenue.
+// ────────────────────────────────────────────────────────────────────
+
+export function DeferredRevenue() {
+    const { data, error: err } = useWidgetData(
+        '/api/admin/analytics/deferred-revenue',
+        { tier: 'static' },
+    );
+    const upcoming = data?.upcomingEvents || [];
+
+    return (
+        <section className="admin-persona-widget admin-persona-widget--deferred">
+            <h2>Revenue recognition</h2>
+            {err && <p className="admin-persona-widget__error">Error: {err}</p>}
+            {!data && !err && <p className="admin-persona-widget__loading">Loading…</p>}
+            {data && (
+                <>
+                    <div className="admin-persona-widget__stats">
+                        <Stat label="Deferred · upcoming" value={formatMoney(data.deferredCents)} highlight />
+                        <Stat label="Recognized · delivered" value={formatMoney(data.recognizedCents)} />
+                    </div>
+                    {data.deferredCents > 0 ? (
+                        <ul className="admin-persona-widget__deferred-list">
+                            {upcoming.map((e) => (
+                                <li key={e.eventId} className="admin-persona-widget__deferred-row">
+                                    <Link to="/admin/events" className="admin-persona-widget__deferred-link">
+                                        <span className="admin-persona-widget__deferred-title">{e.title}</span>
+                                        <span className="admin-persona-widget__deferred-meta">
+                                            {formatEventDay(e.dateIso)} · {e.seatsSold} seat{e.seatsSold === 1 ? '' : 's'}
+                                        </span>
+                                    </Link>
+                                    <span className="admin-persona-widget__deferred-amt">{formatMoney(e.deferredCents)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="admin-persona-widget__empty">No cash held for upcoming events — all paid revenue is recognized.</p>
+                    )}
+                </>
+            )}
+        </section>
+    );
+}
+
+// ────────────────────────────────────────────────────────────────────
 // CronHealth — green/red strip per the same logic the legacy
 // dashboard uses. Reads /api/admin/analytics/cron-status; renders
 // stale (>60min) as red, fresh as green.
@@ -973,6 +1023,20 @@ function formatRelative(ms) {
     }
 }
 
+// Formats an event date_iso (e.g. "2026-08-15T07:00:00", no timezone →
+// parsed as local) into a short readable day. Falls back to the date
+// slice if unparseable.
+function formatEventDay(dateIso) {
+    if (!dateIso) return '';
+    const d = new Date(dateIso);
+    if (isNaN(d.getTime())) return String(dateIso).slice(0, 10);
+    try {
+        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+        return String(dateIso).slice(0, 10);
+    }
+}
+
 function formatAge(ms) {
     if (ms == null) return 'unknown';
     const sec = Math.round(ms / 1000);
@@ -990,6 +1054,7 @@ function formatAge(ms) {
 
 export const WIDGETS = {
     RevenueSummary,
+    DeferredRevenue,
     CronHealth,
     TodayEvents,
     RecentBookings,
