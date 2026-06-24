@@ -1,6 +1,6 @@
-# Next-session entry point — post 2026-06-18 (admin design-consistency sweep COMPLETE incl. #317 close-off)
+# Next-session entry point — post 2026-06-24 (ACCOUNTING SUITE COMPLETE: PRs #319–#328 merged + deployed)
 
-Fresh-session entry point for Air Action Sports. **Updated 2026-06-18** (close-off of the admin design-consistency sweep — PRs #306 + #308–#315 + the **#317 close-off** [home dashboard + Sites cluster], all merged + deployed). The earlier 2026-06-17 session cleared both ⭐ M8 work-menu items (#297–#304); prior sessions: **2026-06-11** waiver-confirmation email + waiver UX (#291–#295, migration 0073) and **2026-06-06** homepage reorder/polish (#289/#290) — all summarized below.
+Fresh-session entry point for Air Action Sports. **Updated 2026-06-24** (close-off of the accounting-suite session — PRs **#319–#328** merged + deployed, migrations **0074 + 0075** applied, tests **2945 → 3003 / 251 → 259**; the income card, deferred revenue, expenses + budgets, P&L reports, 13-week cash-flow forecast, and true Stripe-fee capture). The 2026-06-18 admin design-consistency sweep (#306 / #308–#315 / #317) is complete; the earlier 2026-06-17 session cleared both ⭐ M8 work-menu items (#297–#304); prior sessions: **2026-06-11** waiver-confirmation email + waiver UX (#291–#295, migration 0073) and **2026-06-06** homepage reorder/polish (#289/#290) — all summarized below.
 ⚠️ **Heads-up on the cutover:** earlier docs recorded the M6 live-Stripe cutover as "DONE 2026-06-02," but it was actually **broken** — production was silently still in Stripe **TEST mode** (every checkout session `cs_test_`) until it was really cut over + e2e-verified on **2026-06-03**. Production now collects real money correctly. See the **2026-06-03 section** below + memory `stripe-live-cutover-fixed-2026-06-03.md`. The earlier **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains (as of 2026-06-17):** operator activation only (Marketing send + Resend webhook + FTS flag) — the item-1 RTL long tail **and** the admin design-consistency sweep are now **DONE** (see the 2026-06-17 section below). Detail below.
 
 ---
@@ -9,13 +9,36 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-18** (close-o
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `51559fb` (re-pull for exact) |
-| Tests | **2945 / 251** all green |
+| `main` HEAD | `bc8614c` (re-pull for exact) |
+| Tests | **3003 / 259** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed from `main` via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + waiver-confirmation receipts live (2026-06-11). The admin design-consistency sweep is deployed (per-element token/header swaps; no behavior change). |
-| Migrations on remote | **0001–0073 ALL applied** — no new migrations since 2026-06-11; a `migrations apply` finds nothing new. |
-| Open PRs | 0 (all merged through #317) |
-| Open milestone | **None active.** The admin design-consistency sweep is **COMPLETE** (batches 1–5b + docs, PRs #306 + #308–#315, plus the **#317 close-off** — home dashboard + Sites cluster). Remaining work is operator activation only (Marketing send + Resend webhook + FTS flag + the 2 cutover invoices). |
+| Production | deployed from `main` via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + waiver-confirmation receipts live (2026-06-11) + the **accounting suite** deployed (Finances cluster + new reports + nightly Stripe-fee cron). |
+| Migrations on remote | **0001–0075 ALL applied** — 0074 (expenses/budgets) + 0075 (Stripe fees) applied 2026-06-24; a `migrations apply` finds nothing new. |
+| Open PRs | 0 (all merged through #328) |
+| Open milestone | **None active.** The **accounting suite** is **COMPLETE** (2026-06-24, PRs #319–#328 — income basis + deferred revenue + expenses/budgets + P&L reports + cash-flow forecast + true Stripe-fee capture); the admin design-consistency sweep was completed 2026-06-18. Remaining work is operator activation only (Marketing send + Resend webhook + FTS flag + the 2 cutover invoices). The nightly Stripe-fee cron backfills 53 paid bookings automatically (≤2 nights at LIMIT 50/night) — awareness only, no action. |
+
+---
+
+## ✅ DONE — Accounting suite (2026-06-24, the profitability + liquidity core)
+
+A single session built the entire financial heart of an owner-accounting research report — **10 PRs (#319–#328) merged + deployed**, migrations **0074 + 0075** applied to remote, tests **2945 → 3003 / 259 files**, lint clean throughout, **zero changes to the payment-confirmation path**. Full rationale + remaining roadmap in memory `accounting-dashboard-roadmap.md`; the income basis in `income-card-earned-revenue.md`.
+
+| PR | What |
+|---|---|
+| [#319](https://github.com/bulletbiter99/air-action-sports/pull/319) | **Income card → earned-revenue basis** — `/analytics/overview` Gross/Net now exclude sales tax + the Stripe pass-through fee (operator's choice; `total − tax − fee`). Fixes the home Revenue card + Bookkeeper Books card + `/admin/analytics`. |
+| [#320](https://github.com/bulletbiter99/air-action-sports/pull/320) | **Deferred-revenue widget** — `/analytics/deferred-revenue` splits paid-booking earned revenue into **deferred** (event still future → unearned liability) vs **recognized**; "Revenue recognition" card on Owner + Bookkeeper dashboards. No schema change. |
+| [#321](https://github.com/bulletbiter99/air-action-sports/pull/321) | **Expenses + Budgets schema + routes** — migration **0074** (`expenses` w/ optional `event_id` tag + `budgets` UNIQUE(period,category) + `finances.read`/`write` caps → owner + bookkeeper); CRUD at `/api/admin/expenses` + `/api/admin/budgets`. |
+| [#322](https://github.com/bulletbiter99/air-action-sports/pull/322) | **Expenses + Budgets pages + Finances nav** — `/admin/expenses` (list/filter/modal, optional event tag) + `/admin/budgets` (monthly per-category grid, auto-save). New **Finances** sidebar cluster. |
+| [#323](https://github.com/bulletbiter99/air-action-sports/pull/323) | **P&L vs Budget** Bookkeeper report — per-category budget vs spend (variance) + net income. |
+| [#324](https://github.com/bulletbiter99/air-action-sports/pull/324) | **Per-event P&L margin** — Owner report; each event's earned revenue − its tagged expenses = margin. |
+| [#325](https://github.com/bulletbiter99/air-action-sports/pull/325) | **13-week cash-flow forecast** (backend) — `/api/admin/cash-flow`: opening balance + projected run-rate + FR receipts − budgeted disbursements rolled forward; min-closing trough. |
+| [#326](https://github.com/bulletbiter99/air-action-sports/pull/326) | **Cash Flow Forecast page** — `/admin/cash-flow` (inputs + summary cards + closing-cash chart + weekly table + negative-trough warning). |
+| [#327](https://github.com/bulletbiter99/air-action-sports/pull/327) | **TRUE Stripe fee capture** (backend) — migration **0075** (`bookings.stripe_fee_cents`/`_net`/`_balance_transaction_id`); additive `retrieveChargeFees` + nightly `runStripeFeeSync` cron (webhooks.js **byte-untouched**). |
+| [#328](https://github.com/bulletbiter99/air-action-sports/pull/328) | **"Stripe fees & true net"** Bookkeeper report — actual Stripe fee → net deposited → kept (− sales tax) + effective fee %; reconciled-subset math + coverage note. |
+
+**New admin surfaces:** Finances sidebar cluster (**Expenses / Budgets / Cash Flow**); Owner report **Per-event P&L**; Bookkeeper reports **P&L vs budget** + **Stripe fees & true net**; a new 03:00 UTC daily cron sweep **runStripeFeeSync**.
+
+**Durable design notes:** income/deferred use the earned basis (`total − tax − fee`); `events.date_iso` has a TIME component (normalize with SQLite `date()`); `formatMoney` has **no thousands separator** (`$1250.00`); cash-flow is cash-basis (prepaid bookings are in the opening balance, not double-counted); true-fee capture is a **cron, not a webhook** (DNT-safe, auto-backfills). The remaining roadmap (field-rental AR aging, EOS scorecard, refund-side fee reconciliation) is optional / data-dependent.
 
 ---
 
@@ -197,7 +220,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 2945 / 251
+npm test -- --run | tail -3        # expect 3003 / 259
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
