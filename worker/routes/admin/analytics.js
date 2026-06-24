@@ -73,20 +73,32 @@ adminAnalytics.get('/overview', async (c) => {
          WHERE ${attClauses.join(' AND ')}`
     ).bind(...attBinds).first();
 
-    // Revenue — bookkeeping shape:
-    //   Gross = all money that flowed in historically (paid + refunded bookings'
-    //           original totals, since refunding flips status='paid' → 'refunded'
-    //           but the total_cents is preserved on the row).
-    //   Refunded = totals on currently-refunded rows.
-    //   Net = Gross − Refunded = paidGross (what's still on the books).
-    // Subtracting refundedGross from paidGross directly would double-count,
-    // because the two CASE WHEN buckets are mutually exclusive — a refund
-    // already removed the booking from paidGross, so subtracting it again
-    // makes net go negative (showed as -$320 with $0 paid / $320 refunded).
-    const paidGross = status.paid?.grossCents || 0;
-    const refundedGross = status.refunded?.grossCents || 0;
-    const grossRevenueCents = paidGross + refundedGross;
-    const netRevenueCents = paidGross;
+    // Revenue — "earned income" basis (operator definition, 2026-06-23):
+    // what the business actually earned, NOT the full amount charged.
+    //   earned = total_cents − tax_cents − fee_cents, i.e. the discounted
+    //   ticket + add-on subtotal. We back out:
+    //     • sales tax (City + State) — collected on the government's behalf
+    //       and remitted to them; it was never the business's income; and
+    //     • the Stripe processing-fee pass-through (the "Processing Fees"
+    //       row: 2.9% + $0.30 added to the customer's total to cover Stripe's
+    //       cut) — it flows straight back out to Stripe, so it isn't earnings.
+    //   Gross = earned across paid + refunded rows (lifetime earned — a refund
+    //           flips status='paid' → 'refunded' but preserves the row's cents).
+    //   Refunded = earned portion of currently-refunded rows.
+    //   Net = Gross − Refunded = paidEarned (what's still on the books).
+    // Computing every figure on the earned basis keeps Gross/Net/Refunded
+    // internally consistent and avoids the double-count that would make Net
+    // go negative (the paid/refunded buckets are mutually exclusive). The full
+    // tax + fee collected is still exposed below as totals.taxCents/feeCents.
+    const earnedFor = (s) => {
+        const v = status[s];
+        if (!v) return 0;
+        return (v.grossCents || 0) - (v.taxCents || 0) - (v.feeCents || 0);
+    };
+    const paidEarned = earnedFor('paid');
+    const refundedEarned = earnedFor('refunded');
+    const grossRevenueCents = paidEarned + refundedEarned;
+    const netRevenueCents = paidEarned;
 
     const paidCount = status.paid?.count || 0;
     const refundedCount = status.refunded?.count || 0;
@@ -107,10 +119,10 @@ adminAnalytics.get('/overview', async (c) => {
             paidCount,
             netRevenueCents,
             grossRevenueCents,
-            refundedCents: refundedGross,
+            refundedCents: refundedEarned,
             taxCents: paidTax + compTax,
             feeCents: paidFee + compFee,
-            avgOrderCents: paidCount > 0 ? Math.round(paidGross / paidCount) : 0,
+            avgOrderCents: paidCount > 0 ? Math.round(paidEarned / paidCount) : 0,
             refundRate: paidCount > 0 ? refundedCount / paidCount : 0,
             attendees: attendeeRow?.n || 0,
             checkedIn: attendeeRow?.checked_in || 0,
