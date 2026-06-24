@@ -58,6 +58,7 @@ export const SIDEBAR = [
     // finances.read → manager so owners see them before /me caps load.
     { type: 'item', to: '/admin/expenses', label: 'Expenses', capability: 'finances.read' },
     { type: 'item', to: '/admin/budgets', label: 'Budgets', capability: 'finances.read' },
+    { type: 'item', to: '/admin/cash-flow', label: 'Cash Flow', capability: 'finances.read' },
     { type: 'item', to: '/admin/segments', label: 'Segments' },
     { type: 'item', to: '/admin/campaigns', label: 'Campaigns' },
     { type: 'item', to: '/admin/automations', label: 'Automations' },

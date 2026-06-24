@@ -46,6 +46,7 @@ const AdminEvents = lazy(() => import('./admin/AdminEvents'));
 const AdminPromoCodes = lazy(() => import('./admin/AdminPromoCodes'));
 const AdminExpenses = lazy(() => import('./admin/AdminExpenses'));
 const AdminBudgets = lazy(() => import('./admin/AdminBudgets'));
+const AdminCashFlow = lazy(() => import('./admin/AdminCashFlow'));
 const AdminAnalytics = lazy(() => import('./admin/AdminAnalytics'));
 const AdminAcceptInvite = lazy(() => import('./admin/AdminAcceptInvite'));
 const AdminAuditLog = lazy(() => import('./admin/AdminAuditLog'));
@@ -169,6 +170,7 @@ export default function App() {
             <Route path="promo-codes" element={<AdminPromoCodes />} />
             <Route path="expenses" element={<AdminExpenses />} />
             <Route path="budgets" element={<AdminBudgets />} />
+            <Route path="cash-flow" element={<AdminCashFlow />} />
             <Route path="analytics" element={<AdminAnalytics />} />
             {/* M5 R17: legacy /admin/users decommissioned. Staff management
                 lives at /admin/staff (M5 B4+). Bookmarked URLs redirect. */}
