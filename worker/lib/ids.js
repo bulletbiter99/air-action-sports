@@ -132,3 +132,12 @@ export function automationId() {
 export function automationSendId() {
     return `autos_${randomId(14)}`;
 }
+
+// Finances — expenses + budgets (migration 0074)
+export function expenseId() {
+    return `exp_${randomId(12)}`;
+}
+
+export function budgetId() {
+    return `bud_${randomId(12)}`;
+}
