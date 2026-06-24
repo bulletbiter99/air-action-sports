@@ -371,6 +371,26 @@
         "tests/unit/admin/finances-route.test.js"
       ]
     },
+    "worker/lib/cashFlow.js": {
+      "tier": "high",
+      "covers": [
+        "computeCashFlowForecast (13-week direct-method roll-forward: opening + receipts − disbursements; per-day budget allocation; FR-receipt bucketing; min-closing trough)"
+      ],
+      "audit_group": "(2026-06-24 13-week cash-flow forecast)",
+      "tests": [
+        "tests/unit/lib/cashFlow.test.js"
+      ]
+    },
+    "worker/routes/admin/cashFlow.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/cash-flow (13-week forecast: opening_cents + weekly_revenue_cents override / trailing-8wk derived run-rate; FR-due + budget reads; finances.read gated)"
+      ],
+      "audit_group": "(2026-06-24 13-week cash-flow forecast)",
+      "tests": [
+        "tests/unit/admin/cashFlow-route.test.js"
+      ]
+    },
     "src/hooks/useWidgetData.js": {
       "tier": "high",
       "covers": [
