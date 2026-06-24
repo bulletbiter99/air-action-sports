@@ -26,6 +26,7 @@ import {
     computeAovTrend,
     bucketRepeatCustomers,
     computeSeriesRetention,
+    computePerEventPnl,
     computePayoutsSummary,
     computeTaxFeeSummary,
     computePeriodComparison,
@@ -272,6 +273,56 @@ adminReports.get('/owner/aov-trend',
                 payload.series.map((r) => [r.month, r.bookings, dollars(r.avgCents)]));
         }
         return c.json({ report: 'aov-trend', period: window.period, window, ...payload });
+    });
+
+// 6. Per-event P&L — each event's earned revenue minus the expenses tagged to
+//    it (expenses.event_id) = contribution margin. The period window selects
+//    WHICH events to show (by event date); each event's revenue + costs are its
+//    lifetime totals (an event's P&L spans all its sales regardless of when they
+//    were paid). Earned revenue = total − tax − fee on paid/comp (income-card
+//    basis). reports.read.owner holders are owner + bookkeeper — both hold the
+//    finances caps, so cost visibility is appropriately gated.
+adminReports.get('/owner/per-event-pnl',
+    requireCapability('reports.read.owner'),
+    async (c) => {
+        const { format, window } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+
+        // Window selects events by calendar date. endMs is exclusive but == now
+        // for calendar periods, so its date is today (events up through today).
+        const startDate = new Date(window.startMs).toISOString().slice(0, 10);
+        const endDate = new Date(window.endMs).toISOString().slice(0, 10);
+
+        const [eventRes, costRes] = await Promise.all([
+            c.env.DB.prepare(
+                `SELECT e.id, e.title, e.date_iso,
+                        COALESCE(SUM(CASE WHEN b.status IN ('paid','comp')
+                                          THEN (b.total_cents - COALESCE(b.tax_cents,0) - COALESCE(b.fee_cents,0))
+                                          ELSE 0 END), 0) AS earned_cents,
+                        SUM(CASE WHEN b.status = 'paid' THEN 1 ELSE 0 END) AS paid_bookings
+                 FROM events e
+                 LEFT JOIN bookings b ON b.event_id = e.id
+                 WHERE date(e.date_iso) >= ? AND date(e.date_iso) <= ?
+                 GROUP BY e.id
+                 ORDER BY e.date_iso DESC`
+            ).bind(startDate, endDate).all(),
+            c.env.DB.prepare(
+                `SELECT event_id, COALESCE(SUM(amount_cents),0) AS cost_cents
+                 FROM expenses WHERE event_id IS NOT NULL GROUP BY event_id`
+            ).all(),
+        ]);
+
+        const payload = computePerEventPnl({ eventRows: eventRes.results || [], costRows: costRes.results || [] });
+        if (format === 'csv') {
+            return csvResponse('per-event-pnl',
+                ['Event', 'Date', 'Revenue', 'Direct Costs', 'Margin', 'Margin %'],
+                payload.events.map((e) => [
+                    e.title, e.dateIso,
+                    dollars(e.earnedCents), dollars(e.directCostsCents), dollars(e.marginCents),
+                    e.marginPct == null ? '' : (e.marginPct * 100).toFixed(1),
+                ]));
+        }
+        return c.json({ report: 'per-event-pnl', period: window.period, window, ...payload });
     });
 
 // ────────────────────────────────────────────────────────────────────

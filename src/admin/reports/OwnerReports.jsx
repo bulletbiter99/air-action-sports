@@ -18,6 +18,7 @@ import { useReportData, downloadReportCsv } from './reportData.js';
 import ReportFilters from './ReportFilters.jsx';
 import ReportLayout from './ReportLayout.jsx';
 import ReportEmptyState from './ReportEmptyState.jsx';
+import ReportTable from './ReportTable.jsx';
 import LineChart from './charts/LineChart.jsx';
 import MetricCard from './charts/MetricCard.jsx';
 import { ProgressBar } from '../charts.jsx';
@@ -72,6 +73,61 @@ function RevenueTrendsCard({ filters }) {
                         sublabel={filters.comparison ? 'vs prior period' : 'Enable comparison for delta'}
                     />
                 </div>
+            )}
+        </ReportLayout>
+    );
+}
+
+function MarginCell({ cents }) {
+    const c = Number(cents) || 0;
+    const color = c > 0 ? 'var(--color-success)' : c < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)';
+    return <span style={{ color, fontWeight: 700 }}>{formatMoney(c)}</span>;
+}
+
+function PerEventPnlCard({ filters }) {
+    const { data, loading, error } = useReport('per-event-pnl', filters);
+    const totals = data?.totals;
+    const pct = (p) => (p == null ? '—' : `${Math.round(p * 100)}%`);
+    const rows = (data?.events || []).map((e) => ({
+        key: e.eventId,
+        label: e.title,
+        date: e.dateIso ? dayLabel(e.dateIso.slice(0, 10)) : '—',
+        earnedCents: e.earnedCents,
+        directCostsCents: e.directCostsCents,
+        marginCents: e.marginCents,
+        marginPctLabel: pct(e.marginPct),
+    }));
+    const columns = [
+        { key: 'label', label: 'Event' },
+        { key: 'date', label: 'Date' },
+        { key: 'earnedCents', label: 'Revenue', align: 'right', render: (v) => formatMoney(v) },
+        { key: 'directCostsCents', label: 'Direct costs', align: 'right', render: (v) => formatMoney(v) },
+        { key: 'marginCents', label: 'Margin', align: 'right', render: (v) => <MarginCell cents={v} /> },
+        { key: 'marginPctLabel', label: 'Margin %', align: 'right' },
+    ];
+    const footer = totals ? {
+        label: 'Total', date: '',
+        earnedCents: totals.earnedCents,
+        directCostsCents: totals.directCostsCents,
+        marginCents: totals.marginCents,
+        marginPctLabel: pct(totals.marginPct),
+    } : null;
+    return (
+        <ReportLayout
+            title="Per-event P&L"
+            description="Each event's earned revenue minus the expenses tagged to it = contribution margin. Tag expenses to an event on the Expenses page to fill the cost column."
+            loading={loading}
+            error={error}
+            onExportCsv={() => downloadCsv('per-event-pnl', filters)}
+        >
+            {rows.length === 0 ? (
+                <ReportEmptyState
+                    kind="no-data"
+                    title="No events in this period"
+                    description="Widen the period (e.g. YTD) to see events and their margins."
+                />
+            ) : (
+                <ReportTable columns={columns} rows={rows} footer={footer} />
             )}
         </ReportLayout>
     );
@@ -204,6 +260,7 @@ export default function OwnerReports() {
                 <ReportFilters value={filters} onChange={setFilters} showEventScope showComparison />
             </div>
             <RevenueTrendsCard filters={filters} />
+            <PerEventPnlCard filters={filters} />
             <RefundRateCard filters={filters} />
             <AovTrendCard filters={filters} />
             <RetentionCard filters={filters} />

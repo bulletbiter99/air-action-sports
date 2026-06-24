@@ -16,6 +16,7 @@ import {
     computeTaxFeeSummary,
     computePeriodComparison,
     computeBudgetVsActual,
+    computePerEventPnl,
     computeConversionFunnel,
     computePromoPerformance,
     computeCustomerCohorts,
@@ -443,6 +444,51 @@ describe('computeBudgetVsActual', () => {
         const out = computeBudgetVsActual({ budgetRows: [{ category: 'insurance', budgeted_cents: 25000 }] });
         expect(out.categories).toHaveLength(1);
         expect(out.categories[0]).toMatchObject({ category: 'insurance', budgetedCents: 25000, spentCents: 0, varianceCents: 25000 });
+    });
+});
+
+describe('computePerEventPnl', () => {
+    it('computes per-event margin (revenue − tagged costs) + totals', () => {
+        const out = computePerEventPnl({
+            eventRows: [
+                { id: 'ev_a', title: 'Volga', date_iso: '2026-06-20T16:00:00', earned_cents: 136000, paid_bookings: 34 },
+                { id: 'ev_b', title: 'Foxtrot', date_iso: '2026-06-20T07:00:00', earned_cents: 65000, paid_bookings: 21 },
+                { id: 'ev_c', title: 'Untagged', date_iso: '2026-05-09T08:30:00', earned_cents: 40000, paid_bookings: 10 },
+            ],
+            costRows: [
+                { event_id: 'ev_a', cost_cents: 50000 },
+                { event_id: 'ev_a', cost_cents: 10000 }, // two expenses → summed to 60000
+                { event_id: 'ev_b', cost_cents: 80000 }, // costs exceed revenue → negative margin
+            ],
+        });
+        const a = out.events.find((e) => e.eventId === 'ev_a');
+        expect(a.directCostsCents).toBe(60000);
+        expect(a.marginCents).toBe(76000);
+        expect(a.marginPct).toBeCloseTo(76000 / 136000);
+        const b = out.events.find((e) => e.eventId === 'ev_b');
+        expect(b.marginCents).toBe(-15000); // 65000 − 80000
+        const c = out.events.find((e) => e.eventId === 'ev_c');
+        expect(c.directCostsCents).toBe(0); // no tagged costs
+        expect(c.marginCents).toBe(40000);
+        // Totals
+        expect(out.totals.earnedCents).toBe(241000);
+        expect(out.totals.directCostsCents).toBe(140000);
+        expect(out.totals.marginCents).toBe(101000);
+    });
+
+    it('marginPct is null for a zero-revenue event', () => {
+        const out = computePerEventPnl({
+            eventRows: [{ id: 'ev_x', title: 'Comp only', earned_cents: 0 }],
+            costRows: [{ event_id: 'ev_x', cost_cents: 5000 }],
+        });
+        expect(out.events[0].marginPct).toBeNull();
+        expect(out.events[0].marginCents).toBe(-5000);
+    });
+
+    it('tolerates empty input', () => {
+        const out = computePerEventPnl({});
+        expect(out.events).toEqual([]);
+        expect(out.totals).toEqual({ earnedCents: 0, directCostsCents: 0, marginCents: 0, marginPct: null });
     });
 });
 
