@@ -29,6 +29,7 @@ import {
     computePayoutsSummary,
     computeTaxFeeSummary,
     computePeriodComparison,
+    computeBudgetVsActual,
     computeConversionFunnel,
     computePromoPerformance,
     computeCustomerCohorts,
@@ -386,6 +387,55 @@ adminReports.get('/bookkeeper/period-comparison',
                 ]));
         }
         return c.json({ report: 'period-comparison', period: window.period, window, priorWindow: pw, ...payload });
+    });
+
+// 4. Budget vs actual (P&L vs budget) — per-category recorded expenses vs
+//    monthly budgets, plus net income (earned revenue − expenses) over the
+//    window. Expenses + budgets are org-wide (no event scope), so ?event_id
+//    is intentionally ignored here. Earned revenue uses the same basis as the
+//    income card: total − tax − fee on paid/comp bookings (refunds excluded).
+adminReports.get('/bookkeeper/budget-vs-actual',
+    requireCapability('reports.read.bookkeeper'),
+    async (c) => {
+        const { format, window } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+
+        // Months touched by the window (budgets are keyed YYYY-MM). endMs is
+        // exclusive but == now for calendar periods, so its month is current.
+        const startMonth = new Date(window.startMs).toISOString().slice(0, 7);
+        const endMonth = new Date(window.endMs).toISOString().slice(0, 7);
+
+        const [expenseRes, budgetRes, revenueRes] = await Promise.all([
+            c.env.DB.prepare(
+                `SELECT category, COALESCE(SUM(amount_cents),0) AS spent_cents
+                 FROM expenses
+                 WHERE incurred_at >= ? AND incurred_at < ?
+                 GROUP BY category`
+            ).bind(window.startMs, window.endMs).all(),
+            c.env.DB.prepare(
+                `SELECT category, period, budgeted_cents
+                 FROM budgets
+                 WHERE period >= ? AND period <= ?`
+            ).bind(startMonth, endMonth).all(),
+            c.env.DB.prepare(
+                `SELECT COALESCE(SUM(total_cents - COALESCE(tax_cents,0) - COALESCE(fee_cents,0)),0) AS earned_cents
+                 FROM bookings
+                 WHERE status IN ('paid','comp') AND paid_at >= ? AND paid_at < ?`
+            ).bind(window.startMs, window.endMs).first(),
+        ]);
+
+        const payload = computeBudgetVsActual({
+            expenseRows: expenseRes.results || [],
+            budgetRows: budgetRes.results || [],
+            revenueRows: revenueRes ? [{ earned_cents: revenueRes.earned_cents }] : [],
+        });
+
+        if (format === 'csv') {
+            return csvResponse('budget-vs-actual',
+                ['Category', 'Budgeted', 'Spent', 'Variance'],
+                payload.categories.map((r) => [r.category, dollars(r.budgetedCents), dollars(r.spentCents), dollars(r.varianceCents)]));
+        }
+        return c.json({ report: 'budget-vs-actual', period: window.period, window, ...payload });
     });
 
 // ────────────────────────────────────────────────────────────────────

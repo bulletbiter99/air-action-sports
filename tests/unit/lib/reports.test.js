@@ -15,6 +15,7 @@ import {
     computePayoutsSummary,
     computeTaxFeeSummary,
     computePeriodComparison,
+    computeBudgetVsActual,
     computeConversionFunnel,
     computePromoPerformance,
     computeCustomerCohorts,
@@ -395,6 +396,53 @@ describe('computePeriodComparison', () => {
     it('tolerates fully empty input (all zeros)', () => {
         const out = computePeriodComparison({});
         expect(out.metrics.every((m) => m.current === 0 && m.prior === 0)).toBe(true);
+    });
+});
+
+describe('computeBudgetVsActual', () => {
+    it('aggregates budget vs spend per category with variance + P&L net', () => {
+        const out = computeBudgetVsActual({
+            budgetRows: [
+                { category: 'payroll', budgeted_cents: 300000 },
+                { category: 'payroll', budgeted_cents: 100000 }, // 2 months → summed
+                { category: 'marketing', budgeted_cents: 50000 },
+            ],
+            expenseRows: [
+                { category: 'payroll', spent_cents: 380000 },   // over budget (400k) → favorable
+                { category: 'marketing', spent_cents: 60000 },  // over budget (50k) → unfavorable
+                { category: 'consumables', spent_cents: 4200 }, // no budget
+            ],
+            revenueRows: [{ earned_cents: 700000 }],
+        });
+        const payroll = out.categories.find((c) => c.category === 'payroll');
+        expect(payroll.budgetedCents).toBe(400000);
+        expect(payroll.spentCents).toBe(380000);
+        expect(payroll.varianceCents).toBe(20000); // under budget
+        const marketing = out.categories.find((c) => c.category === 'marketing');
+        expect(marketing.varianceCents).toBe(-10000); // over budget
+        const consumables = out.categories.find((c) => c.category === 'consumables');
+        expect(consumables.budgetedCents).toBe(0);
+        expect(consumables.variancePct).toBeNull(); // no budget → null pct
+        // Sorted by spend desc: payroll (380k) > marketing (60k) > consumables (4.2k)
+        expect(out.categories.map((c) => c.category)).toEqual(['payroll', 'marketing', 'consumables']);
+        // Totals + P&L
+        expect(out.totals.spentCents).toBe(444200);
+        expect(out.totals.budgetedCents).toBe(450000);
+        expect(out.totals.varianceCents).toBe(5800);
+        expect(out.totals.earnedCents).toBe(700000);
+        expect(out.totals.netCents).toBe(700000 - 444200);
+    });
+
+    it('tolerates fully empty input (zeros, no categories)', () => {
+        const out = computeBudgetVsActual({});
+        expect(out.categories).toEqual([]);
+        expect(out.totals).toEqual({ budgetedCents: 0, spentCents: 0, varianceCents: 0, earnedCents: 0, netCents: 0 });
+    });
+
+    it('includes budgeted categories with zero spend', () => {
+        const out = computeBudgetVsActual({ budgetRows: [{ category: 'insurance', budgeted_cents: 25000 }] });
+        expect(out.categories).toHaveLength(1);
+        expect(out.categories[0]).toMatchObject({ category: 'insurance', budgetedCents: 25000, spentCents: 0, varianceCents: 25000 });
     });
 });
 
