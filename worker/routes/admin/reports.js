@@ -31,6 +31,7 @@ import {
     computeTaxFeeSummary,
     computePeriodComparison,
     computeBudgetVsActual,
+    computeStripeFees,
     computeConversionFunnel,
     computePromoPerformance,
     computeCustomerCohorts,
@@ -487,6 +488,41 @@ adminReports.get('/bookkeeper/budget-vs-actual',
                 payload.categories.map((r) => [r.category, dollars(r.budgetedCents), dollars(r.spentCents), dollars(r.varianceCents)]));
         }
         return c.json({ report: 'budget-vs-actual', period: window.period, window, ...payload });
+    });
+
+// 5. Stripe fees & true net — monthly ACTUAL Stripe fee/net (captured by the
+//    runStripeFeeSync cron into bookings.stripe_fee_cents/_net) vs gross
+//    charged, plus "kept" = net deposited − sales tax. Money columns are over
+//    the RECONCILED subset (fee captured) so they stay consistent while the
+//    nightly backfill catches up; `coverage` reports the reconciled fraction.
+adminReports.get('/bookkeeper/stripe-fees',
+    requireCapability('reports.read.bookkeeper'),
+    async (c) => {
+        const { eventId, format, window } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+
+        const evt = eventId ? ' AND event_id = ?' : '';
+        const binds = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
+        const monthly = await c.env.DB.prepare(
+            `SELECT strftime('%Y-%m', paid_at/1000,'unixepoch') AS month,
+                    COALESCE(SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN total_cents ELSE 0 END),0) AS gross_cents,
+                    COALESCE(SUM(stripe_fee_cents),0) AS fee_cents,
+                    COALESCE(SUM(stripe_net_cents),0) AS net_cents,
+                    COALESCE(SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN tax_cents ELSE 0 END),0) AS tax_cents,
+                    COUNT(*) AS paid_count,
+                    SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN 1 ELSE 0 END) AS captured_count
+             FROM bookings
+             WHERE status = 'paid' AND paid_at >= ? AND paid_at < ?${evt}
+             GROUP BY month ORDER BY month ASC`
+        ).bind(...binds).all();
+
+        const payload = computeStripeFees({ monthlyRows: monthly.results || [] });
+        if (format === 'csv') {
+            return csvResponse('stripe-fees',
+                ['Month', 'Gross', 'Stripe Fees', 'Net Deposited', 'Sales Tax', 'Kept'],
+                payload.series.map((r) => [r.month, dollars(r.grossCents), dollars(r.feeCents), dollars(r.netCents), dollars(r.taxCents), dollars(r.keptCents)]));
+        }
+        return c.json({ report: 'stripe-fees', period: window.period, window, ...payload });
     });
 
 // ────────────────────────────────────────────────────────────────────

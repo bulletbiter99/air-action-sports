@@ -191,6 +191,52 @@ function BudgetVsActualCard({ filters }) {
     );
 }
 
+function StripeFeesCard({ filters }) {
+    const { data, loading, error } = useReport('stripe-fees', filters);
+    const series = data?.series || [];
+    const totals = data?.totals;
+    const coverage = data?.coverage;
+    const columns = [
+        { key: 'month', label: 'Month' },
+        { key: 'grossCents', label: 'Gross', align: 'right', render: money },
+        { key: 'feeCents', label: 'Stripe fees', align: 'right', render: money },
+        { key: 'netCents', label: 'Net deposited', align: 'right', render: money },
+        { key: 'taxCents', label: 'Sales tax', align: 'right', render: money },
+        { key: 'keptCents', label: 'Kept', align: 'right', render: (v) => <span style={{ fontWeight: 700 }}>{money(v)}</span> },
+    ];
+    const footer = totals ? { month: 'Total', ...totals } : null;
+    const incomplete = coverage && coverage.total > 0 && coverage.captured < coverage.total;
+    return (
+        <ReportLayout
+            title="Stripe fees & true net"
+            description="What Stripe actually took per charge vs your pass-through. Net deposited = gross − Stripe's real fee; Kept = net − sales tax. Paid bookings only."
+            loading={loading}
+            error={error}
+            onExportCsv={() => downloadCsv('stripe-fees', filters)}
+        >
+            {series.length === 0 ? (
+                <ReportEmptyState kind="no-data" />
+            ) : (
+                <div style={chartRow}>
+                    <div style={chartCol}>
+                        <ReportTable columns={columns} rows={series} footer={footer} />
+                        {incomplete && (
+                            <p style={note}>
+                                {coverage.captured} of {coverage.total} paid bookings reconciled — the rest fill in on the nightly Stripe sync.
+                            </p>
+                        )}
+                    </div>
+                    <MetricCard
+                        label="Kept (net of fees + tax)"
+                        value={money(totals.keptCents)}
+                        sublabel={data.effectiveFeeRate != null ? `${(data.effectiveFeeRate * 100).toFixed(2)}% effective Stripe fee` : 'awaiting reconciliation'}
+                    />
+                </div>
+            )}
+        </ReportLayout>
+    );
+}
+
 function Thresholds1099Card() {
     return (
         <ReportLayout
@@ -218,6 +264,7 @@ export default function BookkeeperReports() {
             </div>
             <PayoutsCard filters={filters} />
             <BudgetVsActualCard filters={filters} />
+            <StripeFeesCard filters={filters} />
             <TaxFeeCard filters={filters} />
             <PeriodComparisonCard filters={filters} />
             <Thresholds1099Card />
