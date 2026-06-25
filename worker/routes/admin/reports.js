@@ -27,6 +27,7 @@ import {
     bucketRepeatCustomers,
     computeSeriesRetention,
     computePerEventPnl,
+    computeScorecard,
     computePayoutsSummary,
     computeTaxFeeSummary,
     computePeriodComparison,
@@ -325,6 +326,120 @@ adminReports.get('/owner/per-event-pnl',
                 ]));
         }
         return c.json({ report: 'per-event-pnl', period: window.period, window, ...payload });
+    });
+
+// 7. Owner weekly scorecard — EOS Level-10-style 13-week grid of cash + demand
+//    metrics, each auto-targeted to its own trailing-median (current week
+//    excluded) so there's nothing to configure. Always the trailing 13 ISO weeks
+//    (Monday 00:00 UTC); the period/event filters do NOT apply. Quiet weeks
+//    (no sales / no FR receipts) render neutral, not red. The math lives in the
+//    pure computeScorecard; the route just windows + buckets the D1 rows.
+adminReports.get('/owner/scorecard',
+    requireCapability('reports.read.owner'),
+    async (c) => {
+        const { format } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+
+        const DAY = 86400000;
+        const WEEK = 7 * DAY;
+        const now = Date.now();
+        const nd = new Date(now);
+        const daysSinceMonday = (nd.getUTCDay() + 6) % 7; // getUTCDay: 0=Sun..6=Sat → Mon=0
+        const mondayUtc = Date.UTC(nd.getUTCFullYear(), nd.getUTCMonth(), nd.getUTCDate()) - daysSinceMonday * DAY;
+        const windowStartMs = mondayUtc - 12 * WEEK;      // oldest of 13 weeks
+        const windowEndMs = mondayUtc + WEEK;             // end of the current (in-progress) week
+
+        const weeks = [];
+        for (let i = 0; i < 13; i++) {
+            const startMs = windowStartMs + i * WEEK;
+            weeks.push({
+                index: i,
+                startMs,
+                endMs: startMs + WEEK,
+                startIso: new Date(startMs).toISOString().slice(0, 10),
+                isCurrent: i === 12,
+                isPartial: i === 12,
+            });
+        }
+
+        // Three grouped queries; each row's wk = integer week offset from window
+        // start (0..12). status IN ('paid','comp') powers cash/earned/paid-count;
+        // field-rental receipts + the refund charged/refunded counts are separate.
+        // Comps are recorded as $0 (worker/routes/admin/bookings.js), so including
+        // 'comp' in the cash/earned SUMs is a no-op (kept for parity with the
+        // income-card basis); paid_count + the volume floor count only 'paid'.
+        const [bk, fr, rf] = await Promise.all([
+            c.env.DB.prepare(
+                `SELECT CAST((paid_at - ?) / 604800000 AS INTEGER) AS wk,
+                        COALESCE(SUM(total_cents),0) AS cash_cents,
+                        COALESCE(SUM(total_cents - COALESCE(tax_cents,0) - COALESCE(fee_cents,0)),0) AS earned_cents,
+                        SUM(CASE WHEN status='paid' THEN 1 ELSE 0 END) AS paid_count
+                 FROM bookings
+                 WHERE status IN ('paid','comp') AND paid_at >= ? AND paid_at < ?
+                 GROUP BY wk`
+            ).bind(windowStartMs, windowStartMs, windowEndMs).all(),
+            c.env.DB.prepare(
+                `SELECT CAST((received_at - ?) / 604800000 AS INTEGER) AS wk,
+                        COALESCE(SUM(amount_cents),0) AS fr_cents
+                 FROM field_rental_payments
+                 WHERE status='received' AND received_at >= ? AND received_at < ?
+                 GROUP BY wk`
+            ).bind(windowStartMs, windowStartMs, windowEndMs).all(),
+            // refund_rate = refunded / ever-charged, where charged counts every
+            // booking that was ever charged (status IN ('paid','refunded')). This
+            // is the standard "share of charged money refunded" basis and is
+            // DELIBERATELY different from analytics.js's paid-only denominator
+            // (refundedCount/paidCount) — the scorecard's is the more defensible one.
+            c.env.DB.prepare(
+                `SELECT CAST((paid_at - ?) / 604800000 AS INTEGER) AS wk,
+                        COUNT(CASE WHEN status IN ('paid','refunded') THEN 1 END) AS charged,
+                        COUNT(CASE WHEN refunded_at IS NOT NULL OR refund_external = 1 THEN 1 END) AS refunded
+                 FROM bookings
+                 WHERE paid_at >= ? AND paid_at < ?
+                 GROUP BY wk`
+            ).bind(windowStartMs, windowStartMs, windowEndMs).all(),
+        ]);
+
+        const slot = () => Array(13).fill(0);
+        const cash = slot(), earned = slot(), paidCount = slot(), frCash = slot(), charged = slot(), refunded = slot();
+        for (const r of (bk.results || [])) {
+            const i = Number(r.wk);
+            if (i >= 0 && i < 13) { cash[i] = Number(r.cash_cents) || 0; earned[i] = Number(r.earned_cents) || 0; paidCount[i] = Number(r.paid_count) || 0; }
+        }
+        for (const r of (fr.results || [])) {
+            const i = Number(r.wk);
+            if (i >= 0 && i < 13) frCash[i] = Number(r.fr_cents) || 0;
+        }
+        for (const r of (rf.results || [])) {
+            const i = Number(r.wk);
+            if (i >= 0 && i < 13) { charged[i] = Number(r.charged) || 0; refunded[i] = Number(r.refunded) || 0; }
+        }
+
+        // Derived (no extra round-trip): AOV = earned ÷ paid count; refund rate.
+        const aov = paidCount.map((n, i) => (n > 0 ? Math.round(earned[i] / n) : null));
+        const refundRate = charged.map((cnt, i) => (cnt > 0 ? refunded[i] / cnt : null));
+
+        const metricInputs = [
+            { key: 'cash_in',           label: 'Cash In',           unit: 'money',   direction: 'higher-better', weekValues: cash,       volumeByWeek: paidCount },
+            { key: 'earned_revenue',    label: 'Earned Revenue',    unit: 'money',   direction: 'higher-better', weekValues: earned,     volumeByWeek: paidCount },
+            { key: 'paid_bookings',     label: 'Paid Bookings',     unit: 'count',   direction: 'higher-better', weekValues: paidCount,  volumeByWeek: paidCount },
+            { key: 'aov',               label: 'AOV',               unit: 'money',   direction: 'higher-better', weekValues: aov,        volumeByWeek: paidCount },
+            { key: 'field_rental_cash', label: 'Field Rental Cash', unit: 'money',   direction: 'higher-better', weekValues: frCash,     volumeByWeek: frCash },
+            { key: 'refund_rate',       label: 'Refund Rate',       unit: 'percent', direction: 'lower-better',  weekValues: refundRate, volumeByWeek: charged },
+        ];
+
+        const payload = computeScorecard({ weeks, metricInputs });
+
+        if (format === 'csv') {
+            const fmt = (unit, v) => (v == null ? '' : unit === 'money' ? dollars(v) : unit === 'percent' ? (v * 100).toFixed(1) : String(v));
+            return csvResponse('owner-scorecard',
+                ['Metric', 'Target', 'Avg', ...weeks.map((w) => w.startIso)],
+                payload.metrics.map((m) => [
+                    m.label, fmt(m.unit, m.target), fmt(m.unit, m.avg),
+                    ...m.cells.map((cell) => fmt(m.unit, cell.value)),
+                ]));
+        }
+        return c.json({ report: 'owner-scorecard', generatedAtMs: now, ...payload });
     });
 
 // ────────────────────────────────────────────────────────────────────

@@ -51,7 +51,7 @@ describe('OwnerReports', () => {
     it('renders all five report cards', async () => {
         mockEmpty('/api/admin/reports/owner');
         renderWithAdmin(<OwnerReports />);
-        await expectTitles(['Revenue trends', 'Refund rate', 'Average order value', 'Retention by event series', 'Repeat customers']);
+        await expectTitles(['Weekly scorecard', 'Revenue trends', 'Refund rate', 'Average order value', 'Retention by event series', 'Repeat customers']);
     });
 
     it('shows the error state when a report fails to load', async () => {

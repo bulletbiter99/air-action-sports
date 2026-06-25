@@ -57,6 +57,27 @@ describe('GET /api/admin/reports/* — Owner endpoints (Batch 2 — implemented)
         expect(await res.text()).toContain('Event,Date,Revenue,Direct Costs,Margin');
     });
 
+    it('scorecard returns 200 with 13 weeks + 6 metrics + a summary', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.owner']);
+        const res = await worker.fetch(req('/api/admin/reports/owner/scorecard'), env, {});
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.report).toBe('owner-scorecard');
+        expect(data.weeks).toHaveLength(13);
+        expect(data.weeks[12].isCurrent).toBe(true);
+        expect(data.metrics).toHaveLength(6);
+        expect(data.metrics[0].cells).toHaveLength(13);
+        expect(data.summary).toHaveProperty('on');
+    });
+
+    it('scorecard CSV export returns text/csv with reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.owner', 'reports.export']);
+        const res = await worker.fetch(req('/api/admin/reports/owner/scorecard?format=csv'), env, {});
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/csv');
+        expect(await res.text()).toContain('Metric,Target,Avg');
+    });
+
     it('owner endpoint returns 403 without reports.read.owner', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read']);
         const res = await worker.fetch(req('/api/admin/reports/owner/aov-trend'), env, {});
@@ -284,6 +305,7 @@ describe('All 16 endpoints mounted', () => {
             '/api/admin/reports/owner/repeat-customers',
             '/api/admin/reports/owner/aov-trend',
             '/api/admin/reports/owner/per-event-pnl',
+            '/api/admin/reports/owner/scorecard',
         ];
         for (const path of paths) {
             const res = await worker.fetch(req(path), env, {});
