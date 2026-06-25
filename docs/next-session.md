@@ -1,6 +1,6 @@
-# Next-session entry point — post 2026-06-24 (ACCOUNTING SUITE COMPLETE: PRs #319–#328 merged + deployed)
+# Next-session entry point — post 2026-06-25 (ACCOUNTING ROADMAP COMPLETE: A/R aging + Owner scorecard shipped)
 
-Fresh-session entry point for Air Action Sports. **Updated 2026-06-24** (close-off of the accounting-suite session — PRs **#319–#328** merged + deployed, migrations **0074 + 0075** applied, tests **2945 → 3003 / 251 → 259**; the income card, deferred revenue, expenses + budgets, P&L reports, 13-week cash-flow forecast, and true Stripe-fee capture). The 2026-06-18 admin design-consistency sweep (#306 / #308–#315 / #317) is complete; the earlier 2026-06-17 session cleared both ⭐ M8 work-menu items (#297–#304); prior sessions: **2026-06-11** waiver-confirmation email + waiver UX (#291–#295, migration 0073) and **2026-06-06** homepage reorder/polish (#289/#290) — all summarized below.
+Fresh-session entry point for Air Action Sports. **Updated 2026-06-25** — shipped the **last two substantive accounting-roadmap items + a CI-hygiene fix**, 3 PRs merged + deployed: **A/R aging + DSO** ([#330](https://github.com/bulletbiter99/air-action-sports/pull/330)), **admin visual baseline recapture** ([#331](https://github.com/bulletbiter99/air-action-sports/pull/331)), and the **Owner weekly scorecard** ([#332](https://github.com/bulletbiter99/air-action-sports/pull/332)). Tests **3003 → 3017 / 259**; no new migrations. The **only remaining roadmap item is the explicitly-minor refund-side Stripe-fee reconciliation** (see the work menu + memory `accounting-dashboard-roadmap`). Prior context: **2026-06-24** accounting suite #319–#328 (migrations 0074 + 0075); the 2026-06-18 admin design-consistency sweep (#306 / #308–#315 / #317); 2026-06-17 cleared both ⭐ M8 work-menu items (#297–#304); **2026-06-11** waiver-confirmation email + waiver UX (#291–#295, migration 0073) and **2026-06-06** homepage reorder/polish (#289/#290) — all summarized below.
 ⚠️ **Heads-up on the cutover:** earlier docs recorded the M6 live-Stripe cutover as "DONE 2026-06-02," but it was actually **broken** — production was silently still in Stripe **TEST mode** (every checkout session `cs_test_`) until it was really cut over + e2e-verified on **2026-06-03**. Production now collects real money correctly. See the **2026-06-03 section** below + memory `stripe-live-cutover-fixed-2026-06-03.md`. The earlier **2026-06-02 work-menu session** then completed a 6-item menu + a dark-theme contrast pass and **deployed twice** (`b342b39f` → `94dfb7a9`): applied migrations **0065–0070**, shipped the **marketing route-capability swap**, the **admin dark-theme contrast fix**, **RTL admin-page test coverage**, **representative-data visual baselines**, and **item 6 — admin-editable event content end-to-end** (server sanitizer + admin "Detail page content" editor + Foxtrot seeded live). **What remains (as of 2026-06-17):** operator activation only (Marketing send + Resend webhook + FTS flag) — the item-1 RTL long tail **and** the admin design-consistency sweep are now **DONE** (see the 2026-06-17 section below). Detail below.
 
 ---
@@ -9,13 +9,27 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-24** (close-o
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `bc8614c` (re-pull for exact) |
-| Tests | **3003 / 259** all green |
+| `main` HEAD | `bbade64` (re-pull for exact) |
+| Tests | **3017 / 259** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed from `main` via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + waiver-confirmation receipts live (2026-06-11) + the **accounting suite** deployed (Finances cluster + new reports + nightly Stripe-fee cron). |
-| Migrations on remote | **0001–0075 ALL applied** — 0074 (expenses/budgets) + 0075 (Stripe fees) applied 2026-06-24; a `migrations apply` finds nothing new. |
-| Open PRs | 0 (all merged through #328) |
-| Open milestone | **None active.** The **accounting suite** is **COMPLETE** (2026-06-24, PRs #319–#328 — income basis + deferred revenue + expenses/budgets + P&L reports + cash-flow forecast + true Stripe-fee capture); the admin design-consistency sweep was completed 2026-06-18. Remaining work is operator activation only (Marketing send + Resend webhook + FTS flag + the 2 cutover invoices). The nightly Stripe-fee cron backfills 53 paid bookings automatically (≤2 nights at LIMIT 50/night) — awareness only, no action. |
+| Production | deployed from `main` via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe (cut over 2026-06-03) + Marketing/deliverability schema active + waiver-confirmation receipts live (2026-06-11) + the **accounting suite** deployed (Finances cluster + new reports + nightly Stripe-fee cron + **A/R aging** + the **Owner weekly scorecard**). |
+| Migrations on remote | **0001–0075 ALL applied** — a `migrations apply` finds nothing new. (A/R aging + scorecard added **no** migrations.) |
+| Open PRs | 0 (all merged through #332) |
+| Open milestone | **None active.** The **accounting roadmap is effectively COMPLETE** — the 2026-06-24 suite (#319–#328) plus 2026-06-25's **A/R aging + DSO** (#330) and **Owner weekly scorecard** (#332). The only remaining roadmap item is the explicitly-minor **refund-side Stripe-fee reconciliation**. Remaining non-roadmap work is operator activation only (Marketing send + Resend webhook + FTS flag + the 2 cutover invoices). **CI note:** the Admin visual regression check is **green again** (#331 recaptured the `admin-reports` + `admin-dashboard` baselines that had drifted from the accounting suite) — no more merging-through-red. |
+
+---
+
+## ✅ DONE — A/R aging + Owner scorecard + CI baseline hygiene (2026-06-25)
+
+Shipped the **two substantive remaining accounting-roadmap items** plus a CI-hygiene fix. **3 PRs merged + deployed · tests 3003 → 3017 / 259 · no migrations · no do-not-touch files.** Each feature PR was adversarially reviewed by a multi-agent workflow before merge (verdicts GO; real findings folded in). Full design + durable notes in memory `accounting-dashboard-roadmap`.
+
+| PR | What |
+|---|---|
+| [#330](https://github.com/bulletbiter99/air-action-sports/pull/330) | **Field-rental A/R aging + DSO** (Bookkeeper report) — the roadmap's "A/R section," correctly scoped to AAS's only real receivables (tickets are prepaid via Stripe → the B2B field-rental side is the sole exposure). `computeArAging` buckets outstanding `field_rental_payments` (status='pending') by age past `due_at` (Current / 1-30 / 31-60 / 61-90 / 90+) + overdue split + **DSO** (outstanding ÷ trailing-365-day daily receipts). `GET /api/admin/reports/bookkeeper/ar-aging` (+CSV); `ArAgingCard` on the Bookkeeper tab. **Review fix:** the pending query excludes `fr.status IN ('cancelled','refunded')` (a cancel doesn't cascade to pending payment rows → dead deals would otherwise show as live receivables). Snapshot of now (period filter N/A). Empty until a FR has a pending payment. |
+| [#331](https://github.com/bulletbiter99/air-action-sports/pull/331) | **Admin visual baseline recapture** — the Admin visual regression check had been **red on every PR since the accounting suite**: `admin-reports` drifted from #324 (per-event-P&L card on the Owner tab) and `admin-dashboard` from #320 (DeferredRevenue widget). Both genuine drift (not flakes). Recaptured via the `capture-baselines` bot + added a zero-shaped `/analytics/deferred-revenue` mock so the dashboard captures `$0.00` not `$NaN`. **The check is green again.** |
+| [#332](https://github.com/bulletbiter99/air-action-sports/pull/332) | **Owner weekly scorecard** (the research's section-1 EOS Level-10 grid) — a 13-week metrics×weeks grid, on/watch/off per cell vs an **auto-derived target**, **nothing to configure**. Designed via a 3-way judge-panel. 6 metrics (Cash In / Earned Revenue / Paid Bookings / AOV / Field Rental Cash / Refund Rate). Target = each metric's 12-week trailing **median** of *active* weeks; quiet/low-volume weeks render **neutral gray** (the seasonality "don't cry wolf" guard); the in-progress + insufficient-baseline weeks are neutral too. `computeScorecard` + `median` (pure) in `worker/lib/reports.js`; `GET /owner/scorecard` (+CSV); new `src/admin/reports/ScorecardGrid.jsx`; `ScorecardCard` at the top of the Owner Reports tab. Shows a "Baseline building" note on the young dataset. |
+
+**Durable lessons (this session):** (1) the Admin visual baseline captures the **Owner** reports tab (mocked persona='owner') — a Bookkeeper-tab card (A/R aging) does NOT shift it, but an Owner-tab card (scorecard) does → recapture. (2) The `capture-baselines` bot recaptures **both** public + admin suites and commits PNGs; after it pushes, a follow-up commit (a real one or empty) is needed to re-trigger CI past GitHub's anti-recursion block. (3) Comps are structurally **$0** (bookings.js) — so including `'comp'` in cash/earned SUMs is a no-op and comp-only weeks are genuinely $0. (4) `field_rental_payments` pending rows can outlive a cancelled rental (no cascade) — any FR-receivables query must filter `fr.status`. (5) `events.date_iso` has a TIME component; `formatMoney` has no thousands separator (both still bite).
 
 ---
 
@@ -201,8 +215,11 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 
 ## Work menu (pick for the next session)
 
+**The accounting-dashboard roadmap is effectively complete** (10 surfaces; see memory `accounting-dashboard-roadmap`). The single remaining roadmap item is the explicitly-minor **refund-side Stripe-fee reconciliation** — the nightly `runStripeFeeSync` cron is paid-only, so refunded bookings never capture their actual Stripe fee/net and the "Stripe fees & true net" report silently excludes them. Care: Stripe does NOT refund the original processing fee (it's a sunk cost) and the refund's own balance transaction is usually $0-fee. Self-contained completion of the M6 true-fee work; would extend `worker/lib/stripeFeeSync.js` + the stripe-fees report. Otherwise the natural next work is operator activation (row 8) or a new feature direction from the operator.
+
 | # | Track | Notes |
 |---|---|---|
+| 0 | **Refund-side Stripe-fee reconciliation** (only remaining roadmap item; minor) | The true-fee cron is paid-only; capture refunded bookings' actual fee/net too. See the note above + memory `accounting-dashboard-roadmap`. Low urgency (refunds are rare). |
 | 1 | ~~M8 — JSX coverage backfill (long tail)~~ | ✅ **DONE 2026-06-17.** Batch 1 (#269) + batches A1–A6 ([#299](https://github.com/bulletbiter99/air-action-sports/pull/299)–[#304](https://github.com/bulletbiter99/air-action-sports/pull/304)) cover all 12 target admin pages: Waivers, Vendors, Bookings(+Detail), Events, Roster, FieldRentals(+Detail/New), Staff(+Detail), Scan. Patterns: `renderWithAdmin`/`renderWithRouter` + `installClientFetch`; sized-`ResizeObserver` stub for VirtualizedList pages; `fireEvent` for fixed-overlay modals; `vi.hoisted` `@zxing/browser` mock for Scan. |
 | 2 | **Marketing route capability swap** | ✅ **DONE 2026-06-02** (deployed) — segments/campaigns/automations now `requireCapability('marketing.*')`, method-aware, with caps bound in the route tests. Remaining marketing polish: optional `date_relative` automation trigger + a formal sidebar "Marketing" group + **send activation** (operator-pending #1–2 above). |
 | 3 | **M6 live-Stripe cutover** | ✅ **DONE 2026-06-03** (the 2026-06-02 record was inaccurate — prod was silently in Stripe TEST mode until then). Production now takes real payments, verified e2e. ⏳ 2 invoice-remediation payments still outstanding — see Operator-pending. [docs/m6-operator-cutover-checklist.md](m6-operator-cutover-checklist.md). |
@@ -220,7 +237,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 3003 / 259
+npm test -- --run | tail -3        # expect 3017 / 259
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
