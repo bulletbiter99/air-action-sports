@@ -65,7 +65,7 @@ describe('BookkeeperReports', () => {
     it('renders its cards + the 1099 Thresholds deep link', async () => {
         mockEmpty('/api/admin/reports/bookkeeper');
         renderWithAdmin(<BookkeeperReports />);
-        await expectTitles(['Payouts summary', 'Tax & fee summary', 'Period comparison', '1099 Thresholds']);
+        await expectTitles(['Payouts summary', 'Field rental A/R aging', 'Tax & fee summary', 'Period comparison', '1099 Thresholds']);
         const link = screen.getByRole('link', { name: /Open 1099 Thresholds/ });
         expect(link).toHaveAttribute('href', '/admin/staff/1099-thresholds');
     });
