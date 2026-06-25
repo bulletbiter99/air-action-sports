@@ -22,6 +22,7 @@ import ReportTable from './ReportTable.jsx';
 import MetricCard from './charts/MetricCard.jsx';
 import { formatMoney } from '../../utils/money.js';
 import { categoryLabel } from '../../utils/expenseCategories.js';
+import { fmtDate } from '../../utils/dateFormat.js';
 
 const BK_BASE = '/api/admin/reports/bookkeeper';
 
@@ -237,6 +238,83 @@ function StripeFeesCard({ filters }) {
     );
 }
 
+// Outstanding amount tinted by bucket age (footer row has no `key` → no tint).
+function AgingAmountCell({ cents, bucketKey }) {
+    const color =
+        bucketKey === 'd90plus' ? 'var(--color-danger)'
+            : (bucketKey === 'd61_90' || bucketKey === 'd31_60') ? 'var(--color-warning)'
+                : undefined;
+    return <span style={color ? { color, fontWeight: 700 } : undefined}>{money(cents)}</span>;
+}
+
+function ArAgingCard({ filters }) {
+    const { data, loading, error } = useReport('ar-aging', filters);
+    const totals = data?.totals;
+    const buckets = data?.buckets || [];
+    const items = data?.items || [];
+
+    const bucketColumns = [
+        { key: 'label', label: 'Age' },
+        { key: 'count', label: 'Invoices', align: 'right' },
+        { key: 'amountCents', label: 'Outstanding', align: 'right', render: (v, row) => <AgingAmountCell cents={v} bucketKey={row.key} /> },
+    ];
+    const bucketFooter = totals ? { key: 'total', label: 'Total', count: totals.count, amountCents: totals.amountCents } : null;
+
+    const itemColumns = [
+        { key: 'renter', label: 'Renter' },
+        { key: 'site', label: 'Site' },
+        { key: 'dueAt', label: 'Due', render: (v) => (v == null ? '—' : fmtDate(v)) },
+        { key: 'daysOverdue', label: 'Overdue', align: 'right', render: (v) => (v == null || v <= 0 ? '—' : `${v}d`) },
+        { key: 'amountCents', label: 'Amount', align: 'right', render: money },
+    ];
+
+    const dso = data?.dso;
+    return (
+        <ReportLayout
+            title="Field rental A/R aging"
+            description="Outstanding field-rental payments by age past due, as of today. Field rentals are the only receivables — tickets are prepaid via Stripe. Snapshot — not affected by the period or event filter."
+            loading={loading}
+            error={error}
+            onExportCsv={() => downloadCsv('ar-aging', filters)}
+        >
+            {!totals || totals.count === 0 ? (
+                <ReportEmptyState kind="no-data" />
+            ) : (
+                <>
+                    <div style={chartRow}>
+                        <div style={chartCol}>
+                            <ReportTable columns={bucketColumns} rows={buckets} footer={bucketFooter} />
+                        </div>
+                        <div style={metricStack}>
+                            <MetricCard
+                                label="Total outstanding"
+                                value={money(totals.amountCents)}
+                                sublabel={`${totals.count} open ${totals.count === 1 ? 'invoice' : 'invoices'}`}
+                            />
+                            <MetricCard
+                                label="Overdue"
+                                value={money(data.overdue.amountCents)}
+                                sublabel={`${data.overdue.count} past due`}
+                            />
+                            <MetricCard
+                                label="DSO"
+                                value={dso == null ? '—' : `${Math.round(dso)} days`}
+                                sublabel="trailing 365-day basis"
+                            />
+                        </div>
+                    </div>
+                    {items.length > 0 && (
+                        <div style={{ marginTop: '1rem' }}>
+                            {/* key each row by its payment id (ReportTable reads row.key) */}
+                            <ReportTable columns={itemColumns} rows={items.map((it) => ({ ...it, key: it.id }))} />
+                        </div>
+                    )}
+                </>
+            )}
+        </ReportLayout>
+    );
+}
+
 function Thresholds1099Card() {
     return (
         <ReportLayout
@@ -263,6 +341,7 @@ export default function BookkeeperReports() {
                 <ReportFilters value={filters} onChange={setFilters} showEventScope showComparison={false} />
             </div>
             <PayoutsCard filters={filters} />
+            <ArAgingCard filters={filters} />
             <BudgetVsActualCard filters={filters} />
             <StripeFeesCard filters={filters} />
             <TaxFeeCard filters={filters} />

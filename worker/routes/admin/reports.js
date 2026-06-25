@@ -32,6 +32,7 @@ import {
     computePeriodComparison,
     computeBudgetVsActual,
     computeStripeFees,
+    computeArAging,
     computeConversionFunnel,
     computePromoPerformance,
     computeCustomerCohorts,
@@ -523,6 +524,71 @@ adminReports.get('/bookkeeper/stripe-fees',
                 payload.series.map((r) => [r.month, dollars(r.grossCents), dollars(r.feeCents), dollars(r.netCents), dollars(r.taxCents), dollars(r.keptCents)]));
         }
         return c.json({ report: 'stripe-fees', period: window.period, window, ...payload });
+    });
+
+// 6. Field-rental A/R aging + DSO — outstanding (pending) field-rental payments
+//    bucketed by age past due_at, as a snapshot of NOW. The period + event
+//    filters do NOT apply (A/R is what's owed today, not a windowed flow).
+//    Tickets are prepaid via Stripe, so field rentals are AAS's only real
+//    receivables. DSO annualizes the outstanding balance against field-rental
+//    cash received over a trailing 365-day window.
+adminReports.get('/bookkeeper/ar-aging',
+    requireCapability('reports.read.bookkeeper'),
+    async (c) => {
+        const { format } = reportParams(c);
+        if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+
+        const nowMs = Date.now();
+        const DSO_WINDOW_DAYS = 365;
+        const salesSinceMs = nowMs - DSO_WINDOW_DAYS * 86400000;
+
+        const [pendingRes, salesRes] = await Promise.all([
+            // Outstanding receivables. Excludes payments on dead deals: cancelling
+            // or refunding a rental does NOT cascade to its pending payment rows
+            // (see fieldRentals.js cancel), and those aren't real receivables.
+            // Mirrors the sibling field-rental reports' fr.status filters. 'paid' /
+            // 'completed' stay IN — they can still carry a pending damage/balance.
+            c.env.DB.prepare(
+                `SELECT frp.id, frp.rental_id, frp.due_at, frp.amount_cents,
+                        COALESCE(NULLIF(c.business_name,''), c.full_name) AS renter,
+                        s.name AS site
+                 FROM field_rental_payments frp
+                 JOIN field_rentals fr ON fr.id = frp.rental_id
+                 JOIN customers c ON c.id = fr.customer_id
+                 JOIN sites s ON s.id = fr.site_id
+                 WHERE frp.status = 'pending'
+                   AND fr.status NOT IN ('cancelled','refunded')`
+            ).all(),
+            // DSO denominator: field-rental cash actually received over the trailing
+            // window. Cash-basis on purpose — historically-received cash is NOT
+            // revised if a rental is later cancelled, so this intentionally does not
+            // join/filter on field_rentals.status (unlike the numerator above).
+            c.env.DB.prepare(
+                `SELECT COALESCE(SUM(amount_cents),0) AS sales_cents
+                 FROM field_rental_payments
+                 WHERE status = 'received' AND received_at >= ?`
+            ).bind(salesSinceMs).first(),
+        ]);
+
+        const payload = computeArAging({
+            pendingRows: pendingRes.results || [],
+            salesCents: salesRes?.sales_cents ?? 0,
+            salesWindowDays: DSO_WINDOW_DAYS,
+            nowMs,
+        });
+
+        if (format === 'csv') {
+            return csvResponse('ar-aging',
+                ['Renter', 'Site', 'Due Date', 'Days Overdue', 'Amount', 'Bucket'],
+                payload.items.map((it) => [
+                    it.renter || '', it.site || '',
+                    it.dueAt == null ? '' : new Date(it.dueAt).toISOString().slice(0, 10),
+                    it.daysOverdue == null ? '' : it.daysOverdue,
+                    dollars(it.amountCents),
+                    it.bucket,
+                ]));
+        }
+        return c.json({ report: 'ar-aging', ...payload });
     });
 
 // ────────────────────────────────────────────────────────────────────

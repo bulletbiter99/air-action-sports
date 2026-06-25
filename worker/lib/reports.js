@@ -518,6 +518,82 @@ export function computeStripeFees({ monthlyRows = [] } = {}) {
     return { series, totals, coverage, effectiveFeeRate };
 }
 
+/**
+ * Field-rental A/R aging + DSO — a snapshot of what's owed as of `nowMs`.
+ *
+ * AAS tickets are prepaid via Stripe Checkout, so the only real accounts-
+ * receivable exposure is the B2B field-rental side: field_rental_payments rows
+ * still in status='pending'. Each outstanding payment is bucketed by how far
+ * past its due_at it is; an un-dated or not-yet-due payment counts as "current".
+ *
+ * DSO (Days Sales Outstanding) ≈ outstanding A/R ÷ average daily field-rental
+ * receipts. `salesCents` is the field-rental cash RECEIVED over the trailing
+ * `salesWindowDays` (the caller windows it); `dso` is null when there were no
+ * receipts (no run-rate to annualize against).
+ *
+ * @param {{
+ *   pendingRows?: Array<{id?:string, rental_id?:string, renter?:string, site?:string, due_at?:number, amount_cents?:number}>,
+ *   salesCents?: number,
+ *   salesWindowDays?: number,
+ *   nowMs?: number,
+ * }} input
+ */
+export function computeArAging({ pendingRows = [], salesCents = 0, salesWindowDays = 365, nowMs = 0 } = {}) {
+    const BUCKET_DEFS = [
+        { key: 'current', label: 'Current' },
+        { key: 'd1_30', label: '1–30 days' },
+        { key: 'd31_60', label: '31–60 days' },
+        { key: 'd61_90', label: '61–90 days' },
+        { key: 'd90plus', label: '90+ days' },
+    ];
+    const tally = {};
+    for (const b of BUCKET_DEFS) tally[b.key] = { count: 0, amountCents: 0 };
+
+    const items = pendingRows.map((r) => {
+        const due = r.due_at ?? r.dueAt;
+        const dueAt = due == null ? null : Number(due);
+        const amountCents = Math.round(Number(r.amount_cents ?? r.amountCents ?? 0));
+        const daysOverdue = dueAt == null ? null : Math.floor((nowMs - dueAt) / DAY_MS_REPORTS);
+        let bucket;
+        if (daysOverdue == null || daysOverdue <= 0) bucket = 'current';
+        else if (daysOverdue <= 30) bucket = 'd1_30';
+        else if (daysOverdue <= 60) bucket = 'd31_60';
+        else if (daysOverdue <= 90) bucket = 'd61_90';
+        else bucket = 'd90plus';
+        tally[bucket].count += 1;
+        tally[bucket].amountCents += amountCents;
+        return {
+            id: r.id,
+            rentalId: r.rental_id ?? r.rentalId ?? null,
+            renter: r.renter ?? null,
+            site: r.site ?? null,
+            dueAt,
+            amountCents,
+            daysOverdue,
+            bucket,
+        };
+    });
+    // Most overdue first; un-dated / not-yet-due (daysOverdue null/≤0) sink down.
+    items.sort((a, b) => (b.daysOverdue ?? -Infinity) - (a.daysOverdue ?? -Infinity));
+
+    const buckets = BUCKET_DEFS.map((b) => ({ key: b.key, label: b.label, ...tally[b.key] }));
+    const totals = buckets.reduce(
+        (t, b) => ({ count: t.count + b.count, amountCents: t.amountCents + b.amountCents }),
+        { count: 0, amountCents: 0 },
+    );
+    const current = { ...tally.current };
+    const overdue = {
+        count: totals.count - current.count,
+        amountCents: totals.amountCents - current.amountCents,
+    };
+
+    const sales = Math.max(0, Math.round(Number(salesCents) || 0));
+    const days = Math.max(1, Math.round(Number(salesWindowDays) || 0));
+    const dso = sales > 0 ? totals.amountCents / (sales / days) : null;
+
+    return { buckets, items, totals, current, overdue, dso, salesCents: sales, salesWindowDays: days };
+}
+
 // ────────────────────────────────────────────────────────────────────
 // Marketing report shapers (Batch 4)
 // ────────────────────────────────────────────────────────────────────

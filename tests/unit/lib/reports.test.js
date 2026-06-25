@@ -18,6 +18,7 @@ import {
     computeBudgetVsActual,
     computePerEventPnl,
     computeStripeFees,
+    computeArAging,
     computeConversionFunnel,
     computePromoPerformance,
     computeCustomerCohorts,
@@ -516,6 +517,56 @@ describe('computeStripeFees', () => {
         expect(out.coverage).toEqual({ captured: 0, total: 0, pct: 1 });
         expect(out.effectiveFeeRate).toBeNull();
         expect(out.totals.keptCents).toBe(0);
+    });
+});
+
+describe('computeArAging', () => {
+    it('buckets pending payments by age past due and totals them', () => {
+        const out = computeArAging({
+            nowMs: NOW,
+            salesCents: 0,
+            pendingRows: [
+                { id: 'p1', rental_id: 'fr1', renter: 'Acme', site: 'Ghost Town', due_at: NOW + 5 * DAY, amount_cents: 10000 }, // not yet due → current
+                { id: 'p2', rental_id: 'fr2', renter: 'Beta', site: 'Foxtrot', due_at: NOW - 10 * DAY, amount_cents: 20000 },    // 1–30
+                { id: 'p3', rental_id: 'fr3', renter: 'Gamma', site: 'Foxtrot', due_at: NOW - 45 * DAY, amount_cents: 30000 },   // 31–60
+                { id: 'p4', rental_id: 'fr4', renter: 'Delta', site: 'Foxtrot', due_at: NOW - 120 * DAY, amount_cents: 40000 },  // 90+
+                { id: 'p5', rental_id: 'fr5', renter: 'Epsilon', site: 'Foxtrot', due_at: null, amount_cents: 5000 },           // un-dated → current
+            ],
+        });
+        const byKey = Object.fromEntries(out.buckets.map((b) => [b.key, b]));
+        expect(byKey.current).toMatchObject({ count: 2, amountCents: 15000 }); // not-due + un-dated
+        expect(byKey.d1_30.amountCents).toBe(20000);
+        expect(byKey.d31_60.amountCents).toBe(30000);
+        expect(byKey.d61_90.count).toBe(0);
+        expect(byKey.d90plus.amountCents).toBe(40000);
+        expect(out.totals).toEqual({ count: 5, amountCents: 105000 });
+        expect(out.overdue).toEqual({ count: 3, amountCents: 90000 });
+        // Most overdue first.
+        expect(out.items[0].id).toBe('p4');
+        expect(out.items[0].daysOverdue).toBe(120);
+    });
+
+    it('DSO annualizes outstanding A/R against trailing receipts; null with no receipts', () => {
+        const out = computeArAging({
+            nowMs: NOW,
+            salesWindowDays: 365,
+            salesCents: 365000, // $3650 over 365d → $10/day run-rate
+            pendingRows: [{ id: 'p1', due_at: NOW - 1 * DAY, amount_cents: 50000 }], // $500 outstanding
+        });
+        // 50000 / (365000 / 365) = 50000 / 1000 = 50 days
+        expect(out.dso).toBeCloseTo(50);
+
+        const none = computeArAging({ pendingRows: [{ id: 'x', amount_cents: 100 }], salesCents: 0 });
+        expect(none.dso).toBeNull();
+    });
+
+    it('returns a valid empty shape with no input', () => {
+        const out = computeArAging({});
+        expect(out.totals).toEqual({ count: 0, amountCents: 0 });
+        expect(out.overdue).toEqual({ count: 0, amountCents: 0 });
+        expect(out.items).toEqual([]);
+        expect(out.dso).toBeNull();
+        expect(out.buckets).toHaveLength(5);
     });
 });
 

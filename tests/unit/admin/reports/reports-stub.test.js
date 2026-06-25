@@ -147,6 +147,26 @@ describe('GET /api/admin/reports/* — Bookkeeper endpoints (Batch 3 — impleme
         expect(await res.text()).toContain('Month,Gross,Stripe Fees,Net Deposited,Sales Tax,Kept');
     });
 
+    it('ar-aging returns 200 with buckets + totals + dso', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper']);
+        const res = await worker.fetch(req('/api/admin/reports/bookkeeper/ar-aging'), env, {});
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.report).toBe('ar-aging');
+        expect(Array.isArray(data.buckets)).toBe(true);
+        expect(data.buckets).toHaveLength(5);
+        expect(data.totals).toHaveProperty('amountCents');
+        expect(data).toHaveProperty('dso');
+    });
+
+    it('ar-aging CSV export returns text/csv with reports.export', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper', 'reports.export']);
+        const res = await worker.fetch(req('/api/admin/reports/bookkeeper/ar-aging?format=csv'), env, {});
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/csv');
+        expect(await res.text()).toContain('Renter,Site,Due Date,Days Overdue,Amount,Bucket');
+    });
+
     it('returns 403 without reports.read.bookkeeper', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read.owner']);  // owner cap, not bookkeeper
         const res = await worker.fetch(req('/api/admin/reports/bookkeeper/tax-fee-summary'), env, {});
@@ -271,7 +291,7 @@ describe('All 16 endpoints mounted', () => {
         }
     });
 
-    it('every Bookkeeper report endpoint returns 200 (5 endpoints; 1099 thresholds links elsewhere)', async () => {
+    it('every Bookkeeper report endpoint returns 200 (6 endpoints; 1099 thresholds links elsewhere)', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper']);
         const paths = [
             '/api/admin/reports/bookkeeper/payouts',
@@ -279,6 +299,7 @@ describe('All 16 endpoints mounted', () => {
             '/api/admin/reports/bookkeeper/period-comparison',
             '/api/admin/reports/bookkeeper/budget-vs-actual',
             '/api/admin/reports/bookkeeper/stripe-fees',
+            '/api/admin/reports/bookkeeper/ar-aging',
         ];
         for (const path of paths) {
             const res = await worker.fetch(req(path), env, {});
