@@ -88,6 +88,10 @@ export async function installAdminMocks(page, { authed = true, overrides = [] } 
 
         // Dashboard aggregates → zero-shaped (clean $0/0, not NaN)
         if (path.includes('/analytics/overview')) return json(ZERO_OVERVIEW);
+        // Owner-dashboard "Revenue recognition" widget (DeferredRevenue, #320).
+        // Without this it falls through to the generic EMPTY mock → deferredCents
+        // is undefined → formatMoney(undefined) renders "$NaN" in the baseline.
+        if (path.includes('/analytics/deferred-revenue')) return json({ deferredCents: 0, recognizedCents: 0, upcomingEvents: [] });
         if (path.includes('/analytics/funnel')) return json(ZERO_FUNNEL);
         if (path.includes('/analytics/sales-series')) return json({ series: [] });
         if (path.includes('/dashboard/action-queue')) return json(ZERO_ACTION_QUEUE);
