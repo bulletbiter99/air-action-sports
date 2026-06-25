@@ -619,24 +619,38 @@ adminReports.get('/bookkeeper/stripe-fees',
 
         const evt = eventId ? ' AND event_id = ?' : '';
         const binds = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
-        const monthly = await c.env.DB.prepare(
-            `SELECT strftime('%Y-%m', paid_at/1000,'unixepoch') AS month,
-                    COALESCE(SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN total_cents ELSE 0 END),0) AS gross_cents,
-                    COALESCE(SUM(stripe_fee_cents),0) AS fee_cents,
-                    COALESCE(SUM(stripe_net_cents),0) AS net_cents,
-                    COALESCE(SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN tax_cents ELSE 0 END),0) AS tax_cents,
-                    COUNT(*) AS paid_count,
-                    SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN 1 ELSE 0 END) AS captured_count
-             FROM bookings
-             WHERE status = 'paid' AND paid_at >= ? AND paid_at < ?${evt}
-             GROUP BY month ORDER BY month ASC`
-        ).bind(...binds).all();
+        const [monthly, refunded] = await Promise.all([
+            c.env.DB.prepare(
+                `SELECT strftime('%Y-%m', paid_at/1000,'unixepoch') AS month,
+                        COALESCE(SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN total_cents ELSE 0 END),0) AS gross_cents,
+                        COALESCE(SUM(stripe_fee_cents),0) AS fee_cents,
+                        COALESCE(SUM(stripe_net_cents),0) AS net_cents,
+                        COALESCE(SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN tax_cents ELSE 0 END),0) AS tax_cents,
+                        COUNT(*) AS paid_count,
+                        SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN 1 ELSE 0 END) AS captured_count
+                 FROM bookings
+                 WHERE status = 'paid' AND paid_at >= ? AND paid_at < ?${evt}
+                 GROUP BY month ORDER BY month ASC`
+            ).bind(...binds).all(),
+            // Refunded bookings: Stripe keeps the original fee (unrecoverable). Sum
+            // the captured fee per month (windowed by paid_at, same cohort as gross);
+            // SUM ignores NULL so only reconciled refunds contribute money.
+            c.env.DB.prepare(
+                `SELECT strftime('%Y-%m', paid_at/1000,'unixepoch') AS month,
+                        COALESCE(SUM(stripe_fee_cents),0) AS refunded_fee_cents,
+                        COUNT(*) AS refunded_count,
+                        SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN 1 ELSE 0 END) AS refunded_captured
+                 FROM bookings
+                 WHERE status = 'refunded' AND paid_at >= ? AND paid_at < ?${evt}
+                 GROUP BY month ORDER BY month ASC`
+            ).bind(...binds).all(),
+        ]);
 
-        const payload = computeStripeFees({ monthlyRows: monthly.results || [] });
+        const payload = computeStripeFees({ monthlyRows: monthly.results || [], refundRows: refunded.results || [] });
         if (format === 'csv') {
             return csvResponse('stripe-fees',
-                ['Month', 'Gross', 'Stripe Fees', 'Net Deposited', 'Sales Tax', 'Kept'],
-                payload.series.map((r) => [r.month, dollars(r.grossCents), dollars(r.feeCents), dollars(r.netCents), dollars(r.taxCents), dollars(r.keptCents)]));
+                ['Month', 'Gross', 'Stripe Fees', 'Net Deposited', 'Sales Tax', 'Kept', 'Refund Fees Lost'],
+                payload.series.map((r) => [r.month, dollars(r.grossCents), dollars(r.feeCents), dollars(r.netCents), dollars(r.taxCents), dollars(r.keptCents), dollars(r.refundedFeeCents)]));
         }
         return c.json({ report: 'stripe-fees', period: window.period, window, ...payload });
     });

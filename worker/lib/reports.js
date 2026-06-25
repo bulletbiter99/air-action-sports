@@ -483,23 +483,48 @@ export function computePerEventPnl({ eventRows = [], costRows = [] } = {}) {
  * @param {{ monthlyRows?: Array<{month?:string, gross_cents?:number, fee_cents?:number,
  *   net_cents?:number, tax_cents?:number, paid_count?:number, captured_count?:number}> }} input
  */
-export function computeStripeFees({ monthlyRows = [] } = {}) {
-    const series = monthlyRows.map((r) => {
-        const grossCents = Number(r.gross_cents ?? 0);
-        const feeCents = Number(r.fee_cents ?? 0);
-        const netCents = Number(r.net_cents ?? 0);
-        const taxCents = Number(r.tax_cents ?? 0);
-        return {
-            month: r.month ?? r.m,
-            grossCents,
-            feeCents,
-            netCents,
-            taxCents,
-            keptCents: netCents - taxCents,
-            paidCount: Number(r.paid_count ?? 0),
-            capturedCount: Number(r.captured_count ?? 0),
-        };
-    });
+export function computeStripeFees({ monthlyRows = [], refundRows = [] } = {}) {
+    // Merge paid economics + refunded-booking fee loss by month so a month with
+    // ONLY refunds still shows up (it won't be in the paid query's rows).
+    const byMonth = new Map();
+    const ensure = (m) => {
+        let r = byMonth.get(m);
+        if (!r) {
+            r = {
+                month: m,
+                grossCents: 0, feeCents: 0, netCents: 0, taxCents: 0, keptCents: 0,
+                paidCount: 0, capturedCount: 0,
+                refundedFeeCents: 0, refundedCount: 0, refundedCaptured: 0,
+            };
+            byMonth.set(m, r);
+        }
+        return r;
+    };
+
+    for (const r of monthlyRows) {
+        const m = r.month ?? r.m;
+        if (m == null) continue;
+        const row = ensure(m);
+        row.grossCents += Number(r.gross_cents ?? 0);
+        row.feeCents += Number(r.fee_cents ?? 0);
+        row.netCents += Number(r.net_cents ?? 0);
+        row.taxCents += Number(r.tax_cents ?? 0);
+        row.paidCount += Number(r.paid_count ?? 0);
+        row.capturedCount += Number(r.captured_count ?? 0);
+        row.keptCents = row.netCents - row.taxCents;
+    }
+    // Refunded bookings: Stripe keeps the original fee → a pure, unrecoverable
+    // loss. We surface the fee only (the principal + tax came back).
+    for (const r of refundRows) {
+        const m = r.month ?? r.m;
+        if (m == null) continue;
+        const row = ensure(m);
+        row.refundedFeeCents += Number(r.refunded_fee_cents ?? 0);
+        row.refundedCount += Number(r.refunded_count ?? 0);
+        row.refundedCaptured += Number(r.refunded_captured ?? 0);
+    }
+
+    const series = [...byMonth.values()].sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
     const totals = series.reduce((t, r) => ({
         grossCents: t.grossCents + r.grossCents,
         feeCents: t.feeCents + r.feeCents,
@@ -508,14 +533,23 @@ export function computeStripeFees({ monthlyRows = [] } = {}) {
         keptCents: t.keptCents + r.keptCents,
         paidCount: t.paidCount + r.paidCount,
         capturedCount: t.capturedCount + r.capturedCount,
-    }), { grossCents: 0, feeCents: 0, netCents: 0, taxCents: 0, keptCents: 0, paidCount: 0, capturedCount: 0 });
+        refundedFeeCents: t.refundedFeeCents + r.refundedFeeCents,
+        refundedCount: t.refundedCount + r.refundedCount,
+        refundedCaptured: t.refundedCaptured + r.refundedCaptured,
+    }), {
+        grossCents: 0, feeCents: 0, netCents: 0, taxCents: 0, keptCents: 0,
+        paidCount: 0, capturedCount: 0, refundedFeeCents: 0, refundedCount: 0, refundedCaptured: 0,
+    });
     const coverage = {
         captured: totals.capturedCount,
         total: totals.paidCount,
         pct: totals.paidCount > 0 ? totals.capturedCount / totals.paidCount : 1,
     };
     const effectiveFeeRate = totals.grossCents > 0 ? totals.feeCents / totals.grossCents : null;
-    return { series, totals, coverage, effectiveFeeRate };
+    // True take-home = paid kept LESS the fees Stripe kept on refunded charges.
+    const refunds = { feeCents: totals.refundedFeeCents, count: totals.refundedCount, captured: totals.refundedCaptured };
+    const netKeptCents = totals.keptCents - totals.refundedFeeCents;
+    return { series, totals, coverage, effectiveFeeRate, refunds, netKeptCents };
 }
 
 /**

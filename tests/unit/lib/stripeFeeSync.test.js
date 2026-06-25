@@ -38,14 +38,16 @@ describe('runStripeFeeSync', () => {
         env.STRIPE_SECRET_KEY = 'sk_test';
         return env;
     }
-    const CANDIDATES = /FROM bookings\s+WHERE status = 'paid'/;
+    // Candidate query now covers paid AND refunded bookings (a refund keeps the
+    // original Stripe fee, so refunded charges are reconciled too).
+    const CANDIDATES = /FROM bookings\s+WHERE status IN \('paid','refunded'\)/;
 
-    it('captures fees for paid bookings missing them + reports the summary', async () => {
+    it('captures fees for paid + refunded bookings missing them + reports the summary', async () => {
         const env = envWithKey();
         env.DB.__on(CANDIDATES, {
             results: [
-                { id: 'bk_1', stripe_payment_intent: 'pi_1' },
-                { id: 'bk_2', stripe_payment_intent: 'pi_2' },
+                { id: 'bk_1', stripe_payment_intent: 'pi_1' },   // paid
+                { id: 'bk_2', stripe_payment_intent: 'pi_2' },   // refunded — same capture path
             ],
         }, 'all');
         mockStripeFetch({

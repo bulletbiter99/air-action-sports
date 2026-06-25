@@ -158,6 +158,8 @@ describe('GET /api/admin/reports/* — Bookkeeper endpoints (Batch 3 — impleme
         expect(Array.isArray(data.series)).toBe(true);
         expect(data.coverage).toHaveProperty('captured');
         expect(data.totals).toHaveProperty('keptCents');
+        expect(data.refunds).toHaveProperty('feeCents');
+        expect(data).toHaveProperty('netKeptCents');
     });
 
     it('stripe-fees CSV export returns text/csv with reports.export', async () => {
@@ -165,7 +167,7 @@ describe('GET /api/admin/reports/* — Bookkeeper endpoints (Batch 3 — impleme
         const res = await worker.fetch(req('/api/admin/reports/bookkeeper/stripe-fees?format=csv'), env, {});
         expect(res.status).toBe(200);
         expect(res.headers.get('content-type')).toContain('text/csv');
-        expect(await res.text()).toContain('Month,Gross,Stripe Fees,Net Deposited,Sales Tax,Kept');
+        expect(await res.text()).toContain('Month,Gross,Stripe Fees,Net Deposited,Sales Tax,Kept,Refund Fees Lost');
     });
 
     it('ar-aging returns 200 with buckets + totals + dso', async () => {

@@ -192,11 +192,19 @@ function BudgetVsActualCard({ filters }) {
     );
 }
 
+// Refund fee = a loss (Stripe keeps it); show negative + red when nonzero.
+function RefundFeeCell({ cents }) {
+    const c = Number(cents) || 0;
+    if (c <= 0) return <span style={{ color: 'var(--color-text-muted)' }}>{money(0)}</span>;
+    return <span style={{ color: 'var(--color-danger)', fontWeight: 700 }}>−{money(c)}</span>;
+}
+
 function StripeFeesCard({ filters }) {
     const { data, loading, error } = useReport('stripe-fees', filters);
     const series = data?.series || [];
     const totals = data?.totals;
     const coverage = data?.coverage;
+    const refunds = data?.refunds;
     const columns = [
         { key: 'month', label: 'Month' },
         { key: 'grossCents', label: 'Gross', align: 'right', render: money },
@@ -204,13 +212,15 @@ function StripeFeesCard({ filters }) {
         { key: 'netCents', label: 'Net deposited', align: 'right', render: money },
         { key: 'taxCents', label: 'Sales tax', align: 'right', render: money },
         { key: 'keptCents', label: 'Kept', align: 'right', render: (v) => <span style={{ fontWeight: 700 }}>{money(v)}</span> },
+        { key: 'refundedFeeCents', label: 'Refund fees', align: 'right', render: (v) => <RefundFeeCell cents={v} /> },
     ];
     const footer = totals ? { month: 'Total', ...totals } : null;
     const incomplete = coverage && coverage.total > 0 && coverage.captured < coverage.total;
+    const hasRefunds = refunds && refunds.count > 0;
     return (
         <ReportLayout
             title="Stripe fees & true net"
-            description="What Stripe actually took per charge vs your pass-through. Net deposited = gross − Stripe's real fee; Kept = net − sales tax. Paid bookings only."
+            description="What Stripe actually took per charge vs your pass-through. Net deposited = gross − Stripe's real fee; Kept = net − sales tax. Refunds keep their original Stripe fee (it's not returned) — shown as a loss. Paid + refunded bookings."
             loading={loading}
             error={error}
             onExportCsv={() => downloadCsv('stripe-fees', filters)}
@@ -227,11 +237,20 @@ function StripeFeesCard({ filters }) {
                             </p>
                         )}
                     </div>
-                    <MetricCard
-                        label="Kept (net of fees + tax)"
-                        value={money(totals.keptCents)}
-                        sublabel={data.effectiveFeeRate != null ? `${(data.effectiveFeeRate * 100).toFixed(2)}% effective Stripe fee` : 'awaiting reconciliation'}
-                    />
+                    <div style={metricStack}>
+                        <MetricCard
+                            label="Kept (net of fees + tax)"
+                            value={money(totals.keptCents)}
+                            sublabel={data.effectiveFeeRate != null ? `${(data.effectiveFeeRate * 100).toFixed(2)}% effective Stripe fee` : 'awaiting reconciliation'}
+                        />
+                        {hasRefunds && (
+                            <MetricCard
+                                label="Lost to refund fees"
+                                value={money(refunds.feeCents)}
+                                sublabel={`${refunds.count} refunded · Stripe keeps the fee`}
+                            />
+                        )}
+                    </div>
                 </div>
             )}
         </ReportLayout>
