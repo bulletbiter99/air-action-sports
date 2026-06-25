@@ -543,6 +543,11 @@ adminReports.get('/bookkeeper/ar-aging',
         const salesSinceMs = nowMs - DSO_WINDOW_DAYS * 86400000;
 
         const [pendingRes, salesRes] = await Promise.all([
+            // Outstanding receivables. Excludes payments on dead deals: cancelling
+            // or refunding a rental does NOT cascade to its pending payment rows
+            // (see fieldRentals.js cancel), and those aren't real receivables.
+            // Mirrors the sibling field-rental reports' fr.status filters. 'paid' /
+            // 'completed' stay IN — they can still carry a pending damage/balance.
             c.env.DB.prepare(
                 `SELECT frp.id, frp.rental_id, frp.due_at, frp.amount_cents,
                         COALESCE(NULLIF(c.business_name,''), c.full_name) AS renter,
@@ -551,8 +556,13 @@ adminReports.get('/bookkeeper/ar-aging',
                  JOIN field_rentals fr ON fr.id = frp.rental_id
                  JOIN customers c ON c.id = fr.customer_id
                  JOIN sites s ON s.id = fr.site_id
-                 WHERE frp.status = 'pending'`
+                 WHERE frp.status = 'pending'
+                   AND fr.status NOT IN ('cancelled','refunded')`
             ).all(),
+            // DSO denominator: field-rental cash actually received over the trailing
+            // window. Cash-basis on purpose — historically-received cash is NOT
+            // revised if a rental is later cancelled, so this intentionally does not
+            // join/filter on field_rentals.status (unlike the numerator above).
             c.env.DB.prepare(
                 `SELECT COALESCE(SUM(amount_cents),0) AS sales_cents
                  FROM field_rental_payments

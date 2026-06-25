@@ -305,7 +305,8 @@ function ArAgingCard({ filters }) {
                     </div>
                     {items.length > 0 && (
                         <div style={{ marginTop: '1rem' }}>
-                            <ReportTable columns={itemColumns} rows={items} />
+                            {/* key each row by its payment id (ReportTable reads row.key) */}
+                            <ReportTable columns={itemColumns} rows={items.map((it) => ({ ...it, key: it.id }))} />
                         </div>
                     )}
                 </>
