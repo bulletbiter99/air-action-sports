@@ -365,6 +365,9 @@ adminReports.get('/owner/scorecard',
         // Three grouped queries; each row's wk = integer week offset from window
         // start (0..12). status IN ('paid','comp') powers cash/earned/paid-count;
         // field-rental receipts + the refund charged/refunded counts are separate.
+        // Comps are recorded as $0 (worker/routes/admin/bookings.js), so including
+        // 'comp' in the cash/earned SUMs is a no-op (kept for parity with the
+        // income-card basis); paid_count + the volume floor count only 'paid'.
         const [bk, fr, rf] = await Promise.all([
             c.env.DB.prepare(
                 `SELECT CAST((paid_at - ?) / 604800000 AS INTEGER) AS wk,
@@ -382,6 +385,11 @@ adminReports.get('/owner/scorecard',
                  WHERE status='received' AND received_at >= ? AND received_at < ?
                  GROUP BY wk`
             ).bind(windowStartMs, windowStartMs, windowEndMs).all(),
+            // refund_rate = refunded / ever-charged, where charged counts every
+            // booking that was ever charged (status IN ('paid','refunded')). This
+            // is the standard "share of charged money refunded" basis and is
+            // DELIBERATELY different from analytics.js's paid-only denominator
+            // (refundedCount/paidCount) — the scorecard's is the more defensible one.
             c.env.DB.prepare(
                 `SELECT CAST((paid_at - ?) / 604800000 AS INTEGER) AS wk,
                         COUNT(CASE WHEN status IN ('paid','refunded') THEN 1 END) AS charged,

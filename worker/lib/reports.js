@@ -662,6 +662,8 @@ export function computeScorecard({ weeks = [], metricInputs = [] } = {}) {
         const activeCount = baseline.length;
         const sufficiency = activeCount >= 6 ? 'ok' : activeCount >= 3 ? 'sparse' : 'insufficient';
         let target = sufficiency === 'insufficient' ? null : median(baseline);
+        // A refund-rate target only ever sits in [0, 0.5] — clamp guards an
+        // anomalous baseline from producing a nonsensical bar (rarely trips).
         if (target != null && m.key === 'refund_rate') target = Math.min(0.5, Math.max(0, target));
 
         // avg over completed, non-null weeks.
