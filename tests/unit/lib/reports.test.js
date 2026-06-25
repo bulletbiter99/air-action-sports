@@ -19,6 +19,8 @@ import {
     computePerEventPnl,
     computeStripeFees,
     computeArAging,
+    computeScorecard,
+    median,
     computeConversionFunnel,
     computePromoPerformance,
     computeCustomerCohorts,
@@ -567,6 +569,104 @@ describe('computeArAging', () => {
         expect(out.items).toEqual([]);
         expect(out.dso).toBeNull();
         expect(out.buckets).toHaveLength(5);
+    });
+});
+
+describe('median', () => {
+    it('handles empty, odd, even, and non-finite entries', () => {
+        expect(median([])).toBeNull();
+        expect(median([5])).toBe(5);
+        expect(median([3, 1, 2])).toBe(2);            // sorts first
+        expect(median([1, 2, 3, 4])).toBe(2.5);       // mean of middle two
+        expect(median([10, NaN, '20', 30, null])).toBe(20); // ignores non-finite/non-number
+    });
+});
+
+describe('computeScorecard', () => {
+    const WEEK = 604800000;
+    const START = Date.UTC(2026, 0, 5); // a Monday
+    const mkWeeks = () => Array.from({ length: 13 }, (_, i) => ({
+        index: i, startMs: START + i * WEEK, endMs: START + (i + 1) * WEEK,
+        startIso: new Date(START + i * WEEK).toISOString().slice(0, 10),
+        isCurrent: i === 12, isPartial: i === 12,
+    }));
+
+    it('higher-better: median target, 3-state status, current week excluded', () => {
+        // Completed weeks 0..11 all active (vol 3). Values mostly 100 (median 100),
+        // with a deliberate on/watch/off trio; current week 12 is a wild value.
+        const weekValues = [95, 80, 60, 100, 100, 100, 100, 100, 100, 100, 100, 100, 9999];
+        const volumeByWeek = Array(13).fill(3);
+        const out = computeScorecard({
+            weeks: mkWeeks(),
+            metricInputs: [{ key: 'rev', label: 'Rev', unit: 'money', direction: 'higher-better', weekValues, volumeByWeek }],
+        });
+        const m = out.metrics[0];
+        expect(m.target).toBe(100);           // median of completed weeks
+        expect(m.sufficiency).toBe('ok');     // 12 active completed weeks
+        expect(m.cells[0].status).toBe('on');     // 95/100 = .95 ≥ .90
+        expect(m.cells[1].status).toBe('watch');  // 80/100 = .80 ∈ [.70,.90)
+        expect(m.cells[2].status).toBe('off');    // 60/100 = .60 < .70
+        expect(m.cells[12].status).toBe('neutral'); // current week never judged
+        // Summary tallies completed cells only (current excluded): 10 on, 1 watch, 1 off.
+        expect(out.summary).toEqual({ on: 10, watch: 1, off: 1, neutral: 0 });
+    });
+
+    it('volume floor grays out quiet weeks and excludes them from the baseline', () => {
+        // Weeks 0..5 dead (vol 0, value 0), weeks 6..11 active at 50.
+        const weekValues = [0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 50, 50, 0];
+        const volumeByWeek = [0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 0];
+        const out = computeScorecard({
+            weeks: mkWeeks(),
+            metricInputs: [{ key: 'rev', label: 'Rev', unit: 'money', direction: 'higher-better', weekValues, volumeByWeek }],
+        });
+        const m = out.metrics[0];
+        expect(m.target).toBe(50);          // median of ACTIVE weeks only (the 50s)
+        expect(m.sufficiency).toBe('ok');   // 6 active completed weeks
+        expect(m.cells[0].status).toBe('neutral'); // dead week → floored, not red
+        expect(m.cells[6].status).toBe('on');      // 50 vs target 50
+    });
+
+    it('lower-better (refund_rate): inverse bands + clamp', () => {
+        const weekValues = [0.10, 0.12, 0.15, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10];
+        const volumeByWeek = Array(13).fill(10);
+        const out = computeScorecard({
+            weeks: mkWeeks(),
+            metricInputs: [{ key: 'refund_rate', label: 'Refund', unit: 'percent', direction: 'lower-better', weekValues, volumeByWeek }],
+        });
+        const m = out.metrics[0];
+        expect(m.target).toBe(0.10);
+        expect(m.cells[0].status).toBe('on');     // 0.10/0.10 = 1.0 ≤ 1.10
+        expect(m.cells[1].status).toBe('watch');  // 1.2 ∈ (1.10, 1.30]
+        expect(m.cells[2].status).toBe('off');    // 1.5 > 1.30
+    });
+
+    it('clamps a refund_rate target to [0, 0.5]', () => {
+        const weekValues = Array(13).fill(0.7);
+        const volumeByWeek = Array(13).fill(10);
+        const out = computeScorecard({
+            weeks: mkWeeks(),
+            metricInputs: [{ key: 'refund_rate', label: 'Refund', unit: 'percent', direction: 'lower-better', weekValues, volumeByWeek }],
+        });
+        expect(out.metrics[0].target).toBe(0.5);
+    });
+
+    it('insufficient baseline (<3 active weeks) → null target, all cells neutral', () => {
+        const weekValues = [50, 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        const volumeByWeek = [5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        const out = computeScorecard({
+            weeks: mkWeeks(),
+            metricInputs: [{ key: 'rev', label: 'Rev', unit: 'money', direction: 'higher-better', weekValues, volumeByWeek }],
+        });
+        const m = out.metrics[0];
+        expect(m.sufficiency).toBe('insufficient');
+        expect(m.target).toBeNull();
+        expect(m.cells.every((cell) => cell.status === 'neutral')).toBe(true);
+    });
+
+    it('returns a valid empty shape with no input', () => {
+        const out = computeScorecard({});
+        expect(out.metrics).toEqual([]);
+        expect(out.summary).toEqual({ on: 0, watch: 0, off: 0, neutral: 0 });
     });
 });
 

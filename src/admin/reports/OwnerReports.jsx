@@ -21,6 +21,7 @@ import ReportEmptyState from './ReportEmptyState.jsx';
 import ReportTable from './ReportTable.jsx';
 import LineChart from './charts/LineChart.jsx';
 import MetricCard from './charts/MetricCard.jsx';
+import ScorecardGrid from './ScorecardGrid.jsx';
 import { ProgressBar } from '../charts.jsx';
 import { formatMoney, formatMoneyCompact } from '../../utils/money.js';
 import { monthLabel, dayLabel } from '../../utils/dateFormat.js';
@@ -43,6 +44,37 @@ function CategoryBars({ items, formatValue = (v) => v }) {
                 </div>
             ))}
         </div>
+    );
+}
+
+// ── The report cards ─────────────────────────────────────────────────
+
+function ScorecardCard({ filters }) {
+    const { data, loading, error } = useReport('scorecard', filters);
+    const metrics = data?.metrics || [];
+    const allInsufficient = metrics.length > 0 && metrics.every((m) => m.sufficiency === 'insufficient');
+    return (
+        <ReportLayout
+            title="Weekly scorecard"
+            description="The last 13 weeks at a glance. Each metric is auto-targeted to its own 12-week trailing median (current week excluded) — nothing to configure. Quiet weeks (no sales) show gray, not red."
+            loading={loading}
+            error={error}
+            onExportCsv={() => downloadCsv('scorecard', filters)}
+        >
+            {metrics.length === 0 ? (
+                <ReportEmptyState kind="no-data" />
+            ) : (
+                <>
+                    {allInsufficient && (
+                        <p style={buildingNote}>
+                            Baseline building — actuals show now; on/off-track coloring starts once each metric has a
+                            few weeks of activity.
+                        </p>
+                    )}
+                    <ScorecardGrid weeks={data.weeks} metrics={data.metrics} summary={data.summary} />
+                </>
+            )}
+        </ReportLayout>
     );
 }
 
@@ -259,6 +291,7 @@ export default function OwnerReports() {
             <div style={{ marginBottom: '1.5rem' }}>
                 <ReportFilters value={filters} onChange={setFilters} showEventScope showComparison />
             </div>
+            <ScorecardCard filters={filters} />
             <RevenueTrendsCard filters={filters} />
             <PerEventPnlCard filters={filters} />
             <RefundRateCard filters={filters} />
@@ -273,6 +306,7 @@ export default function OwnerReports() {
 const chartRow = { display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' };
 const chartCol = { flex: '1 1 360px', minWidth: 0 };
 
+const buildingNote = { color: 'var(--color-text-subtle)', fontSize: '0.82rem', fontStyle: 'italic', margin: '0 0 0.75rem' };
 const catWrap = { display: 'flex', flexDirection: 'column', gap: '0.6rem', width: '100%' };
 const catRow = {
     display: 'grid',

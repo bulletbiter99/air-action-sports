@@ -687,6 +687,8 @@
         "priorWindow (equal-length preceding window for comparison)",
         "computeDelta (deltaPct null when prior=0)",
         "computeRevenueTrends / computeRefundRate / computeAovTrend / bucketRepeatCustomers / computeSeriesRetention (Owner report shapers)",
+        "computeScorecard / median (EOS-style weekly scorecard: trailing-median targets, 3-state status, volume-floor neutral, current-week excluded)",
+        "computeArAging (field-rental A/R aging buckets + DSO) / computePerEventPnl / computeBudgetVsActual / computeStripeFees (accounting-suite shapers)",
         "csvEscape / toCsv (CSV serialization)"
       ],
       "audit_group": "(M7 Batch 2 Owner reports pure helpers)",
@@ -702,7 +704,8 @@
         "GET /api/admin/reports/owner/refund-rate — monthly refunded÷charged (Stripe + external)",
         "GET /api/admin/reports/owner/repeat-customers — lifetime total_bookings bucket distribution",
         "GET /api/admin/reports/owner/aov-trend — monthly AVG(total_cents) over paid bookings",
-        "CSV export on each owner endpoint gated on reports.export; Bookkeeper/Marketing/Site-Coordinator endpoints remain 501 stubs until Batches 3-5"
+        "GET /api/admin/reports/owner/scorecard — EOS-style 13-week scorecard (Monday-anchored window, auto-median targets) + /owner/per-event-pnl",
+        "Bookkeeper (payouts / tax-fee-summary / period-comparison / budget-vs-actual / stripe-fees / ar-aging), Marketing (4), Site-Coordinator (4) all implemented; CSV export gated on reports.export"
       ],
       "audit_group": "(M7 Batch 1a shell + Batch 2 Owner reports)",
       "tests": [

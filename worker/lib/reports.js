@@ -594,6 +594,112 @@ export function computeArAging({ pendingRows = [], salesCents = 0, salesWindowDa
     return { buckets, items, totals, current, overdue, dso, salesCents: sales, salesWindowDays: days };
 }
 
+/**
+ * Median of a numeric array (sorted copy; mean of the middle two when even).
+ * Ignores non-finite entries. Returns null for an empty/all-invalid array. Pure.
+ */
+export function median(nums = []) {
+    const xs = nums.filter((n) => typeof n === 'number' && Number.isFinite(n)).sort((a, b) => a - b);
+    if (xs.length === 0) return null;
+    const mid = Math.floor(xs.length / 2);
+    return xs.length % 2 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
+}
+
+/**
+ * Owner weekly scorecard — EOS Level-10-style 13-week grid. PURE + Date-free:
+ * the route supplies the 13-week meta (with isCurrent set) plus pre-bucketed
+ * per-week values + per-week volume for each metric; this classifies every cell
+ * against an auto-derived target and tallies the summary.
+ *
+ * Target = MEDIAN of the metric's COMPLETED, ACTIVE weeks (index 0..11 where
+ * volume >= 1 and the value is non-null). Median (not mean) so a few dead or
+ * outlier weeks don't move the bar. Status is three-state vs target with a
+ * tolerance band. A cell is NEUTRAL (no judgment) when the week is the current
+ * in-progress week, the target is null (insufficient baseline), or the week's
+ * volume floor trips (a genuinely quiet week is shown as data, not an alarm —
+ * the core seasonality guard for a spiky, low-volume events business).
+ *
+ * Sufficiency per metric: 'ok' (>=6 active completed weeks), 'sparse' (3-5),
+ * 'insufficient' (<3 → target null → all cells neutral). avg = mean of the
+ * metric's completed, non-null weeks (money/count include quiet $0 weeks;
+ * rate metrics are null on no-volume weeks and so are excluded).
+ *
+ * @param {{
+ *   weeks: Array<{ index:number, startMs:number, endMs:number, startIso:string, isCurrent:boolean, isPartial:boolean }>,
+ *   metricInputs: Array<{ key:string, label:string, unit:'money'|'count'|'percent',
+ *     direction:'higher-better'|'lower-better', weekValues:Array<number|null>, volumeByWeek:Array<number> }>,
+ * }} input
+ */
+export function computeScorecard({ weeks = [], metricInputs = [] } = {}) {
+    const completed = weeks.filter((w) => !w.isCurrent).map((w) => w.index);
+
+    const classify = (value, target, direction) => {
+        if (target == null || value == null) return 'neutral';
+        if (direction === 'lower-better') {
+            if (target === 0) return value <= 0 ? 'on' : 'off';
+            const ratio = value / target;
+            if (ratio <= 1.10) return 'on';
+            if (ratio <= 1.30) return 'watch';
+            return 'off';
+        }
+        if (target <= 0) return 'neutral'; // no positive baseline to judge against
+        const ratio = value / target;
+        if (ratio >= 0.90) return 'on';
+        if (ratio >= 0.70) return 'watch';
+        return 'off';
+    };
+
+    const summary = { on: 0, watch: 0, off: 0, neutral: 0 };
+
+    const metrics = metricInputs.map((m) => {
+        const vals = m.weekValues || [];
+        const vol = m.volumeByWeek || [];
+
+        // Baseline: completed weeks that were actually active (volume >= 1, non-null).
+        const baseline = completed
+            .filter((i) => (Number(vol[i]) || 0) >= 1 && vals[i] != null)
+            .map((i) => vals[i]);
+        const activeCount = baseline.length;
+        const sufficiency = activeCount >= 6 ? 'ok' : activeCount >= 3 ? 'sparse' : 'insufficient';
+        let target = sufficiency === 'insufficient' ? null : median(baseline);
+        if (target != null && m.key === 'refund_rate') target = Math.min(0.5, Math.max(0, target));
+
+        // avg over completed, non-null weeks.
+        const avgVals = completed.map((i) => vals[i]).filter((v) => v != null);
+        const avg = avgVals.length ? avgVals.reduce((s, v) => s + v, 0) / avgVals.length : null;
+
+        const cells = weeks.map((w) => {
+            const i = w.index;
+            const value = vals[i] ?? null;
+            const floored = (Number(vol[i]) || 0) < 1;
+            const status = (w.isCurrent || target == null || floored)
+                ? 'neutral'
+                : classify(value, target, m.direction);
+            if (!w.isCurrent) summary[status] += 1;
+            return {
+                index: i,
+                value,
+                status,
+                pctOfTarget: (target && value != null) ? value / target : null,
+            };
+        });
+
+        return {
+            key: m.key,
+            label: m.label,
+            unit: m.unit,
+            direction: m.direction,
+            targetBasis: '12-week trailing median',
+            sufficiency,
+            target,
+            avg,
+            cells,
+        };
+    });
+
+    return { weeks, metrics, summary };
+}
+
 // ────────────────────────────────────────────────────────────────────
 // Marketing report shapers (Batch 4)
 // ────────────────────────────────────────────────────────────────────
