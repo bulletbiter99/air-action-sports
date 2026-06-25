@@ -519,6 +519,31 @@ describe('computeStripeFees', () => {
         expect(out.coverage).toEqual({ captured: 0, total: 0, pct: 1 });
         expect(out.effectiveFeeRate).toBeNull();
         expect(out.totals.keptCents).toBe(0);
+        // Back-compat: no refundRows → zeroed refund summary, netKept == kept.
+        expect(out.refunds).toEqual({ feeCents: 0, count: 0, captured: 0 });
+        expect(out.netKeptCents).toBe(0);
+    });
+
+    it('merges refunded-booking fees as an unrecoverable loss; refund-only months still appear', () => {
+        const out = computeStripeFees({
+            monthlyRows: [
+                { month: '2026-06', gross_cents: 100000, fee_cents: 5900, net_cents: 94100, tax_cents: 6750, paid_count: 10, captured_count: 10 },
+            ],
+            refundRows: [
+                { month: '2026-06', refunded_fee_cents: 320, refunded_count: 1, refunded_captured: 1 }, // same month as paid
+                { month: '2026-07', refunded_fee_cents: 150, refunded_count: 1, refunded_captured: 1 }, // refund-only month
+            ],
+        });
+        const jun = out.series.find((r) => r.month === '2026-06');
+        const jul = out.series.find((r) => r.month === '2026-07');
+        expect(jun.refundedFeeCents).toBe(320);
+        expect(jun.keptCents).toBe(94100 - 6750);   // paid economics unchanged by the refund
+        expect(jul).toBeTruthy();                    // refund-only month surfaced (not in monthlyRows)
+        expect(jul.refundedFeeCents).toBe(150);
+        expect(jul.grossCents).toBe(0);
+        expect(out.refunds).toEqual({ feeCents: 470, count: 2, captured: 2 });
+        // True take-home nets out the refund fees Stripe kept.
+        expect(out.netKeptCents).toBe(out.totals.keptCents - 470);
     });
 });
 

@@ -158,6 +158,8 @@ describe('GET /api/admin/reports/* — Bookkeeper endpoints (Batch 3 — impleme
         expect(Array.isArray(data.series)).toBe(true);
         expect(data.coverage).toHaveProperty('captured');
         expect(data.totals).toHaveProperty('keptCents');
+        expect(data.refunds).toHaveProperty('feeCents');
+        expect(data).toHaveProperty('netKeptCents');
     });
 
     it('stripe-fees CSV export returns text/csv with reports.export', async () => {

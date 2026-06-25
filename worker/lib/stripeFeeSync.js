@@ -7,6 +7,13 @@
 // a reconciliation pass is robust to Stripe's no-guaranteed-event-ordering AND
 // automatically backfills bookings that were already paid before this shipped.
 //
+// Covers BOTH paid AND refunded bookings: a refund does NOT return the original
+// processing fee (Stripe keeps it), so a refunded charge's balance_transaction
+// still carries the fee Stripe took — capturing it lets the bookkeeper report
+// surface that unrecoverable fee. The captured stripe_net_cents is the ORIGINAL
+// charge's net (gross − fee), NOT reduced by the refund (the refund is its own
+// balance transaction); the report derives the refund loss from the fee alone.
+//
 // Idempotent: a booking is a candidate ONLY while stripe_fee_cents IS NULL, so
 // once captured it drops out of the next sweep. Each row is guarded so one bad
 // PaymentIntent never aborts the batch.
@@ -25,7 +32,7 @@ export async function runStripeFeeSync(env, { limit = LIMIT_DEFAULT } = {}) {
     try {
         rows = await env.DB.prepare(
             `SELECT id, stripe_payment_intent FROM bookings
-             WHERE status = 'paid'
+             WHERE status IN ('paid','refunded')
                AND stripe_payment_intent IS NOT NULL
                AND stripe_fee_cents IS NULL
              ORDER BY paid_at DESC
