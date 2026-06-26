@@ -10,7 +10,7 @@ adminEvents.use('*', requireAuth);
 
 // Fields accepted by create/update. Missing fields preserved on update.
 const EVENT_STRING_FIELDS = [
-    'title', 'slug', 'date_iso', 'display_date', 'display_day', 'display_month',
+    'title', 'slug', 'date_iso', 'end_date_iso', 'display_date', 'display_day', 'display_month',
     'location', 'site', 'site_id', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
     'cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url',
     'short_description',
@@ -24,6 +24,11 @@ const EVENT_OPACITY_FIELDS = [
 const EVENT_POSITION_FIELDS = [
     'card_image_position', 'hero_image_position', 'banner_image_position',
 ];
+// Sanity bound on a multi-day span. A far-future end_date_iso (a data-entry
+// slip) would otherwise keep the event-day check-in window open until then —
+// worker/lib/eventDaySession.js derives the active window from the span. 31
+// days comfortably covers any real multi-day operation.
+const MAX_EVENT_SPAN_MS = 31 * 24 * 60 * 60 * 1000;
 
 // Normalize a CSS background-position into a strict, injection-safe form:
 // either null (→ the page's default `center`) or a canonical "x% y%" string.
@@ -82,7 +87,13 @@ export function normalizeEventDetails(input) {
 
     if (Array.isArray(input.schedule)) {
         const schedule = input.schedule
-            .map((r) => ({ time: str(r?.time), label: str(r?.label) }))
+            .map((r) => {
+                const row = { time: str(r?.time), label: str(r?.label) };
+                // Optional day index for multi-day events (1..31); drop anything else.
+                const day = Number(r?.day);
+                if (Number.isInteger(day) && day >= 1 && day <= 31) row.day = day;
+                return row;
+            })
             .filter((r) => r.time || r.label);
         if (schedule.length) out.schedule = schedule;
     }
@@ -131,7 +142,7 @@ export function parseEventBody(body, { partial = false } = {}) {
     const patch = {};
     // camelCase → snake_case fields
     const map = {
-        title: 'title', slug: 'slug', dateIso: 'date_iso',
+        title: 'title', slug: 'slug', dateIso: 'date_iso', endDateIso: 'end_date_iso',
         displayDate: 'display_date', displayDay: 'display_day', displayMonth: 'display_month',
         location: 'location', site: 'site', siteId: 'site_id', type: 'type', timeRange: 'time_range',
         checkIn: 'check_in', firstGame: 'first_game', endTime: 'end_time',
@@ -227,6 +238,28 @@ export function parseEventBody(body, { partial = false } = {}) {
         }
         cleaned.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
         patch.custom_questions_json = cleaned.length ? JSON.stringify(cleaned) : null;
+    }
+
+    // Multi-day span: end_date_iso is optional. '' / null clears it (→ NULL =
+    // single-day). When set it must parse as a date and, when date_iso is also
+    // in the same payload, be on/after the start. (Edits that change only one
+    // side are cross-checked against the stored row in the PUT handler.)
+    if (patch.end_date_iso !== undefined) {
+        if (patch.end_date_iso === null || patch.end_date_iso === '') {
+            patch.end_date_iso = null;
+        } else if (!Number.isFinite(Date.parse(patch.end_date_iso))) {
+            return { error: 'endDateIso must be a valid ISO 8601 date' };
+        } else if (
+            patch.date_iso && Number.isFinite(Date.parse(patch.date_iso))
+            && Date.parse(patch.end_date_iso) < Date.parse(patch.date_iso)
+        ) {
+            return { error: 'endDateIso must be on or after dateIso' };
+        } else if (
+            patch.date_iso && Number.isFinite(Date.parse(patch.date_iso))
+            && Date.parse(patch.end_date_iso) - Date.parse(patch.date_iso) > MAX_EVENT_SPAN_MS
+        ) {
+            return { error: 'endDateIso must be within 31 days of dateIso' };
+        }
     }
 
     if (!partial) {
@@ -442,7 +475,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
     // both can acknowledge (operator's "owner + operations director" decision).
     let conflictsToAudit = null;
     if (patch.site_id && patch.date_iso) {
-        const dayWindow = dateIsoToDayWindow(patch.date_iso);
+        const dayWindow = dateIsoToDayWindow(patch.date_iso, patch.end_date_iso);
         if (dayWindow) {
             const conflicts = await detectEventConflicts(c.env, {
                 siteId: patch.site_id,
@@ -484,7 +517,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
 
     const now = Date.now();
     const cols = [
-        'id', 'title', 'date_iso', 'display_date', 'display_day', 'display_month',
+        'id', 'title', 'date_iso', 'end_date_iso', 'display_date', 'display_day', 'display_month',
         'location', 'site', 'site_id', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
         'base_price_cents', 'total_slots', 'addons_json', 'game_modes_json', 'details_json',
         'sales_close_at', 'published', 'past', 'featured',
@@ -497,6 +530,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         id,
         title: patch.title,
         date_iso: patch.date_iso,
+        end_date_iso: patch.end_date_iso || null,
         display_date: patch.display_date || null,
         display_day: patch.display_day || null,
         display_month: patch.display_month || null,
@@ -582,11 +616,29 @@ adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: 'Invalid body' }, 400);
 
-    const existing = await c.env.DB.prepare(`SELECT id, site_id, date_iso FROM events WHERE id = ?`).bind(id).first();
+    const existing = await c.env.DB.prepare(`SELECT id, site_id, date_iso, end_date_iso FROM events WHERE id = ?`).bind(id).first();
     if (!existing) return c.json({ error: 'Event not found' }, 404);
 
     const { patch, error } = parseEventBody(body, { partial: true });
     if (error) return c.json({ error }, 400);
+
+    // Multi-day span cross-check: an edit may touch only the start OR only the
+    // end, so compare the EFFECTIVE end against the EFFECTIVE start (patched
+    // value when present, else the stored value). parseEventBody only sees the
+    // body, so it cannot catch "new start now after the stored end".
+    {
+        const effStart = patch.date_iso ?? existing.date_iso;
+        const effEnd = patch.end_date_iso !== undefined ? patch.end_date_iso : existing.end_date_iso;
+        if (effStart && effEnd && Number.isFinite(Date.parse(effStart)) && Number.isFinite(Date.parse(effEnd))) {
+            const span = Date.parse(effEnd) - Date.parse(effStart);
+            if (span < 0) {
+                return c.json({ error: 'endDateIso must be on or after dateIso' }, 400);
+            }
+            if (span > MAX_EVENT_SPAN_MS) {
+                return c.json({ error: 'endDateIso must be within 31 days of dateIso' }, 400);
+            }
+        }
+    }
 
     // M5.5 B3 — Conflict detection on schedule changes. Uses existing values
     // for fields not in the patch (operator may be changing only site_id OR
@@ -594,9 +646,10 @@ adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
     let conflictsToAudit = null;
     const checkSiteId = patch.site_id ?? existing.site_id;
     const checkDateIso = patch.date_iso ?? existing.date_iso;
-    const isScheduleChange = patch.site_id !== undefined || patch.date_iso !== undefined;
+    const checkEndDateIso = patch.end_date_iso !== undefined ? patch.end_date_iso : existing.end_date_iso;
+    const isScheduleChange = patch.site_id !== undefined || patch.date_iso !== undefined || patch.end_date_iso !== undefined;
     if (isScheduleChange && checkSiteId && checkDateIso) {
-        const dayWindow = dateIsoToDayWindow(checkDateIso);
+        const dayWindow = dateIsoToDayWindow(checkDateIso, checkEndDateIso);
         if (dayWindow) {
             const conflicts = await detectEventConflicts(c.env, {
                 siteId: checkSiteId,
@@ -701,6 +754,22 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
     const src = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(sourceId).first();
     if (!src) return c.json({ error: 'Source event not found' }, 404);
 
+    // Duplicate is the one write path that skips parseEventBody, so mirror the
+    // span guard here on any operator-supplied date overrides — validate the
+    // EFFECTIVE span (override when present, else the already-validated source).
+    const dupStart = body.dateIso || src.date_iso;
+    const dupEnd = body.endDateIso || src.end_date_iso;
+    if (dupEnd) {
+        if (!Number.isFinite(Date.parse(dupEnd))) {
+            return c.json({ error: 'endDateIso must be a valid ISO 8601 date' }, 400);
+        }
+        if (dupStart && Number.isFinite(Date.parse(dupStart))) {
+            const span = Date.parse(dupEnd) - Date.parse(dupStart);
+            if (span < 0) return c.json({ error: 'endDateIso must be on or after dateIso' }, 400);
+            if (span > MAX_EVENT_SPAN_MS) return c.json({ error: 'endDateIso must be within 31 days of dateIso' }, 400);
+        }
+    }
+
     const newTitle = body.title?.trim() || `${src.title} (copy)`;
     const desiredId = body.id ? slugify(body.id) : slugify(newTitle);
     const collision = await c.env.DB.prepare(`SELECT id FROM events WHERE id = ?`).bind(desiredId).first();
@@ -709,17 +778,18 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
 
     await c.env.DB.prepare(
         `INSERT INTO events (
-            id, title, date_iso, display_date, display_day, display_month,
+            id, title, date_iso, end_date_iso, display_date, display_day, display_month,
             location, site, type, time_range, check_in, first_game, end_time,
             base_price_cents, total_slots, addons_json, game_modes_json, details_json,
             sales_close_at, published, past,
             cover_image_url, card_image_url, hero_image_url, banner_image_url, og_image_url,
             short_description, slug, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
         newId,
         newTitle,
         body.dateIso || src.date_iso,
+        body.endDateIso || src.end_date_iso,
         body.displayDate || src.display_date,
         body.displayDay || src.display_day,
         body.displayMonth || src.display_month,

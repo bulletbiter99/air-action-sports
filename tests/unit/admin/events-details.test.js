@@ -55,6 +55,25 @@ describe('normalizeEventDetails', () => {
         expect(out.scheduleNote).toBe('Times approximate');
     });
 
+    it('preserves a valid day (1..31) on schedule rows; drops invalid/out-of-range day', () => {
+        const out = normalizeEventDetails({
+            schedule: [
+                { day: 1, time: '7:00 AM', label: 'Check-in' },
+                { day: 2, time: '6:00 AM', label: 'Dawn push' },
+                { day: 0, time: '9:00 AM', label: 'Zero day' },
+                { day: 99, time: '9:00 AM', label: 'Too big' },
+                { day: 'x', time: '9:00 AM', label: 'NaN day' },
+            ],
+        });
+        expect(out.schedule).toEqual([
+            { day: 1, time: '7:00 AM', label: 'Check-in' },
+            { day: 2, time: '6:00 AM', label: 'Dawn push' },
+            { time: '9:00 AM', label: 'Zero day' },
+            { time: '9:00 AM', label: 'Too big' },
+            { time: '9:00 AM', label: 'NaN day' },
+        ]);
+    });
+
     it('requires a label on documents and sanitizes the url', () => {
         const out = normalizeEventDetails({
             documents: [

@@ -198,7 +198,7 @@ export default function AdminEvents() {
                       <strong>{e.title}</strong>
                       <div style={subRowMono}>{e.id}</div>
                     </div>
-                    <div role="cell" aria-colindex={2} style={td}>{e.displayDate || e.dateIso?.slice(0, 10)}</div>
+                    <div role="cell" aria-colindex={2} style={td}>{e.displayDate || (e.endDateIso ? `${e.dateIso?.slice(0, 10)} – ${e.endDateIso.slice(0, 10)}` : e.dateIso?.slice(0, 10))}</div>
                     <div role="cell" aria-colindex={3} style={tdSmall}>{e.location || '—'}</div>
                     <div role="cell" aria-colindex={4} style={td}>{(e.ticketTypes || []).length}</div>
                     <div role="cell" aria-colindex={5} style={td}>{e.attendeesCount || 0}</div>
@@ -243,7 +243,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
   const { hasRole } = useAdmin();
   const [loading, setLoading] = useState(!isNew);
   const [form, setForm] = useState({
-    title: '', slug: '', dateIso: '',
+    title: '', slug: '', dateIso: '', endDateIso: '',
     displayDate: '', displayDay: '', displayMonth: '',
     location: '', site: '', type: 'airsoft',
     timeRange: '', checkIn: '', firstGame: '', endTime: '',
@@ -272,7 +272,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
         const { event, ticketTypes } = await res.json();
         setForm({
           title: event.title || '', slug: event.slug || '',
-          dateIso: event.dateIso || '',
+          dateIso: event.dateIso || '', endDateIso: event.endDateIso || '',
           displayDate: event.displayDate || '', displayDay: event.displayDay || '', displayMonth: event.displayMonth || '',
           location: event.location || '', site: event.site || '', type: event.type || 'airsoft',
           timeRange: event.timeRange || '', checkIn: event.checkIn || '', firstGame: event.firstGame || '', endTime: event.endTime || '',
@@ -307,6 +307,16 @@ function EventEditor({ eventId, onClose, onSaved }) {
     if (savingEvent) return;
     setSavingEvent(true); setErr(''); setConflicts(null);
     try {
+      // Multi-day span: end must be on/after start and within 31 days (mirrors
+      // the server guard) — surface inline instead of a 400.
+      if (form.endDateIso && form.dateIso) {
+        const s = Date.parse(form.dateIso);
+        const en = Date.parse(form.endDateIso);
+        if (Number.isFinite(s) && Number.isFinite(en)) {
+          if (en < s) { setErr('End date must be on or after the start date.'); return; }
+          if (en - s > 31 * 24 * 60 * 60 * 1000) { setErr('End date must be within 31 days of the start date.'); return; }
+        }
+      }
       const url = isNew ? '/api/admin/events' : `/api/admin/events/${currentEventId}`;
       const method = isNew ? 'POST' : 'PUT';
       // M5.5 B3 — when re-submitting after a conflict, include
@@ -456,6 +466,21 @@ function EventEditor({ eventId, onClose, onSaved }) {
             </Field>
             <Field label="Display date (e.g. '9 May 2026')">
               <input value={form.displayDate} onChange={(e) => updateField('displayDate', e.target.value)} style={input} />
+            </Field>
+          </div>
+          <div style={twoCol}>
+            <Field label="End date & time (multi-day — optional)">
+              <input
+                type="datetime-local"
+                value={(form.endDateIso || '').slice(0, 16)}
+                onChange={(e) => updateField('endDateIso', e.target.value ? `${e.target.value}:00` : '')}
+                style={input}
+              />
+            </Field>
+            <Field label="Multi-day?">
+              <div style={{ fontSize: 12, color: 'var(--tan-light)', lineHeight: 1.4, paddingTop: 6 }}>
+                Leave blank for a single-day event. When set, the public page shows a date range, the check-in window covers every day, and the timeline can be grouped by day (prefix a schedule line with the day number, e.g. &quot;1 | 7:00 AM | Check-in&quot;).
+              </div>
             </Field>
           </div>
           <div style={twoCol}>
@@ -849,8 +874,8 @@ function EventDetailsEditor({ value, onChange }) {
       <Field label="Mission briefing (paragraphs — separate with a blank line)">
         <textarea rows={4} value={value.missionBriefing} onChange={set('missionBriefing')} style={ta} placeholder={'The heat hangs heavy over the treeline…\n\nOperators muster at staging for the brief…'} />
       </Field>
-      <Field label="Operation timeline (one &quot;time | label&quot; per line)">
-        <textarea rows={4} value={value.schedule} onChange={set('schedule')} style={ta} placeholder={'7:00 AM | Check-in\n8:00 AM | First game\n2:00 PM | Exfil'} />
+      <Field label="Operation timeline (one &quot;time | label&quot; per line; for multi-day prefix the day, e.g. &quot;1 | 7:00 AM | Check-in&quot;)">
+        <textarea rows={4} value={value.schedule} onChange={set('schedule')} style={ta} placeholder={'1 | 7:00 AM | Check-in\n1 | 8:00 AM | First game\n2 | 6:00 AM | Dawn push'} />
       </Field>
       <div style={row}>
         <Field label="Timeline note"><input value={value.scheduleNote} onChange={set('scheduleNote')} style={input} placeholder="Times approximate" /></Field>

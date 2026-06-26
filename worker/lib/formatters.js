@@ -6,6 +6,7 @@ export function formatEvent(row) {
         title: row.title,
         slug: row.slug,
         dateIso: row.date_iso,
+        endDateIso: row.end_date_iso ?? null,
         displayDay: row.display_day,
         displayMonth: row.display_month,
         displayDate: row.display_date,

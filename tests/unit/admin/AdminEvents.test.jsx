@@ -98,6 +98,16 @@ describe('AdminEvents', () => {
         expect(await screen.findByRole('heading', { name: 'New event' })).toBeInTheDocument();
     });
 
+    it('exposes the multi-day end-date input + helper in the editor', async () => {
+        mockList();
+        renderWithAdmin(<AdminEvents />);
+        await waitFor(() => expect(screen.getByRole('button', { name: '+ New Event' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: '+ New Event' }));
+        expect(await screen.findByRole('heading', { name: 'New event' })).toBeInTheDocument();
+        expect(screen.getByText(/End date & time/)).toBeInTheDocument();
+        expect(screen.getByText(/Leave blank for a single-day event/)).toBeInTheDocument();
+    });
+
     it('opens the editor for an existing event via the detail endpoint', async () => {
         mockList([{ match: '/detail', body: EVT_DETAIL }]);
         renderWithAdmin(<AdminEvents />);

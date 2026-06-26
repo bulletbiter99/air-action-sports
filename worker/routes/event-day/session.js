@@ -57,7 +57,7 @@ eventDaySessions.post('/start', async (c) => {
 
     // Look up event row.
     const event = await c.env.DB.prepare(
-        'SELECT id, title, date_iso, past FROM events WHERE id = ?',
+        'SELECT id, title, date_iso, end_date_iso, past FROM events WHERE id = ?',
     ).bind(eventId).first();
     if (!event) return c.json({ error: 'event_not_found' }, 404);
 

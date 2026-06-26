@@ -24,7 +24,7 @@ describe('GET /api/admin/today/active', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
         env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-05-08' }, 'first');
-        env.DB.__on(/FROM events\s+WHERE date_iso = \? AND published = 1 AND past = 0/, {
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, {
             results: [{ id: 'evt_today_1' }],
         }, 'all');
 
@@ -45,7 +45,7 @@ describe('GET /api/admin/today/active', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
         env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-05-08' }, 'first');
-        env.DB.__on(/FROM events\s+WHERE date_iso = \? AND published = 1 AND past = 0/, {
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, {
             results: [],
         }, 'all');
 
@@ -66,7 +66,7 @@ describe('GET /api/admin/today/active', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
         env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-05-08' }, 'first');
-        env.DB.__on(/FROM events\s+WHERE date_iso = \? AND published = 1 AND past = 0/, {
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, {
             results: [{ id: 'evt_a' }, { id: 'evt_b' }],
         }, 'all');
 
@@ -81,13 +81,15 @@ describe('GET /api/admin/today/active', () => {
         expect(json.eventId).toBe(null);
     });
 
-    it('binds today date to events query (so the query is parameterized, not interpolated)', async () => {
+    it('matches events whose span contains today (date-portion overlap, binds today twice)', async () => {
         const env = createMockEnv();
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
+        let capturedSql = '';
         let capturedBinds = null;
         env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-05-08' }, 'first');
-        env.DB.__on(/FROM events\s+WHERE date_iso = \? AND published = 1 AND past = 0/, (sql, args) => {
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, (sql, args) => {
+            capturedSql = sql;
             capturedBinds = args;
             return { results: [] };
         }, 'all');
@@ -97,7 +99,11 @@ describe('GET /api/admin/today/active', () => {
             env,
             {},
         );
-        expect(capturedBinds).toEqual(['2026-05-08']);
+        // Span overlap on date portions: start <= today AND end (or start) >= today.
+        expect(capturedSql).toMatch(/date\(date_iso\) <= \?/);
+        expect(capturedSql).toMatch(/date\(COALESCE\(end_date_iso, date_iso\)\) >= \?/);
+        // today is bound twice — once per side of the overlap.
+        expect(capturedBinds).toEqual(['2026-05-08', '2026-05-08']);
     });
 
     it('only counts events with published=1 AND past=0 (filtered in SQL, not in app code)', async () => {
@@ -151,7 +157,7 @@ describe('GET /api/admin/today/active', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u_mgr', role: 'manager' });
 
         env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-05-08' }, 'first');
-        env.DB.__on(/FROM events\s+WHERE date_iso/, { results: [] }, 'all');
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, { results: [] }, 'all');
 
         const res = await worker.fetch(
             makeReq(TODAY_ACTIVE_PATH, { headers: { cookie: cookieHeader } }),
@@ -166,7 +172,7 @@ describe('GET /api/admin/today/active', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u_staff', role: 'staff' });
 
         env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-05-08' }, 'first');
-        env.DB.__on(/FROM events\s+WHERE date_iso/, { results: [] }, 'all');
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, { results: [] }, 'all');
 
         const res = await worker.fetch(
             makeReq(TODAY_ACTIVE_PATH, { headers: { cookie: cookieHeader } }),
@@ -183,7 +189,7 @@ describe('GET /api/admin/today/active', () => {
         // SQLite "today" query returns null / empty result — endpoint must still work.
         env.DB.__on(/SELECT date\('now'\) AS today/, null, 'first');
         let capturedBinds = null;
-        env.DB.__on(/FROM events\s+WHERE date_iso/, (sql, args) => {
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, (sql, args) => {
             capturedBinds = args;
             return { results: [] };
         }, 'all');
@@ -204,7 +210,7 @@ describe('GET /api/admin/today/active', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
         env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-05-08' }, 'first');
-        env.DB.__on(/FROM events\s+WHERE date_iso/, {
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, {
             results: [{ id: 'evt_today_1' }],
         }, 'all');
 

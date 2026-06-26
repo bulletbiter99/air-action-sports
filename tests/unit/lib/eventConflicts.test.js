@@ -37,6 +37,25 @@ describe('dateIsoToDayWindow', () => {
         expect(dateIsoToDayWindow('20260615')).toBeNull(); // missing dashes
         expect(dateIsoToDayWindow(12345)).toBeNull(); // not a string
     });
+
+    it('spans multiple days when an end day is given (through end of the last day)', () => {
+        const w = dateIsoToDayWindow('2026-06-20', '2026-06-21');
+        expect(w.startMs).toBe(Date.parse('2026-06-20T00:00:00Z'));
+        expect(w.endMs).toBe(Date.parse('2026-06-22T00:00:00Z')); // midnight after 06-21
+    });
+
+    it('truncates time components on both ends of a span', () => {
+        const w = dateIsoToDayWindow('2026-06-20T16:00:00', '2026-06-21T22:00:00');
+        expect(w.startMs).toBe(Date.parse('2026-06-20T00:00:00Z'));
+        expect(w.endMs).toBe(Date.parse('2026-06-22T00:00:00Z'));
+    });
+
+    it('falls back to a single day when the end is equal/earlier/malformed', () => {
+        expect(dateIsoToDayWindow('2026-06-20', '2026-06-20').endMs).toBe(Date.parse('2026-06-21T00:00:00Z'));
+        expect(dateIsoToDayWindow('2026-06-20', '2026-06-19').endMs).toBe(Date.parse('2026-06-21T00:00:00Z'));
+        expect(dateIsoToDayWindow('2026-06-20', 'not-a-date').endMs).toBe(Date.parse('2026-06-21T00:00:00Z'));
+        expect(dateIsoToDayWindow('2026-06-20', null).endMs).toBe(Date.parse('2026-06-21T00:00:00Z'));
+    });
 });
 
 describe('intervalsOverlap', () => {
@@ -101,7 +120,7 @@ describe('detectEventConflicts — edge cases', () => {
 
 describe('detectEventConflicts — events table', () => {
     function setupEventsMock(db, eventRows) {
-        db.__on(/SELECT id, title, date_iso, location FROM events/, () => ({
+        db.__on(/SELECT id, title, date_iso, end_date_iso, location FROM events/, () => ({
             results: eventRows,
             meta: { rows_read: eventRows.length },
         }), 'all');
@@ -180,6 +199,52 @@ describe('detectEventConflicts — events table', () => {
         });
         expect(result.events).toHaveLength(1);
         expect(result.events[0].id).toBe('ev_ok');
+    });
+
+    it('multi-day event conflicts on its SECOND day (span window, not just day 1)', async () => {
+        const db = createMockD1();
+        setupEventsMock(db, [
+            {
+                id: 'ev_2day', title: 'Weekend Op',
+                date_iso: '2026-06-20T16:00:00', end_date_iso: '2026-06-21T22:00:00',
+                location: 'Ghost Town',
+            },
+        ]);
+        // Request covering only DAY 2 (2026-06-21). Pre-Phase-2 the event's
+        // day-1-only window missed this; the span window now overlaps.
+        const result = await detectEventConflicts(envWith(db), {
+            siteId: 'site_g',
+            startsAt: Date.parse('2026-06-21T00:00:00Z'),
+            endsAt: Date.parse('2026-06-22T00:00:00Z'),
+        });
+        expect(result.events).toHaveLength(1);
+        expect(result.events[0].id).toBe('ev_2day');
+    });
+
+    it('single-day event (NULL end_date_iso) does NOT conflict with the next day', async () => {
+        const db = createMockD1();
+        setupEventsMock(db, [
+            { id: 'ev_1day', title: 'One Day', date_iso: '2026-06-20T16:00:00', end_date_iso: null, location: null },
+        ]);
+        const result = await detectEventConflicts(envWith(db), {
+            siteId: 'site_g',
+            startsAt: Date.parse('2026-06-21T00:00:00Z'),
+            endsAt: Date.parse('2026-06-22T00:00:00Z'),
+        });
+        expect(result.events).toHaveLength(0);
+    });
+
+    it('events query selects end_date_iso and uses a COALESCE day-overlap filter', async () => {
+        const db = createMockD1();
+        setupEventsMock(db, []);
+        await detectEventConflicts(envWith(db), {
+            siteId: 'site_g',
+            startsAt: Date.parse('2026-06-20T00:00:00Z'),
+            endsAt: Date.parse('2026-06-21T00:00:00Z'),
+        });
+        const q = db.__writes().find((w) => /FROM events/.test(w.sql));
+        expect(q.sql).toMatch(/end_date_iso/);
+        expect(q.sql).toMatch(/COALESCE\(end_date_iso, date_iso\)/);
     });
 });
 

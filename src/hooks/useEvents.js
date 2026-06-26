@@ -62,6 +62,16 @@ export function adaptEvent(apiEvent) {
         heroOverlayOpacity: apiEvent.heroOverlayOpacity ?? null,
         bannerOverlayOpacity: apiEvent.bannerOverlayOpacity ?? null,
         dateIso: apiEvent.dateIso || '',
+        endDateIso: apiEvent.endDateIso || null,
+        // Multi-day when a span end exists and is a LATER calendar day than the
+        // start. Drives the range label + per-day schedule + sorting.
+        isMultiDay: !!(
+            apiEvent.endDateIso && apiEvent.dateIso
+            && String(apiEvent.endDateIso).slice(0, 10) > String(apiEvent.dateIso).slice(0, 10)
+        ),
+        // Operator-authored human date range ("20-21 June 2026"); shown as the
+        // date label for multi-day events (single-day uses the derived date).
+        displayDate: apiEvent.displayDate || '',
         ticketTypes: apiEvent.ticketTypes || [],
         // Per-event structured content (rules override, schedule, documents,
         // collab banner, etc.). Null for every event except those that set it,

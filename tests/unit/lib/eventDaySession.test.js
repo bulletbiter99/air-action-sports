@@ -94,6 +94,24 @@ describe('isEventActive', () => {
     it('returns false before the event start (1 ms before)', () => {
         expect(isEventActive({ date_iso: eventDate }, eventStartUtc - 1)).toBe(false);
     });
+
+    it('is active for a timed date_iso (date-portion parse — the latent NaN-bug fix)', () => {
+        // The old code concatenated "T00:00:00Z" onto the full timed value →
+        // NaN → false, so a timed event never activated. Parsing the date
+        // portion fixes it.
+        const timed = { date_iso: '2026-06-15T16:00:00' };
+        expect(isEventActive(timed, eventStartUtc)).toBe(true);
+        expect(isEventActive(timed, eventStartUtc + 12 * 60 * 60 * 1000)).toBe(true);
+    });
+
+    it('multi-day event is active on its second day (span window)', () => {
+        const multi = { date_iso: '2026-06-15T16:00:00', end_date_iso: '2026-06-16T22:00:00' };
+        const day2Noon = Date.parse('2026-06-16T12:00:00Z'); // past a single day's 30h window
+        expect(isEventActive(multi, day2Noon)).toBe(true);
+        const spanEnd = Date.parse('2026-06-16T00:00:00Z') + EVENT_DAY_WINDOW_MS;
+        expect(isEventActive(multi, spanEnd)).toBe(true);
+        expect(isEventActive(multi, spanEnd + 1)).toBe(false);
+    });
 });
 
 describe('eventDayWindowExpired', () => {
@@ -119,6 +137,15 @@ describe('eventDayWindowExpired', () => {
 
     it('returns true for malformed date_iso', () => {
         expect(eventDayWindowExpired({ date_iso: 'invalid' }, eventStartUtc)).toBe(true);
+    });
+
+    it('multi-day event is NOT expired during its second day', () => {
+        const multi = { date_iso: '2026-06-15T16:00:00', end_date_iso: '2026-06-16T22:00:00' };
+        const day2Noon = Date.parse('2026-06-16T12:00:00Z');
+        expect(eventDayWindowExpired(multi, day2Noon)).toBe(false);
+        const spanEnd = Date.parse('2026-06-16T00:00:00Z') + EVENT_DAY_WINDOW_MS;
+        expect(eventDayWindowExpired(multi, spanEnd)).toBe(false); // boundary, not > end
+        expect(eventDayWindowExpired(multi, spanEnd + 1)).toBe(true);
     });
 });
 

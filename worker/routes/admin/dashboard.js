@@ -51,12 +51,17 @@ adminDashboard.get('/today/active', async (c) => {
     // Find published, non-past events scheduled for today. Limit 2 so we
     // can detect the multiple-events-today case without scanning the
     // whole day's rows.
+    // Match events whose span CONTAINS today (date portions): a single-day
+    // event today, OR a multi-day event on any day from its start through
+    // end_date_iso. date(date_iso) also makes a timed date_iso match — a bare
+    // `date_iso = today` never matched a "...T16:00:00" value.
     const eventsResult = await c.env.DB.prepare(
         `SELECT id FROM events
-         WHERE date_iso = ? AND published = 1 AND past = 0
+         WHERE date(date_iso) <= ? AND date(COALESCE(end_date_iso, date_iso)) >= ?
+           AND published = 1 AND past = 0
          ORDER BY id
          LIMIT 2`,
-    ).bind(today).all();
+    ).bind(today, today).all();
 
     const events = eventsResult.results || [];
     const activeEventToday = events.length > 0;

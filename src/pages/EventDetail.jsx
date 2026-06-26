@@ -80,6 +80,9 @@ export default function EventDetail() {
   const dateFull = event.date?.month
     ? `${event.date.month.replace(/\d{4}/, '').trim()} ${event.date.day}, ${event.date.month.match(/\d{4}/)?.[0] || '2026'}`
     : event.dateIso?.slice(0, 10) || '';
+  // Multi-day events show the operator-authored free-text range (displayDate,
+  // e.g. "20-21 June 2026"); single-day keeps the spelled-out single date.
+  const dateDisplay = (event.isMultiDay && event.displayDate) ? event.displayDate : dateFull;
 
   const spots = spotsSignal(event.slots?.taken, event.slots?.total);
 
@@ -87,7 +90,7 @@ export default function EventDetail() {
     <>
       <SEO
         title={`${event.title} — ${event.date.month.replace(' ', ' ')} ${event.date.day} | Air Action Sports`}
-        description={`${event.title} — a full-day airsoft event at ${event.location.split(' —')[0] || event.location} on ${dateFull}. Book your place now.`}
+        description={`${event.title} — a ${event.isMultiDay ? 'multi-day' : 'full-day'} airsoft event at ${event.location.split(' —')[0] || event.location} on ${dateDisplay}. Book your place now.`}
         canonical={`https://airactionsport.com/events/${slug}`}
         ogImage="https://airactionsport.com/images/og-image.jpg"
       />
@@ -109,7 +112,7 @@ export default function EventDetail() {
       >
         <div className="event-hero-content">
           <div className="event-hero-meta">
-            <span className="event-hero-date">{dateFull}</span>
+            <span className="event-hero-date">{dateDisplay}</span>
             <span className="event-hero-badge">
               {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
             </span>
@@ -156,20 +159,47 @@ export default function EventDetail() {
               </table>
             </div>
 
-            {/* Operation Timeline — detailed per-event schedule (event.details.schedule) */}
+            {/* Operation Timeline — detailed per-event schedule (event.details.schedule).
+                Rows may carry an optional `day` (1, 2, …); when any do, the
+                timeline is grouped under "Day N" headings (multi-day events).
+                With no `day` keys it renders a single flat table (unchanged). */}
             {event.details?.schedule && event.details.schedule.length > 0 && (
               <div className="detail-section">
                 <h2>Operation Timeline</h2>
-                <table className="pricing-table">
-                  <tbody>
-                    {event.details.schedule.map((s, i) => (
-                      <tr key={i}>
-                        <td style={{ color: 'var(--orange)', fontWeight: 700, whiteSpace: 'nowrap' }}>{s.time}</td>
-                        <td style={{ color: 'var(--tan-light)', fontWeight: 400 }}>{s.label}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {(() => {
+                  const rows = event.details.schedule;
+                  const renderRows = (items) => items.map((s, i) => (
+                    <tr key={i}>
+                      <td style={{ color: 'var(--orange)', fontWeight: 700, whiteSpace: 'nowrap' }}>{s.time}</td>
+                      <td style={{ color: 'var(--tan-light)', fontWeight: 400 }}>{s.label}</td>
+                    </tr>
+                  ));
+                  const hasDays = rows.some((s) => s.day != null && s.day !== '');
+                  if (!hasDays) {
+                    return (
+                      <table className="pricing-table">
+                        <tbody>{renderRows(rows)}</tbody>
+                      </table>
+                    );
+                  }
+                  const order = [];
+                  const byDay = {};
+                  for (const s of rows) {
+                    const d = s.day ?? '';
+                    if (!(d in byDay)) { byDay[d] = []; order.push(d); }
+                    byDay[d].push(s);
+                  }
+                  return order.map((d) => (
+                    <div key={d}>
+                      {d !== '' && (
+                        <h3 style={{ color: 'var(--orange)', fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 800, margin: '1.25rem 0 0.5rem' }}>Day {d}</h3>
+                      )}
+                      <table className="pricing-table">
+                        <tbody>{renderRows(byDay[d])}</tbody>
+                      </table>
+                    </div>
+                  ));
+                })()}
                 {event.details.scheduleNote && (
                   <p style={{ fontSize: '12px', fontStyle: 'italic', marginTop: '0.75rem' }}>
                     {event.details.scheduleNote}
@@ -407,7 +437,7 @@ export default function EventDetail() {
               <div className="info-card-title">Event Info</div>
               <div className="info-card-item">
                 <span className="info-card-label">Date</span>
-                <span className="info-card-value">{dateFull}</span>
+                <span className="info-card-value">{dateDisplay}</span>
               </div>
               <div className="info-card-item">
                 <span className="info-card-label">Check-In</span>

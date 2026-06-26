@@ -148,24 +148,28 @@ adminAnalytics.get('/overview', async (c) => {
 // events.date_iso carries a time component (e.g. "2026-06-20T07:00:00"),
 // so normalize with date() and compare the calendar date against
 // date('now') (UTC, consistent with the ?period=mtd month boundary).
-// An event whose date is exactly today counts as recognized (the event
-// day is treated as the recognition point).
+// Recognition point = the END of the event's span (a multi-day op's revenue
+// stays deferred until the whole event is delivered; single-day = its date).
 adminAnalytics.get('/deferred-revenue', async (c) => {
     const earned = `(b.total_cents - COALESCE(b.tax_cents, 0) - COALESCE(b.fee_cents, 0))`;
+    // Recognition point = the END of the event's span (end_date_iso when set,
+    // else date_iso). A multi-day op stays DEFERRED until the whole event is
+    // delivered, not the start of day 1. date(...) handles a timed date_iso.
+    const recogDay = `date(COALESCE(e.end_date_iso, e.date_iso))`;
 
     const totals = await c.env.DB.prepare(
         `SELECT
-            COALESCE(SUM(CASE WHEN date(e.date_iso) > date('now')
+            COALESCE(SUM(CASE WHEN ${recogDay} > date('now')
                               THEN ${earned} ELSE 0 END), 0) AS deferred_cents,
-            COALESCE(SUM(CASE WHEN date(e.date_iso) IS NULL OR date(e.date_iso) <= date('now')
+            COALESCE(SUM(CASE WHEN ${recogDay} IS NULL OR ${recogDay} <= date('now')
                               THEN ${earned} ELSE 0 END), 0) AS recognized_cents
          FROM bookings b
          LEFT JOIN events e ON e.id = b.event_id
          WHERE b.status = 'paid'`
     ).first();
 
-    // Per-upcoming-event breakdown — what balance is held for each future
-    // event, soonest first. Only events that actually hold money appear.
+    // Per-upcoming-event breakdown — what balance is held for each event whose
+    // span has not fully ended, soonest first. Only events holding money appear.
     const upcoming = await c.env.DB.prepare(
         `SELECT e.id, e.title, e.date_iso,
                 COUNT(b.id) AS paid_bookings,
@@ -173,7 +177,7 @@ adminAnalytics.get('/deferred-revenue', async (c) => {
                 COALESCE(SUM(${earned}), 0) AS deferred_cents
          FROM events e
          JOIN bookings b ON b.event_id = e.id AND b.status = 'paid'
-         WHERE date(e.date_iso) > date('now')
+         WHERE ${recogDay} > date('now')
          GROUP BY e.id
          HAVING deferred_cents > 0
          ORDER BY date(e.date_iso) ASC`

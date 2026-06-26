@@ -46,7 +46,7 @@ function bindEventDaySession({ withRoles = [] } = {}) {
         incidents_filed: 0,
         equipment_returns: 0,
     }, 'first');
-    env.DB.__on(/SELECT id, date_iso, past FROM events WHERE id = \?/, {
+    env.DB.__on(/SELECT id, date_iso, end_date_iso, past FROM events WHERE id = \?/, {
         id: EVENT_ID, date_iso: todayIso(), past: 0,
     }, 'first');
     env.DB.__on(/SELECT id, full_name, email FROM persons WHERE id = \?/, {

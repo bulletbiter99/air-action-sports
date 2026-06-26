@@ -74,7 +74,7 @@ describe('POST /api/event-day/sessions/start', () => {
         env.DB.__on(/SELECT id, person_id FROM portal_sessions/, {
             id: PORTAL_SESSION_ID, person_id: PERSON_ID,
         }, 'first');
-        env.DB.__on(/SELECT id, title, date_iso, past FROM events WHERE id = \?/, null, 'first');
+        env.DB.__on(/SELECT id, title, date_iso, end_date_iso, past FROM events WHERE id = \?/, null, 'first');
         const req = new Request('https://airactionsport.com/api/event-day/sessions/start', {
             method: 'POST',
             headers: { cookie, 'Content-Type': 'application/json' },
@@ -89,7 +89,7 @@ describe('POST /api/event-day/sessions/start', () => {
         env.DB.__on(/SELECT id, person_id FROM portal_sessions/, {
             id: PORTAL_SESSION_ID, person_id: PERSON_ID,
         }, 'first');
-        env.DB.__on(/SELECT id, title, date_iso, past FROM events WHERE id = \?/, {
+        env.DB.__on(/SELECT id, title, date_iso, end_date_iso, past FROM events WHERE id = \?/, {
             id: EVENT_ID, title: 'Old', date_iso: '2020-01-01', past: 1,
         }, 'first');
         const req = new Request('https://airactionsport.com/api/event-day/sessions/start', {
@@ -106,7 +106,7 @@ describe('POST /api/event-day/sessions/start', () => {
         env.DB.__on(/SELECT id, person_id FROM portal_sessions/, {
             id: PORTAL_SESSION_ID, person_id: PERSON_ID,
         }, 'first');
-        env.DB.__on(/SELECT id, title, date_iso, past FROM events WHERE id = \?/, {
+        env.DB.__on(/SELECT id, title, date_iso, end_date_iso, past FROM events WHERE id = \?/, {
             id: EVENT_ID, title: 'Today', date_iso: todayIso(), past: 0,
         }, 'first');
         env.DB.__on(/FROM event_staffing[\s\S]+person_id = \?/, null, 'first');
@@ -124,7 +124,7 @@ describe('POST /api/event-day/sessions/start', () => {
         env.DB.__on(/SELECT id, person_id FROM portal_sessions/, {
             id: PORTAL_SESSION_ID, person_id: PERSON_ID,
         }, 'first');
-        env.DB.__on(/SELECT id, title, date_iso, past FROM events WHERE id = \?/, {
+        env.DB.__on(/SELECT id, title, date_iso, end_date_iso, past FROM events WHERE id = \?/, {
             id: EVENT_ID, title: 'Operation Nightfall', date_iso: todayIso(), past: 0,
         }, 'first');
         env.DB.__on(/FROM event_staffing[\s\S]+person_id = \?/, {
@@ -156,7 +156,7 @@ describe('POST /api/event-day/sessions/start', () => {
         env.DB.__on(/SELECT id, person_id FROM portal_sessions/, {
             id: PORTAL_SESSION_ID, person_id: PERSON_ID,
         }, 'first');
-        env.DB.__on(/SELECT id, title, date_iso, past FROM events WHERE id = \?/, {
+        env.DB.__on(/SELECT id, title, date_iso, end_date_iso, past FROM events WHERE id = \?/, {
             id: EVENT_ID, title: 'Today', date_iso: todayIso(), past: 0,
         }, 'first');
         env.DB.__on(/FROM event_staffing[\s\S]+person_id = \?/, {
@@ -199,7 +199,7 @@ describe('POST /api/event-day/sessions/heartbeat', () => {
             signed_in_at: Date.now() - 60_000,
             last_activity_at: Date.now() - 60_000,
         }, 'first');
-        env.DB.__on(/SELECT id, date_iso, past FROM events WHERE id = \?/, {
+        env.DB.__on(/SELECT id, date_iso, end_date_iso, past FROM events WHERE id = \?/, {
             id: EVENT_ID, date_iso: todayIso(), past: 0,
         }, 'first');
         env.DB.__on(/SELECT id, full_name, email FROM persons WHERE id = \?/, {
@@ -262,7 +262,7 @@ describe('POST /api/event-day/sessions/heartbeat', () => {
             portal_session_id: PORTAL_SESSION_ID,
             signed_out_at: null,
         }, 'first');
-        env.DB.__on(/SELECT id, date_iso, past FROM events WHERE id = \?/, {
+        env.DB.__on(/SELECT id, date_iso, end_date_iso, past FROM events WHERE id = \?/, {
             id: EVENT_ID, date_iso: '2020-01-01', past: 1,
         }, 'first');
         env.DB.__on(/UPDATE event_day_sessions SET signed_out_at/, { meta: { changes: 1 } }, 'run');
@@ -311,7 +311,7 @@ describe('POST /api/event-day/sessions/end', () => {
             portal_session_id: PORTAL_SESSION_ID,
             signed_out_at: null,
         }, 'first');
-        env.DB.__on(/SELECT id, date_iso, past FROM events WHERE id = \?/, {
+        env.DB.__on(/SELECT id, date_iso, end_date_iso, past FROM events WHERE id = \?/, {
             id: EVENT_ID, date_iso: todayIso(), past: 0,
         }, 'first');
         env.DB.__on(/SELECT id, full_name, email FROM persons WHERE id = \?/, {
@@ -356,7 +356,7 @@ describe('GET /api/event-day/sessions/me', () => {
             signed_in_at: 1700000000000,
             last_activity_at: 1700001000000,
         }, 'first');
-        env.DB.__on(/SELECT id, date_iso, past FROM events WHERE id = \?/, {
+        env.DB.__on(/SELECT id, date_iso, end_date_iso, past FROM events WHERE id = \?/, {
             id: EVENT_ID, date_iso: todayIso(), past: 0,
         }, 'first');
         env.DB.__on(/SELECT id, full_name, email FROM persons WHERE id = \?/, {
