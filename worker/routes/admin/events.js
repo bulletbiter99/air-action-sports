@@ -754,6 +754,22 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
     const src = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(sourceId).first();
     if (!src) return c.json({ error: 'Source event not found' }, 404);
 
+    // Duplicate is the one write path that skips parseEventBody, so mirror the
+    // span guard here on any operator-supplied date overrides — validate the
+    // EFFECTIVE span (override when present, else the already-validated source).
+    const dupStart = body.dateIso || src.date_iso;
+    const dupEnd = body.endDateIso || src.end_date_iso;
+    if (dupEnd) {
+        if (!Number.isFinite(Date.parse(dupEnd))) {
+            return c.json({ error: 'endDateIso must be a valid ISO 8601 date' }, 400);
+        }
+        if (dupStart && Number.isFinite(Date.parse(dupStart))) {
+            const span = Date.parse(dupEnd) - Date.parse(dupStart);
+            if (span < 0) return c.json({ error: 'endDateIso must be on or after dateIso' }, 400);
+            if (span > MAX_EVENT_SPAN_MS) return c.json({ error: 'endDateIso must be within 31 days of dateIso' }, 400);
+        }
+    }
+
     const newTitle = body.title?.trim() || `${src.title} (copy)`;
     const desiredId = body.id ? slugify(body.id) : slugify(newTitle);
     const collision = await c.env.DB.prepare(`SELECT id FROM events WHERE id = ?`).bind(desiredId).first();

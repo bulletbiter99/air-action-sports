@@ -191,7 +191,9 @@ export default function EventDetail() {
                   }
                   return order.map((d) => (
                     <div key={d}>
-                      <h3 style={{ color: 'var(--orange)', fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 800, margin: '1.25rem 0 0.5rem' }}>Day {d}</h3>
+                      {d !== '' && (
+                        <h3 style={{ color: 'var(--orange)', fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 800, margin: '1.25rem 0 0.5rem' }}>Day {d}</h3>
+                      )}
                       <table className="pricing-table">
                         <tbody>{renderRows(byDay[d])}</tbody>
                       </table>
