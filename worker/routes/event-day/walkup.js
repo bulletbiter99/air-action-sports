@@ -65,7 +65,7 @@ eventDayWalkup.post('/', async (c) => {
     }
 
     // ─── Load full event row (for addons_json) — c.get('event') is the
-    //     stripped row from requireEventDayAuth (id/date_iso/past only).
+    //     stripped row from requireEventDayAuth (id/date_iso/end_date_iso/past).
     const eventRow = await c.env.DB.prepare(
         'SELECT * FROM events WHERE id = ?',
     ).bind(event.id).first();

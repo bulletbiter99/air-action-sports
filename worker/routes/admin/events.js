@@ -24,6 +24,11 @@ const EVENT_OPACITY_FIELDS = [
 const EVENT_POSITION_FIELDS = [
     'card_image_position', 'hero_image_position', 'banner_image_position',
 ];
+// Sanity bound on a multi-day span. A far-future end_date_iso (a data-entry
+// slip) would otherwise keep the event-day check-in window open until then —
+// worker/lib/eventDaySession.js derives the active window from the span. 31
+// days comfortably covers any real multi-day operation.
+const MAX_EVENT_SPAN_MS = 31 * 24 * 60 * 60 * 1000;
 
 // Normalize a CSS background-position into a strict, injection-safe form:
 // either null (→ the page's default `center`) or a canonical "x% y%" string.
@@ -243,6 +248,11 @@ export function parseEventBody(body, { partial = false } = {}) {
             && Date.parse(patch.end_date_iso) < Date.parse(patch.date_iso)
         ) {
             return { error: 'endDateIso must be on or after dateIso' };
+        } else if (
+            patch.date_iso && Number.isFinite(Date.parse(patch.date_iso))
+            && Date.parse(patch.end_date_iso) - Date.parse(patch.date_iso) > MAX_EVENT_SPAN_MS
+        ) {
+            return { error: 'endDateIso must be within 31 days of dateIso' };
         }
     }
 
@@ -613,12 +623,14 @@ adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
     {
         const effStart = patch.date_iso ?? existing.date_iso;
         const effEnd = patch.end_date_iso !== undefined ? patch.end_date_iso : existing.end_date_iso;
-        if (
-            effStart && effEnd
-            && Number.isFinite(Date.parse(effStart)) && Number.isFinite(Date.parse(effEnd))
-            && Date.parse(effEnd) < Date.parse(effStart)
-        ) {
-            return c.json({ error: 'endDateIso must be on or after dateIso' }, 400);
+        if (effStart && effEnd && Number.isFinite(Date.parse(effStart)) && Number.isFinite(Date.parse(effEnd))) {
+            const span = Date.parse(effEnd) - Date.parse(effStart);
+            if (span < 0) {
+                return c.json({ error: 'endDateIso must be on or after dateIso' }, 400);
+            }
+            if (span > MAX_EVENT_SPAN_MS) {
+                return c.json({ error: 'endDateIso must be within 31 days of dateIso' }, 400);
+            }
         }
     }
 

@@ -35,6 +35,14 @@ describe('parseEventBody — multi-day end date', () => {
     expect(error).toMatch(/on or after/);
   });
 
+  it('rejects a span longer than 31 days (far-future end-date typo guard)', () => {
+    const { error } = parseEventBody(
+      { dateIso: '2026-06-20T16:00:00', endDateIso: '2099-01-01T00:00:00' },
+      { partial: true },
+    );
+    expect(error).toMatch(/within 31 days/);
+  });
+
   it('accepts end == start and end > start', () => {
     expect(
       parseEventBody({ dateIso: '2026-06-20T16:00:00', endDateIso: '2026-06-20T16:00:00' }, { partial: true }).error,
