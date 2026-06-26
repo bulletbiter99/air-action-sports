@@ -2,8 +2,8 @@
 //
 // Splits EARNED revenue (total − tax − fee, the income-card basis) on
 // paid bookings into:
-//   - deferred   = event date still in the future (unearned liability)
-//   - recognized = event already occurred / undated
+//   - deferred   = event span not yet fully ended (unearned liability)
+//   - recognized = event fully delivered (span end passed) / undated
 // deferred + recognized == /overview's netRevenueCents, so the cards
 // reconcile. events.date_iso carries a time component, so the endpoint
 // must normalize with date() before comparing to date('now').
@@ -81,13 +81,15 @@ describe('GET /api/admin/analytics/deferred-revenue', () => {
 
         const res = await worker.fetch(makeReq(PATH, { headers: { cookie: cookieHeader } }), env, {});
         expect(res.status).toBe(200);
-        // Date comparison must be on the calendar date, not the raw datetime string.
-        expect(totalsSql).toMatch(/date\(e\.date_iso\)\s*>\s*date\('now'\)/);
+        // Recognition keys off the END of the span (end_date_iso when set,
+        // else date_iso) so a multi-day op stays deferred until fully delivered;
+        // date() normalizes a timed date_iso.
+        expect(totalsSql).toMatch(/date\(COALESCE\(e\.end_date_iso, e\.date_iso\)\)\s*>\s*date\('now'\)/);
         expect(totalsSql).toMatch(/b\.status = 'paid'/);
         // earned basis excludes tax + fee.
         expect(totalsSql).toMatch(/b\.total_cents - COALESCE\(b\.tax_cents/);
-        // upcoming list is future-only, soonest first.
-        expect(upcomingSql).toMatch(/date\(e\.date_iso\)\s*>\s*date\('now'\)/);
+        // upcoming list is span-not-ended only, soonest-by-start first.
+        expect(upcomingSql).toMatch(/date\(COALESCE\(e\.end_date_iso, e\.date_iso\)\)\s*>\s*date\('now'\)/);
         expect(upcomingSql).toMatch(/ORDER BY date\(e\.date_iso\) ASC/);
     });
 
