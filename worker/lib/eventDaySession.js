@@ -79,26 +79,58 @@ export function randomEventDaySessionId() {
 }
 
 /**
+ * Compute the event's active window [start, end] in epoch ms.
+ *
+ *   - start = 00:00 UTC of date_iso's DATE PORTION (slice 0,10), so a date_iso
+ *     that carries a time component (e.g. "2026-06-20T16:00:00") still parses.
+ *     The old code concatenated "T00:00:00Z" onto the full value → NaN for any
+ *     timed date_iso → the kiosk never activated. Slicing the date part fixes it.
+ *   - end   = 00:00 UTC of the LAST day + EVENT_DAY_WINDOW_MS. The last day is
+ *     end_date_iso's date portion when it is well-formed and on/after the start
+ *     day (a multi-day event); otherwise the start day (single-day). For a
+ *     single day this is exactly [start, start + EVENT_DAY_WINDOW_MS] as before.
+ *
+ * Returns null when date_iso is missing/malformed.
+ *
+ * @param {object} event - row from `events` (date_iso, end_date_iso)
+ * @returns {{ start: number, end: number } | null}
+ */
+function eventWindow(event) {
+    if (!event || !event.date_iso) return null;
+    const startPart = String(event.date_iso).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startPart)) return null;
+    const start = Date.parse(`${startPart}T00:00:00Z`);
+    if (Number.isNaN(start)) return null;
+    let lastDayPart = startPart;
+    if (event.end_date_iso) {
+        const ep = String(event.end_date_iso).slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(ep) && ep >= startPart) lastDayPart = ep;
+    }
+    const lastDayStart = Date.parse(`${lastDayPart}T00:00:00Z`);
+    return { start, end: lastDayStart + EVENT_DAY_WINDOW_MS };
+}
+
+/**
  * True iff `now` falls within the event's active window.
  *
  * Defaults:
  *   - `event.past = 1` → always inactive (admin override).
- *   - `event.date_iso` parsed as YYYY-MM-DD at 00:00 UTC.
- *   - Window = [eventStart, eventStart + EVENT_DAY_WINDOW_MS].
+ *   - Window = eventWindow(event): 00:00 UTC of date_iso's date portion through
+ *     the end of end_date_iso (single day when end_date_iso is NULL).
  *
  * Future enhancement: parse `event.check_in` / `event.end_time` when
  * those become tz-aware instants (deferred per M4 audit).
  *
- * @param {object} event - row from `events` (date_iso, past)
+ * @param {object} event - row from `events` (date_iso, end_date_iso, past)
  * @param {number} now - epoch ms
  * @returns {boolean}
  */
 export function isEventActive(event, now = Date.now()) {
-    if (!event || !event.date_iso) return false;
+    if (!event) return false;
     if (event.past) return false;
-    const eventStart = Date.parse(`${event.date_iso}T00:00:00Z`);
-    if (Number.isNaN(eventStart)) return false;
-    return now >= eventStart && now <= eventStart + EVENT_DAY_WINDOW_MS;
+    const w = eventWindow(event);
+    if (!w) return false;
+    return now >= w.start && now <= w.end;
 }
 
 /**
@@ -106,11 +138,11 @@ export function isEventActive(event, now = Date.now()) {
  * Used by requireEventDayAuth to decide whether to auto-end the session.
  */
 export function eventDayWindowExpired(event, now = Date.now()) {
-    if (!event || !event.date_iso) return true;
+    if (!event) return true;
     if (event.past) return true;
-    const eventStart = Date.parse(`${event.date_iso}T00:00:00Z`);
-    if (Number.isNaN(eventStart)) return true;
-    return now > eventStart + EVENT_DAY_WINDOW_MS;
+    const w = eventWindow(event);
+    if (!w) return true;
+    return now > w.end;
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -268,7 +300,7 @@ export async function requireEventDayAuth(c, next) {
     }
 
     const event = await c.env.DB.prepare(
-        'SELECT id, date_iso, past FROM events WHERE id = ?',
+        'SELECT id, date_iso, end_date_iso, past FROM events WHERE id = ?',
     ).bind(session.event_id).first();
     if (!event) return c.json({ error: 'event_not_found' }, 404);
 
