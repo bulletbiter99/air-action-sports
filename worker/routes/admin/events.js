@@ -87,7 +87,13 @@ export function normalizeEventDetails(input) {
 
     if (Array.isArray(input.schedule)) {
         const schedule = input.schedule
-            .map((r) => ({ time: str(r?.time), label: str(r?.label) }))
+            .map((r) => {
+                const row = { time: str(r?.time), label: str(r?.label) };
+                // Optional day index for multi-day events (1..31); drop anything else.
+                const day = Number(r?.day);
+                if (Number.isInteger(day) && day >= 1 && day <= 31) row.day = day;
+                return row;
+            })
             .filter((r) => r.time || r.label);
         if (schedule.length) out.schedule = schedule;
     }

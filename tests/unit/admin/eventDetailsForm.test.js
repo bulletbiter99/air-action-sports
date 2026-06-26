@@ -29,6 +29,17 @@ describe('formStateToDetailsPayload', () => {
         ]);
     });
 
+    it('parses an optional leading day for multi-day schedules; 2-cell stays day-less', () => {
+        const out = formStateToDetailsPayload({
+            schedule: '1 | 7:00 AM | Check-in\n2 | 6:00 AM | Dawn push\n10:00 AM | No-day line',
+        });
+        expect(out.schedule).toEqual([
+            { day: 1, time: '7:00 AM', label: 'Check-in' },
+            { day: 2, time: '6:00 AM', label: 'Dawn push' },
+            { time: '10:00 AM', label: 'No-day line' },
+        ]);
+    });
+
     it('parses factionLinks and drops lines missing a name or url', () => {
         const out = formStateToDetailsPayload({
             factionLinks: 'Kraken | https://forms.example/k\nBolotnik |\n| https://x.example',
@@ -76,6 +87,17 @@ describe('detailsToFormState', () => {
         expect(round.schedule).toEqual(original.schedule);
         expect(round.terrain).toBe(original.terrain);
         expect(round.fpsLabel).toBe(original.fpsLabel);
+    });
+
+    it('round-trips a day-keyed (multi-day) schedule', () => {
+        const original = {
+            schedule: [
+                { day: 1, time: '7:00 AM', label: 'Check-in' },
+                { day: 2, time: '6:00 AM', label: 'Dawn push' },
+            ],
+        };
+        const round = formStateToDetailsPayload(detailsToFormState(original));
+        expect(round.schedule).toEqual(original.schedule);
     });
 
     it('emptyDetailsFormState is all blank strings', () => {

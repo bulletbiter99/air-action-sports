@@ -23,8 +23,15 @@ export function formStateToDetailsPayload(fs = {}) {
         missionBriefing: splitParas(fs.missionBriefing),
         rules: splitLines(fs.rules),
         schedule: splitLines(fs.schedule).map((l) => {
-            const [time, label] = cells(l);
-            return { time: time || '', label: label || '' };
+            const parts = cells(l);
+            // 3+ cells = "day | time | label" (multi-day); 2 = "time | label".
+            if (parts.length >= 3) {
+                const day = Number(parts[0]);
+                const row = { time: parts[1] || '', label: parts[2] || '' };
+                if (Number.isInteger(day) && day >= 1) row.day = day;
+                return row;
+            }
+            return { time: parts[0] || '', label: parts[1] || '' };
         }),
         scheduleNote: String(fs.scheduleNote || '').trim(),
         firstGameLabel: String(fs.firstGameLabel || '').trim(),
@@ -49,7 +56,11 @@ export function detailsToFormState(details) {
     return {
         missionBriefing: (d.missionBriefing || []).join('\n\n'),
         rules: (d.rules || []).join('\n'),
-        schedule: (d.schedule || []).map((r) => `${r.time || ''} | ${r.label || ''}`).join('\n'),
+        schedule: (d.schedule || []).map((r) => (
+            r.day != null && r.day !== ''
+                ? `${r.day} | ${r.time || ''} | ${r.label || ''}`
+                : `${r.time || ''} | ${r.label || ''}`
+        )).join('\n'),
         scheduleNote: d.scheduleNote || '',
         firstGameLabel: d.firstGameLabel || '',
         fpsLabel: d.fpsLabel || '',
