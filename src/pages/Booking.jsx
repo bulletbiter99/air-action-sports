@@ -416,7 +416,9 @@ function StepTicketsAndAddons({
         >
           <div className="booking-event-banner-meta">
             <div className="booking-event-banner-date">
-              {selectedEvent.displayDay} {selectedEvent.displayMonth}
+              {selectedEvent.endDateIso && selectedEvent.displayDate
+                ? selectedEvent.displayDate
+                : `${selectedEvent.displayDay} ${selectedEvent.displayMonth}`}
             </div>
             <div className="booking-event-banner-title">{selectedEvent.title}</div>
             <div className="booking-event-banner-loc">&#9679; {selectedEvent.location}</div>
@@ -441,7 +443,7 @@ function StepTicketsAndAddons({
                 className={`event-card-select ${selectedEventId === ev.id ? 'selected' : ''}`}
                 onClick={() => setSelectedEventId(ev.id)}
               >
-                <div className="event-date">{ev.displayDay} {ev.displayMonth}</div>
+                <div className="event-date">{ev.endDateIso && ev.displayDate ? ev.displayDate : `${ev.displayDay} ${ev.displayMonth}`}</div>
                 <div className="event-name">{ev.title}</div>
                 <div className="event-loc">{ev.location}</div>
                 <div className="event-price">{ev.basePriceDisplay}</div>
