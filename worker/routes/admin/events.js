@@ -10,7 +10,7 @@ adminEvents.use('*', requireAuth);
 
 // Fields accepted by create/update. Missing fields preserved on update.
 const EVENT_STRING_FIELDS = [
-    'title', 'slug', 'date_iso', 'display_date', 'display_day', 'display_month',
+    'title', 'slug', 'date_iso', 'end_date_iso', 'display_date', 'display_day', 'display_month',
     'location', 'site', 'site_id', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
     'cover_image_url', 'card_image_url', 'hero_image_url', 'banner_image_url', 'og_image_url',
     'short_description',
@@ -131,7 +131,7 @@ export function parseEventBody(body, { partial = false } = {}) {
     const patch = {};
     // camelCase → snake_case fields
     const map = {
-        title: 'title', slug: 'slug', dateIso: 'date_iso',
+        title: 'title', slug: 'slug', dateIso: 'date_iso', endDateIso: 'end_date_iso',
         displayDate: 'display_date', displayDay: 'display_day', displayMonth: 'display_month',
         location: 'location', site: 'site', siteId: 'site_id', type: 'type', timeRange: 'time_range',
         checkIn: 'check_in', firstGame: 'first_game', endTime: 'end_time',
@@ -227,6 +227,23 @@ export function parseEventBody(body, { partial = false } = {}) {
         }
         cleaned.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
         patch.custom_questions_json = cleaned.length ? JSON.stringify(cleaned) : null;
+    }
+
+    // Multi-day span: end_date_iso is optional. '' / null clears it (→ NULL =
+    // single-day). When set it must parse as a date and, when date_iso is also
+    // in the same payload, be on/after the start. (Edits that change only one
+    // side are cross-checked against the stored row in the PUT handler.)
+    if (patch.end_date_iso !== undefined) {
+        if (patch.end_date_iso === null || patch.end_date_iso === '') {
+            patch.end_date_iso = null;
+        } else if (!Number.isFinite(Date.parse(patch.end_date_iso))) {
+            return { error: 'endDateIso must be a valid ISO 8601 date' };
+        } else if (
+            patch.date_iso && Number.isFinite(Date.parse(patch.date_iso))
+            && Date.parse(patch.end_date_iso) < Date.parse(patch.date_iso)
+        ) {
+            return { error: 'endDateIso must be on or after dateIso' };
+        }
     }
 
     if (!partial) {
@@ -484,7 +501,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
 
     const now = Date.now();
     const cols = [
-        'id', 'title', 'date_iso', 'display_date', 'display_day', 'display_month',
+        'id', 'title', 'date_iso', 'end_date_iso', 'display_date', 'display_day', 'display_month',
         'location', 'site', 'site_id', 'type', 'time_range', 'check_in', 'first_game', 'end_time',
         'base_price_cents', 'total_slots', 'addons_json', 'game_modes_json', 'details_json',
         'sales_close_at', 'published', 'past', 'featured',
@@ -497,6 +514,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
         id,
         title: patch.title,
         date_iso: patch.date_iso,
+        end_date_iso: patch.end_date_iso || null,
         display_date: patch.display_date || null,
         display_day: patch.display_day || null,
         display_month: patch.display_month || null,
@@ -582,11 +600,27 @@ adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: 'Invalid body' }, 400);
 
-    const existing = await c.env.DB.prepare(`SELECT id, site_id, date_iso FROM events WHERE id = ?`).bind(id).first();
+    const existing = await c.env.DB.prepare(`SELECT id, site_id, date_iso, end_date_iso FROM events WHERE id = ?`).bind(id).first();
     if (!existing) return c.json({ error: 'Event not found' }, 404);
 
     const { patch, error } = parseEventBody(body, { partial: true });
     if (error) return c.json({ error }, 400);
+
+    // Multi-day span cross-check: an edit may touch only the start OR only the
+    // end, so compare the EFFECTIVE end against the EFFECTIVE start (patched
+    // value when present, else the stored value). parseEventBody only sees the
+    // body, so it cannot catch "new start now after the stored end".
+    {
+        const effStart = patch.date_iso ?? existing.date_iso;
+        const effEnd = patch.end_date_iso !== undefined ? patch.end_date_iso : existing.end_date_iso;
+        if (
+            effStart && effEnd
+            && Number.isFinite(Date.parse(effStart)) && Number.isFinite(Date.parse(effEnd))
+            && Date.parse(effEnd) < Date.parse(effStart)
+        ) {
+            return c.json({ error: 'endDateIso must be on or after dateIso' }, 400);
+        }
+    }
 
     // M5.5 B3 — Conflict detection on schedule changes. Uses existing values
     // for fields not in the patch (operator may be changing only site_id OR
@@ -709,17 +743,18 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
 
     await c.env.DB.prepare(
         `INSERT INTO events (
-            id, title, date_iso, display_date, display_day, display_month,
+            id, title, date_iso, end_date_iso, display_date, display_day, display_month,
             location, site, type, time_range, check_in, first_game, end_time,
             base_price_cents, total_slots, addons_json, game_modes_json, details_json,
             sales_close_at, published, past,
             cover_image_url, card_image_url, hero_image_url, banner_image_url, og_image_url,
             short_description, slug, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
         newId,
         newTitle,
         body.dateIso || src.date_iso,
+        body.endDateIso || src.end_date_iso,
         body.displayDate || src.display_date,
         body.displayDay || src.display_day,
         body.displayMonth || src.display_month,

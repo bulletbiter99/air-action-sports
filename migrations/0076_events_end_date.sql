@@ -1,0 +1,33 @@
+-- Multi-day events — one nullable end-of-span column so an event can run
+-- across more than one calendar day (e.g. a 2-day weekend operation).
+--
+-- Phase 1 of the multi-day feature. Purely additive: NULL means single-day
+-- (the span is just date_iso), so every existing event renders byte-identically.
+--
+-- PRE-MIGRATION SPOT-CHECK (2026-06)
+-- ============================================================
+-- - events table on remote has date_iso TEXT NOT NULL (the single start
+--   datetime) + the free-text display_date/display_day/display_month columns.
+-- - No end-date / span column exists yet (formatEvent / parseEventBody do not
+--   reference end_date_iso).
+-- - The new column defaults NULL on insert; existing rows get NULL → every
+--   date-logic consumer treats end = COALESCE(end_date_iso, date_iso) = the
+--   start, i.e. single-day, exactly as today.
+--
+-- DESIGN NOTES
+-- ============================================================
+-- - TEXT nullable, an ISO 8601 datetime string like date_iso
+--   (e.g. "2026-06-21T22:00:00"). NULL / empty → single-day event.
+-- - Stored as the END of the span. Start stays date_iso (unchanged). The
+--   free-text display_date ("20-21 June 2026") remains the human label and is
+--   NOT parsed for the span — end_date_iso is the machine-readable end.
+-- - No CHECK constraint — end >= start ordering is validated app-side in
+--   parseEventBody (worker/routes/admin/events.js), same posture as the
+--   0055 opacity clamp / 0071 image-position normalize. Avoids a schema touch.
+--
+-- D1 quirks
+-- ============================================================
+-- - Additive only (single ADD COLUMN). No table-rebuild → no FK-during-DROP.
+-- - No BEGIN/COMMIT. No email_templates seed.
+
+ALTER TABLE events ADD COLUMN end_date_iso TEXT;
