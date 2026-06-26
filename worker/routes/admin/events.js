@@ -459,7 +459,7 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
     // both can acknowledge (operator's "owner + operations director" decision).
     let conflictsToAudit = null;
     if (patch.site_id && patch.date_iso) {
-        const dayWindow = dateIsoToDayWindow(patch.date_iso);
+        const dayWindow = dateIsoToDayWindow(patch.date_iso, patch.end_date_iso);
         if (dayWindow) {
             const conflicts = await detectEventConflicts(c.env, {
                 siteId: patch.site_id,
@@ -628,9 +628,10 @@ adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
     let conflictsToAudit = null;
     const checkSiteId = patch.site_id ?? existing.site_id;
     const checkDateIso = patch.date_iso ?? existing.date_iso;
-    const isScheduleChange = patch.site_id !== undefined || patch.date_iso !== undefined;
+    const checkEndDateIso = patch.end_date_iso !== undefined ? patch.end_date_iso : existing.end_date_iso;
+    const isScheduleChange = patch.site_id !== undefined || patch.date_iso !== undefined || patch.end_date_iso !== undefined;
     if (isScheduleChange && checkSiteId && checkDateIso) {
-        const dayWindow = dateIsoToDayWindow(checkDateIso);
+        const dayWindow = dateIsoToDayWindow(checkDateIso, checkEndDateIso);
         if (dayWindow) {
             const conflicts = await detectEventConflicts(c.env, {
                 siteId: checkSiteId,

@@ -29,19 +29,35 @@
 // - worker/routes/admin/fieldRentals.js (B7a — rental create / reschedule)
 
 /**
- * Convert a YYYY-MM-DD date_iso string into [startMs, endMs)
- * representing the whole UTC day. Returns null for invalid input.
+ * Convert an event's date span into [startMs, endMs) of whole UTC days.
+ *
+ * Single-day (the common case): pass only `dateIso` → [day 00:00Z, +24h).
+ * Multi-day: pass `endDateIso` (the last day) → the window runs through the
+ * END of that last day, i.e. [start day 00:00Z, (last day + 1) 00:00Z).
+ *
+ * Both args accept "YYYY-MM-DD" or "YYYY-MM-DDTHH:..." (truncated to the date
+ * part). A missing / malformed / earlier-than-start `endDateIso` falls back to
+ * a single day, so existing single-arg callers are unchanged. Returns null for
+ * an invalid start.
  *
  * Exported for tests.
  */
-export function dateIsoToDayWindow(dateIso) {
+export function dateIsoToDayWindow(dateIso, endDateIso = null) {
     if (!dateIso || typeof dateIso !== 'string') return null;
     // Accept "YYYY-MM-DD" or "YYYY-MM-DDTHH:..."
     const datePart = dateIso.slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return null;
     const startMs = Date.parse(`${datePart}T00:00:00Z`);
     if (!Number.isFinite(startMs)) return null;
-    const endMs = startMs + 24 * 60 * 60 * 1000;
+    // Determine the last day of the span. Default to the start day (single-day).
+    let lastDayPart = datePart;
+    if (endDateIso && typeof endDateIso === 'string') {
+        const ep = endDateIso.slice(0, 10);
+        // Only honor a well-formed end day that is on/after the start day.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(ep) && ep >= datePart) lastDayPart = ep;
+    }
+    const lastDayStartMs = Date.parse(`${lastDayPart}T00:00:00Z`);
+    const endMs = lastDayStartMs + 24 * 60 * 60 * 1000;
     return { startMs, endMs };
 }
 
@@ -80,33 +96,46 @@ export async function detectEventConflicts(env, options) {
         return { events: [], blackouts: [], fieldRentals: [] };
     }
 
-    // Events: use whole-day windows from date_iso. We pre-filter in SQL
-    // by date_iso string range, then verify each event's actual day window
-    // overlaps in JS (handles the inclusive-end edge case correctly).
+    // Events occupy whole-day windows from date_iso through the end of
+    // end_date_iso (single day when end_date_iso is NULL). We pre-filter in SQL
+    // by a day-overlap on the DATE PORTIONS, then verify the precise ms overlap
+    // in JS (handles the inclusive-end edge case correctly).
     const startDateIso = new Date(startsAt).toISOString().slice(0, 10);
     // For endsAt, take one millisecond earlier so endsAt at midnight
     // (e.g., 2026-06-16T00:00:00Z) doesn't include 2026-06-16 in the
-    // search range — only the day before. Half-open semantics.
+    // search range — only the day before. This is the request window's
+    // inclusive last day. Half-open semantics.
     const endDateIsoExclusive = new Date(endsAt - 1).toISOString().slice(0, 10);
 
+    // Day-overlap pre-filter: a candidate overlaps when it STARTS on/before the
+    // request's last day AND ENDS (end_date_iso, or date_iso when single-day)
+    // on/after the request's first day. Comparing the substr(...,1,10) date
+    // portion (not the raw timestamp) means a time component in date_iso never
+    // wrongly excludes a same-day event, and a multi-day event is caught on any
+    // day it spans — not just its start day.
     const eventsRows = excludeEventId
         ? (await env.DB.prepare(
-              `SELECT id, title, date_iso, location FROM events
-               WHERE site_id = ? AND date_iso >= ? AND date_iso <= ? AND id != ?`,
+              `SELECT id, title, date_iso, end_date_iso, location FROM events
+               WHERE site_id = ?
+                 AND substr(date_iso, 1, 10) <= ?
+                 AND substr(COALESCE(end_date_iso, date_iso), 1, 10) >= ?
+                 AND id != ?`,
           )
-              .bind(siteId, startDateIso, endDateIsoExclusive, excludeEventId)
+              .bind(siteId, endDateIsoExclusive, startDateIso, excludeEventId)
               .all()).results || []
         : (await env.DB.prepare(
-              `SELECT id, title, date_iso, location FROM events
-               WHERE site_id = ? AND date_iso >= ? AND date_iso <= ?`,
+              `SELECT id, title, date_iso, end_date_iso, location FROM events
+               WHERE site_id = ?
+                 AND substr(date_iso, 1, 10) <= ?
+                 AND substr(COALESCE(end_date_iso, date_iso), 1, 10) >= ?`,
           )
-              .bind(siteId, startDateIso, endDateIsoExclusive)
+              .bind(siteId, endDateIsoExclusive, startDateIso)
               .all()).results || [];
 
-    // Verify each candidate event's day window actually overlaps the request window.
+    // Verify each candidate event's actual day-span window overlaps the request.
     const events = [];
     for (const row of eventsRows) {
-        const dayWindow = dateIsoToDayWindow(row.date_iso);
+        const dayWindow = dateIsoToDayWindow(row.date_iso, row.end_date_iso);
         if (!dayWindow) continue; // skip events with malformed date_iso
         if (intervalsOverlap(dayWindow.startMs, dayWindow.endMs, startsAt, endsAt)) {
             events.push(row);
