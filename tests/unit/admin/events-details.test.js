@@ -119,4 +119,23 @@ describe('normalizeEventDetails', () => {
         });
         expect(out).toEqual({ terrain: 'Dense jungle', firstGameLabel: 'Squad TDM', fpsLabel: '350 / 450' });
     });
+
+    it('stores per-surface title placement (below/hidden); drops overlay/invalid', () => {
+        expect(normalizeEventDetails({ heroTextPlacement: 'below', bannerTextPlacement: 'hidden' }))
+            .toEqual({ heroTextPlacement: 'below', bannerTextPlacement: 'hidden' });
+        // 'overlay' is the default → not stored
+        expect(normalizeEventDetails({ heroTextPlacement: 'overlay', bannerTextPlacement: 'overlay' })).toBeNull();
+        // unknown value → not stored
+        expect(normalizeEventDetails({ heroTextPlacement: 'sideways' })).toBeNull();
+    });
+
+    it('falls back to legacy coverTextBelow → below only when a surface field is omitted', () => {
+        // A stale (pre-per-surface) admin tab posts only coverTextBelow → both 'below'.
+        expect(normalizeEventDetails({ coverTextBelow: true }))
+            .toEqual({ heroTextPlacement: 'below', bannerTextPlacement: 'below' });
+        // An explicit per-surface value (even 'overlay') wins over the legacy flag.
+        expect(normalizeEventDetails({ heroTextPlacement: 'overlay', coverTextBelow: true }))
+            .toEqual({ bannerTextPlacement: 'below' });
+        expect(normalizeEventDetails({ coverTextBelow: false })).toBeNull();
+    });
 });
