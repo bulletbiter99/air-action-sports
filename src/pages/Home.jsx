@@ -102,9 +102,11 @@ export default function Home() {
           ============================================================ */}
       <div className="hero">
         <div
-          className={`hero-bg-photo${(featuredEvent?.heroImageUrl || featuredEvent?.coverImageUrl) ? ' hero-bg-photo--has-image' : ''}`}
-          style={(featuredEvent?.heroImageUrl || featuredEvent?.coverImageUrl) ? {
-            backgroundImage: `url("${featuredEvent.heroImageUrl || featuredEvent.coverImageUrl}")`,
+          className={`hero-bg-photo${(featuredEvent?.coverImageUrl || featuredEvent?.heroImageUrl) ? ' hero-bg-photo--has-image' : ''}`}
+          style={(featuredEvent?.coverImageUrl || featuredEvent?.heroImageUrl) ? {
+            // The landing-page hero pulls from the event's Cover (Universal
+            // Fallback) image so the operator controls it via that one field.
+            backgroundImage: `url("${featuredEvent.coverImageUrl || featuredEvent.heroImageUrl}")`,
             '--hero-overlay-alpha': featuredEvent.heroOverlayOpacity ?? 0.78,
           } : undefined}
         ></div>

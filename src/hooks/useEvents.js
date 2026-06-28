@@ -61,6 +61,11 @@ export function adaptEvent(apiEvent) {
         cardOverlayOpacity: apiEvent.cardOverlayOpacity ?? null,
         heroOverlayOpacity: apiEvent.heroOverlayOpacity ?? null,
         bannerOverlayOpacity: apiEvent.bannerOverlayOpacity ?? null,
+        // Focal points for the cover-cropped surfaces — without these the card
+        // (Events grid) + hero (EventDetail) silently fall back to center.
+        cardImagePosition: apiEvent.cardImagePosition || null,
+        heroImagePosition: apiEvent.heroImagePosition || null,
+        bannerImagePosition: apiEvent.bannerImagePosition || null,
         dateIso: apiEvent.dateIso || '',
         endDateIso: apiEvent.endDateIso || null,
         // Multi-day when a span end exists and is a LATER calendar day than the
