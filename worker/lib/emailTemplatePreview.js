@@ -34,7 +34,7 @@
 //   waiver_request, password_reset, user_invite, refund_recorded_external,
 //   coi_alert_*, field_rental_lead_stale, staff_portal_invite,
 //   promo_code_issued, admin_feedback_received, feedback_resolution_notice,
-//   inquiry_notification.
+//   inquiry_notification, waiver_confirmation, review_invite.
 // Adding any one is ~10 lines of spec + builder + test — track as a
 // B4-followup if operator wants broader coverage.
 

@@ -656,3 +656,39 @@ export async function sendWaiverConfirmation(env, { waiver, attendee, event }) {
         ],
     });
 }
+
+// Attendee-verified reviews (migration 0077) — post-event "rate your game"
+// invite. APPEND-ONLY (the original named senders are Critical DNT). Sent by
+// runReviewInviteSweep (worker/lib/reviewInvites.js) on the 03:00 cron, ~24h
+// after an event ends, to each paid/comp booking. `reviewLink` carries the
+// per-booking review_token; possessing it proves attendance. The template
+// (review_invite, seeded in 0077) tells the recipient the link is personal —
+// "please don't forward it".
+export async function sendReviewInvite(env, { booking, event, reviewLink }) {
+    if (!booking?.email) return { skipped: 'no_email' };
+
+    const template = await loadTemplate(env.DB, 'review_invite');
+    if (!template) return { skipped: 'template_missing' };
+
+    const vars = {
+        player_name: booking.full_name || booking.fullName || 'Player',
+        event_name: event.title,
+        event_date: event.display_date || event.displayDate || '',
+        review_link: reviewLink,
+    };
+    const rendered = renderTemplate(template, vars);
+
+    return sendEmail({
+        apiKey: env.RESEND_API_KEY,
+        from: senderFrom(env),
+        to: booking.email,
+        replyTo: env.REPLY_TO_EMAIL,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [
+            { name: 'type', value: 'review_invite' },
+            { name: 'booking_id', value: booking.id },
+        ],
+    });
+}
