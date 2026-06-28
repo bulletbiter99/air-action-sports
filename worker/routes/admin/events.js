@@ -137,12 +137,15 @@ export function normalizeEventDetails(input) {
     // Per-surface cover-title placement: 'below' (clean image + title beneath)
     // or 'hidden' (image only, no title). Absent = 'overlay' (the default), so
     // only non-default values are stored. Independent for the event hero and
-    // the booking banner. (Legacy `coverTextBelow` is read as 'below' on the
-    // client side until an admin save migrates it to these fields.)
+    // the booking banner. The explicit per-surface field always wins; but if a
+    // surface field is omitted entirely (a stale, pre-per-surface admin tab that
+    // still posts the old single `coverTextBelow`), fall back to it → 'below' so
+    // an un-refreshed save does not silently reset the placement to overlay.
     const PLACEMENTS = ['below', 'hidden'];
-    const heroPlacement = str(input.heroTextPlacement);
+    const legacyBelow = (input.coverTextBelow === true || input.coverTextBelow === 1);
+    const heroPlacement = ('heroTextPlacement' in input) ? str(input.heroTextPlacement) : (legacyBelow ? 'below' : '');
     if (PLACEMENTS.includes(heroPlacement)) out.heroTextPlacement = heroPlacement;
-    const bannerPlacement = str(input.bannerTextPlacement);
+    const bannerPlacement = ('bannerTextPlacement' in input) ? str(input.bannerTextPlacement) : (legacyBelow ? 'below' : '');
     if (PLACEMENTS.includes(bannerPlacement)) out.bannerTextPlacement = bannerPlacement;
 
     return Object.keys(out).length ? out : null;
