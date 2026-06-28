@@ -100,27 +100,41 @@ export default function EventDetail() {
           render cleanly without crop-mangling. CSS variable on the
           parent is consumed by ::before (blur backdrop, cover) +
           ::after (visible foreground, contain). See event-detail.css. */}
-      <div
-        className={`event-hero${(event.heroImageUrl || event.coverImageUrl) ? ' event-hero--has-image' : ''}`}
-        style={(event.heroImageUrl || event.coverImageUrl)
-          ? {
-              '--hero-bg-image': `url("${event.heroImageUrl || event.coverImageUrl}")`,
-              '--hero-overlay-alpha': event.heroOverlayOpacity ?? 0.70,
-              '--hero-image-position': event.heroImagePosition || 'center',
-            }
-          : undefined}
-      >
-        <div className="event-hero-content">
-          <div className="event-hero-meta">
-            <span className="event-hero-date">{dateDisplay}</span>
-            <span className="event-hero-badge">
-              {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
-            </span>
+      {(() => {
+        const hasHeroImage = !!(event.heroImageUrl || event.coverImageUrl);
+        // Operator toggle: render the title/info BELOW the cover image (clean
+        // for poster art) instead of overlaid. Only meaningful with an image.
+        const heroTextBelow = !!(event.details?.coverTextBelow && hasHeroImage);
+        const heroContent = (
+          <div className="event-hero-content">
+            <div className="event-hero-meta">
+              <span className="event-hero-date">{dateDisplay}</span>
+              <span className="event-hero-badge">
+                {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
+              </span>
+            </div>
+            <h1>{event.title}</h1>
+            <div className="event-hero-site">&#9679; {event.location}</div>
           </div>
-          <h1>{event.title}</h1>
-          <div className="event-hero-site">&#9679; {event.location}</div>
-        </div>
-      </div>
+        );
+        return (
+          <>
+            <div
+              className={`event-hero${hasHeroImage ? ' event-hero--has-image' : ''}${heroTextBelow ? ' event-hero--text-below' : ''}`}
+              style={hasHeroImage
+                ? {
+                    '--hero-bg-image': `url("${event.heroImageUrl || event.coverImageUrl}")`,
+                    '--hero-overlay-alpha': event.heroOverlayOpacity ?? 0.70,
+                    '--hero-image-position': event.heroImagePosition || 'center',
+                  }
+                : undefined}
+            >
+              {!heroTextBelow && heroContent}
+            </div>
+            {heroTextBelow && <div className="event-hero-belowbar">{heroContent}</div>}
+          </>
+        );
+      })()}
 
       {/* Main Content */}
       <div className="page-content">

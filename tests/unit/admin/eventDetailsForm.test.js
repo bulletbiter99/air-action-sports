@@ -100,8 +100,18 @@ describe('detailsToFormState', () => {
         expect(round.schedule).toEqual(original.schedule);
     });
 
-    it('emptyDetailsFormState is all blank strings', () => {
+    it('emptyDetailsFormState is all blank strings (+ coverTextBelow off)', () => {
         const fs = emptyDetailsFormState();
-        expect(Object.values(fs).every((v) => v === '')).toBe(true);
+        // coverTextBelow is a boolean toggle (default off); the rest are blank strings.
+        expect(fs.coverTextBelow).toBe(false);
+        const { coverTextBelow, ...stringFields } = fs;
+        expect(Object.values(stringFields).every((v) => v === '')).toBe(true);
+    });
+
+    it('round-trips the coverTextBelow toggle', () => {
+        expect(formStateToDetailsPayload({ coverTextBelow: true }).coverTextBelow).toBe(true);
+        expect(formStateToDetailsPayload({}).coverTextBelow).toBe(false);
+        expect(detailsToFormState({ coverTextBelow: true }).coverTextBelow).toBe(true);
+        expect(detailsToFormState(null).coverTextBelow).toBe(false);
     });
 });

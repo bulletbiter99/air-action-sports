@@ -134,6 +134,9 @@ export function normalizeEventDetails(input) {
     if (fpsLabel) out.fpsLabel = fpsLabel;
     const collabBannerUrl = url(input.collabBannerUrl);
     if (collabBannerUrl) out.collabBannerUrl = collabBannerUrl;
+    // Layout toggle: place the title/info BELOW the cover image (clean for
+    // text-heavy poster art) instead of overlaid on it. Only stored when on.
+    if (input.coverTextBelow === true || input.coverTextBelow === 1) out.coverTextBelow = true;
 
     return Object.keys(out).length ? out : null;
 }
