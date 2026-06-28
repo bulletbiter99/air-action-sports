@@ -10,7 +10,10 @@
 .site-badge { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 4px 12px; border: 1px solid; }
 .site-badge.open { color: #8fb845; border-color: rgba(99,153,34,0.3); background: rgba(99,153,34,0.15); }
 .site-badge.coming-soon { color: var(--tan); border-color: rgba(200,184,154,0.3); background: rgba(200,184,154,0.1); }
-.site-photo { width: 100%; height: 280px; background: var(--olive-dark); border: 1px solid rgba(200,184,154,0.1); margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: center; color: var(--olive-light); font-size: 12px; letter-spacing: 1px; background-size: cover; background-position: center; }
+/* aspect-ratio (not a fixed height) so the cover-cropped photo matches the
+   admin focal-point picker's 16:9 preview — the same focal point then shows
+   the same slice live as in the preview. */
+.site-photo { width: 100%; aspect-ratio: 16 / 9; background: var(--olive-dark); border: 1px solid rgba(200,184,154,0.1); margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: center; color: var(--olive-light); font-size: 12px; letter-spacing: 1px; background-size: cover; background-position: center; }
 .site-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 1.5rem; }
 .site-features-title { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--orange); margin-bottom: 0.75rem; }
 .site-features { list-style: none; }

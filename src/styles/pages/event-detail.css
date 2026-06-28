@@ -11,25 +11,16 @@
   overflow: hidden;
   isolation: isolate;
 }
-/* Blur-backdrop + contained-foreground image strategy. The hero accepts
- * either a panoramic landscape (3:1+) or a poster-shape image (~1.7:1)
- * without crop-mangling. ::before is a blurred cover-cropped copy of
- * the image filling the panel. ::after is a contained un-cropped copy
- * showing the whole image, centered. ::before z-index < ::after.
+/* Cover-cropped hero image, anchored to the operator's focal point so the live
+ * crop matches the admin picker's 3.2:1 preview. The panel is pinned to
+ * aspect-ratio 3.2/1 (with a min-height floor so the title never clips on
+ * narrow screens); the ::after layer cover-fills it at --hero-image-position.
  *
  * Only activates when JSX sets --hero-bg-image (modifier class added).
  * Without an image, the panel falls back to the plain var(--mid) bg. */
-.event-hero--has-image::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  background-image: var(--hero-bg-image);
-  background-size: cover;
-  background-position: var(--hero-image-position, center);
-  filter: blur(28px) brightness(0.55);
-  /* Scale up to hide the blur's faded edges from showing through. */
-  transform: scale(1.15);
+.event-hero--has-image {
+  aspect-ratio: 3.2 / 1;
+  min-height: 300px;
 }
 .event-hero--has-image::after {
   content: '';
@@ -37,8 +28,8 @@
   inset: 0;
   z-index: -1;
   background-image: var(--hero-bg-image);
-  background-size: contain;
-  background-position: center;
+  background-size: cover;
+  background-position: var(--hero-image-position, center);
   background-repeat: no-repeat;
 }
 /* Soft top→bottom dark overlay over both layers so the title text stays

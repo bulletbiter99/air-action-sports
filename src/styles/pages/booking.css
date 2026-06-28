@@ -39,11 +39,11 @@
 }
 
 /* ----- Selected-event banner (top of step 1) -----
- * Same blur-backdrop + contained-foreground pattern as .event-hero so
- * the banner accepts both poster-shape and panoramic source images
- * without crop-mangling. See event-detail.css for the rationale.
- * Modifier class .booking-event-banner--has-image gates the image
- * layers; without it, the panel falls back to the plain orange gradient. */
+ * Cover-cropped at the operator's focal point (--banner-image-position),
+ * pinned to the admin picker's 4:1 preview ratio so the live crop matches
+ * what was set. See event-detail.css for the matching hero treatment.
+ * Modifier class .booking-event-banner--has-image gates the image layer;
+ * without it, the panel falls back to the plain orange gradient. */
 .booking-event-banner {
   position: relative;
   margin-bottom: 1.5rem;
@@ -53,16 +53,9 @@
   overflow: hidden;
   isolation: isolate;
 }
-.booking-event-banner--has-image::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  background-image: var(--banner-bg-image);
-  background-size: cover;
-  background-position: var(--banner-image-position, center);
-  filter: blur(28px) brightness(0.55);
-  transform: scale(1.15);
+.booking-event-banner--has-image {
+  aspect-ratio: 4 / 1;
+  min-height: 200px;
 }
 .booking-event-banner--has-image::after {
   content: '';
@@ -70,8 +63,8 @@
   inset: 0;
   z-index: -1;
   background-image: var(--banner-bg-image);
-  background-size: contain;
-  background-position: center;
+  background-size: cover;
+  background-position: var(--banner-image-position, center);
   background-repeat: no-repeat;
 }
 /* Dark gradient overlay between image layer and text for legibility. */

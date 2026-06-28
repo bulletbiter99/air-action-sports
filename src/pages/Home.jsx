@@ -4,6 +4,7 @@ import TickerBar from '../components/TickerBar';
 import CountdownTimer from '../components/CountdownTimer';
 import { siteConfig } from '../data/siteConfig';
 import { useEvents } from '../hooks/useEvents';
+import { useSites } from '../hooks/useSites';
 import { spotsSignal } from '../utils/eventSlots';
 import { locations } from '../data/locations';
 import { testimonials } from '../data/testimonials';
@@ -22,8 +23,14 @@ function countdownLabel(ev) {
 
 export default function Home() {
   const { events } = useEvents({ includePast: false });
+  const { sites } = useSites();
   const upcomingEvents = events.slice(0, 2);
   const featuredEvent = events[0] || null;
+  // The home location previews reuse the same /images/* photos as the DB sites,
+  // so apply each site's admin-set focal point (matched by photo URL) instead of
+  // a hardcoded center — keeps the home crop consistent with /locations.
+  const focalForPhoto = (photo) =>
+    (sites || []).find((s) => s.photoUrl === photo)?.photoPosition || 'center';
 
   return (
     <>
@@ -291,7 +298,10 @@ export default function Home() {
             {locations.map((loc) => (
               <div className="loc-card" key={loc.id}>
                 <div className="loc-photo">
-                  <div className={`loc-photo-placeholder ${loc.photoClass || ''}`}></div>
+                  <div
+                    className={`loc-photo-placeholder ${loc.photoClass || ''}`}
+                    style={{ backgroundPosition: focalForPhoto(loc.photo) }}
+                  ></div>
                   <div className="loc-photo-label">&#9632; {loc.cardLabel}</div>
                 </div>
                 <div className="loc-body">

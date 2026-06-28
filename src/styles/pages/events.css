@@ -45,7 +45,11 @@
 .event-card-featured { border-color: var(--orange); box-shadow: 0 0 0 1px rgba(212,84,26,0.15); }
 .event-cover {
   display: block;
-  height: 160px;
+  /* Locked to the admin focal-point picker's preview ratio (2:1) so the
+     cover-cropped image shows the exact slice the operator set, at every
+     grid width. (Was a fixed 160px height → ratio drifted, so the focal
+     point landed differently live than in the picker preview.) */
+  aspect-ratio: 2 / 1;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
