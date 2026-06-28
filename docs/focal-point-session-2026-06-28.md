@@ -28,3 +28,17 @@ Admin: a checkbox in the "Detail page content" editor. Default = overlay.
 Operation Last Light flipped on (`scripts/set-operation-last-light-text-below.sql`).
 
 Both verified on desktop + mobile (live prod). 3051 tests green.
+
+## Follow-ups (same day)
+
+- **Per-surface title placement + Hidden mode** (PR #346): `details.coverTextBelow`
+  → `details.heroTextPlacement` + `details.bannerTextPlacement`, each
+  `overlay` | `below` | `hidden` (image only). Two admin dropdowns; legacy
+  fallback. Operation Last Light = below/below.
+- **Focal points were never applied to the card + hero** (PR #347): `adaptEvent`
+  (`useEvents.js`) dropped `card/hero/bannerImagePosition`, so the events-grid
+  card and EventDetail hero silently used `center`. Now forwarded. (Booking
+  banner reads the raw API, so it already worked.)
+- **Home hero pulls from Cover** (PR #347): the landing-page hero now uses
+  `coverImageUrl || heroImageUrl`, so the operator controls it via the Cover
+  (Universal Fallback) field.
