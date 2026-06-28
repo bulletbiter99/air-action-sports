@@ -35,13 +35,17 @@
 /* "Title below" layout — the cover image is a clean cropped strip (no text
    overlay / gradient, since the content moves out of the panel), and the
    title/date/location render in a bar beneath it. */
-.event-hero--text-below {
+/* Clean cropped image (no text overlay / gradient) — used by both the "below"
+   and "hidden" placements. The min-height floor keeps the strip from getting
+   too thin on narrow screens (only applies below ~512px, where 3.2:1 is thin). */
+.event-hero--text-below,
+.event-hero--text-hidden {
   padding: 0;
-  /* Floor so the clean poster strip keeps presence on narrow screens (only
-     applies below ~512px, where 3.2:1 would otherwise be very thin). */
   min-height: 160px;
-  border-bottom: none;
 }
+/* "Below": the orange accent line lives under the title bar, not the image. */
+.event-hero--text-below { border-bottom: none; }
+/* "Hidden" (image only) keeps the hero's own orange accent line at the bottom. */
 .event-hero-belowbar {
   background: var(--mid);
   padding: 1.75rem 2rem 2rem;

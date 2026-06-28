@@ -69,13 +69,19 @@
 }
 /* "Meta below" layout — clean cropped banner image with the meta block
    beneath it (cleaner for text-heavy poster art). */
-.booking-event-banner--text-below {
+/* Clean cropped image (no meta overlay) — used by both "below" and "hidden".
+   The min-height floor keeps the strip from getting too thin on narrow screens. */
+.booking-event-banner--text-below,
+.booking-event-banner--text-hidden {
   padding: 0;
-  /* Floor so the clean poster strip keeps presence on narrow screens. */
   min-height: 140px;
+}
+/* "Below": the accent + spacing move to the meta block beneath the image. */
+.booking-event-banner--text-below {
   border-left: none;
   margin-bottom: 0;
 }
+/* "Hidden" (image only) keeps the banner's own orange left border + margin. */
 .booking-event-banner-meta--below {
   padding: 1.25rem 1.5rem;
   margin-bottom: 1.5rem;

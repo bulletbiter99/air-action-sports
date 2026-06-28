@@ -47,7 +47,8 @@ export function formStateToDetailsPayload(fs = {}) {
         ),
         terrain: String(fs.terrain || '').trim(),
         collabBannerUrl: String(fs.collabBannerUrl || '').trim(),
-        coverTextBelow: !!fs.coverTextBelow,
+        heroTextPlacement: fs.heroTextPlacement || 'overlay',
+        bannerTextPlacement: fs.bannerTextPlacement || 'overlay',
     };
 }
 
@@ -69,7 +70,10 @@ export function detailsToFormState(details) {
         factionLinks: Object.entries(d.factionLinks || {}).map(([n, u]) => `${n} | ${u}`).join('\n'),
         terrain: d.terrain || '',
         collabBannerUrl: d.collabBannerUrl || '',
-        coverTextBelow: !!d.coverTextBelow,
+        // Legacy coverTextBelow (a single boolean for both surfaces) maps to
+        // 'below' on each until re-saved into the per-surface fields.
+        heroTextPlacement: d.heroTextPlacement || (d.coverTextBelow ? 'below' : 'overlay'),
+        bannerTextPlacement: d.bannerTextPlacement || (d.coverTextBelow ? 'below' : 'overlay'),
     };
 }
 

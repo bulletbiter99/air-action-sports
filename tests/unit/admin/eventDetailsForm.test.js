@@ -100,18 +100,26 @@ describe('detailsToFormState', () => {
         expect(round.schedule).toEqual(original.schedule);
     });
 
-    it('emptyDetailsFormState is all blank strings (+ coverTextBelow off)', () => {
+    it('emptyDetailsFormState is blank strings + default overlay placements', () => {
         const fs = emptyDetailsFormState();
-        // coverTextBelow is a boolean toggle (default off); the rest are blank strings.
-        expect(fs.coverTextBelow).toBe(false);
-        const { coverTextBelow, ...stringFields } = fs;
+        // The two placement fields default to 'overlay'; the rest are blank strings.
+        expect(fs.heroTextPlacement).toBe('overlay');
+        expect(fs.bannerTextPlacement).toBe('overlay');
+        const { heroTextPlacement, bannerTextPlacement, ...stringFields } = fs;
         expect(Object.values(stringFields).every((v) => v === '')).toBe(true);
     });
 
-    it('round-trips the coverTextBelow toggle', () => {
-        expect(formStateToDetailsPayload({ coverTextBelow: true }).coverTextBelow).toBe(true);
-        expect(formStateToDetailsPayload({}).coverTextBelow).toBe(false);
-        expect(detailsToFormState({ coverTextBelow: true }).coverTextBelow).toBe(true);
-        expect(detailsToFormState(null).coverTextBelow).toBe(false);
+    it('round-trips per-surface title placement (+ legacy coverTextBelow fallback)', () => {
+        const p = formStateToDetailsPayload({ heroTextPlacement: 'hidden', bannerTextPlacement: 'below' });
+        expect(p.heroTextPlacement).toBe('hidden');
+        expect(p.bannerTextPlacement).toBe('below');
+        expect(formStateToDetailsPayload({}).heroTextPlacement).toBe('overlay');
+        // Legacy single coverTextBelow boolean → 'below' on both surfaces.
+        const fs = detailsToFormState({ coverTextBelow: true });
+        expect(fs.heroTextPlacement).toBe('below');
+        expect(fs.bannerTextPlacement).toBe('below');
+        // Explicit new fields win over the legacy flag.
+        expect(detailsToFormState({ heroTextPlacement: 'hidden', coverTextBelow: true }).heroTextPlacement).toBe('hidden');
+        expect(detailsToFormState(null).heroTextPlacement).toBe('overlay');
     });
 });

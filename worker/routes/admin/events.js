@@ -134,9 +134,16 @@ export function normalizeEventDetails(input) {
     if (fpsLabel) out.fpsLabel = fpsLabel;
     const collabBannerUrl = url(input.collabBannerUrl);
     if (collabBannerUrl) out.collabBannerUrl = collabBannerUrl;
-    // Layout toggle: place the title/info BELOW the cover image (clean for
-    // text-heavy poster art) instead of overlaid on it. Only stored when on.
-    if (input.coverTextBelow === true || input.coverTextBelow === 1) out.coverTextBelow = true;
+    // Per-surface cover-title placement: 'below' (clean image + title beneath)
+    // or 'hidden' (image only, no title). Absent = 'overlay' (the default), so
+    // only non-default values are stored. Independent for the event hero and
+    // the booking banner. (Legacy `coverTextBelow` is read as 'below' on the
+    // client side until an admin save migrates it to these fields.)
+    const PLACEMENTS = ['below', 'hidden'];
+    const heroPlacement = str(input.heroTextPlacement);
+    if (PLACEMENTS.includes(heroPlacement)) out.heroTextPlacement = heroPlacement;
+    const bannerPlacement = str(input.bannerTextPlacement);
+    if (PLACEMENTS.includes(bannerPlacement)) out.bannerTextPlacement = bannerPlacement;
 
     return Object.keys(out).length ? out : null;
 }

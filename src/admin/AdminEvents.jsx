@@ -871,15 +871,25 @@ function EventDetailsEditor({ value, onChange }) {
   const ta = { ...input, resize: 'vertical' };
   return (
     <div style={box}>
-      <Field label="Cover image layout">
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={!!value.coverTextBelow}
-            onChange={(e) => onChange({ ...value, coverTextBelow: e.target.checked })}
-          />
-          Place the title &amp; info below the cover image instead of over it (cleaner for text-heavy poster art; applies to the event hero + booking banner)
-        </label>
+      <Field label="Cover image title placement (clean options for text-heavy poster art) — set per surface">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--color-muted, #9ca3af)' }}>
+            Event detail hero
+            <select value={value.heroTextPlacement || 'overlay'} onChange={set('heroTextPlacement')} style={input}>
+              <option value="overlay">Over the image (default)</option>
+              <option value="below">Below the image (clean)</option>
+              <option value="hidden">Hidden — image only</option>
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--color-muted, #9ca3af)' }}>
+            Booking banner
+            <select value={value.bannerTextPlacement || 'overlay'} onChange={set('bannerTextPlacement')} style={input}>
+              <option value="overlay">Over the image (default)</option>
+              <option value="below">Below the image (clean)</option>
+              <option value="hidden">Hidden — image only</option>
+            </select>
+          </label>
+        </div>
       </Field>
       <Field label="Mission briefing (paragraphs — separate with a blank line)">
         <textarea rows={4} value={value.missionBriefing} onChange={set('missionBriefing')} style={ta} placeholder={'The heat hangs heavy over the treeline…\n\nOperators muster at staging for the brief…'} />
