@@ -92,7 +92,9 @@
 .locations { background: var(--mid); }
 .locations-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
 .loc-card { background: var(--dark); border: 1px solid rgba(200,184,154,0.1); overflow: hidden; }
-.loc-photo { height: 160px; position: relative; overflow: hidden; background-color: var(--olive-dark); }
+/* 16:9 to match the admin site focal-point picker (and the /locations photo),
+   so the home preview crops to the same focal point the operator set. */
+.loc-photo { aspect-ratio: 16 / 9; position: relative; overflow: hidden; background-color: var(--olive-dark); }
 .loc-photo-placeholder {
   width: 100%; height: 100%;
   background-image: url('/images/ghost-town.jpg');
