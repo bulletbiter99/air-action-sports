@@ -67,6 +67,21 @@
   background-position: var(--banner-image-position, center);
   background-repeat: no-repeat;
 }
+/* "Meta below" layout — clean cropped banner image with the meta block
+   beneath it (cleaner for text-heavy poster art). */
+.booking-event-banner--text-below {
+  padding: 0;
+  /* Floor so the clean poster strip keeps presence on narrow screens. */
+  min-height: 140px;
+  border-left: none;
+  margin-bottom: 0;
+}
+.booking-event-banner-meta--below {
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  background: var(--mid);
+  border-left: 4px solid var(--orange);
+}
 /* Dark gradient overlay between image layer and text for legibility. */
 .booking-event-banner--has-image > .booking-event-banner-meta {
   position: relative;

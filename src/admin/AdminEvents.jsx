@@ -871,6 +871,16 @@ function EventDetailsEditor({ value, onChange }) {
   const ta = { ...input, resize: 'vertical' };
   return (
     <div style={box}>
+      <Field label="Cover image layout">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={!!value.coverTextBelow}
+            onChange={(e) => onChange({ ...value, coverTextBelow: e.target.checked })}
+          />
+          Place the title &amp; info below the cover image instead of over it (cleaner for text-heavy poster art; applies to the event hero + booking banner)
+        </label>
+      </Field>
       <Field label="Mission briefing (paragraphs — separate with a blank line)">
         <textarea rows={4} value={value.missionBriefing} onChange={set('missionBriefing')} style={ta} placeholder={'The heat hangs heavy over the treeline…\n\nOperators muster at staging for the brief…'} />
       </Field>

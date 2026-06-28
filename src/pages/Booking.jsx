@@ -401,20 +401,13 @@ function StepTicketsAndAddons({
     <>
       {/* Selected-event banner — shown for both single + multi event modes
           so the user always sees what they're booking. */}
-      {selectedEvent && (
-        <div
-          className={`booking-event-banner${(selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl) ? ' booking-event-banner--has-image' : ''}`}
-          style={
-            (selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl)
-              ? {
-                  '--banner-bg-image': `url("${selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl}")`,
-                  '--banner-overlay-alpha': selectedEvent.bannerOverlayOpacity ?? 0.80,
-                  '--banner-image-position': selectedEvent.bannerImagePosition || 'center',
-                }
-              : undefined
-          }
-        >
-          <div className="booking-event-banner-meta">
+      {selectedEvent && (() => {
+        const hasBannerImage = !!(selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl);
+        // Operator toggle: render the meta BELOW the banner image (clean for
+        // poster art) instead of overlaid. Only meaningful with an image.
+        const bannerTextBelow = !!(selectedEvent.details?.coverTextBelow && hasBannerImage);
+        const bannerMeta = (
+          <div className={`booking-event-banner-meta${bannerTextBelow ? ' booking-event-banner-meta--below' : ''}`}>
             <div className="booking-event-banner-date">
               {selectedEvent.endDateIso && selectedEvent.displayDate
                 ? selectedEvent.displayDate
@@ -429,8 +422,25 @@ function StepTicketsAndAddons({
               {selectedEvent.checkIn || selectedEvent.timeRange} &mdash; {selectedEvent.basePriceDisplay}
             </div>
           </div>
-        </div>
-      )}
+        );
+        return (
+          <>
+            <div
+              className={`booking-event-banner${hasBannerImage ? ' booking-event-banner--has-image' : ''}${bannerTextBelow ? ' booking-event-banner--text-below' : ''}`}
+              style={hasBannerImage
+                ? {
+                    '--banner-bg-image': `url("${selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl}")`,
+                    '--banner-overlay-alpha': selectedEvent.bannerOverlayOpacity ?? 0.80,
+                    '--banner-image-position': selectedEvent.bannerImagePosition || 'center',
+                  }
+                : undefined}
+            >
+              {!bannerTextBelow && bannerMeta}
+            </div>
+            {bannerTextBelow && bannerMeta}
+          </>
+        );
+      })()}
 
       {events.length > 1 && (
         <div className="booking-section">
