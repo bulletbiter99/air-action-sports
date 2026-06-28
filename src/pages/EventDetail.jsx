@@ -102,9 +102,13 @@ export default function EventDetail() {
           ::after (visible foreground, contain). See event-detail.css. */}
       {(() => {
         const hasHeroImage = !!(event.heroImageUrl || event.coverImageUrl);
-        // Operator toggle: render the title/info BELOW the cover image (clean
-        // for poster art) instead of overlaid. Only meaningful with an image.
-        const heroTextBelow = !!(event.details?.coverTextBelow && hasHeroImage);
+        const d = event.details || {};
+        // Per-surface title placement: 'overlay' (default), 'below' (clean image
+        // + title beneath), or 'hidden' (image only). Legacy coverTextBelow →
+        // 'below'. Only meaningful when there's an image.
+        const heroPlacement = hasHeroImage
+          ? (d.heroTextPlacement || (d.coverTextBelow ? 'below' : 'overlay'))
+          : 'overlay';
         const heroContent = (
           <div className="event-hero-content">
             <div className="event-hero-meta">
@@ -120,7 +124,7 @@ export default function EventDetail() {
         return (
           <>
             <div
-              className={`event-hero${hasHeroImage ? ' event-hero--has-image' : ''}${heroTextBelow ? ' event-hero--text-below' : ''}`}
+              className={`event-hero${hasHeroImage ? ' event-hero--has-image' : ''}${heroPlacement === 'below' ? ' event-hero--text-below' : ''}${heroPlacement === 'hidden' ? ' event-hero--text-hidden' : ''}`}
               style={hasHeroImage
                 ? {
                     '--hero-bg-image': `url("${event.heroImageUrl || event.coverImageUrl}")`,
@@ -129,9 +133,9 @@ export default function EventDetail() {
                   }
                 : undefined}
             >
-              {!heroTextBelow && heroContent}
+              {heroPlacement === 'overlay' && heroContent}
             </div>
-            {heroTextBelow && <div className="event-hero-belowbar">{heroContent}</div>}
+            {heroPlacement === 'below' && <div className="event-hero-belowbar">{heroContent}</div>}
           </>
         );
       })()}

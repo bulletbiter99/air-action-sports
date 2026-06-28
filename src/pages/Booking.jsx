@@ -403,11 +403,15 @@ function StepTicketsAndAddons({
           so the user always sees what they're booking. */}
       {selectedEvent && (() => {
         const hasBannerImage = !!(selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl);
-        // Operator toggle: render the meta BELOW the banner image (clean for
-        // poster art) instead of overlaid. Only meaningful with an image.
-        const bannerTextBelow = !!(selectedEvent.details?.coverTextBelow && hasBannerImage);
+        const d = selectedEvent.details || {};
+        // Per-surface placement: 'overlay' (default), 'below' (clean image +
+        // meta beneath), or 'hidden' (image only). Legacy coverTextBelow →
+        // 'below'. Only meaningful with an image.
+        const bannerPlacement = hasBannerImage
+          ? (d.bannerTextPlacement || (d.coverTextBelow ? 'below' : 'overlay'))
+          : 'overlay';
         const bannerMeta = (
-          <div className={`booking-event-banner-meta${bannerTextBelow ? ' booking-event-banner-meta--below' : ''}`}>
+          <div className={`booking-event-banner-meta${bannerPlacement === 'below' ? ' booking-event-banner-meta--below' : ''}`}>
             <div className="booking-event-banner-date">
               {selectedEvent.endDateIso && selectedEvent.displayDate
                 ? selectedEvent.displayDate
@@ -426,7 +430,7 @@ function StepTicketsAndAddons({
         return (
           <>
             <div
-              className={`booking-event-banner${hasBannerImage ? ' booking-event-banner--has-image' : ''}${bannerTextBelow ? ' booking-event-banner--text-below' : ''}`}
+              className={`booking-event-banner${hasBannerImage ? ' booking-event-banner--has-image' : ''}${bannerPlacement === 'below' ? ' booking-event-banner--text-below' : ''}${bannerPlacement === 'hidden' ? ' booking-event-banner--text-hidden' : ''}`}
               style={hasBannerImage
                 ? {
                     '--banner-bg-image': `url("${selectedEvent.bannerImageUrl || selectedEvent.coverImageUrl}")`,
@@ -435,9 +439,9 @@ function StepTicketsAndAddons({
                   }
                 : undefined}
             >
-              {!bannerTextBelow && bannerMeta}
+              {bannerPlacement === 'overlay' && bannerMeta}
             </div>
-            {bannerTextBelow && bannerMeta}
+            {bannerPlacement === 'below' && bannerMeta}
           </>
         );
       })()}
