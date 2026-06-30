@@ -81,6 +81,17 @@
         "tests/unit/reviews/feeds.test.js"
       ]
     },
+    "worker/lib/reviewAggregates.js": {
+      "tier": "high",
+      "covers": [
+        "Server-injected review JSON-LD: getOrgReviewAggregate / getEventReviewBundle (shared status='published' predicate; null at zero rows / on error), serializeJsonLd (MANDATORY </script>/<>&/U+2028-9 escaping — the only stored-XSS guard on auto-published review text injected into HTML), buildOrgJsonLd / buildEventJsonLd (real aggregateRating + review[], crawler-visible). Consumed by rewriteHomeJsonLd + rewriteEventOg in worker/index.js"
+      ],
+      "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 4)",
+      "tests": [
+        "tests/unit/lib/reviewAggregates.test.js",
+        "tests/unit/worker/reviewJsonLd.test.js"
+      ]
+    },
     "worker/routes/bookings.js": {
       "tier": "critical",
       "covers": [

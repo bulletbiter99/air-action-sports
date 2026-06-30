@@ -114,6 +114,11 @@ export function installHTMLRewriterMock() {
                 setInnerContent: vi.fn((content, opts) => {
                     captured.push({ method: 'setInnerContent', content, opts });
                 }),
+                // For JSON-LD injection (rewriteEventOg / rewriteHomeJsonLd append
+                // a <script> into <head>).
+                append: vi.fn((content, opts) => {
+                    captured.push({ method: 'append', content, opts });
+                }),
             };
             c.handler.element(elem);
             return captured;
