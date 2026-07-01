@@ -19,6 +19,7 @@ import { runTaxYearAutoLockSweep as _runTaxYearAutoLockSweep } from './lib/thres
 import { runCampaignSendSweep as _runCampaignSendSweep } from './lib/campaignSender.js';
 import { runAutomationSweep as _runAutomationSweep } from './lib/automations.js';
 import { runStripeFeeSync as _runStripeFeeSync } from './lib/stripeFeeSync.js';
+import { runReviewInviteSweep as _runReviewInviteSweep } from './lib/reviewInvites.js';
 // Top-level const aliases so the verify-m5 cron-sweep check (regex:
 // `const NAME = ...`) detects the sweeps are wired up here. The actual
 // implementations live in worker/lib/{certifications,eventStaffing,thresholds1099}.js.
@@ -32,6 +33,7 @@ const runTaxYearAutoLockSweep = _runTaxYearAutoLockSweep;
 const runCampaignSendSweep = _runCampaignSendSweep;
 const runAutomationSweep = _runAutomationSweep;
 const runStripeFeeSync = _runStripeFeeSync;
+const runReviewInviteSweep = _runReviewInviteSweep;
 
 import events from './routes/events.js';
 import publicSites from './routes/sites.js';
@@ -668,7 +670,7 @@ export default {
             // Every other cron (today: just '*/15 * * * *') runs the
             // existing three-way reminder sweep.
             if (cron === '0 3 * * *') {
-                const [tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen, coiAlerts, leadStale, stripeFeeSync] = await Promise.all([
+                const [tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen, coiAlerts, leadStale, stripeFeeSync, reviewInvites] = await Promise.all([
                     runCustomerTagsSweep(env).catch((err) => {
                         console.error('customer-tags sweep failed', err);
                         return { error: err?.message };
@@ -705,8 +707,12 @@ export default {
                         console.error('stripe-fee-sync sweep failed', err);
                         return { error: err?.message };
                     }),
+                    runReviewInviteSweep(env).catch((err) => {
+                        console.error('review-invite sweep failed', err);
+                        return { error: err?.message };
+                    }),
                 ]);
-                summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen, coiAlerts, leadStale, stripeFeeSync };
+                summary = { tags, certs, staffReminders, staffAutoDecline, taxYearAutoLock, recurrenceGen, coiAlerts, leadStale, stripeFeeSync, reviewInvites };
             } else {
                 const [r, a, v, campaigns, automations] = await Promise.all([
                     runReminderSweep(env),

@@ -33,6 +33,11 @@ SITE_URL = "https://airactionsport.com"
 FROM_EMAIL = "Air Action Sports <noreply@airactionsport.com>"
 REPLY_TO_EMAIL = "actionairsport@gmail.com"
 ADMIN_NOTIFY_EMAIL = "actionairsport@gmail.com"
+# Forward-only launch fence for the post-event review-invite cron (migration
+# 0077 / worker/lib/reviewInvites.js). Only events ending on/after this instant
+# get a "rate your game" invite — prevents a first-run blast to every past
+# attendee. 1782604800000 ms = 2026-06-28T00:00:00Z (feature-launch day).
+REVIEW_LAUNCH_CUTOFF_MS = 1782604800000
 
 # ---------------------------------------------------------------------------
 # Rate limiting bindings (Workers Rate Limiting — Cloudflare beta).

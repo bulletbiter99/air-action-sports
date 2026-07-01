@@ -141,3 +141,17 @@ export function expenseId() {
 export function budgetId() {
     return `bud_${randomId(12)}`;
 }
+
+// Attendee-verified reviews (migration 0077)
+export function reviewId() {
+    return `rv_${randomId(14)}`;          // matches bk_/at_/cus_ 14-char body
+}
+
+// Per-booking review-link token. 40 base62 chars (~238 bits) — stronger than
+// qrToken(24): holding it lets the bearer write a PUBLIC review feeding the
+// aggregateRating + JSON-LD, so brute-force/enumeration resistance is paramount.
+// This length is FIXED and mirrored by REVIEW_TOKEN_LEN=40 in
+// worker/routes/reviews.js (Batch 3) — keep them in sync.
+export function reviewToken() {
+    return randomId(40);
+}

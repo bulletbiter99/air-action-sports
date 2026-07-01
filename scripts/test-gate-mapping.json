@@ -59,6 +59,16 @@
         "tests/unit/lib/stripeFeeSync.test.js"
       ]
     },
+    "worker/lib/reviewInvites.js": {
+      "tier": "high",
+      "covers": [
+        "runReviewInviteSweep (03:00 cron: emails each paid/comp booking a per-booking review_token link ~24h after the event ends; sentinel-first claim + roll-both-back on send failure OR sender-decline/deferred; best-effort audit cannot roll back a sent email; blast protection = [now-48h,now-18h] window + REVIEW_LAUNCH_CUTOFF_MS forward fence + per-run LIMIT cap, plus a soft-alarm log on unusually large runs; COALESCE(end_date_iso,date_iso) anchor)"
+      ],
+      "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 2)",
+      "tests": [
+        "tests/unit/lib/reviewInvites.test.js"
+      ]
+    },
     "worker/routes/bookings.js": {
       "tier": "critical",
       "covers": [
