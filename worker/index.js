@@ -68,6 +68,7 @@ import adminVendorPackageTemplates from './routes/admin/vendorPackageTemplates.j
 import adminVendorContracts from './routes/admin/vendorContracts.js';
 import adminWaiverDocuments from './routes/admin/waiverDocuments.js';
 import adminFeedback from './routes/admin/feedback.js';
+import adminReviews from './routes/admin/reviews.js';
 import adminFeatureFlags from './routes/admin/featureFlags.js';
 import adminCustomers from './routes/admin/customers.js';
 import { adminExpenses, adminBudgets } from './routes/admin/finances.js';
@@ -188,6 +189,7 @@ app.route('/api/admin/vendor-package-templates', adminVendorPackageTemplates);
 app.route('/api/admin/vendor-contracts', adminVendorContracts);
 app.route('/api/admin/waiver-documents', adminWaiverDocuments);
 app.route('/api/admin/feedback', adminFeedback);
+app.route('/api/admin/reviews', adminReviews);
 app.route('/api/admin/feature-flags', adminFeatureFlags);
 app.route('/api/admin/customers', adminCustomers);
 app.route('/api/admin/sites', adminSites);
