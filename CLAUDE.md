@@ -6,6 +6,29 @@ This file is the entry point for any Claude session working in this repository. 
 
 ---
 
+## 2026-06-28 session — Attendee-verified reviews feature (IN PROGRESS)
+
+Building an **attendee-verified post-event reviews** feature so real customer ratings populate the site + feed a **legitimate `aggregateRating`** (no Google Business page; the old homepage `4.9★/50` was fabricated → being replaced). Design produced by a multi-agent design + adversarial-review workflow (28 findings folded in); the locked spec is [`docs/reviews-feature-spec.md`](docs/reviews-feature-spec.md); durable resume state in memory `reviews-feature-in-progress` + [`docs/next-session.md`](docs/next-session.md).
+
+**Flow:** the 03:00 cron emails each paid/comp booking a `/review?token=…` link ~24h after the event ends → the buyer rates 1–5 + optional comment (one review per booking) → **auto-publishes** → feeds home/event/`/reviews` display + a server-injected, crawler-visible `aggregateRating`; admins hide/restore from **Admin → Reviews**.
+
+**Status: batches 1–5a MERGED + migration `0077` applied to prod D1 + deployed; 5b = open PR [#356](https://github.com/bulletbiter99/air-action-sports/pull/356); Batch 6 (public UI) NOT started.** `main` HEAD `ef9af36`, **3123 / 264** tests (3128 with #356), migrations **0001–0077**. Dormant in prod until the first review (~2026-07-25 — the invite cron's `REVIEW_LAUNCH_CUTOFF_MS`=2026-06-28 + 18–48h window).
+
+| Batch | PR | What |
+|---|---|---|
+| 1 | [#351](https://github.com/bulletbiter99/air-action-sports/pull/351) | migration `0077` (reviews table + `bookings.review_token`/`review_invite_sent_at` + `review_invite` template + `reviews.moderate` cap → owner/event_director/booking_coordinator) + the spec doc |
+| 2 | [#352](https://github.com/bulletbiter99/air-action-sports/pull/352) | `worker/lib/reviewInvites.js` `runReviewInviteSweep` (03:00 cron; sentinel-first; window+cutoff+LIMIT blast guards) + `reviewId`/`reviewToken` + append-only `sendReviewInvite` |
+| 3 | [#353](https://github.com/bulletbiter99/air-action-sports/pull/353) | `worker/routes/reviews.js` — public `/api/reviews` (context / submit+edit / per-event / summary / all); token-gated, auto-publish, one-per-booking + 30d/3-edit cap, whitelisted output |
+| 4 | [#354](https://github.com/bulletbiter99/air-action-sports/pull/354) | `worker/lib/reviewAggregates.js` + SSR JSON-LD injection in `worker/index.js` (home `LocalBusiness` + per-event `Event` aggregateRating, only when reviews exist) — the crawler-visible real rating. `serializeJsonLd` escapes `</script>` (stored-XSS guard) |
+| 5a | [#355](https://github.com/bulletbiter99/air-action-sports/pull/355) | `worker/routes/admin/reviews.js` — moderation API (list+filters+summary+bookingFlag; PUT hide/unhide + writeAudit) gated by `requireCapability('reviews.moderate')` |
+| 5b | [#356](https://github.com/bulletbiter99/air-action-sports/pull/356) | `src/admin/AdminReviews.jsx` + `/admin/reviews` route + sidebar entry (OPEN) |
+| 6 | — | **NEXT:** `src/pages/Review.jsx` star form + `/reviews` page + EventDetail section (new `useReviews` hook — do NOT touch `adaptEvent`/`formatEvent`) + data-driven Home testimonials + **remove the fabricated 4.9/50 client JSON-LD from `Home.jsx`** + footer/sitemap `/reviews` |
+| 7 | — | docs sync |
+
+**Key design decisions (durable):** (1) **publish-independence** — the token gates review submission REGARDLESS of `events.published` (AAS unpublishes past events + the cron runs after the event ends, so a `published=1` gate would make the feature dead-on-arrival); visibility is gated by the review's own `status='published'`. (2) **soft-alarm not hard-abort** in the invite cron — a >25-booking event would stall a hard-abort forever; replaced with a per-run LIMIT + warning log (the 18–48h window already prevents the historical first-run blast). (3) **`serializeJsonLd` MUST escape `</script>`** — reviews auto-publish + no CSP, so injected review text is the stored-XSS sink. (4) **operator-confirmed: remove the fabricated 4.9★ now** (Batch 6) — homepage shows no rating until real reviews accrue. **Still-open operator call:** CAN-SPAM classification of the invite email (before the first real send ~2026-07-27).
+
+---
+
 ## 2026-06-27 session — Operation Last Light LIVE + image/focal-point pass
 
 Operator-driven. **PRs #342–#349 merged + deployed · `main` HEAD `4af416a` · tests 3050 → 3053 / 264 · NO new migrations** (all `events.details_json` + remote-D1 data). Full durable detail in memory `event-image-focal-and-title-placement`.
