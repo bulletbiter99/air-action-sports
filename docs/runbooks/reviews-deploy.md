@@ -1,6 +1,6 @@
 # Attendee-Verified Reviews — Deploy & Activation Runbook
 
-The reviews feature **closed + deployed 2026-06-30** (`main` HEAD `69e6a74`, **3142 / 275** tests,
+The reviews feature **closed + deployed 2026-06-30** (`main` HEAD `69e6a74`, **3149 / 276** tests,
 migrations **0001–0077**). Design bible: [`../reviews-feature-spec.md`](../reviews-feature-spec.md).
 Cloudflare Workers Builds auto-deploys on push to `main`.
 

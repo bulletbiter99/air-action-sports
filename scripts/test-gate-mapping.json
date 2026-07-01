@@ -69,6 +69,16 @@
         "tests/unit/lib/reviewInvites.test.js"
       ]
     },
+    "worker/lib/ids.js": {
+      "tier": "high",
+      "covers": [
+        "Review ID/token generators (migration 0077): reviewToken (40 base62 chars — the SECURITY-critical length mirrored by REVIEW_TOKEN_LEN=40 + TOKEN_RE ^[0-9A-Za-z]{40}$ in worker/routes/reviews.js; a change here silently breaks every real review link) + reviewId (rv_ + 14-char base62 body) + the shared randomId primitive (exact length, base62 alphabet, randomness). ids.js is a do-not-touch ID-format-contract file; this entry locks the review helpers only."
+      ],
+      "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 2)",
+      "tests": [
+        "tests/unit/lib/ids.test.js"
+      ]
+    },
     "worker/routes/reviews.js": {
       "tier": "high",
       "covers": [
