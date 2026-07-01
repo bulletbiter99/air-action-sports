@@ -68,6 +68,10 @@ export const SIDEBAR = [
         label: 'Feedback',
         badgeKey: 'newFeedback',
     },
+    // Attendee-verified reviews moderation (migration 0077). Gated on
+    // reviews.moderate (owner + event_director + booking_coordinator); the
+    // legacy stub maps it → manager so owners see it before /me caps load.
+    { type: 'item', to: '/admin/reviews', label: 'Reviews', capability: 'reviews.moderate' },
     { type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' },
     { type: 'item', to: '/admin/vendors', label: 'Vendors' },
     { type: 'separator' },
@@ -129,6 +133,11 @@ const CAPABILITY_TO_LEGACY_ROLE = {
     // gates the routes (owner + bookkeeper presets), and the /me cap union
     // surfaces them for a bookkeeper preset regardless of legacy role.
     'finances.read': 'manager',
+    // Reviews moderation (migration 0077) — manager + above see the entry via
+    // the stub; the DB-backed requireCapability('reviews.moderate') still gates
+    // the route (owner + event_director + booking_coordinator), and the /me cap
+    // union surfaces it for those presets regardless of legacy role.
+    'reviews.moderate': 'manager',
 };
 
 /**
