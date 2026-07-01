@@ -19,7 +19,7 @@ Shipped an **attendee-verified post-event reviews** feature so real customer rat
 | 6 public UI (`/review` form + `/reviews` + event/home display; removed fake 4.9★) | [#358](https://github.com/bulletbiter99/air-action-sports/pull/358) | ✅ merged + deployed |
 | 7 docs (this) + `reviews-deploy.md` runbook | — | ✅ |
 
-`main` HEAD **`4fbbf4a`** (batches 1–6 code landed at `69e6a74`; Batch 7 docs at `4fbbf4a`) · **3142 / 275** tests · migrations **0001–0077** applied. The feature is **dormant** in production (no reviews exist yet; the invite cron's launch cutoff = 2026-06-28 + the 18–48h window mean the first invites go out ~2026-07-25 after **Operation Last Light** ends — nothing emails or displays until then).
+`main` HEAD **`4fbbf4a`** (batches 1–6 code landed at `69e6a74`; Batch 7 docs at `4fbbf4a`) · **3149 / 276** tests · migrations **0001–0077** applied. The feature is **dormant** in production (no reviews exist yet; the invite cron's launch cutoff = 2026-06-28 + the 18–48h window mean the first invites go out ~2026-07-25 after **Operation Last Light** ends — nothing emails or displays until then).
 
 **⚠️ Operator-pending / next-session TODO:**
 1. **CAN-SPAM classification of the `review_invite` email** (decide before the first real send ~2026-07-27): transactional (ship as-is) vs marketing-class (add `MARKETING_POSTAL_ADDRESS` + unsubscribe + run through the `email_events` suppression check). Not a code blocker — the launch-cutoff + window guards mean nothing sends until decided. See `docs/runbooks/reviews-deploy.md`.
@@ -47,7 +47,7 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 | Metric | Value |
 |---|---|
 | `main` HEAD | `4fbbf4a` (re-pull for exact; reviews batches 1–7 merged, PRs #351–#359) |
-| Tests | **3142 / 275** all green |
+| Tests | **3149 / 276** all green |
 | Build | clean · Lint **0 errors** |
 | Production | deployed from `main` via Workers Builds · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + Marketing/deliverability schema + waiver receipts + accounting suite + multi-day support + **attendee-verified reviews** all deployed. `Operation Last Light` is PUBLISHED + live (real bookings on live Stripe). |
 | Migrations on remote | **0001–0077 ALL applied** — a `migrations apply` finds nothing new. (Migration `0077_reviews.sql` applied 2026-06-28 for attendee-verified reviews.) |
@@ -326,7 +326,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 3142 / 275
+npm test -- --run | tail -3        # expect 3149 / 276
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
