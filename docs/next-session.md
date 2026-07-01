@@ -1,3 +1,36 @@
+# Next-session entry point — Attendee reviews feature IN PROGRESS (2026-06-28)
+
+## 🟢 CURRENT WORK — Attendee-verified reviews (started 2026-06-28)
+
+Building an **attendee-verified post-event reviews** feature so real customer ratings populate the site and feed a **legitimate `aggregateRating`** for search/AI visibility (there's no Google Business page, and the old homepage rating was a **fabricated `4.9★ / 50`** — being replaced). The full design + the 28 folded-in red-team findings are in **`docs/reviews-feature-spec.md`**; the durable resume note is memory **`reviews-feature-in-progress`** (read it first).
+
+**Locked product decisions:** verified attendees only (token in a post-event email) · one review per booking · auto-publish + admin takedown · display everywhere · **remove the fake 4.9★ now** (operator-confirmed; homepage shows no rating until the first real review ~2026-07-25 — the honest interim).
+
+**Flow:** the 03:00 cron emails each paid/comp booking a `/review?token=…` link ~24h after the event ends → they rate 1–5 + optional comment → auto-publishes → feeds the home/event/`/reviews` display + a server-injected, crawler-visible `aggregateRating`. Admins hide/restore from **Admin → Reviews**.
+
+| Batch | State |
+|---|---|
+| 1 schema (migration `0077`) | ✅ merged + **applied to prod D1** + deployed |
+| 2 invite cron + sender + tokens | ✅ merged + deployed |
+| 3 public submit/read API (`/api/reviews`) | ✅ merged + deployed |
+| 4 SSR crawler-visible `aggregateRating` | ✅ merged + deployed |
+| 5a admin moderation API (`/api/admin/reviews`) | ✅ merged + deployed |
+| **5b admin moderation UI** (`AdminReviews` + sidebar) | 🟢 **OPEN PR [#356](https://github.com/bulletbiter99/air-action-sports/pull/356)** (base main) |
+| **6 public UI** (`/review` form + `/reviews` + event/home display; remove fake 4.9★) | ⬜ **NEXT — not started** |
+| 7 docs | ⬜ |
+
+`main` HEAD **`ef9af36`** (batches 1–5a) · **3123** tests on main (3128 with #356) · migrations **0001–0077** applied. The feature is **dormant** in production (no reviews exist yet; the invite cron's launch cutoff = 2026-06-28 + the 18–48h window mean the first invites go ~2026-07-25 after Operation Last Light ends — nothing emails/displays until then).
+
+**To resume:** (1) merge **#356** (5b moderation UI) if not already; (2) build **Batch 6** from clean main per `docs/reviews-feature-spec.md` §7 — the `/review` star form (reads `/api/reviews/context?token=`; inline critical CSS per the Waiver precedent), the `/reviews` page + `useReviews` hook, an EventDetail "Player Reviews" section (a **new** `useReviews(eventId)` hook — do **not** touch `adaptEvent`/`formatEvent`), data-driven Home testimonials with a static fallback, **remove the fabricated `LocalBusiness` 4.9/50 + stale Event JSON-LD from `Home.jsx`** (single source = Batch 4's SSR injection), add a footer `/reviews` link + the `/reviews` sitemap entry; (3) Batch 7 docs. **Still-open operator call:** the CAN-SPAM classification of the invite email (before the first real send ~2026-07-27).
+
+**SSR acceptance gate (post-deploy, once reviews exist):** `curl -s https://airactionsport.com/ | grep -c application/ld+json` should show the injected `LocalBusiness` block; don't rely on Home's client JSON-LD (removed in Batch 6).
+
+---
+
+## Prior context (2026-06-27 and earlier — kept for history)
+
+_The sections below are the previous session state. The reviews feature above is the current active work._
+
 # Next-session entry point — post 2026-06-27 (OPERATION LAST LIGHT live + image/focal-point pass)
 
 Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This session built the `ghost-town-iii-regular-play` draft into **OPERATION LAST LIGHT** — a single-day, 12-hour mission-based event (25 July 2026, Ghost Town / Hiawatha UT, $60) — added a required Russian-vs-NATO **teams picker**, and **PUBLISHED it**. It is now the **first and only published event**, taking **real bookings on live Stripe**. Then a large **image + focal-point pass**: (1) fixed a real bug where `adaptEvent` (useEvents.js) **never forwarded the `*ImagePosition` fields**, so event **cards + the event-detail hero silently used `center`** regardless of the focal picker — now forwarded; (2) pinned the card / locations / hero / banner surfaces to the focal-picker aspect ratios so cover-cropping is WYSIWYG; (3) added a per-event, **per-surface cover-title placement** control (**overlay / below / hidden**) for the event hero + booking banner (admin "Detail page content" → two dropdowns); (4) the **landing-page hero now pulls from the event's Cover (Universal Fallback)** image. `main` **`4af416a`**, **3053 / 264** tests, migrations **0001–0076** (NO new migrations — all via `details_json` + data). Full detail in the **"✅ DONE — 2026-06-27" section** below + memory `event-image-focal-and-title-placement`.
