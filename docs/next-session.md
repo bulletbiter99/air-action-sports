@@ -1,29 +1,31 @@
-# Next-session entry point — Attendee reviews feature IN PROGRESS (2026-06-28)
+# Next-session entry point — Attendee reviews feature ✅ COMPLETE + DEPLOYED (2026-06-30)
 
-## 🟢 CURRENT WORK — Attendee-verified reviews (started 2026-06-28)
+## ✅ DONE — Attendee-verified reviews (2026-06-28 → 06-30, all 7 batches shipped)
 
-Building an **attendee-verified post-event reviews** feature so real customer ratings populate the site and feed a **legitimate `aggregateRating`** for search/AI visibility (there's no Google Business page, and the old homepage rating was a **fabricated `4.9★ / 50`** — being replaced). The full design + the 28 folded-in red-team findings are in **`docs/reviews-feature-spec.md`**; the durable resume note is memory **`reviews-feature-in-progress`** (read it first).
+Shipped an **attendee-verified post-event reviews** feature so real customer ratings populate the site and feed a **legitimate `aggregateRating`** for search/AI visibility (there's no Google Business page, and the old homepage `4.9★ / 50` rating was **fabricated → now removed**). Full design + the 28 folded-in red-team findings: **`docs/reviews-feature-spec.md`**; deploy/activation runbook: **`docs/runbooks/reviews-deploy.md`**; durable resume note: memory **`reviews-feature-in-progress`**.
 
-**Locked product decisions:** verified attendees only (token in a post-event email) · one review per booking · auto-publish + admin takedown · display everywhere · **remove the fake 4.9★ now** (operator-confirmed; homepage shows no rating until the first real review ~2026-07-25 — the honest interim).
+**Locked product decisions (all shipped):** verified attendees only (token in a post-event email) · one review per booking · auto-publish + admin takedown · display everywhere · **fake 4.9★ removed now** (operator-confirmed; homepage shows no rating until the first real review ~2026-07-25 — the honest interim).
 
 **Flow:** the 03:00 cron emails each paid/comp booking a `/review?token=…` link ~24h after the event ends → they rate 1–5 + optional comment → auto-publishes → feeds the home/event/`/reviews` display + a server-injected, crawler-visible `aggregateRating`. Admins hide/restore from **Admin → Reviews**.
 
-| Batch | State |
-|---|---|
-| 1 schema (migration `0077`) | ✅ merged + **applied to prod D1** + deployed |
-| 2 invite cron + sender + tokens | ✅ merged + deployed |
-| 3 public submit/read API (`/api/reviews`) | ✅ merged + deployed |
-| 4 SSR crawler-visible `aggregateRating` | ✅ merged + deployed |
-| 5a admin moderation API (`/api/admin/reviews`) | ✅ merged + deployed |
-| **5b admin moderation UI** (`AdminReviews` + sidebar) | 🟢 **OPEN PR [#356](https://github.com/bulletbiter99/air-action-sports/pull/356)** (base main) |
-| **6 public UI** (`/review` form + `/reviews` + event/home display; remove fake 4.9★) | ⬜ **NEXT — not started** |
-| 7 docs | ⬜ |
+| Batch | PR | State |
+|---|---|---|
+| 1 schema (migration `0077`) | [#351](https://github.com/bulletbiter99/air-action-sports/pull/351) | ✅ merged + **applied to prod D1** + deployed |
+| 2 invite cron + sender + tokens | [#352](https://github.com/bulletbiter99/air-action-sports/pull/352) | ✅ merged + deployed |
+| 3 public submit/read API (`/api/reviews`) | [#353](https://github.com/bulletbiter99/air-action-sports/pull/353) | ✅ merged + deployed |
+| 4 SSR crawler-visible `aggregateRating` | [#354](https://github.com/bulletbiter99/air-action-sports/pull/354) | ✅ merged + deployed |
+| 5a admin moderation API (`/api/admin/reviews`) | [#355](https://github.com/bulletbiter99/air-action-sports/pull/355) | ✅ merged + deployed |
+| 5b admin moderation UI (`AdminReviews` + sidebar) | [#356](https://github.com/bulletbiter99/air-action-sports/pull/356) | ✅ merged + deployed |
+| 6 public UI (`/review` form + `/reviews` + event/home display; removed fake 4.9★) | [#358](https://github.com/bulletbiter99/air-action-sports/pull/358) | ✅ merged + deployed |
+| 7 docs (this) + `reviews-deploy.md` runbook | — | ✅ |
 
-`main` HEAD **`ef9af36`** (batches 1–5a) · **3123** tests on main (3128 with #356) · migrations **0001–0077** applied. The feature is **dormant** in production (no reviews exist yet; the invite cron's launch cutoff = 2026-06-28 + the 18–48h window mean the first invites go ~2026-07-25 after Operation Last Light ends — nothing emails/displays until then).
+`main` HEAD **`69e6a74`** · **3142 / 275** tests · migrations **0001–0077** applied. The feature is **dormant** in production (no reviews exist yet; the invite cron's launch cutoff = 2026-06-28 + the 18–48h window mean the first invites go out ~2026-07-25 after **Operation Last Light** ends — nothing emails or displays until then).
 
-**To resume:** (1) merge **#356** (5b moderation UI) if not already; (2) build **Batch 6** from clean main per `docs/reviews-feature-spec.md` §7 — the `/review` star form (reads `/api/reviews/context?token=`; inline critical CSS per the Waiver precedent), the `/reviews` page + `useReviews` hook, an EventDetail "Player Reviews" section (a **new** `useReviews(eventId)` hook — do **not** touch `adaptEvent`/`formatEvent`), data-driven Home testimonials with a static fallback, **remove the fabricated `LocalBusiness` 4.9/50 + stale Event JSON-LD from `Home.jsx`** (single source = Batch 4's SSR injection), add a footer `/reviews` link + the `/reviews` sitemap entry; (3) Batch 7 docs. **Still-open operator call:** the CAN-SPAM classification of the invite email (before the first real send ~2026-07-27).
+**⚠️ Operator-pending / next-session TODO:**
+1. **CAN-SPAM classification of the `review_invite` email** (decide before the first real send ~2026-07-27): transactional (ship as-is) vs marketing-class (add `MARKETING_POSTAL_ADDRESS` + unsubscribe + run through the `email_events` suppression check). Not a code blocker — the launch-cutoff + window guards mean nothing sends until decided. See `docs/runbooks/reviews-deploy.md`.
+2. **Recapture the `home` public visual baseline** once the Batch-6 deploy settles — removing the 4th hero "Avg. Rating" stat drifts `home.png`, and the public visual suite tests LIVE prod (label a PR `capture-baselines`, then push an empty commit to re-trigger CI past the anti-recursion block).
 
-**SSR acceptance gate (post-deploy, once reviews exist):** `curl -s https://airactionsport.com/ | grep -c application/ld+json` should show the injected `LocalBusiness` block; don't rely on Home's client JSON-LD (removed in Batch 6).
+**SSR acceptance gate (post-deploy, once reviews exist):** `curl -s https://airactionsport.com/ | grep -c application/ld+json` should show the injected `LocalBusiness` block (it returns `0` today — correct, no reviews yet); the rich-result surface is the per-event `Event` aggregate at `/events/<slug>` (run it through Google's Rich Results Test after the first review). Don't rely on Home's client JSON-LD — it was removed in Batch 6 (single source = the SSR injection).
 
 ---
 
