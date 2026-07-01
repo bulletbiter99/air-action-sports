@@ -57,7 +57,7 @@ export const faqCategories = [
       },
       {
         question: 'Are grenades and smoke grenades allowed?',
-        answer: 'Non-pyrotechnic grenades are allowed on the field. Smoke grenades are permitted and available for purchase on-site. Check with a marshal before using any pyrotechnic devices.',
+        answer: 'Non-pyrotechnic grenades (such as gas or spring BB grenades) are allowed on the field. Fireworks, pyrotechnics, and smoke grenades are not permitted — our sites sit on fire-restricted land.',
       },
       {
         question: 'Do I need a flashlight or tracer for night games?',
