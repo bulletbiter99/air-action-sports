@@ -40,6 +40,7 @@ beforeEach(() => {
 function renderDetail(ev) {
   installClientFetch([
     { match: `/api/events/${ev.slug}`, body: { event: ev } },
+    { match: '/api/reviews', body: { average: null, count: 0, reviews: [] } }, // useReviews (Player Reviews section hidden at 0)
     { match: '/api/events', body: { events: [] } }, // useEvents related-events list
   ]);
   renderWithRouter(

@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import SocialProof from '../components/SocialProof';
+import Stars from '../components/Stars';
 import useCountdown from '../hooks/useCountdown';
 import { siteConfig } from '../data/siteConfig';
 import { fetchEventBySlug, useEvents } from '../hooks/useEvents';
+import { useReviews } from '../hooks/useReviews';
 import { spotsSignal } from '../utils/eventSlots';
 import '../styles/pages/event-detail.css';
 import '../styles/pages/rules-of-engagement.css';
@@ -39,6 +41,13 @@ export default function EventDetail() {
   const [loading, setLoading] = useState(true);
   const [copyText, setCopyText] = useState('Copy Link');
   const { events: allEvents } = useEvents({ includePast: false });
+  // Player reviews for this event (separate hook — adaptEvent/formatEvent are
+  // untouched). Holds until the event resolves, then fetches its published feed.
+  const { average: reviewAverage, count: reviewCount, reviews: eventReviews } = useReviews({
+    mode: 'event',
+    eventId: event?.id,
+    limit: 20,
+  });
 
   useEffect(() => {
     let alive = true;
@@ -443,6 +452,44 @@ export default function EventDetail() {
                   : 'Foxtrot Fields is a 25-acre open field site with varied terrain zones and purpose-built staging areas.')}
               </p>
             </div>
+
+            {/* Player Reviews — verified attendee reviews for THIS event
+                (useReviews; adaptEvent/formatEvent untouched). Omitted at 0. */}
+            {reviewCount > 0 && (
+              <div className="detail-section">
+                <h2>Player Reviews</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.5rem' }}>
+                  <span style={{ fontSize: 34, fontWeight: 900, color: 'var(--cream)', lineHeight: 1 }}>
+                    {reviewAverage != null ? reviewAverage.toFixed(1) : '—'}
+                  </span>
+                  <span>
+                    <Stars rating={reviewAverage} size={18} />
+                    <div style={{ fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--olive-light)', fontWeight: 700, marginTop: 3 }}>
+                      {reviewCount} verified review{reviewCount === 1 ? '' : 's'}
+                    </div>
+                  </span>
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {eventReviews.map((r) => (
+                    <li key={r.id} style={{ marginBottom: '1.35rem' }}>
+                      <Stars rating={r.rating} size={14} />
+                      {r.title && (
+                        <div style={{ color: 'var(--cream)', fontWeight: 800, fontSize: 15, margin: '0.4rem 0 0.25rem' }}>{r.title}</div>
+                      )}
+                      {r.comment && (
+                        <p style={{ margin: '0 0 0.35rem', color: 'var(--tan-light)', fontSize: 14, lineHeight: 1.55 }}>{r.comment}</p>
+                      )}
+                      <div style={{ fontSize: 12, color: 'var(--olive-light)' }}>&mdash; {r.authorName}</div>
+                    </li>
+                  ))}
+                </ul>
+                <p style={{ marginTop: '0.5rem' }}>
+                  <Link to="/reviews" style={{ color: 'var(--orange)', fontSize: 13, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none' }}>
+                    All player reviews &rarr;
+                  </Link>
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Right Column — Sidebar */}
@@ -489,6 +536,15 @@ export default function EventDetail() {
                 <span className="info-card-label">FPS Limit</span>
                 <span className="info-card-value">{event.details?.fpsLabel || '350 / 500'}</span>
               </div>
+              {reviewCount > 0 && (
+                <div className="info-card-item">
+                  <span className="info-card-label">Player Rating</span>
+                  <span className="info-card-value">
+                    <Stars rating={reviewAverage} size={13} />{' '}
+                    {reviewAverage != null ? reviewAverage.toFixed(1) : ''} ({reviewCount})
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Spots-left urgency — positive framing only (see utils/eventSlots.js) */}

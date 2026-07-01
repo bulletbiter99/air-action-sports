@@ -26,6 +26,8 @@ const RulesOfEngagement = lazy(() => import('./pages/RulesOfEngagement'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Feedback = lazy(() => import('./pages/Feedback'));
 const GameArchive = lazy(() => import('./pages/GameArchive'));
+const Reviews = lazy(() => import('./pages/Reviews'));
+const Review = lazy(() => import('./pages/Review'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Admin
@@ -127,6 +129,8 @@ export default function App() {
             <Route path="privacy" element={<Privacy />} />
             <Route path="feedback" element={<Feedback />} />
             <Route path="games" element={<GameArchive />} />
+            <Route path="reviews" element={<Reviews />} />
+            <Route path="review" element={<Review />} />
             <Route path="*" element={<NotFound />} />
           </Route>
           <Route path="v/:token" element={<VendorPackage />} />

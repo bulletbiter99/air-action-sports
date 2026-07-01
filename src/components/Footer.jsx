@@ -23,6 +23,7 @@ export default function Footer() {
             <li><Link to="/#games">Game Types</Link></li>
             <li><Link to="/locations">Our Sites</Link></li>
             <li><Link to="/events">Upcoming Events</Link></li>
+            <li><Link to="/reviews">Player Reviews</Link></li>
             <li><Link to="/pricing">Pricing</Link></li>
           </ul>
         </div>

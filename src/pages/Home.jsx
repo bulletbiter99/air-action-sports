@@ -1,16 +1,26 @@
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import Stars from '../components/Stars';
 import TickerBar from '../components/TickerBar';
 import CountdownTimer from '../components/CountdownTimer';
 import { siteConfig } from '../data/siteConfig';
 import { useEvents } from '../hooks/useEvents';
 import { useSites } from '../hooks/useSites';
+import { useReviews } from '../hooks/useReviews';
 import { spotsSignal } from '../utils/eventSlots';
 import { locations } from '../data/locations';
 import { testimonials } from '../data/testimonials';
 import '../styles/pages/home.css';
 
 const MONTH_NAME = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// Public display name ("Jane D.") → avatar initials ("JD") for live testimonials.
+function avatarInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '★';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 function countdownLabel(ev) {
   if (!ev?.dateIso) return ev?.title || '';
@@ -24,6 +34,15 @@ function countdownLabel(ev) {
 export default function Home() {
   const { events } = useEvents({ includePast: false });
   const { sites } = useSites();
+  // Real attendee rating + recent reviews for the hero stat + testimonials.
+  const { average: reviewAverage, count: reviewCount, reviews: recentReviews } = useReviews({
+    mode: 'summary',
+    recent: 6,
+  });
+  // Live testimonials require ≥3 published reviews that actually have a comment;
+  // otherwise fall back to the static curated set (kept, never retired).
+  const liveTestimonials = (recentReviews || []).filter((r) => r.comment && r.comment.trim());
+  const useLiveTestimonials = liveTestimonials.length >= 3;
   const upcomingEvents = events.slice(0, 2);
   const featuredEvent = events[0] || null;
   // The home location previews reuse the same /images/* photos as the DB sites,
@@ -34,64 +53,17 @@ export default function Home() {
 
   return (
     <>
+      {/* Structured data (LocalBusiness + per-event Event) is injected
+          server-side in worker/index.js with a REAL aggregateRating built from
+          published reviews — the single source of truth. The old hardcoded
+          4.9/50 LocalBusiness + stale Operation Nightfall Event JSON-LD blocks
+          were removed here so there is no fabricated/duplicate rating. */}
       <SEO
         title="Air Action Sports — Airsoft Events Across Multiple Elite Outdoor Sites"
         description="Air Action Sports runs tactical airsoft events across multiple outdoor sites. Milsim, skirmish, and private hire. Book your next battle today."
         canonical="https://airactionsport.com/"
         ogImage="https://airactionsport.com/images/og-image.jpg"
-      >
-        {/* Schema.org — LocalBusiness */}
-        <script type="application/ld+json">{`
-{
-  "@context": "https://schema.org",
-  "@type": "LocalBusiness",
-  "name": "Air Action Sports",
-  "description": "Tactical airsoft events across multiple elite outdoor sites. Milsim, skirmish, and private hire.",
-  "url": "https://airactionsport.com",
-  "telephone": "+1-801-833-5127",
-  "email": "actionairsport@gmail.com",
-  "sameAs": [
-    "https://www.facebook.com/groups/2545278778822344/",
-    "https://www.instagram.com/kaysaircombat/"
-  ],
-  "aggregateRating": {
-    "@type": "AggregateRating",
-    "ratingValue": "4.9",
-    "reviewCount": "50"
-  }
-}
-        `}</script>
-        {/* Schema.org — Event (Operation Nightfall) */}
-        <script type="application/ld+json">{`
-{
-  "@context": "https://schema.org",
-  "@type": "Event",
-  "name": "Operation Nightfall",
-  "description": "Tactical airsoft event at Ghost Town site. Full-day gameplay with milsim and skirmish modes.",
-  "startDate": "2026-05-09T09:00:00",
-  "endDate": "2026-05-09T17:00:00",
-  "eventStatus": "https://schema.org/EventScheduled",
-  "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
-  "location": {
-    "@type": "Place",
-    "name": "Ghost Town — Rural Neighborhood",
-    "address": "Utah, United States"
-  },
-  "organizer": {
-    "@type": "Organization",
-    "name": "Air Action Sports",
-    "url": "https://airactionsport.com"
-  },
-  "offers": {
-    "@type": "Offer",
-    "price": "35",
-    "priceCurrency": "USD",
-    "availability": "https://schema.org/InStock",
-    "url": "https://airactionsport.com/booking.html"
-  }
-}
-        `}</script>
-      </SEO>
+      />
 
       {/* GA4 placeholder — replace G-XXXXXXXXXX with real Measurement ID */}
 
@@ -135,10 +107,14 @@ export default function Home() {
               <div className="stat-num">50+</div>
               <div className="stat-label">Events Run</div>
             </div>
-            <div className="stat">
-              <div className="stat-num">4.9</div>
-              <div className="stat-label">Avg. Rating</div>
-            </div>
+            {/* Real avg rating — shown only once verified reviews exist (no
+                fabricated number). Omitted entirely at zero reviews. */}
+            {reviewCount > 0 && reviewAverage != null && (
+              <div className="stat">
+                <div className="stat-num">{reviewAverage.toFixed(1)}</div>
+                <div className="stat-label">Avg. Rating</div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -427,19 +403,33 @@ export default function Home() {
           <h2 className="section-title">Players Don't Lie.</h2>
           <div className="divider"></div>
           <div className="test-grid">
-            {testimonials.map((t) => (
-              <div className="test-card" key={t.initials}>
-                <div className="test-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-                <p className="test-text">&ldquo;{t.text}&rdquo;</p>
-                <div className="test-author">
-                  <div className="test-avatar">{t.initials}</div>
-                  <div>
-                    <div className="test-name">{t.name}</div>
-                    <div className="test-role">{t.role}</div>
+            {useLiveTestimonials
+              ? liveTestimonials.slice(0, 3).map((r) => (
+                <div className="test-card" key={r.id}>
+                  <div className="test-stars"><Stars rating={r.rating} size={18} /></div>
+                  <p className="test-text">&ldquo;{r.comment}&rdquo;</p>
+                  <div className="test-author">
+                    <div className="test-avatar">{avatarInitials(r.authorName)}</div>
+                    <div>
+                      <div className="test-name">{r.authorName}</div>
+                      <div className="test-role">{r.event?.title || 'Verified player'}</div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+              : testimonials.map((t) => (
+                <div className="test-card" key={t.initials}>
+                  <div className="test-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+                  <p className="test-text">&ldquo;{t.text}&rdquo;</p>
+                  <div className="test-author">
+                    <div className="test-avatar">{t.initials}</div>
+                    <div>
+                      <div className="test-name">{t.name}</div>
+                      <div className="test-role">{t.role}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
       </section>
