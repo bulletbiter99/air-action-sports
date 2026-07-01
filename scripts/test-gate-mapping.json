@@ -69,6 +69,18 @@
         "tests/unit/lib/reviewInvites.test.js"
       ]
     },
+    "worker/routes/reviews.js": {
+      "tier": "high",
+      "covers": [
+        "Public attendee-verified reviews API: GET /context (token->form state, RL_TOKEN_LOOKUP), POST / (submit/edit, auto-publish, one-per-booking + 30d/3-edit cap, honeypot 'company', RL_FEEDBACK, paid/comp-only gate), GET /?event= (per-event feed+avg), GET /summary (overall+recent+perEvent), GET /all (paginated). Token-gated, publish-independent visibility (status='published'); whitelisted public output (no email/booking_id/ip_hash/status)"
+      ],
+      "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 3)",
+      "tests": [
+        "tests/unit/reviews/context.test.js",
+        "tests/unit/reviews/submit.test.js",
+        "tests/unit/reviews/feeds.test.js"
+      ]
+    },
     "worker/routes/bookings.js": {
       "tier": "critical",
       "covers": [
