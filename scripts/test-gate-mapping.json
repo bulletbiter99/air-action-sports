@@ -92,6 +92,16 @@
         "tests/unit/worker/reviewJsonLd.test.js"
       ]
     },
+    "worker/routes/admin/reviews.js": {
+      "tier": "high",
+      "covers": [
+        "Admin review moderation: GET / (list + event_id/status/rating/q filters + published/hidden/avg summary + bookingFlag for refunded/cancelled bookings; admin-only email/ip_hash behind the cap), PUT /:id (hide/unhide + reason + writeAudit review.hidden/unhidden). Gated by requireCapability('reviews.moderate'). A hide drops the review from every public feed + SSR aggregate (all filter status='published')."
+      ],
+      "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 5)",
+      "tests": [
+        "tests/unit/admin/reviews-route.test.js"
+      ]
+    },
     "worker/routes/bookings.js": {
       "tier": "critical",
       "covers": [
