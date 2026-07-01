@@ -65,7 +65,7 @@ const SECTIONS = [
     subtitle: 'Abandoned outdoor environment',
     items: [
       'No open flames.',
-      'No fireworks, pyrotechnics, tracers, or smokes. Our sites sit on fire-restricted land, so these are not permitted.',
+      'No fireworks, pyrotechnics, or smoke grenades. Our sites sit on fire-restricted land, so these are not permitted.',
       'No smoking inside buildings or near dry vegetation, and dispose of cigarette butts properly.',
       'Report any signs of smoke or fire immediately.',
       'If a fire is spotted, notify staff at once, do not attempt to fight a large fire yourself, and follow staff instructions.',
