@@ -44,6 +44,7 @@ import publicTaxesFees from './routes/taxesFees.js';
 import publicFeedback from './routes/feedback.js';
 import publicInquiry from './routes/inquiry.js';
 import publicReviews from './routes/reviews.js';
+import { getOrgReviewAggregate, getEventReviewBundle, serializeJsonLd, buildOrgJsonLd, buildEventJsonLd } from './lib/reviewAggregates.js';
 import unsubscribe from './routes/unsubscribe.js';
 import newsletter from './routes/newsletter.js';
 import vendorPublic from './routes/vendor.js';
@@ -561,7 +562,7 @@ async function rewriteEventOg(request, env, slug) {
     // Events currently use slug as id (legacy seeding). Try id first, then slug column.
     const row = await env.DB.prepare(
         `SELECT title, display_date, location, short_description,
-                cover_image_url, og_image_url
+                cover_image_url, og_image_url, id, date_iso, end_date_iso
          FROM events WHERE (id = ? OR slug = ?) AND published = 1 LIMIT 1`
     ).bind(slug, slug).first();
 
@@ -612,7 +613,53 @@ async function rewriteEventOg(request, env, slug) {
             element(el) { el.setAttribute('content', image); },
         });
 
+    // Attendee-verified reviews (0077, Batch 4): when this event has published
+    // reviews, append a real Event JSON-LD (aggregateRating + review[]) into
+    // <head> so search/AI crawlers see genuine ratings. Additive — the meta
+    // rewrites above are untouched. Omitted entirely when there are no reviews
+    // (getEventReviewBundle → null), so review-less event pages are byte-identical.
+    // serializeJsonLd escapes </script> etc. — the only XSS guard on auto-published
+    // review text injected into HTML.
+    const reviewBundle = await getEventReviewBundle(env, row.id);
+    if (reviewBundle) {
+        const eventJsonLd = buildEventJsonLd({ siteUrl, slug, event: row, bundle: reviewBundle });
+        const jsonLd = serializeJsonLd(eventJsonLd);
+        rewriter.on('head', {
+            element(el) { el.append(`<script type="application/ld+json">${jsonLd}</script>`, { html: true }); },
+        });
+    }
+
     return rewriter.transform(origin);
+}
+
+// Home page (0077, Batch 4): inject a real Organization/LocalBusiness JSON-LD
+// with the site-wide aggregateRating into the raw HTML so AI/search crawlers
+// (which don't run JS) see a genuine rating. Injected ONLY when published
+// reviews exist (getOrgReviewAggregate → null otherwise) → a no-op until the
+// first review accrues, and never an empty/zero rating.
+async function rewriteHomeJsonLd(request, env) {
+    const origin = env.ASSETS ? await env.ASSETS.fetch(request) : null;
+    if (!origin) return origin;
+    const aggregate = await getOrgReviewAggregate(env);
+    if (!aggregate) return origin;
+    const siteUrl = env.SITE_URL || 'https://airactionsport.com';
+    const jsonLd = serializeJsonLd(buildOrgJsonLd({ siteUrl, aggregate }));
+    return new HTMLRewriter()
+        .on('head', {
+            element(el) { el.append(`<script type="application/ld+json">${jsonLd}</script>`, { html: true }); },
+        })
+        .transform(origin);
+}
+
+// The /review page carries a per-booking bearer token in its query string —
+// serve X-Robots-Tag: noindex as an HTTP header (a client <meta> is invisible
+// to non-JS crawlers) so tokenized URLs are never indexed/cached.
+async function noindexAsset(request, env) {
+    const res = env.ASSETS ? await env.ASSETS.fetch(request) : null;
+    if (!res) return res;
+    const h = new Headers(res.headers);
+    h.set('X-Robots-Tag', 'noindex');
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
 }
 
 // Security response headers applied to every response the Worker returns.
@@ -650,6 +697,14 @@ async function handleRequest(request, env, ctx) {
     if (slug) {
         try { return await rewriteEventOg(request, env, slug); }
         catch (err) { console.error('OG rewrite failed', err); /* fall through */ }
+    }
+    if (url.pathname === '/' || url.pathname === '/index.html') {
+        try { return await rewriteHomeJsonLd(request, env); }
+        catch (err) { console.error('home JSON-LD inject failed', err); /* fall through */ }
+    }
+    if (url.pathname === '/review') {
+        try { return await noindexAsset(request, env); }
+        catch (err) { console.error('review noindex failed', err); /* fall through */ }
     }
     return env.ASSETS.fetch(request);
 }

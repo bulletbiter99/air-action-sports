@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
+# /review carries a per-booking review token in the query string — keep it out
+# of indexes (also enforced via the X-Robots-Tag: noindex response header).
+# NOTE: Disallow is a PREFIX match, so the next Allow is required to keep the
+# public /reviews wall crawlable (longest-match wins: Allow:/reviews > Disallow:/review).
+Disallow: /review
+Allow: /reviews
 
 Sitemap: https://airactionsport.com/sitemap.xml
