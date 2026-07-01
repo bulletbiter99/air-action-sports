@@ -1,0 +1,247 @@
+/* Attendee review-submission page (src/pages/Review.jsx, Batch 6).
+   Reached from a per-booking email link on a direct load, so it carries its own
+   critical styles rather than leaning on another route's chunk (the Waiver
+   precedent). One dark theme — colors use the global --* tokens. */
+
+.review-page {
+  min-height: 60vh;
+  padding: 4rem 1.5rem 6rem;
+  display: flex;
+  justify-content: center;
+}
+
+.review-shell {
+  width: 100%;
+  max-width: 640px;
+}
+
+.review-eyebrow {
+  font-size: 12px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--orange);
+  margin-bottom: 0.75rem;
+}
+
+.review-heading {
+  font-size: clamp(28px, 5vw, 40px);
+  font-weight: 900;
+  color: var(--cream);
+  line-height: 1.05;
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+}
+
+.review-event {
+  font-size: 15px;
+  color: var(--tan-light, #cdc3b0);
+  margin: 0 0 2rem;
+  font-weight: 600;
+}
+
+.review-event span {
+  color: var(--olive-light);
+  font-weight: 500;
+}
+
+.review-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 2rem;
+}
+
+.review-field {
+  margin-bottom: 1.5rem;
+}
+
+.review-label {
+  display: block;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--cream);
+  margin-bottom: 0.6rem;
+}
+
+.review-optional {
+  color: var(--olive-light);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Interactive star picker */
+.review-stars {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.review-star {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  margin: 0;
+  cursor: pointer;
+  font-size: 40px;
+  line-height: 1;
+  color: var(--olive-light);
+  opacity: 0.45;
+  transition: color 0.12s ease, opacity 0.12s ease, transform 0.08s ease;
+}
+
+.review-star:hover {
+  transform: scale(1.08);
+}
+
+.review-star--on {
+  color: var(--orange);
+  opacity: 1;
+}
+
+.review-star:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.review-star-value {
+  margin-left: 0.75rem;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--tan-light, #cdc3b0);
+  min-width: 2.5rem;
+}
+
+.review-input,
+.review-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  color: var(--cream);
+  font-family: inherit;
+  font-size: 15px;
+  padding: 0.75rem 0.9rem;
+}
+
+.review-textarea {
+  min-height: 130px;
+  resize: vertical;
+}
+
+.review-input:focus,
+.review-textarea:focus {
+  outline: none;
+  border-color: var(--orange);
+}
+
+.review-char {
+  display: block;
+  text-align: right;
+  font-size: 11px;
+  color: var(--olive-light);
+  margin-top: 0.35rem;
+}
+
+.review-submit {
+  display: inline-block;
+  width: 100%;
+  background: var(--orange);
+  color: #1a1c18;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.95rem 1.5rem;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.review-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Honeypot — visually hidden but reachable by bots. */
+.review-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.review-alert {
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 1.25rem;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.review-alert--error {
+  background: rgba(231, 76, 60, 0.1);
+  border-left: 4px solid #e74c3c;
+  color: #ff8a7e;
+}
+
+.review-alert--info {
+  background: rgba(212, 84, 26, 0.1);
+  border-left: 4px solid var(--orange);
+  color: var(--tan-light, #cdc3b0);
+}
+
+.review-field-error {
+  color: #ff8a7e;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+/* Success + read-only states */
+.review-status {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.review-status-icon {
+  font-size: 44px;
+  color: var(--orange);
+  margin-bottom: 0.75rem;
+}
+
+.review-existing {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.review-existing-title {
+  color: var(--cream);
+  font-weight: 800;
+  font-size: 16px;
+  margin: 0.75rem 0 0.35rem;
+}
+
+.review-existing-comment {
+  color: var(--tan-light, #cdc3b0);
+  font-size: 14px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.review-existing-author {
+  color: var(--olive-light);
+  font-size: 12px;
+  margin-top: 0.75rem;
+}
