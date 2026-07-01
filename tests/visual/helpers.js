@@ -63,6 +63,30 @@ export async function preparePage(page) {
 }
 
 /**
+ * Per-run cache-busting query token. The public visual suite renders LIVE prod
+ * (airactionsport.com), which sits behind Cloudflare's edge cache. Right after a
+ * deploy the edge can still serve the PREVIOUS build's HTML for a while, which
+ * makes a just-shipped UI change invisible to BOTH the compare job (it passes
+ * against the stale render) AND the capture-baselines recapture (it commits
+ * nothing — "No baseline changes to commit"), so an intended change silently
+ * fails to update the baseline and then bites a later PR once the edge expires.
+ *
+ * Appending a unique query param makes every goto a fresh cache key → a cache
+ * miss → the freshest deployed HTML straight from the Worker origin. The SPA
+ * ignores unknown query params, so rendered pixels are identical — this ONLY
+ * defeats the stale edge copy. See docs/runbooks/visual-regression.md.
+ */
+const CACHE_BUST = `vr=${Date.now()}`;
+
+/**
+ * Append the cache-bust token to a public URL path for page.goto().
+ * @param {string} path e.g. '/', '/events', '/booking?event=x'
+ */
+export function bust(path) {
+    return path.includes('?') ? `${path}&${CACHE_BUST}` : `${path}?${CACHE_BUST}`;
+}
+
+/**
  * Selectors for elements that contain dynamic content (timestamps, countdowns,
  * relative-time labels). Pass to toHaveScreenshot's `mask` option to keep
  * snapshots stable as time passes.

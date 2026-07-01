@@ -16,6 +16,10 @@ The visual-regression suite (M4 B1b) captures pixel-stable baselines for the pub
 | waiver error state | `/waiver?token=invalid` |
 | booking confirmation | `/booking/success` |
 
+### Cloudflare edge-cache freshness (why the gotos are cache-busted)
+
+Because the public suite renders **live prod**, it is exposed to Cloudflare's edge cache: right after a deploy the edge can keep serving the previous build's HTML for a while. That stale render makes a just-shipped UI change invisible to **both** jobs — the compare job passes against the old pixels, and a `capture-baselines` recapture commits nothing ("No baseline changes to commit") — so the intended baseline update silently doesn't happen and then a later PR fails once the edge finally expires. Each `page.goto()` therefore appends a unique cache-bust query param via `bust()` (`tests/visual/helpers.js`), forcing a cache miss → the freshest deployed HTML from the Worker origin. The SPA ignores unknown query params, so rendered pixels are unaffected. If you ship an intentional public UI change, recapture **after** the deploy lands and rely on `bust()` to defeat the edge — no need to guess when the edge PoP has expired.
+
 **Admin baselines are captured as of M7 Batch 9** — see [Admin baselines (M7 B9)](#admin-baselines-m7-b9) below. They use a different harness (local-serve + API route-mock) because admin pages require auth and render non-deterministic data; they live in `tests/visual-admin/` under a separate Playwright config.
 
 ## Admin baselines (M7 B9)

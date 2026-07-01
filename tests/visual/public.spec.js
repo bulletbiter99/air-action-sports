@@ -20,13 +20,13 @@
 // E2E_TEST_EVENT_SLUG to point at a different known-published event.
 
 import { test, expect } from '@playwright/test';
-import { preparePage, dynamicMasks } from './helpers.js';
+import { preparePage, dynamicMasks, bust } from './helpers.js';
 
 const EVENT_ID = process.env.E2E_TEST_EVENT_SLUG || 'operation-nightfall';
 
 test.describe('public visual baselines', () => {
     test('home', async ({ page }) => {
-        await page.goto('/');
+        await page.goto(bust('/'));
         await preparePage(page);
         await expect(page).toHaveScreenshot('home.png', {
             fullPage: true,
@@ -35,7 +35,7 @@ test.describe('public visual baselines', () => {
     });
 
     test('events listing', async ({ page }) => {
-        await page.goto('/events');
+        await page.goto(bust('/events'));
         await preparePage(page);
         await expect(page).toHaveScreenshot('events-listing.png', {
             fullPage: true,
@@ -44,7 +44,7 @@ test.describe('public visual baselines', () => {
     });
 
     test('event detail', async ({ page }) => {
-        const res = await page.goto(`/events/${EVENT_ID}`);
+        const res = await page.goto(bust(`/events/${EVENT_ID}`));
         // If the event was deleted or renamed in production, skip rather
         // than fail — the suite stays useful as long as the URL is 200.
         test.skip(
@@ -59,7 +59,7 @@ test.describe('public visual baselines', () => {
     });
 
     test('booking step 1 — initial', async ({ page }) => {
-        await page.goto('/booking');
+        await page.goto(bust('/booking'));
         await preparePage(page);
         await expect(page).toHaveScreenshot('booking-step1.png', {
             fullPage: true,
@@ -70,7 +70,7 @@ test.describe('public visual baselines', () => {
     test('booking step 2 — with event preselected', async ({ page }) => {
         // The booking page accepts ?event=<id-or-slug> to land on the main
         // form pre-scoped to a specific event.
-        await page.goto(`/booking?event=${EVENT_ID}`);
+        await page.goto(bust(`/booking?event=${EVENT_ID}`));
         await preparePage(page);
         await expect(page).toHaveScreenshot('booking-step2.png', {
             fullPage: true,
@@ -83,7 +83,7 @@ test.describe('public visual baselines', () => {
         // that's a 200 response with explanatory copy. Capture that as the
         // canonical waiver baseline since the happy path requires a valid
         // server-issued token.
-        await page.goto('/waiver?token=invalid');
+        await page.goto(bust('/waiver?token=invalid'));
         await preparePage(page);
         // Wait for SPA to mount and render the error state before capturing.
         await expect(page.locator('body')).toContainText(/invalid|expired|error|not found/i, {
@@ -100,7 +100,7 @@ test.describe('public visual baselines', () => {
         // the page's empty / fallback state. Captures the chrome rather
         // than a real confirmation since real confirmations require live
         // Stripe sessions.
-        await page.goto('/booking/success');
+        await page.goto(bust('/booking/success'));
         await preparePage(page);
         await expect(page).toHaveScreenshot('booking-confirmation.png', {
             fullPage: true,
