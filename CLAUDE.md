@@ -29,6 +29,18 @@ Shipped an **attendee-verified post-event reviews** feature so real customer rat
 
 ---
 
+## 2026-07-01 session — Operation Fire Storm event build + /safety briefing
+
+Operator-driven. Handed over three July 25-26 planning docs (`operation fire storm`, `operations for july 25-26`, `safety briefing`); per operator routing **all three feed ONE event** and **Operation Last Light stays untouched**. **PR [#363](https://github.com/bulletbiter99/air-action-sports/pull/363) merged + deployed (Version `453f0873`) · `main` HEAD `cf70e5f` · tests 3149 / 276 · NO new migrations** (event via `scripts/seed-operation-fire-storm.sql` applied to remote D1 + a new public page).
+
+- **`ghost-town-18hr-milsim` → Operation Fire Storm (DRAFT).** Rename + slug `operation-fire-storm`; `date_iso` Sat 25 08:00 → `end_date_iso` Sun 26 12:00 (overnight span); day-keyed schedule merging the two timelines (Day 1 daytime = `operations for july 25-26`; the 18-hour overnight op = `operation fire storm`, night op starts at END OF PEACE 8:00 PM); rewritten mission briefing; **collapsed to a single "Full Event" ticket** `tt_gt_firestorm` (the 3 day-passes `tt_gt18_weekend`/`day1`/`day2` deactivated). Factions (GRG vs Cinderjacks) + `custom_questions_json` + `published=0` left untouched. **PRICE $110 is a PLACEHOLDER.**
+- **Safety briefing → new public `/safety` page** (`src/pages/Safety.jsx`, modeled on `RulesOfEngagement.jsx`; reuses `new-players.css` + `rules-of-engagement.css`) + `<Route path="safety">` + Footer "Info" link + `public/sitemap.xml`; **linked from the event's Required Documents** via `details.documents` (root-relative `/safety` URL — `normalizeEventDetails`'s `url()` allows `/`-prefixed URLs, EventDetail renders it as a link).
+- **Verification:** an adversarial multi-agent Workflow (SQL / rendering / page / content-fidelity → verify) found ONE real medium — the general `/safety` fire-safety line said pyro was allowed "unless approved by staff" while the event categorically bans pyro on fire-restricted land, and the event links to `/safety` → tightened the `/safety` line to a categorical no-pyro. `details_json` JSON-validated; tests + build green; `/safety` verified in preview.
+
+**Durable lessons:** (1) the public visual regression suite captures `fullPage: true` and tests **LIVE prod**, so adding a **footer** link drifts every public baseline once deployed → recapture via the `capture-baselines` label AFTER the deploy lands. (2) `events.details_json.documents[].url` accepts a **root-relative** URL (`/safety`) — so an in-app page is a valid "Required Document" link, no external hosting needed. (3) The two source timelines overlapped Saturday evening; reconciled by dropping the overnight op's redundant re-registration and anchoring the night op at END OF PEACE 8:00 PM (flagged for the operator). **⚠️ Operator-pending:** finalize the Fire Storm **price** + **publish** it; optionally align `src/data/faq.js` pyro wording.
+
+---
+
 ## 2026-06-27 session — Operation Last Light LIVE + image/focal-point pass
 
 Operator-driven. **PRs #342–#349 merged + deployed · `main` HEAD `4af416a` · tests 3050 → 3053 / 264 · NO new migrations** (all `events.details_json` + remote-D1 data). Full durable detail in memory `event-image-focal-and-title-placement`.
