@@ -59,11 +59,14 @@ injection). A `0` today is expected and correct (no reviews yet).
 answer engines but is **not** relied on for Google stars.
 
 ## Operator-pending
-1. **CAN-SPAM classification of `review_invite`** (decide before the first real send ~2026-07-27).
-   Borderline commercial. Either treat as **transactional** (ship as-is — the current state) or
-   **marketing-class** (set `MARKETING_POSTAL_ADDRESS`, add an unsubscribe footer, and run the send
-   through the `email_events` suppression check — a small follow-up to `reviewInvites.js`). The
-   launch-cutoff + window guards mean nothing sends until this is decided; **not a code blocker.**
+1. ✅ **RESOLVED (2026-07-01) — CAN-SPAM classification = TRANSACTIONAL + deliverability suppression.**
+   Operator chose option B: the invite ships as a transactional message (no postal-address/unsubscribe
+   footer — one-per-booking, promotion-free, tied to a completed transaction), and the sweep
+   (`worker/lib/reviewInvites.js`) now skips addresses with a recorded hard bounce / spam complaint
+   (`email_events.suppressed_marketing=1`, matched via `normalizeEmail` → `recipient_normalized`).
+   Best-effort: a suppression-check failure never blocks invites. Suppressed candidates are not
+   sentinel-stamped (they re-skip until the 18–48h window ages them out). NOT gated on
+   `customers.email_marketing` — that is a marketing preference; review invites are transactional.
 2. **Recapture the `home` public visual baseline** after the Batch-6 deploy settles. Removing the 4th
    hero "Avg. Rating" stat changes `home.png`, and the public visual suite tests **live prod**, so it
    will drift once prod serves the 3-stat hero. Fix: label a PR `capture-baselines` (the bot recaptures
