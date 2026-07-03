@@ -1,16 +1,15 @@
-# Next-session entry point — Operation Fire Storm event + /safety briefing (2026-07-01)
+# Next-session entry point — Operation Fire Storm (16-hr night op) + /safety briefing (2026-07-01)
 
-## ✅ DONE — Operation Fire Storm event + /safety briefing (2026-07-01)
+## ✅ DONE — Operation Fire Storm build → night-only rebuild + /safety briefing (2026-07-01)
 
-Operator handed over three planning docs for the July 25-26 weekend (`operation fire storm`, `operations for july 25-26`, `safety briefing`). Per operator routing, **all three feed ONE event**: the draft `ghost-town-18hr-milsim` was rebuilt into **Operation Fire Storm** — a Sat 25 → Sun 26 July **overnight MILSIM** (Day 1 daytime program flows into the 18-hour overnight op to the Sunday-noon ENDEX). **Operation Last Light is untouched.** PR [#363](https://github.com/bulletbiter99/air-action-sports/pull/363) merged + **deployed** (Version `453f0873`); tests **3149 / 276**; NO new migrations (event via `scripts/seed-operation-fire-storm.sql` applied to remote D1 + a new public page).
+Two waves. **Wave 1** ([#363](https://github.com/bulletbiter99/air-action-sports/pull/363) + [#365](https://github.com/bulletbiter99/air-action-sports/pull/365) + [#366](https://github.com/bulletbiter99/air-action-sports/pull/366)): the three planning docs (`operation fire storm`, `operations for july 25-26`, `safety briefing`) built the draft `ghost-town-18hr-milsim` into **Operation Fire Storm** + published the **`/safety`** briefing page (+ footer/sitemap; linked from the event's Required Documents) + aligned the pyro wording site-wide (categorical no-pyro; `faq.js` + `/safety`) + set the price to **$80**. **Wave 2** ([#367](https://github.com/bulletbiter99/air-action-sports/pull/367), Version `898e9324`): the operator received the event's **promo message** (the real spec) → the event was **REBUILT as the NIGHT-ONLY 16-HOUR op** via `scripts/rebuild-operation-fire-storm-night.sql` (supersedes the wave-1 seed). Tests **3150 / 276**; NO new migrations. **Operation Last Light untouched.**
 
-- **Event (stays a DRAFT, `published=0`):** rename + slug `operation-fire-storm`; `date_iso` Sat 25 08:00 → `end_date_iso` Sun 26 12:00; day-keyed schedule merging both timelines (Day 1 daytime = `operations for july 25-26`; the overnight op = `operation fire storm`); rewritten mission briefing (King Coal complex, two convoy trucks); **single "Full Event" ticket** `tt_gt_firestorm` (the 3 day-passes deactivated). **Factions kept** (GRG vs Cinderjacks). Verified in D1.
-- **Safety briefing → new public `/safety` page** ([`src/pages/Safety.jsx`](../src/pages/Safety.jsx), modeled on Rules of Engagement) + route + footer link + sitemap; **linked from the event's Required Documents** (`details.documents` → `/safety`). An adversarial multi-agent review caught a fire-safety loophole (the general briefing said pyro was allowed "unless approved by staff" while the event categorically bans it on fire-restricted land) → the `/safety` line was tightened to a categorical no-pyro.
+- **Final event shape (DRAFT, `published=0`, verified in D1):** check-in **Sat 25 Jul 7:45 PM** → END OF PEACE **8:00 PM** → ENDEX **Sun 12:00 PM** (`date_iso` 19:45, `end_date_iso` next-day 12:00); single **$80** "Full Event" ticket `tt_gt_firestorm`; **teams picker (required, per player): Russian Forces / NATO Forces** (civilians assigned on-site with color tape); LIMITED AMMO mechanic (carry what you get; ammo/hidden caches; armor+ammo trucks to conquer; achievements rewarded in ammo); bio BBs; flashlight required (NVG recommended); cash at the gate; free water on-site; FPS tiers 350/450/550 + LMG; age = site standard (operator declined the message's under-16 rule).
+- **Team visibility:** every player picks a team at booking (required select per attendee). See rosters at **`/admin/roster`** — each player shows their team, the **search filters by team** (type "Russian"), and the **CSV export** has a `q_faction` column ([#367](https://github.com/bulletbiter99/air-action-sports/pull/367)).
+- **EventDetail multi-day fixes** ([#367](https://github.com/bulletbiter99/air-action-sports/pull/367)): overnight/multi-day events render "Non-stop airsoft gameplay (time range)" in What's Included (was a backwards "Full-day … 7:45 PM through 12:00 PM"); Required-Documents links now render their note.
 
 **⚠️ Operator-pending on Fire Storm:**
-1. **Publish when ready** — price is finalized at **$80** (`base_price_cents` + `tt_gt_firestorm`, set 2026-07-01 via `scripts/set-operation-fire-storm-price.sql`); flip `published=1` in `/admin/events` to take bookings. ⚠️ After any direct D1 edit, hard-refresh the `/admin/events` tab before saving (stale-tab revert gotcha).
-2. **Reconcile the Saturday-evening seam** if desired — the two source timelines overlapped Saturday evening; the build starts the night op at END OF PEACE 8:00 PM (dropped the overnight op's redundant re-registration).
-3. **`src/data/faq.js`** still has the old "check with a marshal before using pyro" framing — align it with the categorical no-pyro if you want site-wide consistency (left as a follow-up; not on the event page).
+1. **Publish when ready** — flip `published=1` in `/admin/events` to take bookings ($80 already set). ⚠️ Hard-refresh the `/admin/events` tab first (stale-tab revert gotcha). With both events live on July 25, Last Light (8:30 AM) still sorts first → stays the home-hero/featured event.
 
 ---
 
@@ -60,10 +59,10 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `cf70e5f` (re-pull for exact; Operation Fire Storm + `/safety`, PR #363 merged + deployed 2026-07-01; Version `453f0873`) |
-| Tests | **3149 / 276** all green |
+| `main` HEAD | `1f159a4` (re-pull for exact; Fire Storm night-only rebuild + roster team filter, PR #367 merged + deployed 2026-07-01; Version `898e9324`) |
+| Tests | **3150 / 276** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + Marketing/deliverability schema + waiver receipts + accounting suite + multi-day support + attendee-verified reviews all deployed. `Operation Last Light` is PUBLISHED + live (real bookings). **`Operation Fire Storm` built as a DRAFT** (price **$80**; needs publish). **`/safety` briefing page is live.** |
+| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + Marketing/deliverability schema + waiver receipts + accounting suite + multi-day support + attendee-verified reviews all deployed. `Operation Last Light` is PUBLISHED + live (real bookings). **`Operation Fire Storm` built as a DRAFT** (16-hr night op, $80, Russian/NATO picker; needs publish). **`/safety` briefing page is live.** |
 | Migrations on remote | **0001–0077 ALL applied** — a `migrations apply` finds nothing new. (Migration `0077_reviews.sql` applied 2026-06-28 for attendee-verified reviews.) |
 | Open PRs | 0 (all merged through #359) |
 | Open milestone | **None active.** No milestone/roadmap items remain. The **attendee-verified reviews feature is COMPLETE + DEPLOYED** (dormant until the first review ~2026-07-25). **`Operation Last Light` is LIVE.** **`Operation Fire Storm`** (the former `ghost-town-18hr-milsim` 18HR draft) is now built as a DRAFT (price **$80**) — **publish** it when ready. Remaining otherwise: operator activation only (Marketing send + Resend webhook + FTS flag + reviews CAN-SPAM classification). CI green. |
