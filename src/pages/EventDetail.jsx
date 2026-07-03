@@ -273,7 +273,13 @@ export default function EventDetail() {
             <div className="detail-section">
               <h2>What's Included</h2>
               <ul>
-                <li>Full-day airsoft gameplay ({event.checkIn?.split('–')[0]?.trim() || '6:30 AM'} check-in through {event.endTime || '8:00 PM'})</li>
+                {/* Multi-day/overnight ops span days, so "PM check-in through
+                    AM/PM end" reads backwards — use the full timeRange instead. */}
+                {event.isMultiDay ? (
+                  <li>Non-stop airsoft gameplay ({event.time || event.displayDate})</li>
+                ) : (
+                  <li>Full-day airsoft gameplay ({event.checkIn?.split('–')[0]?.trim() || '6:30 AM'} check-in through {event.endTime || '8:00 PM'})</li>
+                )}
                 <li>Safety briefing and equipment check</li>
                 <li>Trained marshals on field</li>
                 <li>Free parking</li>
@@ -426,9 +432,12 @@ export default function EventDetail() {
                   {event.details.documents.map((doc, i) => (
                     <li key={i}>
                       {doc.url ? (
-                        <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                          {doc.label} &#8599;
-                        </a>
+                        <span>
+                          <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                            {doc.label} &#8599;
+                          </a>
+                          {doc.note && <> &mdash; <em>{doc.note}</em></>}
+                        </span>
                       ) : (
                         <span>
                           {doc.label} &mdash; <em>{doc.note || 'link coming soon'}</em>

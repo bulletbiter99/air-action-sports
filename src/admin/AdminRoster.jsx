@@ -70,7 +70,10 @@ export default function AdminRoster() {
       if (filters.waiver_filter === 'unsigned' && a.waiverSigned) return false;
       if (filters.waiver_filter === 'checked-in' && !a.checkedInAt) return false;
       if (q) {
-        const hay = `${a.firstName} ${a.lastName || ''} ${a.email || ''} ${a.buyerName || ''}`.toLowerCase();
+        // Include custom-question answers (e.g. the team/faction picker) so
+        // typing "Russian" filters the roster to that team.
+        const answers = Object.values(a.customAnswers || {}).map((v) => String(v)).join(' ');
+        const hay = `${a.firstName} ${a.lastName || ''} ${a.email || ''} ${a.buyerName || ''} ${answers}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -160,7 +163,7 @@ export default function AdminRoster() {
         onChange={setFilters}
         searchValue={filters.q}
         onSearchChange={(q) => setFilters((f) => ({ ...f, q }))}
-        searchPlaceholder="Search name, email, buyer…"
+        searchPlaceholder="Search name, email, buyer, team…"
         resultCount={filtered.length}
         savedViewsKey="adminRoster"
       />

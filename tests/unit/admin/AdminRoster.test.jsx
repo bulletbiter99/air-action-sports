@@ -99,6 +99,38 @@ describe('AdminRoster', () => {
         await waitFor(() => expect(screen.getByText('No players signed up yet')).toBeInTheDocument());
     });
 
+    it('renders team answers and filters the roster by team via search', async () => {
+        const factionRoster = {
+            event: {
+                id: 'evt_1',
+                title: 'Operation Fire Storm',
+                customQuestions: [{ key: 'faction', label: 'Choose your faction', type: 'select', required: true, options: ['Russian Forces', 'NATO Forces'] }],
+            },
+            attendees: [
+                { ...ROSTER.attendees[0], customAnswers: { faction: 'Russian Forces' } },
+                { ...ROSTER.attendees[1], customAnswers: { faction: 'NATO Forces' } },
+            ],
+        };
+        installClientFetch([
+            SAVED_VIEWS,
+            { match: '/roster', body: factionRoster },
+            { match: '/api/admin/events', body: { events: [EVT] } },
+        ]);
+        const user = userEvent.setup();
+        renderWithAdmin(<AdminRoster />);
+        // Team answer renders under each player's name.
+        await waitFor(() => expect(screen.getByText('Russian Forces')).toBeInTheDocument());
+        expect(screen.getByText('NATO Forces')).toBeInTheDocument();
+        // Typing a team name filters the roster to that team.
+        await user.type(screen.getByPlaceholderText(/Search name, email, buyer, team/), 'russian');
+        await waitFor(() => expect(screen.queryByText('Pat Doe')).not.toBeInTheDocument());
+        // Sarah (Russian Forces) remains — anchor on her unique email, since
+        // "Sarah Chen" also appears as the buyer label on rows.
+        expect(screen.getByText('sarah@example.com')).toBeInTheDocument();
+        expect(screen.getByText('Russian Forces')).toBeInTheDocument();
+        expect(screen.queryByText('NATO Forces')).not.toBeInTheDocument();
+    });
+
     it('checks a player in via the row action', async () => {
         const fetchMock = installClientFetch([
             SAVED_VIEWS,
