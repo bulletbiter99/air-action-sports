@@ -2,34 +2,56 @@
 
 The visual-regression suite (M4 B1b) captures pixel-stable baselines for the public storefront and gates every PR against unintended UI diffs. Tightens the safety net for any future batch that touches CSS, layout, or shared components.
 
+> **⚠️ Harness change (2026-07-02):** the public suite **no longer screenshots live production.** It now uses the same local-serve + route-mock harness as the admin suite — see [Public harness (2026-07-02)](#public-harness-2026-07-02) below for what changed and why.
+
+## Public harness (2026-07-02)
+
+The public suite originally captured the deployed `https://airactionsport.com`. That design had a fatal blind spot, discovered 2026-07-01: **`/api/events` never successfully loaded from GitHub-runner CI** — the committed `events-listing` baseline AND the original M4 capture (`860d13a`) both show the *"Couldn't load events. Please refresh in a moment."* error state. Every capture and every compare reproduced the same failure, so the check sat stable-green while event content (home hero/cards/countdown, events grid, event detail) had **zero real visual coverage**. `/api/events` returns `Cache-Control: no-store` (never edge-cached — the earlier "stale CF colo cache" theory was a misdiagnosis) and has no rate limiter; the leading suspect is Cloudflare bot management challenging datacenter-IP XHR from headless Chrome.
+
+The fix: the public suite now mirrors the admin harness —
+
+- [`playwright.public.config.js`](../../playwright.public.config.js) builds the SPA and serves `dist/` locally (`vite preview`, port 4174; the admin suite uses 4173).
+- Every test installs [`tests/visual/publicMocks.js`](../../tests/visual/publicMocks.js) before `goto`: representative fixtures for `/api/events` (2 events, one multi-day), `/api/events/:slug`, `/api/sites`, `/api/reviews/*`, `/api/taxes-fees`, plus the waiver/booking error bodies. Fixture shapes mirror the real serializers (`formatEvent`/`formatTicketType`, `publicReview`, `formatPublicSite`).
+- `installPublicMocks` also **freezes the browser clock** (`page.clock.setFixedTime`) so the home countdown band renders deterministic pixels (it's deliberately *unmasked* now — its event-name content is real coverage), and the config pins `timezoneId: 'America/Denver'` + `locale: 'en-US'` for date renders.
+- Fixture images are static `/images/*` assets that ship in `dist/` — never Worker-only `/uploads/*` keys, which the local preview server can't serve.
+
+Consequences of the philosophy change:
+
+- **Deterministic baselines.** No more live-prod races: publishing/retiring an event, a new review, or a Cloudflare-layer change can never drift a baseline. Recaptures no longer need to wait for a deploy to land ("recapture AFTER the deploy" is obsolete).
+- **Event content is finally pixel-locked** — a regression in the events grid, home hero, countdown band, event detail (incl. multi-day range label + Day-N schedule grouping), booking picker/form, or the reviews surfaces now fails CI.
+- **Prod rendering is no longer directly observed.** The operator-triggered smoke suite (`npm run test:e2e`, still in `playwright.config.js`) remains the live-prod check; browser-verify after deploys per the usual workflow.
+
 ## What it protects (today)
 
-7 public surfaces, captured against the deployed `https://airactionsport.com`:
+9 public surfaces, rendered from the built SPA + mocked API fixtures:
 
-| Surface | URL |
-|---|---|
-| home | `/` |
-| events listing | `/events` |
-| event detail | `/events/operation-nightfall` (or `E2E_TEST_EVENT_SLUG`) |
-| booking step 1 | `/booking` |
-| booking step 2 | `/booking?event=operation-nightfall` |
-| waiver error state | `/waiver?token=invalid` |
-| booking confirmation | `/booking/success` |
+| Surface | URL | Fixture notes |
+|---|---|---|
+| home | `/` | hero from featured event cover, countdown (frozen clock), 2 event cards, live-testimonials branch, 4.8★ hero stat |
+| events listing | `/events` | 2 upcoming events incl. the multi-day op |
+| event detail | `/events/operation-mock-alpha` | single-day, `details:null` → all hardcoded fallback sections + populated reviews feed |
+| event detail (multi-day) | `/events/operation-mock-overnight` | date-range label, Day-N grouped timeline, data-driven briefing/documents, zero-reviews branch |
+| booking step 1 | `/booking` | 2 events → the event picker renders |
+| booking step 2 | `/booking?event=operation-mock-alpha` | preselected form, banner + 2 ticket types |
+| waiver error state | `/waiver?token=invalid` | mock mirrors the real 404 body |
+| booking confirmation | `/booking/success` | no token → fallback state |
+| reviews page | `/reviews` | populated all-reviews feed |
 
-**Admin baselines are captured as of M7 Batch 9** — see [Admin baselines (M7 B9)](#admin-baselines-m7-b9) below. They use a different harness (local-serve + API route-mock) because admin pages require auth and render non-deterministic data; they live in `tests/visual-admin/` under a separate Playwright config.
+**Admin baselines are captured as of M7 Batch 9** — see [Admin baselines (M7 B9)](#admin-baselines-m7-b9) below. The admin harness came first (M7 B9); the public suite adopted its pattern on 2026-07-02. They live in `tests/visual-admin/` under a separate Playwright config.
 
 ## Admin baselines (M7 B9)
 
 Admin pages get their own harness because they can't be screenshotted against production the way public pages are: they require authentication, render non-deterministic database data, and **never go network-idle** (the `useWidgetData` / `useTodayActive` polling).
 
-**How it differs from the public suite:**
+**How it differs from the public suite** (since 2026-07-02 both use local-serve + route-mock; the remaining differences):
 
 | | Public suite | Admin suite |
 |---|---|---|
-| Config | `playwright.config.js` (`visual` project) | `playwright.admin.config.js` (`visual-admin` project) |
-| Target | deployed `airactionsport.com` | **local** `vite preview` of the built SPA |
-| Data | real (anonymous) | **route-mocked** `**/api/**` → empty/zero |
-| Auth | none | mocked `/api/admin/auth/me` → owner |
+| Config | `playwright.public.config.js` (`visual` project, port 4174) | `playwright.admin.config.js` (`visual-admin` project, port 4173) |
+| Target | **local** `vite preview` of the built SPA | **local** `vite preview` of the built SPA |
+| Data | **route-mocked** `**/api/**` → representative fixtures (`publicMocks.js`) | **route-mocked** `**/api/**` → empty/zero (+ per-test `overrides`) |
+| Auth | none needed | mocked `/api/admin/auth/me` → owner |
+| Clock | frozen (`page.clock.setFixedTime`) — countdowns deterministic | real (pages have no countdowns; timestamps masked/fixed) |
 | Script | `npm run test:visual` | `npm run test:visual:admin` |
 | Tests | `tests/visual/public.spec.js` | `tests/visual-admin/admin.spec.js` |
 | Baselines | `tests/visual/public.spec.js-snapshots/` | `tests/visual-admin/admin.spec.js-snapshots/` |
@@ -67,7 +89,7 @@ Admin pages get their own harness because they can't be screenshotted against pr
 
 ## Threshold
 
-`maxDiffPixelRatio: 0.01` (1%) — set in [playwright.config.js](../../playwright.config.js) per-project. Tightens to "near-pixel-perfect" while accommodating sub-pixel font rendering jitter that the same headless Chromium build can produce across runs.
+`maxDiffPixelRatio: 0.01` (1%) — set per-project in [playwright.public.config.js](../../playwright.public.config.js) + [playwright.admin.config.js](../../playwright.admin.config.js). Tightens to "near-pixel-perfect" while accommodating sub-pixel font rendering jitter that the same headless Chromium build can produce across runs.
 
 ## How CI works
 
@@ -89,8 +111,8 @@ The `test` job (lint + vitest + coverage) and the `visual` job run **in parallel
 2. **Label the PR `capture-baselines`.** This triggers [`.github/workflows/capture-baselines.yml`](../../.github/workflows/capture-baselines.yml).
 3. The bot:
    - Checks out the PR head branch
-   - Runs `npm run test:visual:update` against production
-   - Commits new PNGs under `tests/visual/__snapshots__/` as `github-actions[bot]`
+   - Runs `npm run test:visual:update` + `npm run test:visual:admin:update` (both local-serve + route-mock — production is never touched)
+   - Commits new PNGs under `tests/visual/public.spec.js-snapshots/` + `tests/visual-admin/admin.spec.js-snapshots/` as `github-actions[bot]`
    - Pushes the commit to your PR head
    - Removes the `capture-baselines` label
 4. CI re-runs on the new commit. The `visual` job now passes (baselines match).
@@ -120,26 +142,26 @@ When the `visual` CI job fails:
 
 **Font rendering** — `waitForFontsLoaded(page)` ensures `document.fonts.ready` resolves + a 200ms grace before the screenshot. If a flake appears that looks like character anti-aliasing changes, increase the grace window.
 
-**Live data state** — the event-detail / booking-step-2 captures depend on a specific event being published. If `operation-nightfall` is retired, either:
-- Set the GitHub Actions workflow env `E2E_TEST_EVENT_SLUG` to a different known-published event, OR
-- Remove the `event detail` and `booking step 2` tests from `tests/visual/public.spec.js` until a new stable event exists
+**Live data state — obsolete since 2026-07-02.** The public suite renders fixture events (`operation-mock-alpha` / `operation-mock-overnight` in `publicMocks.js`), so publishing/retiring real events can never drift a baseline and `E2E_TEST_EVENT_SLUG` no longer applies to the visual suite (the smoke suite still uses it). If a page grows a new API call, add it to `installPublicMocks` — unmocked `/api/*` paths 404 loudly, so the miss shows up as an obvious error state in the pixel diff.
+
+**Clock-sensitive content** (the home countdown band) is frozen via `page.clock.setFixedTime(FROZEN_NOW)` inside `installPublicMocks`, so it renders deterministic values and is deliberately unmasked. If a new always-ticking element appears, prefer the frozen clock over masking.
 
 ## Adding a new surface
 
 1. Add a `test('<name>', async ({ page }) => { ... })` block to [tests/visual/public.spec.js](../../tests/visual/public.spec.js):
    ```js
    test('new surface', async ({ page }) => {
+       await installPublicMocks(page);          // BEFORE goto — intercepts the initial fetches
        await page.goto('/new-route');
+       await settle(page, 'Some fixture text'); // wait for a fixture-driven element
        await preparePage(page);
-       await expect(page).toHaveScreenshot('new-surface.png', {
-           fullPage: true,
-           mask: dynamicMasks(page),
-       });
+       await shot(page, 'new-surface.png');
    });
    ```
-2. Open the PR. The `visual` job will fail on this surface only (no baseline yet).
-3. Label the PR `capture-baselines` to capture the initial baseline.
-4. Review the new PNG in the next commit's diff and merge.
+2. If the page calls an endpoint `installPublicMocks` doesn't cover, add a fixture branch for it (unmocked `/api/*` 404s loudly by design). Mirror the real serializer's field names — check the worker route, not just the page.
+3. Open the PR. The `visual` job will fail on this surface only (no baseline yet).
+4. Label the PR `capture-baselines` to capture the initial baseline.
+5. Review the new PNG in the next commit's diff and merge.
 
 ## When NOT to use this suite
 
@@ -157,9 +179,4 @@ When the `visual` CI job fails:
 
 ## Cost notes
 
-Each PR run hits production 7 times. Cumulative load is small (one PR per few hours, single-worker runs). If PR volume rises substantially, consider:
-- Running visual against `air-action-sports.bulletbiter99.workers.dev` (the .workers.dev fallback URL) to bypass any CDN-level caching artifacts
-- Adding `playwright.config.js` `reporter: 'github'` for cleaner annotations on PR diffs
-- Capping CI concurrency at the workflow level
-
-These are not pressing concerns at M4 cadence.
+Since 2026-07-02 neither visual suite touches production — both build + serve the SPA inside the CI runner. The only live-prod Playwright traffic left is the operator-triggered smoke suite (`npm run test:e2e`). The capture workflow runs two builds back-to-back (one per config's `webServer`); at ~250ms per Vite build this is noise.
