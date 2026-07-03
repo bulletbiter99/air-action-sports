@@ -8,7 +8,7 @@ Operator handed over three planning docs for the July 25-26 weekend (`operation 
 - **Safety briefing → new public `/safety` page** ([`src/pages/Safety.jsx`](../src/pages/Safety.jsx), modeled on Rules of Engagement) + route + footer link + sitemap; **linked from the event's Required Documents** (`details.documents` → `/safety`). An adversarial multi-agent review caught a fire-safety loophole (the general briefing said pyro was allowed "unless approved by staff" while the event categorically bans it on fire-restricted land) → the `/safety` line was tightened to a categorical no-pyro.
 
 **⚠️ Operator-pending on Fire Storm:**
-1. **Finalize the ticket PRICE** ($110 is a PLACEHOLDER — `base_price_cents` + `tt_gt_firestorm`) then **publish** (`published=1`) in `/admin/events`. ⚠️ After any direct D1 edit, hard-refresh the `/admin/events` tab before saving (stale-tab revert gotcha).
+1. **Publish when ready** — price is finalized at **$80** (`base_price_cents` + `tt_gt_firestorm`, set 2026-07-01 via `scripts/set-operation-fire-storm-price.sql`); flip `published=1` in `/admin/events` to take bookings. ⚠️ After any direct D1 edit, hard-refresh the `/admin/events` tab before saving (stale-tab revert gotcha).
 2. **Reconcile the Saturday-evening seam** if desired — the two source timelines overlapped Saturday evening; the build starts the night op at END OF PEACE 8:00 PM (dropped the overnight op's redundant re-registration).
 3. **`src/data/faq.js`** still has the old "check with a marshal before using pyro" framing — align it with the categorical no-pyro if you want site-wide consistency (left as a follow-up; not on the event page).
 
@@ -63,10 +63,10 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 | `main` HEAD | `cf70e5f` (re-pull for exact; Operation Fire Storm + `/safety`, PR #363 merged + deployed 2026-07-01; Version `453f0873`) |
 | Tests | **3149 / 276** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + Marketing/deliverability schema + waiver receipts + accounting suite + multi-day support + attendee-verified reviews all deployed. `Operation Last Light` is PUBLISHED + live (real bookings). **`Operation Fire Storm` seeded as a DRAFT** (needs price + publish). **`/safety` briefing page is live.** |
+| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + Marketing/deliverability schema + waiver receipts + accounting suite + multi-day support + attendee-verified reviews all deployed. `Operation Last Light` is PUBLISHED + live (real bookings). **`Operation Fire Storm` built as a DRAFT** (price **$80**; needs publish). **`/safety` briefing page is live.** |
 | Migrations on remote | **0001–0077 ALL applied** — a `migrations apply` finds nothing new. (Migration `0077_reviews.sql` applied 2026-06-28 for attendee-verified reviews.) |
 | Open PRs | 0 (all merged through #359) |
-| Open milestone | **None active.** No milestone/roadmap items remain. The **attendee-verified reviews feature is COMPLETE + DEPLOYED** (dormant until the first review ~2026-07-25). **`Operation Last Light` is LIVE.** **`Operation Fire Storm`** (the former `ghost-town-18hr-milsim` 18HR draft) is now built + deployed as a DRAFT — finalize its **price** and **publish** it. Remaining otherwise: operator activation only (Marketing send + Resend webhook + FTS flag + reviews CAN-SPAM classification). CI green. |
+| Open milestone | **None active.** No milestone/roadmap items remain. The **attendee-verified reviews feature is COMPLETE + DEPLOYED** (dormant until the first review ~2026-07-25). **`Operation Last Light` is LIVE.** **`Operation Fire Storm`** (the former `ghost-town-18hr-milsim` 18HR draft) is now built as a DRAFT (price **$80**) — **publish** it when ready. Remaining otherwise: operator activation only (Marketing send + Resend webhook + FTS flag + reviews CAN-SPAM classification). CI green. |
 
 ---
 
