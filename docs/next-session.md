@@ -8,8 +8,7 @@ Two waves. **Wave 1** ([#363](https://github.com/bulletbiter99/air-action-sports
 - **Team visibility:** every player picks a team at booking (required select per attendee). See rosters at **`/admin/roster`** — each player shows their team, the **search filters by team** (type "Russian"), and the **CSV export** has a `q_faction` column ([#367](https://github.com/bulletbiter99/air-action-sports/pull/367)).
 - **EventDetail multi-day fixes** ([#367](https://github.com/bulletbiter99/air-action-sports/pull/367)): overnight/multi-day events render "Non-stop airsoft gameplay (time range)" in What's Included (was a backwards "Full-day … 7:45 PM through 12:00 PM"); Required-Documents links now render their note.
 
-**⚠️ Operator-pending on Fire Storm:**
-1. **Publish when ready** — flip `published=1` in `/admin/events` to take bookings ($80 already set). ⚠️ Hard-refresh the `/admin/events` tab first (stale-tab revert gotcha). With both events live on July 25, Last Light (8:30 AM) still sorts first → stays the home-hero/featured event.
+**✅ PUBLISHED (2026-07-01, by the operator):** Fire Storm is **LIVE** at `/events/operation-fire-storm`, taking real bookings. During publish the operator consolidated tickets themselves: deleted the 4 seeded rows and re-activated the original `tt_NBVUMAr6EnUb` at **$80 / capacity 350** (deliberate — kept over the 150 design cap; `events.total_slots` raised to 350 to match). The ticket was then rethemed to **"Operation Fire Storm - Entry"** (`scripts/retheme-operation-fire-storm-ticket.sql`). The night-only content **survived the admin saves intact** (verified in D1 + live render + a full booking-flow walk: banner → ticket → Player 1 → required Russian/NATO picker). Last Light (8:30 AM) still sorts first → remains the home-hero/featured event. `/events/operation-fire-storm` added to the sitemap; public visual baselines recaptured post-publish (the 2nd event card drifts `events-listing` + `home`).
 
 ---
 
@@ -62,10 +61,10 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 | `main` HEAD | `1f159a4` (re-pull for exact; Fire Storm night-only rebuild + roster team filter, PR #367 merged + deployed 2026-07-01; Version `898e9324`) |
 | Tests | **3150 / 276** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + Marketing/deliverability schema + waiver receipts + accounting suite + multi-day support + attendee-verified reviews all deployed. `Operation Last Light` is PUBLISHED + live (real bookings). **`Operation Fire Storm` built as a DRAFT** (16-hr night op, $80, Russian/NATO picker; needs publish). **`/safety` briefing page is live.** |
+| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + Marketing/deliverability schema + waiver receipts + accounting suite + multi-day support + attendee-verified reviews all deployed. `Operation Last Light` is PUBLISHED + live (real bookings). **`Operation Fire Storm` is PUBLISHED + LIVE** (16-hr night op, $80, Russian/NATO picker) — both July-25 events now take real bookings. **`/safety` briefing page is live.** |
 | Migrations on remote | **0001–0077 ALL applied** — a `migrations apply` finds nothing new. (Migration `0077_reviews.sql` applied 2026-06-28 for attendee-verified reviews.) |
 | Open PRs | 0 (all merged through #359) |
-| Open milestone | **None active.** No milestone/roadmap items remain. The **attendee-verified reviews feature is COMPLETE + DEPLOYED** (dormant until the first review ~2026-07-25). **`Operation Last Light` is LIVE.** **`Operation Fire Storm`** (the former `ghost-town-18hr-milsim` 18HR draft) is now built as a DRAFT (price **$80**) — **publish** it when ready. Remaining otherwise: operator activation only (Marketing send + Resend webhook + FTS flag + reviews CAN-SPAM classification). CI green. |
+| Open milestone | **None active.** No milestone/roadmap items remain. The **attendee-verified reviews feature is COMPLETE + DEPLOYED** (dormant until the first review ~2026-07-25). **`Operation Last Light` is LIVE.** **`Operation Fire Storm`** (the former `ghost-town-18hr-milsim` 18HR draft) is **PUBLISHED + LIVE** (16-hr night op, $80). Remaining otherwise: operator activation only (Marketing send + Resend webhook + FTS flag + reviews CAN-SPAM classification). CI green. |
 
 ---
 
