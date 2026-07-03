@@ -94,6 +94,48 @@ describe('runReviewInviteSweep — large-batch soft alarm (no abort)', () => {
     });
 });
 
+describe('runReviewInviteSweep — deliverability suppression (CAN-SPAM option B, 2026-07-01)', () => {
+    const SUPPRESS = /SELECT DISTINCT recipient_normalized FROM email_events/;
+
+    it('skips candidates with a recorded hard bounce / complaint; sends to the rest', async () => {
+        const env = createMockEnv();
+        // Mixed-case address proves matching goes through normalizeEmail.
+        const sup = { ...candidate('bk_sup'), email: 'Bounced.Player@Example.com' };
+        env.DB.__on(SELECT, { results: [sup, candidate('bk_ok')] }, 'all');
+        env.DB.__on(SUPPRESS, { results: [{ recipient_normalized: 'bounced.player@example.com' }] }, 'all');
+        env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
+        const sender = vi.fn().mockResolvedValue({ id: 'ok' });
+
+        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+
+        expect(out).toMatchObject({ considered: 2, sent: 1, suppressed: 1, failed: 0 });
+        // Only the clean address was sent to.
+        expect(sender).toHaveBeenCalledTimes(1);
+        expect(sender.mock.calls[0][1].booking.id).toBe('bk_ok');
+        // The suppressed booking is NOT sentinel-stamped (re-skips until the
+        // window ages it out — or the suppression is cleared in time).
+        const claims = env.DB.__writes().filter((w) => CLAIM.test(w.sql));
+        expect(claims.map((w) => w.args[2])).toEqual(['bk_ok']);
+        // The check queried only suppressed rows, bound to the normalized keys.
+        const supQuery = env.DB.__writes().find((w) => SUPPRESS.test(w.sql));
+        expect(supQuery.sql).toMatch(/suppressed_marketing = 1/);
+        expect(supQuery.args).toContain('bounced.player@example.com');
+    });
+
+    it('is best-effort: a suppression-query failure does NOT block the invites', async () => {
+        const env = createMockEnv();
+        env.DB.__on(SELECT, { results: [candidate('bk_1')] }, 'all');
+        env.DB.__on(SUPPRESS, () => { throw new Error('email_events missing'); }, 'all');
+        env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
+        const sender = vi.fn().mockResolvedValue({ id: 'ok' });
+
+        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+
+        expect(out).toMatchObject({ considered: 1, sent: 1, suppressed: 0, failed: 0 });
+        expect(sender).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('runReviewInviteSweep — claim / send / rollback', () => {
     it('claims sentinel-first, mints a 40-char token into the link, sends, and audits', async () => {
         const env = createMockEnv();

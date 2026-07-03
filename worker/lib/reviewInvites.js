@@ -32,9 +32,21 @@
 // timezone-naive and unixepoch() reads it as UTC; AAS is Mountain UTC-6/-7).
 // The wide 18-48h window comfortably clears late same-day finishes + that skew,
 // so the nudge can be up to a day late — fine for a "rate your game" email.
+//
+// ── CAN-SPAM CLASSIFICATION (operator decision 2026-07-01) ──
+// The invite is TRANSACTIONAL (one email tied to a completed booking, promotes
+// nothing) — no postal-address/unsubscribe footer required. As deliverability
+// hygiene we still SKIP addresses with a recorded hard bounce or spam complaint
+// (email_events.suppressed_marketing=1, matched on recipient_normalized).
+// Deliberately NOT gated on customers.email_marketing — that is a marketing
+// PREFERENCE; an opted-out customer still gets their transactional invite.
+// The check is best-effort: if it errors, invites proceed (never block on it).
+// Suppressed candidates are NOT sentinel-stamped, so they simply re-skip until
+// the 18-48h window ages them out (or the suppression is cleared in time).
 
 import { sendReviewInvite } from './emailSender.js';
 import { reviewToken } from './ids.js';
+import { normalizeEmail } from './customerEmail.js';
 
 const H = 60 * 60 * 1000;
 const WINDOW_FLOOR_H = 18;   // newest edge: event ended >=18h ago
@@ -82,10 +94,37 @@ export async function runReviewInviteSweep(env, { now = Date.now(), sender = sen
              LIMIT ?`
         ).bind(windowStart, windowEnd, cutoff, limit).all();
     } catch (err) {
-        return { considered: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, error: err?.message, durationMs: Date.now() - startedAt };
+        return { considered: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, suppressed: 0, error: err?.message, durationMs: Date.now() - startedAt };
     }
 
-    const candidates = rows?.results || [];
+    let candidates = rows?.results || [];
+
+    // Deliverability suppression (best-effort — see header): drop candidates
+    // whose address has a recorded hard bounce / spam complaint.
+    let suppressedCount = 0;
+    if (candidates.length) {
+        try {
+            const keyOf = (c) => normalizeEmail(c.email);
+            const keys = [...new Set(candidates.map(keyOf).filter(Boolean))];
+            if (keys.length) {
+                const placeholders = keys.map(() => '?').join(',');
+                const sup = await env.DB.prepare(
+                    `SELECT DISTINCT recipient_normalized FROM email_events
+                     WHERE suppressed_marketing = 1 AND recipient_normalized IN (${placeholders})`
+                ).bind(...keys).all();
+                const suppressedSet = new Set((sup?.results || []).map((r) => r.recipient_normalized));
+                if (suppressedSet.size) {
+                    const kept = candidates.filter((c) => !suppressedSet.has(keyOf(c)));
+                    suppressedCount = candidates.length - kept.length;
+                    candidates = kept;
+                }
+            }
+        } catch (err) {
+            // email_events missing / query error → hygiene is best-effort;
+            // never block transactional invites on it.
+            console.error('review-invite suppression check failed (continuing unfiltered)', err);
+        }
+    }
     const alarm = candidates.length > REVIEW_INVITE_SOFT_ALARM;
     if (alarm) {
         console.warn(
@@ -95,7 +134,7 @@ export async function runReviewInviteSweep(env, { now = Date.now(), sender = sen
         );
     }
 
-    const result = { considered: candidates.length, sent: 0, failed: 0, skipped: 0, deferred: 0, alarm };
+    const result = { considered: candidates.length + suppressedCount, sent: 0, failed: 0, skipped: 0, deferred: 0, suppressed: suppressedCount, alarm };
 
     async function rollback(id, stampedAt) {
         try {
