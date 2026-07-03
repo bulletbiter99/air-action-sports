@@ -112,6 +112,30 @@
 .cd-mini-unit { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--olive-light); margin-top: 2px; }
 .related-events { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
 
+/* Event-card styles for the "Other Operations" section. The canonical
+   .event-card / .event-header / .event-body rules live in the events.css /
+   home.css page chunks, which are NOT loaded on a direct /events/:slug visit —
+   this page must carry its own copy (values mirror events.css, the complete
+   set). Scoped under .related-events so they never affect the home/events
+   grids when those chunks are also loaded. */
+.related-events .event-card { background: var(--mid); border: 1px solid rgba(200,184,154,0.1); overflow: hidden; }
+.related-events .event-header { background: var(--olive-dark); padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.related-events .event-date { text-align: center; }
+.related-events .event-day { font-size: 28px; font-weight: 900; color: var(--orange); line-height: 1; }
+.related-events .event-month { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); }
+.related-events .event-type { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; border: 1px solid; }
+.related-events .event-type.airsoft { color: #7bbfff; border-color: rgba(123,191,255,0.4); background: rgba(123,191,255,0.1); }
+.related-events .event-type.skirmish { color: #f5a623; border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.1); }
+.related-events .event-type.milsim { color: #6bbf59; border-color: rgba(107,191,89,0.4); background: rgba(107,191,89,0.1); }
+.related-events .event-body { padding: 1.5rem; }
+.related-events .event-title { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--cream); margin-bottom: 0.5rem; }
+.related-events .event-loc { font-size: 13px; color: var(--olive-light); margin-bottom: 1rem; }
+.related-events .event-meta { display: flex; gap: 1.5rem; margin-bottom: 1.25rem; }
+.related-events .event-meta-item { font-size: 12px; color: var(--tan); }
+.related-events .event-meta-item strong { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--olive-light); margin-bottom: 2px; }
+.related-events .btn-book { display: block; text-align: center; padding: 12px; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; background: var(--orange); color: white; text-decoration: none; margin-top: 1rem; transition: background 0.2s; }
+.related-events .btn-book:hover { background: #c45a1a; }
+
 /* Collaboration partner banner (event.details.collabBannerUrl) */
 .collab-banner { text-align: center; }
 .collab-banner-label { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--olive-light); margin-bottom: 0.75rem; }
