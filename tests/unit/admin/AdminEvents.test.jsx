@@ -108,6 +108,28 @@ describe('AdminEvents', () => {
         expect(screen.getByText(/Leave blank for a single-day event/)).toBeInTheDocument();
     });
 
+    it('offers the canon type options as a select in the editor', async () => {
+        mockList();
+        renderWithAdmin(<AdminEvents />);
+        await waitFor(() => expect(screen.getByRole('button', { name: '+ New Event' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: '+ New Event' }));
+        expect(await screen.findByRole('heading', { name: 'New event' })).toBeInTheDocument();
+        // Default new-event type is airsoft; milsim/skirmish are selectable.
+        expect(screen.getByRole('option', { name: 'milsim' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'skirmish' })).toBeInTheDocument();
+        expect(screen.getByDisplayValue('airsoft')).toBeInTheDocument();
+    });
+
+    it('keeps a legacy off-list type value selectable (no silent rewrite)', async () => {
+        mockList([{ match: '/detail', body: { ...EVT_DETAIL, event: { ...EVT_DETAIL.event, type: 'MILSIM' } } }]);
+        renderWithAdmin(<AdminEvents />);
+        await waitFor(() => expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBeGreaterThan(0));
+        fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+        expect(await screen.findByRole('heading', { name: 'Edit: Operation Nightfall' })).toBeInTheDocument();
+        // The free-text-era value hydrates as an extra option, still selected.
+        expect(screen.getByDisplayValue('MILSIM')).toBeInTheDocument();
+    });
+
     it('opens the editor for an existing event via the detail endpoint', async () => {
         mockList([{ match: '/detail', body: EVT_DETAIL }]);
         renderWithAdmin(<AdminEvents />);

@@ -53,6 +53,11 @@ const STATUS_OPTIONS = [
   { value: 'past', label: 'Past' },
 ];
 
+// Mirrors the public pages' badge tint variants (.event-type.airsoft /
+// .milsim / .skirmish) — adding a type here needs a matching CSS variant
+// in home.css / events.css / event-detail.css or the badge renders untinted.
+const EVENT_TYPES = ['airsoft', 'milsim', 'skirmish'];
+
 const FILTER_SCHEMA = [
   { key: 'status', label: 'Status', type: 'enum', options: STATUS_OPTIONS },
 ];
@@ -520,7 +525,15 @@ function EventEditor({ eventId, onClose, onSaved }) {
             <Field label="Site"><input value={form.site} onChange={(e) => updateField('site', e.target.value)} style={input} placeholder="delta / alpha / …" /></Field>
           </div>
           <Field label="Type">
-            <input value={form.type} onChange={(e) => updateField('type', e.target.value)} style={input} placeholder="airsoft" />
+            <select value={form.type} onChange={(e) => updateField('type', e.target.value)} style={input}>
+              {/* A legacy row can hold a value outside the canon list (the
+                  field was free text until 2026-07) — keep it selectable so
+                  opening the editor doesn't silently rewrite the type. */}
+              {!EVENT_TYPES.includes(form.type) && (
+                <option value={form.type}>{form.type || '(unset)'}</option>
+              )}
+              {EVENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
           </Field>
 
           <div style={sectionLabel}>Pricing & capacity</div>
