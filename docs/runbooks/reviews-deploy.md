@@ -67,11 +67,13 @@ answer engines but is **not** relied on for Google stars.
    Best-effort: a suppression-check failure never blocks invites. Suppressed candidates are not
    sentinel-stamped (they re-skip until the 18–48h window ages them out). NOT gated on
    `customers.email_marketing` — that is a marketing preference; review invites are transactional.
-2. **Recapture the `home` public visual baseline** after the Batch-6 deploy settles. Removing the 4th
-   hero "Avg. Rating" stat changes `home.png`, and the public visual suite tests **live prod**, so it
-   will drift once prod serves the 3-stat hero. Fix: label a PR `capture-baselines` (the bot recaptures
-   both public + admin suites against live prod and commits the PNGs), then push a follow-up/empty
-   commit to clear GitHub's anti-recursion block so CI re-runs green.
+2. ✅ **RESOLVED (2026-07-02) — home visual baseline is no longer prod-coupled.** The public visual
+   suite was converted to a route-mocked local-serve harness (PR #371; `playwright.public.config.js`
+   + `tests/visual/publicMocks.js` — the `tests/visual-admin` pattern) after discovering `/api/events`
+   had never loaded from GitHub-runner CI. `home.png` now renders deterministic fixtures (including a
+   real reviews summary + hero rating stat), so prod's 3-stat vs 4-stat hero can't drift it — the
+   baseline was recaptured with the new harness on that PR. See
+   `docs/runbooks/visual-regression.md` ("Public harness (2026-07-02)").
 
 ## Deploy safety
 Additive throughout. The **Critical payment/waiver/auth path is byte-untouched** — the `/stripe`
