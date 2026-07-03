@@ -33,3 +33,20 @@ describe('adaptEvent — multi-day fields', () => {
     expect(out.isMultiDay).toBe(false);
   });
 });
+
+// The type feeds className variants (.event-type.milsim etc., all lowercase),
+// but events.type is operator free-text — prod holds "MILSIM" / "Airsoft" /
+// "AIRSOFT". adaptEvent normalizes so the tint variants actually match.
+describe('adaptEvent — type casing normalization', () => {
+  it('lowercases an uppercase DB value', () => {
+    expect(adaptEvent({ id: 'e', type: 'MILSIM' }).type).toBe('milsim');
+  });
+
+  it('lowercases a mixed-case DB value', () => {
+    expect(adaptEvent({ id: 'e', type: 'Airsoft' }).type).toBe('airsoft');
+  });
+
+  it('defaults to airsoft when type is missing', () => {
+    expect(adaptEvent({ id: 'e' }).type).toBe('airsoft');
+  });
+});
