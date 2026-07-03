@@ -201,6 +201,14 @@ export function parseEventBody(body, { partial = false } = {}) {
                 }
                 v = cleaned;
             }
+            // type feeds the public pages' className variants
+            // (.event-type.milsim etc., all lowercase) — normalize at the
+            // write boundary so DB rows stay consistent however the client
+            // posts it (the admin form is a select now, but stale tabs and
+            // direct API calls can still send arbitrary casing).
+            if (col === 'type' && v !== null) {
+                v = v.toLowerCase();
+            }
             patch[col] = v;
         } else if (EVENT_INT_FIELDS.includes(col)) {
             if (body[k] === null || body[k] === '') patch[col] = null;
