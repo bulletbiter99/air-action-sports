@@ -36,7 +36,11 @@ export function adaptEvent(apiEvent) {
             day: apiEvent.displayDay || apiEvent.dateIso?.slice(8, 10) || '',
             month: apiEvent.displayMonth || '',
         },
-        type: apiEvent.type || 'airsoft',
+        // Lowercased: the type feeds className variants (.event-type.milsim etc.,
+        // all lowercase) but the DB value is operator free-text with arbitrary
+        // casing ("MILSIM", "Airsoft"). Display casing is unaffected — every
+        // render site uppercases via CSS text-transform or charAt(0).
+        type: String(apiEvent.type || 'airsoft').toLowerCase(),
         title: apiEvent.title,
         location: apiEvent.location || '',
         time: apiEvent.timeRange || '',
