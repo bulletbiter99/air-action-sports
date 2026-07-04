@@ -17,20 +17,15 @@ runbook is the deploy sequence + the operator activation steps.
 | B5b | [#239](https://github.com/bulletbiter99/air-action-sports/pull/239) | Automations UI + sidebar entry |
 | B6 | this PR | marketing.* capability seed (0070) + this runbook |
 
-## Migrations (apply to remote in order)
-
-```bash
-source .claude/.env && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN \
-  npx wrangler d1 migrations apply air-action-sports-db --remote
-```
+## Migrations — ✅ applied to remote 2026-06-02
 
 - **0067_campaigns** — campaigns + campaign_recipients
 - **0068_campaign_recipient_tracking** — delivered/opened/clicked/bounced/complained columns
 - **0069_automations** — automations + automation_sends
 - **0070_marketing_capabilities** — marketing.* caps + owner/marketing_manager bindings
 
-All routes degrade gracefully on the unmigrated tables (empty lists / no-op cron),
-so merging before applying is safe — features just stay inert until the migrations land.
+(Kept as a record. All 0001–0077 are applied; a `migrations apply` finds nothing new.
+Only the operator-activation items below remain.)
 
 ## Operator activation (to make sends actually fire)
 
@@ -53,21 +48,19 @@ Campaigns + automations send via the 15-min cron, which **no-ops** until BOTH ar
 
 ## Deferred follow-ups (intentional, documented)
 
-1. **Route capability swap** — segments / campaigns / automations routes are still
-   `requireAuth` (functionally identical today: all admins are `owner`). Migration
-   0070 lands the `marketing.*` caps + bindings; the `requireAuth → requireCapability`
-   swap is a **clean follow-up to do AFTER 0070 is verified on remote** (swapping
-   first would 403 owners until their preset bindings include marketing.*, and would
-   break the B2–B5 route tests, which mint an owner without marketing.* caps — those
-   tests must be updated to bind the caps in the same PR as the swap). To grant a
-   non-owner marketing role: set `users.role_preset_key='marketing_manager'`.
+1. ✅ **Route capability swap — DONE 2026-06-02 ([#273](https://github.com/bulletbiter99/air-action-sports/pull/273), deployed)** — segments / campaigns /
+   automations routes now enforce a method-aware `requireCapability('marketing.*')`
+   (0070's caps + bindings verified on remote; the route tests bind the caps via
+   `bindCapabilities`). To grant a non-owner marketing role: set
+   `users.role_preset_key='marketing_manager'`.
 2. **`date_relative` automation trigger** — "N days before/after an event" needs an
    events→bookings→customers join not yet wired. v1 ships `recurring` + `tag_added`.
 3. **Formal "Marketing" sidebar group** — Segments / Campaigns / Automations are
    adjacent standing items in the operational cluster today; a collapsible group is
    a cosmetic follow-up (churns the index-based sidebar tests).
-4. **B3/B5b admin visual baselines** — `/admin/campaigns` + `/admin/automations` are
-   candidates for the representative-data visual harness (post-M7 track 2 pattern).
+4. ✅ **B3/B5b admin visual baselines — DONE 2026-06-02 ([#248](https://github.com/bulletbiter99/air-action-sports/pull/248))** — populated baselines for
+   `/admin/campaigns` + `/admin/automations` landed in the admin visual harness
+   (>30-day timestamps used so `formatRelative` renders stable absolute dates).
 
 ## Verification (post-deploy)
 

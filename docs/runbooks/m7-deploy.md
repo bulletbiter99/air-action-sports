@@ -24,20 +24,18 @@ Workers Builds auto-deploys on push to `main`.
 
 ## Deploy safety
 Migrations **0062–0064 were applied to remote BEFORE deploy** (reports caps + FTS index + flag), so
-Reports + FTS work immediately (FTS via LIKE fallback until the flag is flipped). **0065/0066 are NOT
-applied, which is safe:** the only code paths that touch `email_events` / the alert templates are
+Reports + FTS work immediately (FTS via LIKE fallback until the flag is flipped). **0065/0066 were not
+yet applied at deploy time (2026-05-31), which was safe** (they were subsequently applied 2026-06-02): the only code paths that touch `email_events` / the alert templates are
 behind `POST /api/webhooks/resend`, which returns **500 until `RESEND_WEBHOOK_SECRET` is set**. So the
 new deliverability features are inert until the operator completes the steps below. **No Critical-DNT
 surface changed** — the `/stripe` webhook handler, `verifyWebhookSignature`, pricing, bookings/checkout,
 waivers, and auth are byte-untouched — so existing production behavior is unchanged.
 
 ## OPERATOR-PENDING (post-deploy, to activate the deferred features)
-1. **Apply migrations 0065 + 0066 to remote:**
-   ```bash
-   source .claude/.env && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN \
-     npx wrangler d1 migrations apply air-action-sports-db --remote
-   ```
-2. **Resend webhooks** (activates the bounce/complaint consumer + alert emails):
+1. ✅ **Done 2026-06-02 — migrations 0065 + 0066 applied to remote** (all 0001–0077 now recorded;
+   a `migrations apply` finds nothing new). Items 2–3 below are the only remaining activation steps.
+2. **Resend webhooks** (activates the bounce/complaint consumer + alert emails — and, since
+   2026-07-01, also feeds the review-invite deliverability suppression, PR #370):
    - `wrangler secret put RESEND_WEBHOOK_SECRET` — value = the signing secret from the Resend webhook.
    - In the Resend dashboard, add a webhook → `https://airactionsport.com/api/webhooks/resend`,
      subscribe to `email.bounced` + `email.complained`.
@@ -50,5 +48,6 @@ waivers, and auth are byte-untouched — so existing production behavior is unch
      `/admin/promo-codes`, `/admin/rentals/assignments` (columns aligned, header pinned, no jump).
    - the Reports custom date range — `/admin/reports` → Period → **Custom range** → From/To.
 
-## Carried from M6 (still pending)
-Live-Stripe cutover items 1–5 — [docs/m6-operator-cutover-checklist.md](../m6-operator-cutover-checklist.md).
+## Carried from M6 — ✅ RESOLVED 2026-06-03
+The live-Stripe cutover is complete and e2e-verified (production takes real payments) —
+[docs/m6-operator-cutover-checklist.md](../m6-operator-cutover-checklist.md). Nothing is carried from M6 anymore.

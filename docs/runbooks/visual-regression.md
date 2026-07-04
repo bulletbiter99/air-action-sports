@@ -117,7 +117,7 @@ The `test` job (lint + vitest + coverage) and the `visual` job run **in parallel
    - Removes the `capture-baselines` label
 4. CI re-runs on the new commit. The `visual` job now passes (baselines match).
 5. **Review the new PNGs in the PR diff** — sanity-check that the new look is what you intended.
-6. Squash-merge to milestone, then milestone → main per rolling pattern.
+6. Merge the PR to main (feature branches PR directly to main; Workers Builds auto-deploys on merge).
 
 **Why CI-driven and not local?** Font rendering, browser version, and viewport rounding differ between any two environments. Capturing in the same CI runner that compares ensures pixel-identical baselines. The `npm run test:visual:update` script exists for solo dev iteration but baselines pushed to the repo only ever come from CI.
 

@@ -38,8 +38,9 @@ Three independent guards keep the invite cron inert until the first real event e
    2026-06-28) — only events ending on/after this instant are invited. Change without a code deploy.
 3. **Per-run `LIMIT`** — caps how many invites any single 03:00 run sends.
 
-The first invites therefore fire the night after **Operation Last Light** (25 July 2026) ends — the
-first/only published event taking real bookings. Until a review is submitted:
+The first invites therefore fire the night(s) after the two published events end — **Operation Last
+Light** (ends Sat 25 July 2026 evening) and **Operation Fire Storm** (ends Sun 26 July 2026 12:00 PM),
+i.e. ~26–27 July 2026; both are taking real bookings. Until a review is submitted:
 **no `aggregateRating` is injected anywhere and the homepage shows no star rating** (the honest interim).
 
 ## SSR acceptance gate (run AFTER the first review exists)
