@@ -23,7 +23,7 @@ Verified: `unixepoch('2026-07-25T08:30:00')` = `1784968200` = 08:30 UTC = **2:30
 
 ## ✅ DONE — Sprint 2: broken-wiring fixes + a real-schema guard (2026-07-25, PRs #383–#389)
 
-**7 PRs merged.** `main` **`b6b26a1`** · tests **3198 → 3236 / 285** · lint 0 errors · build clean · **migrations 0078 + 0079 ship in-repo and are OPERATOR-PENDING** (see below).
+**7 PRs merged.** `main` **`b6b26a1`** · tests **3198 → 3236 / 284** · lint 0 errors · build clean · **migrations 0078 + 0079 ship in-repo and are OPERATOR-PENDING** (see below).
 
 All six Sprint 2 items from [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md) were re-verified against current `main` first (the audit was written at `def6848`, before #379 landed 52 files) — **all six confirmed**, with three material corrections, plus production row counts that reframed two of them.
 
@@ -98,7 +98,7 @@ Applies **0078** (`persons.legal_name` + `ein_ciphertext`) and **0079** (rewrite
 
 ## ✅ DONE — Event-day readiness sprint + open-reads access model (2026-07-24 → 07-25, PRs #377–#381)
 
-**The July 25-26 events are HAPPENING NOW** (this session closed the night before / morning of). Five PRs merged + deployed (prod Version **`fabeb661`**); `main` **`051ba98`** + this docs sync · tests **3198 / 279** · lint 0 errors · NO new migrations. Two big research artifacts also landed (see the roadmaps section below).
+**This session closed the night before / morning of the July 25-26 events** (which have since run). Five PRs merged + deployed (prod Version **`fabeb661`**); `main` **`051ba98`** + this docs sync · tests **3198 / 279** · lint 0 errors · NO new migrations. Two big research artifacts also landed (see the roadmaps section below).
 
 | PR | What |
 |---|---|
@@ -193,13 +193,13 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `051ba98` + this docs sync (re-pull for exact; PRs #377–#381 merged; latest deploy Version **`fabeb661`**, 2026-07-25) |
-| Tests | **3198 / 279** all green |
-| Build | clean · Lint **0 errors** |
-| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day support + reviews + **the open-reads admin access model** + the **event-day hardening** (per-event Today tiles incl. walk-in New Booking, AdminScan payment/wrong-event safeguards, review-invite tooling) all deployed. **Both July-25 events LIVE and running THIS weekend** (`Operation Last Light` $60 day op + `Operation Fire Storm` $80 16-hr night op). |
-| Migrations on remote | **0001–0077 ALL applied** — a `migrations apply` finds nothing new. (Migration `0077_reviews.sql` applied 2026-06-28 for attendee-verified reviews.) |
-| Open PRs | 0 (all merged through #381 + this docs PR) |
-| Open milestone | **None active.** Standing work menus = the two 2026-07-24 roadmaps (top section): **growth plan** (execution not started) + **admin workflow audit** (Sprint 1 ✅ + open-reads ✅; Sprints 2–4 remain). Reviews wake up with the first post-event submissions (~July 26-27). Remaining operator activation: Marketing send + Resend webhook + FTS flag. CI green. |
+| `main` HEAD | `b6b26a1` + this docs sync (re-pull for exact; PRs #383–#389 merged, Sprint 2) |
+| Tests | **3236 / 284** all green |
+| Build | clean · Lint **0 errors** (`npx eslint src worker tests scripts` — plain `npm run lint` also walks the gitignored `static-backup/`, which CI never sees and which reports 24 pre-existing errors) |
+| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day support + reviews + the open-reads admin access model + event-day hardening + **the Sprint 2 broken-wiring fixes** all deployed. **The July 25-26 events have now RUN** (`Operation Last Light` $60 day op + `Operation Fire Storm` $80 16-hr night op). |
+| Migrations on remote | ⚠️ **0001–0077 applied; `0078` + `0079` are IN-REPO BUT NOT APPLIED.** Run `npx wrangler d1 migrations apply air-action-sports-db --remote` — 0078 unbreaks the 1099 surface + its nightly cron, 0079 drops the dead payment link from the damage-charge email. |
+| Open PRs | 0 (all merged through #389 + this docs PR) |
+| Open milestone | **None active.** Standing work menus: **admin workflow audit** (Sprints 1–2 ✅ + open-reads ✅; **Sprints 3–4 remain**) + the **growth plan** (execution not started). 🔴 Ahead of both: the **reminder-cron timezone bug** at the top of this file. Reviews wake up with the first post-event submissions. Remaining operator activation: apply 0078/0079, Marketing send, Resend webhook, FTS flag. CI green. |
 
 ---
 
@@ -428,7 +428,13 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 
 ---
 
-## ⚠️ Operator-pending (what's LEFT after the 2026-06-02 deploy)
+## ⚠️ Operator-pending (historical — as of the 2026-06-02 deploy)
+
+> **⚠️ SUPERSEDED — do not read this section as current.** The live operator-pending list is in the
+> **Sprint 2 section at the top of this file** and in the *Current state at a glance* table. Since this
+> section was written, migrations **0078 + 0079** were added and are **NOT yet applied**, which is now
+> the highest-priority operator action. Everything below is kept for the history of how the earlier
+> items were resolved.
 
 **Unchanged by the 2026-06-06 + 2026-06-11 sessions.** Migrations **0065–0070 are now applied** and the **marketing route-capability swap is deployed** (`b342b39f`). What remains is env/secret/flag activation — every feature degrades gracefully (empty lists / no-op cron / 500 on the unset webhook) until then.
 
@@ -473,7 +479,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 3198 / 279
+npm test -- --run | tail -3        # expect 3236 / 284
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
