@@ -797,30 +797,56 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
     const newId = collision ? `${desiredId}-${newEventId().slice(3, 9)}` : desiredId;
     const now = Date.now();
 
+    // Re-derive the sales cutoff from the DUPLICATE's start, mirroring the
+    // create handler's "start − 2h" default. A source event whose sales_close_at
+    // is explicitly NULL means "never auto-close", so that intent is preserved.
+    let salesCloseAtForDuplicate = null;
+    if (src.sales_close_at != null) {
+        const startMs = Date.parse(dupStart);
+        salesCloseAtForDuplicate = Number.isFinite(startMs)
+            ? startMs - (2 * 60 * 60 * 1000)
+            : src.sales_close_at;
+    }
+
+    // Every column NOT listed here is carried over from the source row verbatim.
+    //
+    // This used to be a hand-maintained INSERT naming 31 of the events table's
+    // 40 columns, so each `ALTER TABLE events ADD COLUMN` since 0009 silently
+    // widened the set of things a duplicate threw away: custom_questions_json
+    // (the live events' REQUIRED faction picker), site_id (which also made the
+    // clone invisible to conflict detection), featured, and all six
+    // *_overlay_opacity / *_image_position values — so the copy kept the same
+    // photos with every focal point and legibility scrim reset. Deriving the
+    // carry set from the source row instead means a future column is copied by
+    // default and can only be dropped deliberately, by name.
+    const overrides = {
+        id: newId,
+        slug: newId,
+        title: newTitle,
+        date_iso: body.dateIso || src.date_iso,
+        end_date_iso: body.endDateIso || src.end_date_iso,
+        display_date: body.displayDate || src.display_date,
+        display_day: body.displayDay || src.display_day,
+        display_month: body.displayMonth || src.display_month,
+        // A duplicate is always an unpublished draft. `featured` is a promotion
+        // flag of the same kind, so it resets alongside `published` rather than
+        // silently queueing a second featured event for the home hero.
+        published: 0,
+        past: 0,
+        featured: 0,
+        // Recomputed below — never copied. The source's absolute close time is
+        // typically already in the past, so carrying it verbatim (as this did)
+        // produced a duplicate born with sales closed.
+        sales_close_at: salesCloseAtForDuplicate,
+        created_at: now,
+        updated_at: now,
+    };
+    const cols = Object.keys(src);
+    for (const k of Object.keys(overrides)) if (!cols.includes(k)) cols.push(k);
+
     await c.env.DB.prepare(
-        `INSERT INTO events (
-            id, title, date_iso, end_date_iso, display_date, display_day, display_month,
-            location, site, type, time_range, check_in, first_game, end_time,
-            base_price_cents, total_slots, addons_json, game_modes_json, details_json,
-            sales_close_at, published, past,
-            cover_image_url, card_image_url, hero_image_url, banner_image_url, og_image_url,
-            short_description, slug, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-        newId,
-        newTitle,
-        body.dateIso || src.date_iso,
-        body.endDateIso || src.end_date_iso,
-        body.displayDate || src.display_date,
-        body.displayDay || src.display_day,
-        body.displayMonth || src.display_month,
-        src.location, src.site, src.type, src.time_range, src.check_in, src.first_game, src.end_time,
-        src.base_price_cents, src.total_slots, src.addons_json, src.game_modes_json, src.details_json,
-        src.sales_close_at, // published forced to 0 above
-        src.cover_image_url, src.card_image_url, src.hero_image_url, src.banner_image_url, src.og_image_url,
-        src.short_description, newId,
-        now, now,
-    ).run();
+        `INSERT INTO events (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`
+    ).bind(...cols.map((k) => (k in overrides ? overrides[k] : src[k]))).run();
 
     // Clone active ticket types with sold=0
     const tt = await c.env.DB.prepare(
@@ -839,6 +865,12 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
             now, now,
         ).run();
     }
+
+    // Mirror the create handler: a duplicate needs its own checklist instances.
+    // Non-fatal — the event still exists if this fails.
+    await instantiateChecklists(c.env, newId).catch((err) => {
+        console.error('checklist instantiate failed for duplicated event', newId, err?.message);
+    });
 
     await c.env.DB.prepare(
         `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
