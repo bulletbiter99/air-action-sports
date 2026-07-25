@@ -130,22 +130,22 @@ eventDayCheckin.post('/:attendeeId', async (c) => {
     const attendeeId = c.req.param('attendeeId');
     const body = await c.req.json().catch(() => ({}));
 
+    // The event is the BOOKING's event — attendees has never had its own
+    // event_id column, so this used to select one that doesn't exist and threw
+    // before any of the logic below could run. Joining bookings makes event_id
+    // always present, which is why there's no null-fallback branch anymore.
     const row = await c.env.DB.prepare(
-        'SELECT id, booking_id, event_id, waiver_id, checked_in_at FROM attendees WHERE id = ?',
+        `SELECT a.id, a.booking_id, a.waiver_id, a.checked_in_at, b.event_id
+           FROM attendees a
+           INNER JOIN bookings b ON b.id = a.booking_id
+          WHERE a.id = ?`,
     ).bind(attendeeId).first();
 
     if (!row) return c.json({ error: 'attendee_not_found' }, 404);
 
     // Security: attendee must belong to the active event.
-    if (row.event_id && row.event_id !== event.id) {
+    if (row.event_id !== event.id) {
         return c.json({ error: 'wrong_event' }, 404);
-    }
-    // attendees.event_id may be null pre-M3; fall back to bookings.event_id
-    if (!row.event_id) {
-        const booking = await c.env.DB.prepare(
-            'SELECT event_id FROM bookings WHERE id = ?',
-        ).bind(row.booking_id).first();
-        if (booking?.event_id !== event.id) return c.json({ error: 'wrong_event' }, 404);
     }
 
     // Idempotent: already checked in returns the existing timestamp.
@@ -229,12 +229,16 @@ eventDayCheckin.post('/:attendeeId/check-out', async (c) => {
     const person = c.get('person');
     const attendeeId = c.req.param('attendeeId');
 
+    // event_id comes from the booking — see the note on the check-in handler.
     const row = await c.env.DB.prepare(
-        'SELECT id, event_id, booking_id, checked_in_at FROM attendees WHERE id = ?',
+        `SELECT a.id, a.booking_id, a.checked_in_at, b.event_id
+           FROM attendees a
+           INNER JOIN bookings b ON b.id = a.booking_id
+          WHERE a.id = ?`,
     ).bind(attendeeId).first();
 
     if (!row) return c.json({ error: 'attendee_not_found' }, 404);
-    if (row.event_id && row.event_id !== event.id) return c.json({ error: 'wrong_event' }, 404);
+    if (row.event_id !== event.id) return c.json({ error: 'wrong_event' }, 404);
     if (!row.checked_in_at) return c.json({ error: 'not_checked_in' }, 409);
 
     await c.env.DB.prepare(
