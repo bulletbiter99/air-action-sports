@@ -124,7 +124,15 @@ export function CronHealth() {
         { tier: 'static' },
     );
 
-    const stale = data && (data.lastSweepAgeMs == null || data.lastSweepAgeMs > 60 * 60 * 1000);
+    // The endpoint returns an absolute `lastSweepAt` (epoch ms) plus a nested
+    // `reminders24h` object. This widget used to read `lastSweepAgeMs`,
+    // `last24hReminders24hCount` and `last24hReminders1hCount` — names that
+    // exist nowhere in the codebase — so the age was always undefined, `stale`
+    // was unconditionally true, and both counters rendered 0. It has shown a red
+    // STALE / "last sweep unknown ago" / 0 · 0 on the owner dashboard every day
+    // since it shipped.
+    const ageMs = data?.lastSweepAt != null ? Math.max(0, Date.now() - data.lastSweepAt) : null;
+    const stale = data && (ageMs == null || ageMs > 60 * 60 * 1000);
     const status = err ? 'error' : !data ? 'loading' : stale ? 'stale' : 'fresh';
 
     return (
@@ -136,11 +144,11 @@ export function CronHealth() {
                 <div>
                     <p className="admin-persona-widget__cron-line">
                         <strong>{stale ? 'STALE' : 'OK'}</strong>
-                        {' '}— last sweep {formatAge(data.lastSweepAgeMs)} ago
+                        {' '}— last sweep {formatAge(ageMs)} ago
                     </p>
                     <p className="admin-persona-widget__cron-line admin-persona-widget__muted">
-                        24h reminders sent: {data.last24hReminders24hCount ?? 0} ·
-                        {' '}1h reminders: {data.last24hReminders1hCount ?? 0}
+                        24h reminders sent: {data.reminders24h?.sent24hr ?? 0} ·
+                        {' '}1h reminders: {data.reminders24h?.sent1hr ?? 0}
                     </p>
                 </div>
             )}
