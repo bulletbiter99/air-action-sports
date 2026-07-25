@@ -35,10 +35,14 @@ async function fetchIncidents() {
 }
 
 describe('GET /api/admin/staff/:id/incidents', () => {
-    it('returns 403 when caller lacks staff.read', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', []);
+        env.DB.__on(/WHERE i\.filed_by_person_id = \?/, { results: [] }, 'all');
+        env.DB.__on(/FROM incident_persons ip/, { results: [] }, 'all');
         const res = await fetchIncidents();
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body).toEqual({ filedBy: [], involving: [] });
     });
 
     it('returns empty lists when person has no incidents on file', async () => {

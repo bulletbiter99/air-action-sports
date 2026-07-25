@@ -93,10 +93,23 @@ beforeEach(async () => {
 // ────────────────────────────────────────────────────────────────────
 
 describe('GET /api/admin/field-rentals/:id — detail', () => {
-    it('returns 403 without field_rentals.read', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', []);
+        env.DB.__on(/SELECT \* FROM field_rentals WHERE id = \?/, rentalRow(), 'first');
+        env.DB.__on(/FROM field_rental_contacts WHERE rental_id = \?/, { results: [] }, 'all');
+        env.DB.__on(/SELECT id, name, slug FROM sites WHERE id = \?/, { id: 'site_g', name: 'Ghost Town', slug: 'ghost-town' }, 'first');
+        env.DB.__on(/SELECT id, email, name, client_type FROM customers WHERE id = \?/, {
+            id: 'cus_x', email: 'admin@acme.example', name: 'Acme Tactical', client_type: 'business',
+        }, 'first');
+
         const res = await worker.fetch(req('/api/admin/field-rentals/fr_001', { headers: { cookie: cookieHeader } }), env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.rental.id).toBe('fr_001');
+        // Field-level masking is unchanged: a caps-less viewer sees notes
+        // masked and notesSensitive dropped entirely.
+        expect(body.rental.notes).toBe('***');
+        expect(body.rental).not.toHaveProperty('notesSensitive');
     });
 
     it('returns 404 when rental does not exist', async () => {

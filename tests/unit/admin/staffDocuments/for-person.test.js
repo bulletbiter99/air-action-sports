@@ -42,10 +42,13 @@ async function getForPerson() {
 }
 
 describe('GET /api/admin/staff-documents/for-person/:personId — gating + shape', () => {
-    it('returns 403 when caller lacks staff.documents.read', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', []);
+        bindForPersonFixture({ docs: [] });
         const res = await getForPerson();
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.documents).toEqual([]);
     });
 
     it('returns 404 when person not found', async () => {

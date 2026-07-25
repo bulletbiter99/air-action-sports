@@ -20,7 +20,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability, listCapabilities } from '../../lib/capabilities.js';
+import { requireCapability, listCapabilities, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { decryptSafely } from '../../lib/personEncryption.js';
 import { mintInviteToken } from '../../lib/portalSession.js';
@@ -103,7 +103,7 @@ async function formatPerson(env, row, capabilities) {
 // ────────────────────────────────────────────────────────────────────
 // GET /api/admin/staff — list
 // ────────────────────────────────────────────────────────────────────
-adminStaff.get('/', requireCapability('staff.read'), async (c) => {
+adminStaff.get('/', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const params = url.searchParams;
     const q = params.get('q');
@@ -180,7 +180,7 @@ adminStaff.get('/', requireCapability('staff.read'), async (c) => {
 // GET /api/admin/staff/roles-catalog — list role catalog for assign UIs
 // ────────────────────────────────────────────────────────────────────
 // Registered before /:id so the literal segment wins routing.
-adminStaff.get('/roles-catalog', requireCapability('staff.read'), async (c) => {
+adminStaff.get('/roles-catalog', requireReadAccess, async (c) => {
     const rolesResult = await c.env.DB.prepare(
         'SELECT id, key, name, tier FROM roles ORDER BY tier, name COLLATE NOCASE'
     ).all();
@@ -254,7 +254,7 @@ adminStaff.post('/', requireCapability('staff.write'), async (c) => {
 // ────────────────────────────────────────────────────────────────────
 // GET /api/admin/staff/:id — detail with primary role + tags
 // ────────────────────────────────────────────────────────────────────
-adminStaff.get('/:id', requireCapability('staff.read'), async (c) => {
+adminStaff.get('/:id', requireReadAccess, async (c) => {
     const id = c.req.param('id');
     const row = await c.env.DB.prepare('SELECT * FROM persons WHERE id = ?').bind(id).first();
     if (!row) return c.json({ error: 'Not found' }, 404);
@@ -522,7 +522,7 @@ adminStaff.post('/:id/invite', requireCapability('staff.invite'), async (c) => {
 // GET /api/admin/staff/:id/portal-sessions — list portal-invite +
 // portal-session history for the Access tab on AdminStaffDetail.
 // ────────────────────────────────────────────────────────────────────
-adminStaff.get('/:id/portal-sessions', requireCapability('staff.read'), async (c) => {
+adminStaff.get('/:id/portal-sessions', requireReadAccess, async (c) => {
     const personId = c.req.param('id');
     const rows = await c.env.DB.prepare(
         `SELECT id, person_id, consumed_at, expires_at, cookie_expires_at,
@@ -606,7 +606,7 @@ adminStaff.post('/:id/portal-sessions/:sessionId/revoke', requireCapability('sta
 // Both lists are capped at 100 and ordered DESC by filed_at. Status is
 // computed server-side: 'resolved' / 'escalated' / 'open'.
 // ────────────────────────────────────────────────────────────────────
-adminStaff.get('/:id/incidents', requireCapability('staff.read'), async (c) => {
+adminStaff.get('/:id/incidents', requireReadAccess, async (c) => {
     const personId = c.req.param('id');
 
     const filedByRows = await c.env.DB.prepare(

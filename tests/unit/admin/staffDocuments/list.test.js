@@ -36,16 +36,20 @@ beforeEach(async () => {
 });
 
 describe('GET /api/admin/staff-documents (list)', () => {
-    it('returns 403 when caller lacks staff.documents.read', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', []);
+        env.DB.__on(/FROM staff_documents/, {
+            results: [sampleDocument({ id: 'sd_jd', kind: 'jd', slug: 'event-director', title: 'Event Director' })],
+        }, 'all');
 
         const req = new Request('https://airactionsport.com/api/admin/staff-documents', {
             headers: { cookie: cookieHeader },
         });
         const res = await worker.fetch(req, env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
         const body = await res.json();
-        expect(body.requiresCapability).toBe('staff.documents.read');
+        expect(body.documents).toHaveLength(1);
+        expect(body.documents[0].id).toBe('sd_jd');
     });
 
     it('returns formatted documents (no kind filter; defaults to non-retired)', async () => {

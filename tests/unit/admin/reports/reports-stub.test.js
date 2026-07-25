@@ -3,8 +3,9 @@
 // All four personas — Owner (5, B2), Bookkeeper (3, B3), Marketing (4, B4),
 // Site Coordinator (4, B5) — are IMPLEMENTED and return 200 with a report
 // payload (or text/csv with ?format=csv, gated on reports.export). No endpoint
-// returns 501 anymore. Without the persona-specific capability,
-// requireCapability fires 403 first.
+// returns 501 anymore. Under the OPEN-READS model, JSON reads are open to any
+// authenticated admin (requireReadAccess); only the in-handler reports.export
+// CSV gate still 403s.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import worker from '../../../../worker/index.js';
@@ -78,10 +79,11 @@ describe('GET /api/admin/reports/* — Owner endpoints (Batch 2 — implemented)
         expect(await res.text()).toContain('Metric,Target,Avg');
     });
 
-    it('owner endpoint returns 403 without reports.read.owner', async () => {
-        bindCapabilities(env.DB, 'u_owner', ['reports.read']);
+    it('owner read is open to any authenticated admin (open-reads model)', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read']); // no reports.read.owner
         const res = await worker.fetch(req('/api/admin/reports/owner/aov-trend'), env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        expect((await res.json()).report).toBe('aov-trend');
     });
 
     it('owner endpoint returns 401 without admin session', async () => {
@@ -190,10 +192,11 @@ describe('GET /api/admin/reports/* — Bookkeeper endpoints (Batch 3 — impleme
         expect(await res.text()).toContain('Renter,Site,Due Date,Days Overdue,Amount,Bucket');
     });
 
-    it('returns 403 without reports.read.bookkeeper', async () => {
+    it('bookkeeper read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', ['reports.read.owner']);  // owner cap, not bookkeeper
         const res = await worker.fetch(req('/api/admin/reports/bookkeeper/tax-fee-summary'), env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        expect((await res.json()).report).toBe('tax-fee-summary');
     });
 
     it('CSV export returns text/csv when viewer also has reports.export', async () => {
@@ -232,10 +235,11 @@ describe('GET /api/admin/reports/* — Marketing endpoints (Batch 4 — implemen
         expect(typeof data.hasData).toBe('boolean');
     });
 
-    it('returns 403 without reports.read.marketing', async () => {
-        bindCapabilities(env.DB, 'u_owner', ['reports.read']);
+    it('marketing read is open to any authenticated admin (open-reads model)', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read']); // no reports.read.marketing
         const res = await worker.fetch(req('/api/admin/reports/marketing/customer-cohorts'), env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        expect((await res.json()).report).toBe('customer-cohorts');
     });
 
     it('CSV export returns text/csv when viewer also has reports.export', async () => {
@@ -275,10 +279,11 @@ describe('GET /api/admin/reports/* — Site Coordinator endpoints (Batch 5 — i
         expect(data.buckets).toHaveProperty('expired');
     });
 
-    it('returns 403 without reports.read.site_coordinator', async () => {
-        bindCapabilities(env.DB, 'u_owner', ['reports.read']);
+    it('site-coordinator read is open to any authenticated admin (open-reads model)', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read']); // no reports.read.site_coordinator
         const res = await worker.fetch(req('/api/admin/reports/site-coordinator/coi-compliance'), env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        expect((await res.json()).report).toBe('coi-compliance');
     });
 
     it('CSV export returns text/csv when viewer also has reports.export', async () => {

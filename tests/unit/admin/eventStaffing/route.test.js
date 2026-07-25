@@ -29,14 +29,17 @@ describe('GET /api/admin/event-staffing', () => {
         expect(res.status).toBe(400);
     });
 
-    it('returns 403 when caller lacks staff.events.read', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', []);
+        env.DB.__on(/FROM event_staffing es/, { results: [] }, 'all');
 
         const req = new Request('https://airactionsport.com/api/admin/event-staffing?event_id=evt_001', {
             headers: { cookie: cookieHeader },
         });
         const res = await worker.fetch(req, env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.assignments).toEqual([]);
     });
 
     it('binds event_id parameter to the SQL query', async () => {

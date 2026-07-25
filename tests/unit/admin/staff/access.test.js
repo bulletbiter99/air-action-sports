@@ -52,10 +52,13 @@ async function revokeSession(sid, body = {}) {
 }
 
 describe('GET /api/admin/staff/:id/portal-sessions — gating + shape', () => {
-    it('returns 403 when caller lacks staff.read', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', []);
+        bindSessionList([]);
         const res = await listSessions();
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.sessions).toEqual([]);
     });
 
     it('returns empty list when person has no portal sessions', async () => {

@@ -15,7 +15,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 
 const adminStaffDocuments = new Hono();
@@ -56,7 +56,7 @@ function format(row) {
 }
 
 // GET /api/admin/staff-documents
-adminStaffDocuments.get('/', requireCapability('staff.documents.read'), async (c) => {
+adminStaffDocuments.get('/', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const kind = url.searchParams.get('kind');
     const includeRetired = url.searchParams.get('include_retired') === '1';
@@ -85,7 +85,7 @@ adminStaffDocuments.get('/', requireCapability('staff.documents.read'), async (c
 });
 
 // GET /api/admin/staff-documents/:id
-adminStaffDocuments.get('/:id', requireCapability('staff.documents.read'), async (c) => {
+adminStaffDocuments.get('/:id', requireReadAccess, async (c) => {
     const id = c.req.param('id');
     const row = await c.env.DB.prepare('SELECT * FROM staff_documents WHERE id = ?').bind(id).first();
     if (!row) return c.json({ error: 'Not found' }, 404);
@@ -244,7 +244,7 @@ adminStaffDocuments.delete('/:id/role-tag/:tagId', requireCapability('staff.docu
 //   optional_acked   — not required for this person but ack on file
 //   available        — not required + not acknowledged
 // ────────────────────────────────────────────────────────────────────
-adminStaffDocuments.get('/for-person/:personId', requireCapability('staff.documents.read'), async (c) => {
+adminStaffDocuments.get('/for-person/:personId', requireReadAccess, async (c) => {
     const personId = c.req.param('personId');
 
     const personRow = await c.env.DB.prepare('SELECT id FROM persons WHERE id = ?').bind(personId).first();

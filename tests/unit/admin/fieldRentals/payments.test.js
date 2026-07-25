@@ -270,11 +270,18 @@ describe('POST /api/admin/field-rental-payments — record', () => {
 // ────────────────────────────────────────────────────────────────────
 
 describe('GET /api/admin/field-rental-payments — list', () => {
-    it('returns 403 without field_rentals.read.financials', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', ['field_rentals.read']);
+        env.DB.__on(/FROM field_rental_payments WHERE/, {
+            results: [paymentRow({ reference: 'check#1234' })],
+        }, 'all');
 
         const res = await worker.fetch(getReq('/api/admin/field-rental-payments?rental_id=fr_test'), env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.payments).toHaveLength(1);
+        // Field-level masking is unchanged: reference stays masked without read.pii.
+        expect(body.payments[0].reference).toBe('***');
     });
 
     it('returns 400 when rental_id query param missing', async () => {

@@ -146,10 +146,13 @@ beforeEach(async () => {
 });
 
 describe('GET /api/admin/event-archive', () => {
-    it('returns 403 without events.archive.write capability', async () => {
-        bindCapabilities(env.DB, 'u_owner', []);
+    it('read is open to any authenticated admin (open-reads model)', async () => {
+        bindCapabilities(env.DB, 'u_owner', []); // no events.archive.write — reads no longer need it
+        env.DB.__on(/FROM events e\s+LEFT JOIN/, { results: [] }, 'all');
         const res = await worker.fetch(req('/api/admin/event-archive', { headers: { cookie: cookieHeader } }), env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(Array.isArray(data.events)).toBe(true);
     });
 
     it('returns past events with link counts', async () => {

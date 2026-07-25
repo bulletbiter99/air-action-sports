@@ -17,7 +17,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability, hasCapability } from '../../lib/capabilities.js';
+import { requireCapability, hasCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { detectEventConflicts, hasAnyConflict } from '../../lib/eventConflicts.js';
 import {
@@ -333,7 +333,7 @@ function parseRentalBody(body, { partial = false } = {}) {
 // GET /api/admin/field-rentals — list with filters
 // ────────────────────────────────────────────────────────────────────
 
-adminFieldRentals.get('/', requireCapability('field_rentals.read'), async (c) => {
+adminFieldRentals.get('/', requireReadAccess, async (c) => {
     const user = c.get('user');
     const url = new URL(c.req.url);
 
@@ -432,7 +432,7 @@ adminFieldRentals.get('/', requireCapability('field_rentals.read'), async (c) =>
 // GET /api/admin/field-rentals/:id — detail
 // ────────────────────────────────────────────────────────────────────
 
-adminFieldRentals.get('/:id', requireCapability('field_rentals.read'), async (c) => {
+adminFieldRentals.get('/:id', requireReadAccess, async (c) => {
     const user = c.get('user');
     const id = c.req.param('id');
 

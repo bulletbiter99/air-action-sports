@@ -90,12 +90,14 @@ describe('GET /api/admin/audit-log — FTS5 search (Batch 6)', () => {
         expect(argsOf(env.DB)).toContain('"foo"*');
     });
 
-    it('returns 403 for a staff-role viewer', async () => {
+    it('read is open to a staff-role viewer (open-reads model)', async () => {
         env.DB.__reset(); // drop the owner user-row handler from beforeEach
         const staff = await createAdminSession(env, { id: 'u_staff', role: 'staff' });
         bindFlag(env.DB, 'on');
         bindAuditQueries(env.DB);
         const res = await worker.fetch(req('/api/admin/audit-log?q=x', staff.cookieHeader), env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        // Sanity: the handler actually ran the audit query pipeline.
+        expect(sqlOf(env.DB)).toContain('FROM audit_log');
     });
 });

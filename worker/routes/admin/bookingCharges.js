@@ -17,6 +17,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
+import { requireReadAccess } from '../../lib/capabilities.js';
 import {
     listCharges,
     approveCharge,
@@ -32,7 +33,7 @@ adminBookingCharges.use('*', requireAuth);
 // GET /api/admin/booking-charges
 // ────────────────────────────────────────────────────────────────────
 
-adminBookingCharges.get('/', requireRole('owner', 'manager'), async (c) => {
+adminBookingCharges.get('/', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const status = url.searchParams.get('status') || undefined; // default in lib
     const eventId = url.searchParams.get('event_id') || undefined;

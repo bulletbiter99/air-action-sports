@@ -25,16 +25,23 @@ beforeEach(async () => {
 });
 
 describe('GET /api/admin/staff (list)', () => {
-    it('returns 403 when caller lacks staff.read', async () => {
+    it('read is open to any authenticated admin (open-reads model) — PII stays masked', async () => {
         bindCapabilities(env.DB, 'u_owner', []);
+        bindStaffList(env.DB, [
+            defaultPerson({ id: 'prs_1', full_name: 'Jane Doe', email: 'jane@example.com', phone: '5551234567' }),
+        ]);
 
         const req = new Request('https://airactionsport.com/api/admin/staff', {
             headers: { cookie: cookieHeader },
         });
         const res = await worker.fetch(req, env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
         const body = await res.json();
-        expect(body.requiresCapability).toBe('staff.read');
+        // Field-level masking is unchanged: no staff.read.pii → masked output.
+        expect(body.viewerCanSeePii).toBe(false);
+        expect(body.persons).toHaveLength(1);
+        expect(body.persons[0].email).toMatch(/^j\*\*\*@example\.com$/);
+        expect(body.persons[0].phone).toMatch(/^\(\*\*\*\) \*\*\*-4567$/);
     });
 
     it('returns paginated list with masked PII when caller lacks staff.read.pii', async () => {

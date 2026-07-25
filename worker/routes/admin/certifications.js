@@ -11,7 +11,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 
 const adminCertifications = new Hono();
@@ -47,7 +47,7 @@ function format(row) {
 }
 
 // GET /api/admin/certifications?person_id=...
-adminCertifications.get('/', requireCapability('staff.certifications.read'), async (c) => {
+adminCertifications.get('/', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const personId = url.searchParams.get('person_id');
     if (!personId) return c.json({ error: 'person_id required' }, 400);
@@ -59,7 +59,7 @@ adminCertifications.get('/', requireCapability('staff.certifications.read'), asy
 });
 
 // GET /api/admin/certifications/expiring?days=60
-adminCertifications.get('/expiring', requireCapability('staff.certifications.read'), async (c) => {
+adminCertifications.get('/expiring', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const days = Math.max(1, Math.min(365, Number(url.searchParams.get('days')) || 60));
     const cutoff = Date.now() + days * 86400000;
@@ -87,7 +87,7 @@ adminCertifications.get('/expiring', requireCapability('staff.certifications.rea
 });
 
 // GET /api/admin/certifications/required-by-role/:roleId
-adminCertifications.get('/required-by-role/:roleId', requireCapability('staff.certifications.read'), async (c) => {
+adminCertifications.get('/required-by-role/:roleId', requireReadAccess, async (c) => {
     const roleId = c.req.param('roleId');
     const rows = await c.env.DB.prepare(
         `SELECT id, role_id, cert_kind, required, created_at

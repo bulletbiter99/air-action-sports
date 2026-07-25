@@ -213,6 +213,30 @@ export function requireCapability(capabilityKey) {
 }
 
 /**
+ * Open-reads model (2026-07): any authenticated admin may VIEW admin
+ * surfaces; writes and field-level sensitive reads keep their capability
+ * or role gates. This middleware marks a route as an intentionally OPEN
+ * read — greppable, so the access model stays auditable.
+ *
+ * It still (a) requires an authenticated admin user, and (b) eagerly
+ * loads user.capabilities exactly like requireCapability's lazy-load —
+ * without the load, downstream in-handler hasCapability checks (PII
+ * masks, sensitive-note gates, reports.export CSV gate) would fall back
+ * to the 5-cap legacy role map and silently deny real capability
+ * holders.
+ */
+export async function requireReadAccess(c, next) {
+    const user = c.get('user');
+    if (!user) return c.json({ error: 'Not authenticated' }, 401);
+
+    if (!Array.isArray(user.capabilities)) {
+        user.capabilities = await listCapabilities(c.env, user.id);
+        c.set('user', user);
+    }
+    await next();
+}
+
+/**
  * Backward-compat alias for the M4 stub's userCapabilities() — returns the
  * sync legacy-mapping list for a user object. Frontend callers that read
  * /api/admin/auth/me should switch to the async listCapabilities + send

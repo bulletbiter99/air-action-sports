@@ -91,13 +91,21 @@ beforeEach(async () => {
 // ────────────────────────────────────────────────────────────────────
 
 describe('GET /api/admin/field-rentals — capability gating', () => {
-    it('returns 403 without field_rentals.read', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', []);
+        env.DB.__on(/SELECT COUNT\(\*\) AS n FROM field_rentals/, { n: 1 }, 'first');
+        env.DB.__on(/SELECT \* FROM field_rentals/, {
+            results: [sampleRental({ id: 'fr_a' })],
+        }, 'all');
 
         const res = await worker.fetch(req('/api/admin/field-rentals', { headers: { cookie: cookieHeader } }), env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
         const body = await res.json();
-        expect(body.requiresCapability).toBe('field_rentals.read');
+        expect(body.total).toBe(1);
+        // Field-level masking is unchanged: a caps-less viewer sees notes
+        // masked and notesSensitive dropped entirely.
+        expect(body.rentals[0].notes).toBe('***');
+        expect(body.rentals[0]).not.toHaveProperty('notesSensitive');
     });
 
     it('returns 200 with field_rentals.read', async () => {

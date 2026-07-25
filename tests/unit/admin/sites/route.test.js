@@ -63,18 +63,20 @@ describe('GET /api/admin/sites — list', () => {
         expect(json.sites[0].upcomingRentalCount).toBe(0);
     });
 
-    it('without sites.read returns 403', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         const env = createMockEnv();
         const { cookieHeader } = await createAdminSession(env, { id: 'u_staff', role: 'staff' });
         bindCapabilities(env, 'u_staff', []); // no caps
+
+        env.DB.__on(/FROM sites/, { results: [] }, 'all');
 
         const res = await worker.fetch(
             req('/api/admin/sites', { headers: { cookie: cookieHeader } }),
             env, {},
         );
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
         const json = await res.json();
-        expect(json.requiresCapability).toBe('sites.read');
+        expect(Array.isArray(json.sites)).toBe(true);
     });
 
     it('archived=true does NOT filter out archived sites', async () => {

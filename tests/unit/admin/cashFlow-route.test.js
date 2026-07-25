@@ -26,12 +26,18 @@ beforeEach(async () => {
 });
 
 describe('GET /api/admin/cash-flow', () => {
-    it('403 without finances.read', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         const e2 = createMockEnv();
         const s2 = await createAdminSession(e2, { id: 'u_owner', role: 'owner' });
-        bindCapabilities(e2.DB, 'u_owner', ['reports.read']);
+        bindCapabilities(e2.DB, 'u_owner', ['reports.read']); // no finances.read
+        // Same handler reads as the happy paths — empty defaults suffice.
+        e2.DB.__on(/FROM field_rental_payments/, { results: [] }, 'all');
+        e2.DB.__on(/FROM budgets WHERE period/, { results: [] }, 'all');
         const res = await worker.fetch(req('/api/admin/cash-flow', { headers: { cookie: s2.cookieHeader } }), e2, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data.horizonWeeks).toBe(13);
+        expect(data.rows).toHaveLength(13);
     });
 
     it('returns 13 weekly rows + a derived run-rate from trailing revenue', async () => {

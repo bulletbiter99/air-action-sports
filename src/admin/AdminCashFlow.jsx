@@ -7,7 +7,7 @@ import { formatMoney, formatMoneyCompact } from '../utils/money.js';
 import { dayLabel } from '../utils/dateFormat.js';
 
 export default function AdminCashFlow() {
-    const { isAuthenticated, loading, hasCapability } = useAdmin();
+    const { isAuthenticated, loading } = useAdmin();
     const navigate = useNavigate();
 
     const [opening, setOpening] = useState('');   // dollar string
@@ -19,8 +19,8 @@ export default function AdminCashFlow() {
     useEffect(() => {
         if (loading) return;
         if (!isAuthenticated) navigate('/admin/login');
-        else if (!hasCapability('finances.read')) navigate('/admin');
-    }, [loading, isAuthenticated, hasCapability, navigate]);
+        // Open-reads model (2026-07): viewing is open to any authenticated admin.
+    }, [loading, isAuthenticated, navigate]);
 
     // prefillRunRate: on first/auto load we send no override and adopt the
     // server-derived run-rate into the input; the Update button passes false.

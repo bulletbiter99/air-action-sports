@@ -21,7 +21,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { siteId as newSiteId, fieldId as newFieldId, blackoutId as newBlackoutId, slugify } from '../../lib/ids.js';
 import { normalizeImagePosition } from './events.js';
@@ -183,7 +183,7 @@ function parseFieldBody(body, { partial = false } = {}) {
 // GET /api/admin/sites — list with stats
 // ────────────────────────────────────────────────────────────────────
 
-adminSites.get('/', requireCapability('sites.read'), async (c) => {
+adminSites.get('/', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const includeArchived = url.searchParams.get('archived') === 'true';
 
@@ -223,7 +223,7 @@ adminSites.get('/', requireCapability('sites.read'), async (c) => {
 // GET /api/admin/sites/:id — site detail + fields + blackouts
 // ────────────────────────────────────────────────────────────────────
 
-adminSites.get('/:id', requireCapability('sites.read'), async (c) => {
+adminSites.get('/:id', requireReadAccess, async (c) => {
     const id = c.req.param('id');
     const url = new URL(c.req.url);
     const includeArchivedFields = url.searchParams.get('archivedFields') === 'true';

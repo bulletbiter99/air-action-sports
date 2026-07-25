@@ -23,16 +23,20 @@ beforeEach(async () => {
 // ────────────────────────────────────────────────────────────────────
 
 describe('GET /api/admin/booking-charges', () => {
-    it('returns 403 when caller is staff (not manager+)', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         // Use a fresh env so the prior beforeEach owner row doesn't shadow
         // the staff user row in mockD1's first-match handler resolution.
         const staffEnv = createMockEnv();
         const staff = await createAdminSession(staffEnv, { id: 'u_staff', role: 'staff' });
+        staffEnv.DB.__on(/FROM booking_charges bc[\s\S]+INNER JOIN bookings/, { results: [] }, 'all');
         const req = new Request('https://airactionsport.com/api/admin/booking-charges', {
             headers: { cookie: staff.cookieHeader },
         });
         const res = await worker.fetch(req, staffEnv, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.charges).toEqual([]);
+        expect(body.filter.status).toBe('pending,sent');
     });
 
     it('returns 200 with charges list and default pending,sent filter', async () => {

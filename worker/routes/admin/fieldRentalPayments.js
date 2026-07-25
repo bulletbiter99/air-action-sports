@@ -20,7 +20,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability, hasCapability } from '../../lib/capabilities.js';
+import { requireCapability, hasCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { rentalPaymentId as newPaymentId } from '../../lib/ids.js';
 
@@ -324,7 +324,7 @@ adminFieldRentalPayments.post('/', requireAuth, async (c) => {
 // GET /?rental_id=… — list payments
 // ────────────────────────────────────────────────────────────────────
 
-adminFieldRentalPayments.get('/', requireCapability('field_rentals.read.financials'), async (c) => {
+adminFieldRentalPayments.get('/', requireReadAccess, async (c) => {
     const user = c.get('user');
     const url = new URL(c.req.url);
     const rentalId = url.searchParams.get('rental_id');

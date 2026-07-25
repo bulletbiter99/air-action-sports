@@ -43,15 +43,14 @@ const PERSONA_TO_TAB = {
 };
 
 export default function AdminReports() {
-    const { user, hasCapability, loading: authLoading } = useAdmin();
+    const { user, loading: authLoading } = useAdmin();
 
-    const visibleTabs = useMemo(
-        () => TABS.filter((t) => typeof hasCapability === 'function' && hasCapability(t.capability)),
-        [hasCapability],
-    );
+    // Open-reads model (2026-07): every admin sees all four persona tabs —
+    // report reads opened server-side (requireReadAccess). CSV export stays
+    // capability-gated (reports.export) in ReportLayout + the server.
+    const visibleTabs = TABS;
 
     const defaultTab = useMemo(() => {
-        if (visibleTabs.length === 0) return null;
         const preferred = PERSONA_TO_TAB[user?.persona];
         if (preferred && visibleTabs.some((t) => t.key === preferred)) return preferred;
         return visibleTabs[0].key;
@@ -61,23 +60,6 @@ export default function AdminReports() {
 
     if (authLoading) {
         return <div style={pageWrap}><p style={muted}>Loading…</p></div>;
-    }
-
-    // Capability-less viewer: no tabs at all (M5 capability system gates).
-    // The sidebar stub may have shown the nav entry but the page renders an
-    // empty-state explanation here.
-    if (visibleTabs.length === 0) {
-        return (
-            <div style={pageWrap}>
-                <AdminPageHeader {...REPORTS_HEADER} />
-                <ReportEmptyState
-                    kind="not-implemented"
-                    title="No reports available for your role"
-                    description="The Reports section is gated per persona capability. Contact admin if you need access."
-                    hint="Personas: Owner, Bookkeeper, Marketing, Site Coordinator"
-                />
-            </div>
-        );
     }
 
     // If `defaultTab` set after first render (auth-loaded), useState's initial

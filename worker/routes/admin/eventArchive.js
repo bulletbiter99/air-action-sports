@@ -16,7 +16,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { validateLinkPayload, buildEmbedUrl } from '../../lib/archiveLinks.js';
 
@@ -26,7 +26,7 @@ adminEventArchive.use('*', requireAuth);
 // ────────────────────────────────────────────────────────────────────
 // GET /api/admin/event-archive — past events + link counts
 // ────────────────────────────────────────────────────────────────────
-adminEventArchive.get('/', requireCapability('events.archive.write'), async (c) => {
+adminEventArchive.get('/', requireReadAccess, async (c) => {
     const rows = await c.env.DB.prepare(
         `SELECT e.id, e.slug, e.title, e.date_iso, e.location,
                 COALESCE(v.cnt, 0) AS video_count,
@@ -60,7 +60,7 @@ adminEventArchive.get('/', requireCapability('events.archive.write'), async (c) 
 // ────────────────────────────────────────────────────────────────────
 // GET /api/admin/event-archive/:eventId — full link list
 // ────────────────────────────────────────────────────────────────────
-adminEventArchive.get('/:eventId', requireCapability('events.archive.write'), async (c) => {
+adminEventArchive.get('/:eventId', requireReadAccess, async (c) => {
     const eventId = c.req.param('eventId');
     const event = await c.env.DB.prepare(
         'SELECT id, slug, title, date_iso, past FROM events WHERE id = ?',

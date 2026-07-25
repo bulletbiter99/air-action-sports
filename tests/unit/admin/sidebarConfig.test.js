@@ -34,42 +34,42 @@ describe('SIDEBAR config', () => {
         // Bookings flow: Events (3) · Bookings (4) · Customers (5) · sep (6)
         expect(SIDEBAR[6]).toMatchObject({ type: 'separator' });
         // B2B: Sites (7) · Field Rentals (8) · sep (9)
-        expect(SIDEBAR[7]).toMatchObject({
-            type: 'item', to: '/admin/sites', label: 'Sites', capability: 'sites.read',
-        });
-        expect(SIDEBAR[8]).toMatchObject({
-            type: 'item', to: '/admin/field-rentals', label: 'Field Rentals', capability: 'field_rentals.read',
-        });
+        expect(SIDEBAR[7]).toMatchObject({ type: 'item', to: '/admin/sites', label: 'Sites' });
+        expect(SIDEBAR[8]).toMatchObject({ type: 'item', to: '/admin/field-rentals', label: 'Field Rentals' });
         expect(SIDEBAR[9]).toMatchObject({ type: 'separator' });
         // Event-day ops: Rentals (10) · Roster (11) · Scan (12) · sep (13)
-        expect(SIDEBAR[10]).toMatchObject({
-            type: 'item', to: '/admin/rentals', label: 'Rentals', capability: 'rentals.read',
-        });
-        expect(SIDEBAR[11]).toMatchObject({
-            type: 'item', to: '/admin/roster', label: 'Roster', capability: 'roster.read',
-        });
-        expect(SIDEBAR[12]).toMatchObject({
-            type: 'item', to: '/admin/scan', label: 'Scan', capability: 'scan.use',
-        });
+        expect(SIDEBAR[10]).toMatchObject({ type: 'item', to: '/admin/rentals', label: 'Rentals' });
+        expect(SIDEBAR[11]).toMatchObject({ type: 'item', to: '/admin/roster', label: 'Roster' });
+        expect(SIDEBAR[12]).toMatchObject({ type: 'item', to: '/admin/scan', label: 'Scan' });
         expect(SIDEBAR[13]).toMatchObject({ type: 'separator' });
         // Operational: Analytics (14) · Reports (15) · Expenses (16) ·
         // Budgets (17) · Cash Flow (18) · Segments (19) · Campaigns (20) ·
         // Automations (21) · Feedback (22) · Reviews (23) · Promo Codes (24) · Vendors (25) · sep (26)
         expect(SIDEBAR[14]).toMatchObject({ type: 'item', to: '/admin/analytics', label: 'Analytics' });
-        expect(SIDEBAR[15]).toMatchObject({ type: 'item', to: '/admin/reports', label: 'Reports', capability: 'reports.read' });
-        expect(SIDEBAR[16]).toMatchObject({ type: 'item', to: '/admin/expenses', label: 'Expenses', capability: 'finances.read' });
-        expect(SIDEBAR[17]).toMatchObject({ type: 'item', to: '/admin/budgets', label: 'Budgets', capability: 'finances.read' });
-        expect(SIDEBAR[18]).toMatchObject({ type: 'item', to: '/admin/cash-flow', label: 'Cash Flow', capability: 'finances.read' });
+        expect(SIDEBAR[15]).toMatchObject({ type: 'item', to: '/admin/reports', label: 'Reports' });
+        expect(SIDEBAR[16]).toMatchObject({ type: 'item', to: '/admin/expenses', label: 'Expenses' });
+        expect(SIDEBAR[17]).toMatchObject({ type: 'item', to: '/admin/budgets', label: 'Budgets' });
+        expect(SIDEBAR[18]).toMatchObject({ type: 'item', to: '/admin/cash-flow', label: 'Cash Flow' });
         expect(SIDEBAR[19]).toMatchObject({ type: 'item', to: '/admin/segments', label: 'Segments' });
         expect(SIDEBAR[20]).toMatchObject({ type: 'item', to: '/admin/campaigns', label: 'Campaigns' });
         expect(SIDEBAR[21]).toMatchObject({ type: 'item', to: '/admin/automations', label: 'Automations' });
         expect(SIDEBAR[22]).toMatchObject({
             type: 'item', to: '/admin/feedback', label: 'Feedback', badgeKey: 'newFeedback',
         });
-        expect(SIDEBAR[23]).toMatchObject({ type: 'item', to: '/admin/reviews', label: 'Reviews', capability: 'reviews.moderate' });
+        expect(SIDEBAR[23]).toMatchObject({ type: 'item', to: '/admin/reviews', label: 'Reviews' });
         expect(SIDEBAR[24]).toMatchObject({ type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' });
         expect(SIDEBAR[25]).toMatchObject({ type: 'item', to: '/admin/vendors', label: 'Vendors' });
         expect(SIDEBAR[26]).toMatchObject({ type: 'separator' });
+    });
+
+    it('open-reads model (2026-07): no SIDEBAR entry carries a capability gate', () => {
+        const gated = [];
+        const walk = (entries) => entries.forEach((e) => {
+            if (e?.capability) gated.push(e.to);
+            if (e?.items) walk(e.items);
+        });
+        walk(SIDEBAR);
+        expect(gated).toEqual([]);
     });
 
     it('Settings group sits at the end, separated by a divider', () => {
@@ -80,12 +80,12 @@ describe('SIDEBAR config', () => {
         expect(SIDEBAR[groupIdx - 1]).toMatchObject({ type: 'separator' });
     });
 
-    it('Settings group is configuration-only — 8 sub-items including Event Archive', () => {
+    it('Settings group is configuration-only — 9 sub-items including Event Archive + Charges', () => {
         const group = SIDEBAR.find((e) => e.type === 'group' && e.label === 'Settings');
         expect(group).toBeDefined();
         expect(group.key).toBe('settings');
         expect(group.defaultExpanded).toBe(false);
-        expect(group.items).toHaveLength(8);
+        expect(group.items).toHaveLength(9);
         const labels = group.items.map((i) => i.label);
         expect(labels).toEqual([
             'Overview',
@@ -96,6 +96,7 @@ describe('SIDEBAR config', () => {
             'Waivers',
             'Vendor Templates',
             'Event Archive',
+            'Charges',
         ]);
     });
 
@@ -221,16 +222,20 @@ describe('getVisibleItems', () => {
         expect(visible[visible.length - 1].type).not.toBe('separator');
     });
 
-    it('staff role hides Rentals + Sites + Field Rentals (all manager+) but keeps Roster + Scan', () => {
+    it('open-reads model: a staff role sees every standing entry (only Today stays dynamic)', () => {
         const visible = getVisibleItems(SIDEBAR, {
             todayState: { activeEventToday: false },
             userRole: 'staff',
         });
-        expect(visible.find((e) => e.label === 'Rentals')).toBeUndefined();
-        expect(visible.find((e) => e.label === 'Sites')).toBeUndefined();
-        expect(visible.find((e) => e.label === 'Field Rentals')).toBeUndefined();
+        expect(visible.find((e) => e.label === 'Rentals')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Sites')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Field Rentals')).toBeDefined();
         expect(visible.find((e) => e.label === 'Roster')).toBeDefined();
         expect(visible.find((e) => e.label === 'Scan')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Reports')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Expenses')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Reviews')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Today')).toBeUndefined();
     });
 
     it('hides Today when activeEventToday is false', () => {
@@ -350,18 +355,15 @@ describe('getVisibleItems', () => {
 
     it('handles missing ctx (defaults to no today state, no flags, no role)', () => {
         const visible = getVisibleItems(SIDEBAR);
-        // Today should be hidden (default is falsy); Customers is no
-        // longer flag-gated post-B12b so it's always visible. Sites /
-        // Field Rentals / Rentals / Roster / Scan should be hidden
-        // (no userRole = no capability).
+        // Today is hidden (dynamic default is falsy). Open-reads model:
+        // everything else is visible even with no role/caps in ctx.
         expect(visible.find((e) => e.label === 'Today')).toBeUndefined();
         expect(visible.find((e) => e.label === 'Customers')).toBeDefined();
-        expect(visible.find((e) => e.label === 'Sites')).toBeUndefined();
-        expect(visible.find((e) => e.label === 'Field Rentals')).toBeUndefined();
-        expect(visible.find((e) => e.label === 'Rentals')).toBeUndefined();
-        expect(visible.find((e) => e.label === 'Roster')).toBeUndefined();
-        expect(visible.find((e) => e.label === 'Scan')).toBeUndefined();
-        // Others present
+        expect(visible.find((e) => e.label === 'Sites')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Field Rentals')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Rentals')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Roster')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Scan')).toBeDefined();
         expect(visible.find((e) => e.label === 'Home')).toBeDefined();
         expect(visible.find((e) => e.label === 'Events')).toBeDefined();
     });
@@ -380,51 +382,50 @@ describe('getVisibleItems', () => {
     });
 });
 
-describe('getVisibleItems — real /me capabilities (M8 union)', () => {
+describe('getVisibleItems — capability machinery (forward-compat; no SIDEBAR entry uses it since the 2026-07 open-reads model)', () => {
+    // Synthetic config: SIDEBAR itself no longer carries `capability` fields,
+    // but the filter machinery stays for any future gated entry. reports.read
+    // maps to 'manager' in the legacy stub.
+    const GATED_CFG = [
+        { type: 'item', to: '/open', label: 'Open' },
+        { type: 'item', to: '/gated', label: 'Gated', capability: 'reports.read' },
+    ];
+
     it('surfaces a capability item from real caps even when the legacy stub would hide it', () => {
-        // role 'staff' → the stub maps reports.read/sites.read to 'manager' → denied.
-        // But the real /me cap set holds them (e.g. a site_coordinator preset),
-        // so the union makes Reports + Sites visible.
-        const visible = getVisibleItems(SIDEBAR, {
-            todayState: null,
+        const visible = getVisibleItems(GATED_CFG, {
             userRole: 'staff',
-            userCapabilities: ['reports.read', 'sites.read'],
+            userCapabilities: ['reports.read'],
         });
-        expect(visible.find((e) => e.label === 'Reports')).toBeDefined();
-        expect(visible.find((e) => e.label === 'Sites')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Gated')).toBeDefined();
     });
 
     it('hides a capability item when neither the real caps nor the stub grant it', () => {
-        const visible = getVisibleItems(SIDEBAR, {
-            todayState: null,
+        const visible = getVisibleItems(GATED_CFG, {
             userRole: 'staff',
-            userCapabilities: [], // no reports.read; stub denies staff
+            userCapabilities: [],
         });
-        expect(visible.find((e) => e.label === 'Reports')).toBeUndefined();
+        expect(visible.find((e) => e.label === 'Gated')).toBeUndefined();
+        expect(visible.find((e) => e.label === 'Open')).toBeDefined();
     });
 
     it('is additive — never hides what the stub already showed (owner + unrelated cap set)', () => {
-        const visible = getVisibleItems(SIDEBAR, {
-            todayState: null,
+        const visible = getVisibleItems(GATED_CFG, {
             userRole: 'owner',
-            userCapabilities: ['some.unrelated.cap'], // does NOT include reports.read
+            userCapabilities: ['some.unrelated.cap'],
         });
-        // owner passes the stub for reports.read → still visible despite the real
-        // cap set not containing it (union, not intersection).
-        expect(visible.find((e) => e.label === 'Reports')).toBeDefined();
-        expect(visible.find((e) => e.label === 'Sites')).toBeDefined();
+        expect(visible.find((e) => e.label === 'Gated')).toBeDefined();
     });
 
     it('falls back to the stub when userCapabilities is absent (backward compat)', () => {
-        const visible = getVisibleItems(SIDEBAR, { todayState: null, userRole: 'owner' });
-        expect(visible.find((e) => e.label === 'Reports')).toBeDefined();
+        const visible = getVisibleItems(GATED_CFG, { userRole: 'owner' });
+        expect(visible.find((e) => e.label === 'Gated')).toBeDefined();
     });
 
     it('ignores a non-array userCapabilities (defensive → stub only)', () => {
-        const visible = getVisibleItems(SIDEBAR, {
-            todayState: null, userRole: 'staff', userCapabilities: 'nope',
+        const visible = getVisibleItems(GATED_CFG, {
+            userRole: 'staff', userCapabilities: 'nope',
         });
-        expect(visible.find((e) => e.label === 'Reports')).toBeUndefined();
+        expect(visible.find((e) => e.label === 'Gated')).toBeUndefined();
     });
 });
 

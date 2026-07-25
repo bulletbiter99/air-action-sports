@@ -1,11 +1,14 @@
 // M4 B5 — sidebar config-as-code per docs/m4-discovery/sidebar-ia-audit.md.
 // M5 B0 (sub-batch 0-sidebar) — D10: Rentals / Roster / Scan restored to
-// standing nav as capability-gated items. Reverses D09 partially: the
-// /admin/today page still surfaces them as quick-action tiles when an
-// event is live; the sidebar now also shows them standing for the
-// personas with ops capability (Owner sees all). Capability gating is
-// stubbed against the legacy role hierarchy until M5 Batch 2 ships
-// real DB-backed capabilities.
+// standing nav.
+//
+// OPEN-READS MODEL (2026-07): every sidebar entry is visible to every
+// authenticated admin — page VISIBILITY is no longer capability-gated
+// (the server's read endpoints opened to requireReadAccess in the same
+// change). Editing stays gated: write endpoints keep their capability /
+// role gates and pages hide/disable their action buttons accordingly.
+// The `capability` field + stub machinery below are retained for
+// forward-compat but no current entry uses them.
 //
 // Surface 1 IA target: flat top-level (Home / Today / Events / Bookings /
 // Customers / Rentals / Roster / Scan) + a collapsible Settings group
@@ -35,30 +38,25 @@ export const SIDEBAR = [
     { type: 'item', to: '/admin/customers', label: 'Customers' },
     { type: 'separator' },
     // ─── B2B / Sites (M5.5 B6.5 + B8) ───
-    { type: 'item', to: '/admin/sites', label: 'Sites', capability: 'sites.read' },
-    { type: 'item', to: '/admin/field-rentals', label: 'Field Rentals', capability: 'field_rentals.read' },
+    { type: 'item', to: '/admin/sites', label: 'Sites' },
+    { type: 'item', to: '/admin/field-rentals', label: 'Field Rentals' },
     { type: 'separator' },
     // ─── Event-day ops (M5 B0 D10) ───
-    // Capability-gated so non-owner roles only see what their persona
-    // needs. /admin/today also surfaces these as quick-action tiles when
-    // an event is live; the sidebar entry serves the standing-time use
+    // /admin/today also surfaces these as quick-action tiles when an
+    // event is live; the sidebar entry serves the standing-time use
     // case (between events).
-    { type: 'item', to: '/admin/rentals', label: 'Rentals', capability: 'rentals.read' },
-    { type: 'item', to: '/admin/roster', label: 'Roster', capability: 'roster.read' },
-    { type: 'item', to: '/admin/scan', label: 'Scan', capability: 'scan.use' },
+    { type: 'item', to: '/admin/rentals', label: 'Rentals' },
+    { type: 'item', to: '/admin/roster', label: 'Roster' },
+    { type: 'item', to: '/admin/scan', label: 'Scan' },
     { type: 'separator' },
     // ─── Operational dashboards + tools (promoted from Settings group
     // so it can stay configuration-only). Order: insights (Analytics /
     // Feedback) before marketing/partner ops (Promo Codes / Vendors).
     { type: 'item', to: '/admin/analytics', label: 'Analytics' },
-    { type: 'item', to: '/admin/reports', label: 'Reports', capability: 'reports.read' },
-    // Finances (migration 0074) — operating expenses + monthly budgets,
-    // gated on finances.read (owner + bookkeeper presets). The real /me cap
-    // set surfaces these for the bookkeeper preset; the legacy stub maps
-    // finances.read → manager so owners see them before /me caps load.
-    { type: 'item', to: '/admin/expenses', label: 'Expenses', capability: 'finances.read' },
-    { type: 'item', to: '/admin/budgets', label: 'Budgets', capability: 'finances.read' },
-    { type: 'item', to: '/admin/cash-flow', label: 'Cash Flow', capability: 'finances.read' },
+    { type: 'item', to: '/admin/reports', label: 'Reports' },
+    { type: 'item', to: '/admin/expenses', label: 'Expenses' },
+    { type: 'item', to: '/admin/budgets', label: 'Budgets' },
+    { type: 'item', to: '/admin/cash-flow', label: 'Cash Flow' },
     { type: 'item', to: '/admin/segments', label: 'Segments' },
     { type: 'item', to: '/admin/campaigns', label: 'Campaigns' },
     { type: 'item', to: '/admin/automations', label: 'Automations' },
@@ -68,10 +66,7 @@ export const SIDEBAR = [
         label: 'Feedback',
         badgeKey: 'newFeedback',
     },
-    // Attendee-verified reviews moderation (migration 0077). Gated on
-    // reviews.moderate (owner + event_director + booking_coordinator); the
-    // legacy stub maps it → manager so owners see it before /me caps load.
-    { type: 'item', to: '/admin/reviews', label: 'Reviews', capability: 'reviews.moderate' },
+    { type: 'item', to: '/admin/reviews', label: 'Reviews' },
     { type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' },
     { type: 'item', to: '/admin/vendors', label: 'Vendors' },
     { type: 'separator' },
@@ -92,6 +87,9 @@ export const SIDEBAR = [
             { type: 'item', to: '/admin/waivers', label: 'Waivers' },
             { type: 'item', to: '/admin/vendor-package-templates', label: 'Vendor Templates' },
             { type: 'item', to: '/admin/event-archive', label: 'Event Archive' },
+            // 2026-07: previously a hidden URL — the damage-charge queue had
+            // no inbound navigation anywhere (admin workflow audit, B2).
+            { type: 'item', to: '/admin/booking-charges', label: 'Charges' },
         ],
     },
 ];

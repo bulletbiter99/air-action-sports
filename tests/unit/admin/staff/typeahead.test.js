@@ -59,14 +59,17 @@ describe('GET /api/admin/staff?q=… (typeahead)', () => {
         expect(listQuery.args.some((a) => typeof a === 'string' && a.startsWith('%') && a.endsWith('%'))).toBe(false);
     });
 
-    it('returns 403 on typeahead query when caller lacks staff.read', async () => {
+    it('typeahead read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', []);
+        bindStaffList(env.DB, []);
 
         const req = new Request('https://airactionsport.com/api/admin/staff?q=anything', {
             headers: { cookie: cookieHeader },
         });
         const res = await worker.fetch(req, env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.persons).toEqual([]);
     });
 
     it('returns matching person rows shaped for typeahead consumers', async () => {

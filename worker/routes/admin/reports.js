@@ -17,7 +17,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability, hasCapability } from '../../lib/capabilities.js';
+import { requireCapability, hasCapability, requireReadAccess } from '../../lib/capabilities.js';
 import {
     resolvePeriodWindow,
     priorWindow,
@@ -110,7 +110,7 @@ const dollars = (cents) => (Number(cents) / 100).toFixed(2);
 
 // 1. Revenue trends — daily gross over the period, vs prior when comparison.
 adminReports.get('/owner/revenue-trends',
-    requireCapability('reports.read.owner'),
+    requireReadAccess,
     async (c) => {
         const { eventId, comparison, format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -149,7 +149,7 @@ adminReports.get('/owner/revenue-trends',
 //    history — series transitions need the whole timeline, so the period
 //    filter does not constrain this report.
 adminReports.get('/owner/retention',
-    requireCapability('reports.read.owner'),
+    requireReadAccess,
     async (c) => {
         const { format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -176,7 +176,7 @@ adminReports.get('/owner/retention',
 // 3. Refund rate — monthly (refunded ÷ charged) over the period. Counts BOTH
 //    Stripe (refunded_at) and external (refund_external=1) refunds.
 adminReports.get('/owner/refund-rate',
-    requireCapability('reports.read.owner'),
+    requireReadAccess,
     async (c) => {
         const { eventId, comparison, format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -219,7 +219,7 @@ adminReports.get('/owner/refund-rate',
 //    apply (total_bookings is a denormalized lifetime count). Excludes merged,
 //    archived, and the backfill sentinel.
 adminReports.get('/owner/repeat-customers',
-    requireCapability('reports.read.owner'),
+    requireReadAccess,
     async (c) => {
         const { format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -241,7 +241,7 @@ adminReports.get('/owner/repeat-customers',
 
 // 5. AOV trend — monthly AVG(total_cents) over paid bookings, vs prior.
 adminReports.get('/owner/aov-trend',
-    requireCapability('reports.read.owner'),
+    requireReadAccess,
     async (c) => {
         const { eventId, comparison, format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -286,7 +286,7 @@ adminReports.get('/owner/aov-trend',
 //    basis). reports.read.owner holders are owner + bookkeeper — both hold the
 //    finances caps, so cost visibility is appropriately gated.
 adminReports.get('/owner/per-event-pnl',
-    requireCapability('reports.read.owner'),
+    requireReadAccess,
     async (c) => {
         const { format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -335,7 +335,7 @@ adminReports.get('/owner/per-event-pnl',
 //    (no sales / no FR receipts) render neutral, not red. The math lives in the
 //    pure computeScorecard; the route just windows + buckets the D1 rows.
 adminReports.get('/owner/scorecard',
-    requireCapability('reports.read.owner'),
+    requireReadAccess,
     async (c) => {
         const { format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -448,7 +448,7 @@ adminReports.get('/owner/scorecard',
 
 // 1. Payouts summary — monthly Stripe (bookings) + field-rental gross + refunds.
 adminReports.get('/bookkeeper/payouts',
-    requireCapability('reports.read.bookkeeper'),
+    requireReadAccess,
     async (c) => {
         const { eventId, format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -495,7 +495,7 @@ adminReports.get('/bookkeeper/payouts',
 
 // 2. Tax/fee summary — monthly SUM(tax_cents) + SUM(fee_cents) over paid/comp.
 adminReports.get('/bookkeeper/tax-fee-summary',
-    requireCapability('reports.read.bookkeeper'),
+    requireReadAccess,
     async (c) => {
         const { eventId, format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -522,7 +522,7 @@ adminReports.get('/bookkeeper/tax-fee-summary',
 
 // 3. Period comparison — current window vs prior window (always compares).
 adminReports.get('/bookkeeper/period-comparison',
-    requireCapability('reports.read.bookkeeper'),
+    requireReadAccess,
     async (c) => {
         const { eventId, format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -563,7 +563,7 @@ adminReports.get('/bookkeeper/period-comparison',
 //    is intentionally ignored here. Earned revenue uses the same basis as the
 //    income card: total − tax − fee on paid/comp bookings (refunds excluded).
 adminReports.get('/bookkeeper/budget-vs-actual',
-    requireCapability('reports.read.bookkeeper'),
+    requireReadAccess,
     async (c) => {
         const { format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -612,7 +612,7 @@ adminReports.get('/bookkeeper/budget-vs-actual',
 //    the RECONCILED subset (fee captured) so they stay consistent while the
 //    nightly backfill catches up; `coverage` reports the reconciled fraction.
 adminReports.get('/bookkeeper/stripe-fees',
-    requireCapability('reports.read.bookkeeper'),
+    requireReadAccess,
     async (c) => {
         const { eventId, format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -662,7 +662,7 @@ adminReports.get('/bookkeeper/stripe-fees',
 //    receivables. DSO annualizes the outstanding balance against field-rental
 //    cash received over a trailing 365-day window.
 adminReports.get('/bookkeeper/ar-aging',
-    requireCapability('reports.read.bookkeeper'),
+    requireReadAccess,
     async (c) => {
         const { format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -726,7 +726,7 @@ adminReports.get('/bookkeeper/ar-aging',
 
 // 1. Conversion funnel by event — Bookings → Paid → Checked-in → Waivers.
 adminReports.get('/marketing/conversion-funnel',
-    requireCapability('reports.read.marketing'),
+    requireReadAccess,
     async (c) => {
         const { eventId, format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -781,7 +781,7 @@ adminReports.get('/marketing/conversion-funnel',
 
 // 2. Promo code performance — per-code lifetime usage + revenue attributed.
 adminReports.get('/marketing/promo-performance',
-    requireCapability('reports.read.marketing'),
+    requireReadAccess,
     async (c) => {
         const { format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -806,7 +806,7 @@ adminReports.get('/marketing/promo-performance',
 
 // 3. Customer cohorts by acquisition month (lifetime; period/event N/A).
 adminReports.get('/marketing/customer-cohorts',
-    requireCapability('reports.read.marketing'),
+    requireReadAccess,
     async (c) => {
         const { format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -830,7 +830,7 @@ adminReports.get('/marketing/customer-cohorts',
 
 // 4. Channel attribution — paid bookings grouped by referral (period + event).
 adminReports.get('/marketing/channel-attribution',
-    requireCapability('reports.read.marketing'),
+    requireReadAccess,
     async (c) => {
         const { eventId, format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -860,7 +860,7 @@ adminReports.get('/marketing/channel-attribution',
 // 1. Field rental revenue by site — realized (paid+completed) revenue per
 //    site, by month. Period windows scheduled_starts_at.
 adminReports.get('/site-coordinator/field-rental-revenue',
-    requireCapability('reports.read.site_coordinator'),
+    requireReadAccess,
     async (c) => {
         const { format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -887,7 +887,7 @@ adminReports.get('/site-coordinator/field-rental-revenue',
 
 // 2. COI compliance — active rentals bucketed by certificate status (snapshot).
 adminReports.get('/site-coordinator/coi-compliance',
-    requireCapability('reports.read.site_coordinator'),
+    requireReadAccess,
     async (c) => {
         const { format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -908,7 +908,7 @@ adminReports.get('/site-coordinator/coi-compliance',
 // 3. Lead-to-booking conversion — field-rental pipeline funnel (period windows
 //    created_at). Approximated from current status (see lib note).
 adminReports.get('/site-coordinator/lead-conversion',
-    requireCapability('reports.read.site_coordinator'),
+    requireReadAccess,
     async (c) => {
         const { format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
@@ -929,7 +929,7 @@ adminReports.get('/site-coordinator/lead-conversion',
 // 4. Recurrence retention — % of recurrence series still active at 90/180/365d
 //    (snapshot; period N/A).
 adminReports.get('/site-coordinator/recurrence-retention',
-    requireCapability('reports.read.site_coordinator'),
+    requireReadAccess,
     async (c) => {
         const { format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);

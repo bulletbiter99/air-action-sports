@@ -5,41 +5,44 @@ import { useFeatureFlag, setFeatureFlagOverride } from './useFeatureFlag';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import EmptyState from '../components/admin/EmptyState.jsx';
 
+// Open-reads model (2026-07): every card is visible to every authenticated
+// admin — the destination pages are viewable by all; editing inside them
+// stays role/capability-gated.
 const CARDS = [
   {
     to: '/admin/settings/taxes-fees',
     title: 'Taxes & Fees',
     desc: 'City/state tax rates, processing fees, and what the customer sees at checkout.',
-    role: 'staff',
   },
   {
     to: '/admin/settings/email-templates',
     title: 'Email Templates',
-    desc: 'Edit booking confirmation, waiver request, 24hr/1hr reminder, and password/invite copy. Owner only.',
-    role: 'owner',
+    desc: 'Booking confirmation, waiver request, 24hr/1hr reminder, and password/invite copy. Editing is owner-only.',
   },
   {
     to: '/admin/waivers',
     title: 'Waiver Document',
-    desc: 'Edit the player liability waiver. New version retires the previous; past signers stay pinned to whatever they signed. Owner only.',
-    role: 'owner',
+    desc: 'The player liability waiver. New version retires the previous; past signers stay pinned to whatever they signed. Editing is owner-only.',
   },
   {
     to: '/admin/staff',
     title: 'Staff',
-    desc: 'Invite admins, manage roles (staff / manager / owner), revoke access. Owner only.',
-    role: 'manager',
+    desc: 'Team roster, roles, documents, certifications. Inviting + editing is manager+.',
   },
   {
     to: '/admin/audit-log',
     title: 'Audit Log',
-    desc: 'Who did what, when. Filter by action, user, or target. Manager+ only.',
-    role: 'manager',
+    desc: 'Who did what, when. Filter by action, user, or target.',
+  },
+  {
+    to: '/admin/booking-charges',
+    title: 'Booking Charges',
+    desc: 'Damage-charge queue: review, approve, collect, or waive post-event charges. Actions are manager+.',
   },
 ];
 
 export default function AdminSettings() {
-  const { isAuthenticated, loading, hasRole } = useAdmin();
+  const { isAuthenticated, loading } = useAdmin();
   const navigate = useNavigate();
   const {
     enabled: compactDensity,
@@ -55,7 +58,7 @@ export default function AdminSettings() {
 
   if (loading || !isAuthenticated) return null;
 
-  const visible = CARDS.filter((c) => hasRole(c.role));
+  const visible = CARDS;
 
   const handleDensity = async (compact) => {
     if (densitySaving || compact === compactDensity) return;

@@ -46,12 +46,48 @@ beforeEach(async () => {
     bindCapabilities(env.DB, 'u_owner', ['reviews.moderate']);
 });
 
-describe('capability gating', () => {
-    it('403s a user without reviews.moderate', async () => {
+describe('access model (open reads / gated writes)', () => {
+    it('read is open to any authenticated admin (open-reads model) — sensitive fields nulled for non-moderators', async () => {
+        const env2 = createMockEnv();
+        const s = await createAdminSession(env2, { id: 'u_nocaps', role: 'staff' });
+        // no bindCapabilities → reviews.moderate absent
+        env2.DB.__on(COUNT, { n: 1 }, 'first');
+        env2.DB.__on(LIST, { results: [reviewRow()] }, 'all');
+        env2.DB.__on(SUMMARY, { published: 3, hidden: 1, total: 4, average: 4.6 }, 'first');
+
+        const res = await worker.fetch(new Request('https://airactionsport.com/api/admin/reviews', { headers: { cookie: s.cookieHeader } }), env2, {});
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.total).toBe(1);
+        const item = json.items[0];
+        expect(item).toMatchObject({ id: 'rv_1', rating: 5, authorName: 'Jane D.', status: 'published' });
+        // rowToDto(r, canModerate=false) nulls the moderator-only fields.
+        expect(item.email).toBeNull();
+        expect(item.ipHash).toBeNull();
+    });
+
+    it('a moderator with reviews.moderate still receives email + ipHash on GET', async () => {
+        // Default env: owner with reviews.moderate bound in beforeEach.
+        env.DB.__on(COUNT, { n: 1 }, 'first');
+        env.DB.__on(LIST, { results: [reviewRow()] }, 'all');
+        env.DB.__on(SUMMARY, { published: 3, hidden: 1, total: 4, average: 4.6 }, 'first');
+
+        const res = await worker.fetch(req('/api/admin/reviews'), env, {});
+        expect(res.status).toBe(200);
+        const item = (await res.json()).items[0];
+        expect(item.email).toBe('jane@x.com');
+        expect(item.ipHash).toBe('abc');
+    });
+
+    it('PUT /:id (moderation WRITE) still 403s without reviews.moderate', async () => {
         const env2 = createMockEnv();
         const s = await createAdminSession(env2, { id: 'u_nocaps', role: 'staff' });
         // no bindCapabilities → cap absent
-        const res = await worker.fetch(new Request('https://airactionsport.com/api/admin/reviews', { headers: { cookie: s.cookieHeader } }), env2, {});
+        const res = await worker.fetch(new Request('https://airactionsport.com/api/admin/reviews/rv_1', {
+            method: 'PUT',
+            headers: { cookie: s.cookieHeader, 'content-type': 'application/json' },
+            body: JSON.stringify({ action: 'hide', reason: 'nope' }),
+        }), env2, {});
         expect(res.status).toBe(403);
     });
 });
