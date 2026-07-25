@@ -54,10 +54,14 @@ export async function runStripeFeeSync(env, { limit = LIMIT_DEFAULT } = {}) {
             // Not settled yet (no balance_transaction) — leave NULL to retry.
             if (feeCents == null || balanceTransactionId == null) { failed += 1; continue; }
             await env.DB.prepare(
+                // NOTE: bookings has no updated_at column (it's created_at /
+                // paid_at stamped only). Writing one made every UPDATE throw
+                // into the catch below, so this sweep captured 0 fees across
+                // every paid booking from the day it shipped until 2026-07-25.
                 `UPDATE bookings
-                 SET stripe_fee_cents = ?, stripe_net_cents = ?, stripe_balance_transaction_id = ?, updated_at = ?
+                 SET stripe_fee_cents = ?, stripe_net_cents = ?, stripe_balance_transaction_id = ?
                  WHERE id = ?`
-            ).bind(feeCents, netCents, balanceTransactionId, Date.now(), row.id).run();
+            ).bind(feeCents, netCents, balanceTransactionId, row.id).run();
             updated += 1;
         } catch {
             failed += 1;

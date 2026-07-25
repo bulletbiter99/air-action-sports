@@ -70,7 +70,9 @@ eventDaySessions.post('/start', async (c) => {
     // sign in to event-day mode through an event_staffing row when
     // they're working a shift.
     const staffing = await c.env.DB.prepare(
-        `SELECT id, rsvp FROM event_staffing
+        // RSVP state lives in `status` (migration 0035); this selected a
+        // nonexistent `rsvp` column, so /sessions/start 500'd on every call.
+        `SELECT id, status FROM event_staffing
          WHERE event_id = ? AND person_id = ?
          LIMIT 1`,
     ).bind(eventId, portalRow.person_id).first();

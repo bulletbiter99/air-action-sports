@@ -679,7 +679,7 @@ adminReports.get('/bookkeeper/ar-aging',
             // 'completed' stay IN — they can still carry a pending damage/balance.
             c.env.DB.prepare(
                 `SELECT frp.id, frp.rental_id, frp.due_at, frp.amount_cents,
-                        COALESCE(NULLIF(c.business_name,''), c.full_name) AS renter,
+                        COALESCE(NULLIF(c.business_name,''), c.name) AS renter,
                         s.name AS site
                  FROM field_rental_payments frp
                  JOIN field_rentals fr ON fr.id = frp.rental_id
