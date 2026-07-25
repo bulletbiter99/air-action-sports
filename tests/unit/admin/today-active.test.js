@@ -4,8 +4,9 @@
 // in worker/index.js so the full path is /api/admin/today/active.
 //
 // Response shape contract (consumed by useWidgetData cadence rule, B5
-// sidebar, B6 walk-up banner):
-//   { activeEventToday: bool, eventId: string|null, checkInOpen: bool }
+// sidebar, B6 walk-up banner, AdminToday per-event tiles):
+//   { activeEventToday: bool, eventId: string|null, checkInOpen: bool,
+//     events: [{ id, title }] }   // events added 2026-07 (additive)
 
 import { describe, it, expect } from 'vitest';
 import worker from '../../../worker/index.js';
@@ -126,7 +127,7 @@ describe('GET /api/admin/today/active', () => {
         expect(capturedSql).toMatch(/past = 0/);
     });
 
-    it('caps the query at LIMIT 2 (so multi-event detection scans the minimum needed)', async () => {
+    it('caps the query at LIMIT 6 (bounded scan; enough rows for per-event tiles)', async () => {
         const env = createMockEnv();
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
@@ -142,7 +143,70 @@ describe('GET /api/admin/today/active', () => {
             env,
             {},
         );
-        expect(capturedSql).toMatch(/LIMIT 2/);
+        expect(capturedSql).toMatch(/LIMIT 6/);
+    });
+
+    it('returns an events array with id + title for a single event today (additive shape)', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-07-25' }, 'first');
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, {
+            results: [{ id: 'evt_last_light', title: 'Operation Last Light' }],
+        }, 'all');
+
+        const res = await worker.fetch(
+            makeReq(TODAY_ACTIVE_PATH, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        const json = await res.json();
+        expect(json.eventId).toBe('evt_last_light');
+        expect(json.events).toEqual([{ id: 'evt_last_light', title: 'Operation Last Light' }]);
+    });
+
+    it('returns every active event in events[] on a multi-event day (eventId stays null)', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-07-25' }, 'first');
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, {
+            results: [
+                { id: 'evt_last_light', title: 'Operation Last Light' },
+                { id: 'evt_fire_storm', title: 'Operation Fire Storm' },
+            ],
+        }, 'all');
+
+        const res = await worker.fetch(
+            makeReq(TODAY_ACTIVE_PATH, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        const json = await res.json();
+        expect(json.activeEventToday).toBe(true);
+        expect(json.eventId).toBe(null);
+        expect(json.events).toEqual([
+            { id: 'evt_last_light', title: 'Operation Last Light' },
+            { id: 'evt_fire_storm', title: 'Operation Fire Storm' },
+        ]);
+    });
+
+    it('events[] title falls back to null when the row carries none', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
+
+        env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-07-25' }, 'first');
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\)/, {
+            results: [{ id: 'evt_untitled' }],
+        }, 'all');
+
+        const res = await worker.fetch(
+            makeReq(TODAY_ACTIVE_PATH, { headers: { cookie: cookieHeader } }),
+            env,
+            {},
+        );
+        const json = await res.json();
+        expect(json.events).toEqual([{ id: 'evt_untitled', title: null }]);
     });
 
     it('returns 401 when admin cookie is missing', async () => {
