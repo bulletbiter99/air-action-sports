@@ -7,11 +7,7 @@
   "gates": {
     "worker/lib/pricing.js": {
       "tier": "critical",
-      "covers": [
-        "calculateQuote",
-        "loadActiveTaxesFees",
-        "centsToDollars"
-      ],
+      "covers": ["calculateQuote", "loadActiveTaxesFees", "centsToDollars"],
       "audit_group": "A",
       "tests": [
         "tests/unit/pricing/empty-cart.test.js",
@@ -151,9 +147,7 @@
     },
     "worker/lib/waiverLookup.js": {
       "tier": "critical",
-      "covers": [
-        "findExistingValidWaiver"
-      ],
+      "covers": ["findExistingValidWaiver"],
       "audit_group": "D",
       "tests": [
         "tests/unit/auto-link/null-inputs-return-null.test.js",
@@ -207,7 +201,8 @@
         "POST /api/admin/bookings/:id/refund-external (5 methods, always-notify customer per D06) — M4 B3a",
         "POST /api/admin/bookings/:id/detach-saved-pm (M6 B9 — privacy: detach Stripe PM from Customer)",
         "POST /api/admin/bookings/:id/reschedule (move booking to another event — remap event/ticket-type/attendees + adjust sold counts; payment preserved)",
-        "POST /api/admin/bookings/:id/resend-waiver-confirmation (re-send waiver receipt per signed attendee)"
+        "POST /api/admin/bookings/:id/resend-waiver-confirmation (re-send waiver receipt per signed attendee)",
+        "POST /api/admin/bookings/:id/resend-review-invite (manual post-event review invite; sentinel-disciplined — 2026-07)"
       ],
       "audit_group": "E + M6 B9",
       "tests": [
@@ -269,50 +264,27 @@
     },
     "worker/lib/password.js": {
       "tier": "high",
-      "covers": [
-        "hashPassword",
-        "verifyPassword"
-      ],
+      "covers": ["hashPassword", "verifyPassword"],
       "audit_group": "F",
-      "audit_tests_prescribed": [
-        "F54",
-        "F55",
-        "F56"
-      ],
+      "audit_tests_prescribed": ["F54", "F55", "F56"],
       "tests": [
         "tests/unit/auth/password.test.js"
       ]
     },
     "worker/lib/auth.js": {
       "tier": "high",
-      "covers": [
-        "requireAuth",
-        "requireRole"
-      ],
+      "covers": ["requireAuth", "requireRole"],
       "audit_group": "F",
-      "audit_tests_prescribed": [
-        "F57",
-        "F58",
-        "F59",
-        "F60",
-        "F61"
-      ],
+      "audit_tests_prescribed": ["F57", "F58", "F59", "F60", "F61"],
       "tests": [
         "tests/unit/auth/auth.test.js"
       ]
     },
     "worker/lib/vendorToken.js": {
       "tier": "high",
-      "covers": [
-        "createVendorToken",
-        "verifyVendorToken"
-      ],
+      "covers": ["createVendorToken", "verifyVendorToken"],
       "audit_group": "F",
-      "audit_tests_prescribed": [
-        "F62",
-        "F63",
-        "F64"
-      ],
+      "audit_tests_prescribed": ["F62", "F63", "F64"],
       "tests": [
         "tests/unit/auth/vendor-token.test.js"
       ]
@@ -331,10 +303,7 @@
     },
     "worker/lib/customerTags.js": {
       "tier": "high",
-      "covers": [
-        "computeSystemTags",
-        "runCustomerTagsSweep"
-      ],
+      "covers": ["computeSystemTags", "runCustomerTagsSweep"],
       "audit_group": "(M3 B10 nightly tag refresh)",
       "tests": [
         "tests/unit/lib/customer-tags.test.js"
@@ -422,14 +391,7 @@
         "scheduled outer dispatch (full — cron-string branching, parallel sweep dispatch, error containment, always-on cron.swept audit row, ctx.waitUntil contract)"
       ],
       "audit_group": "G (full), H (outer dispatch only — inner sweeps runReminderSweep/runAbandonPendingSweep/runVendorSweep remain uncovered, see uncovered.worker/index.js)",
-      "audit_tests_prescribed": [
-        "G65",
-        "G66",
-        "G67",
-        "G68",
-        "G69",
-        "G70"
-      ],
+      "audit_tests_prescribed": ["G65", "G66", "G67", "G68", "G69", "G70"],
       "tests": [
         "tests/unit/worker/serveUpload.test.js",
         "tests/unit/worker/rewriteEventOg.test.js",
@@ -860,9 +822,7 @@
   "uncovered": {
     "worker/routes/bookings.js (quote endpoint)": {
       "tier": "critical",
-      "covers": [
-        "POST /api/bookings/quote"
-      ],
+      "covers": ["POST /api/bookings/quote"],
       "audit_group": "(public-side quote — POST /checkout was promoted to gates in M6 B5)",
       "audit_tests_prescribed": [],
       "status": "quote pricing covered indirectly via Group A; no dedicated quote-endpoint integration tests yet"
@@ -874,36 +834,20 @@
         "runAbandonPendingSweep inner behavior (PENDING_ABANDON_MS cutoff)",
         "runVendorSweep inner behavior (COI 30d/7d, package reminder, signature reminder windows + sentinels)"
       ],
-      "audit_groups": [
-        "H"
-      ],
-      "audit_tests_prescribed": [
-        "H71",
-        "H72",
-        "H73",
-        "H74",
-        "H75",
-        "H76"
-      ],
+      "audit_groups": ["H"],
+      "audit_tests_prescribed": ["H71", "H72", "H73", "H74", "H75", "H76"],
       "status": "Group G outer dispatch covered M4 B1a; H deferred to M5 per docs/runbooks/m3-baseline-coverage.txt + M4 milestone plan"
     },
     "worker/lib/emailSender.js": {
       "tier": "critical",
-      "covers": [
-        "the 9 named senders (booking_confirmation, admin_notify, waiver_request, etc.)"
-      ],
+      "covers": ["the 9 named senders (booking_confirmation, admin_notify, waiver_request, etc.)"],
       "audit_group": "(B partial)",
       "audit_tests_prescribed": [],
       "status": "no dedicated tests; covered indirectly via tests/unit/webhook/email-send-confirmation.test.js + email-send-admin-notify.test.js"
     },
     "worker/lib/formatters.js": {
       "tier": "critical",
-      "covers": [
-        "formatEvent",
-        "formatTicketType",
-        "formatBooking",
-        "safeJson"
-      ],
+      "covers": ["formatEvent", "formatTicketType", "formatBooking", "safeJson"],
       "audit_group": "(shared with public site)",
       "audit_tests_prescribed": [],
       "status": "no dedicated suite for the whole module; the additive endDateIso field (multi-day events Phase 1) is covered by tests/unit/admin/events-end-date.test.js; otherwise covered indirectly via webhook fixture's event lookup"
