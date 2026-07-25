@@ -39,8 +39,11 @@ eventDayEquipmentReturn.post('/lookup', async (c) => {
     const qrToken = String(body.qrToken || '').trim();
     if (!qrToken) return c.json({ error: 'qrToken required' }, 400);
 
-    // Look up an active assignment by joining rental_items.qr_token /
-    // rental_items.sku. Active = checked_in_at IS NULL (still out).
+    // Look up an active assignment by rental_items.sku / rental_items.serial_number.
+    // Active = checked_in_at IS NULL (still out). NOTE: this used to match on a
+    // `ri.qr_token` column that rental_items has never had — the lookup threw
+    // instead of returning a result. Items are identified by their printed SKU
+    // or serial, so the scanned code is matched against both.
     const assignment = await c.env.DB.prepare(
         `SELECT ra.id, ra.rental_item_id, ra.attendee_id, ra.booking_id,
                 ra.checked_out_at, ra.checked_in_at,
@@ -51,7 +54,7 @@ eventDayEquipmentReturn.post('/lookup', async (c) => {
          INNER JOIN rental_items ri ON ri.id = ra.rental_item_id
          INNER JOIN attendees a ON a.id = ra.attendee_id
          INNER JOIN bookings b ON b.id = ra.booking_id
-         WHERE (ri.qr_token = ? OR ri.sku = ?)
+         WHERE (ri.sku = ? OR ri.serial_number = ?)
            AND ra.checked_in_at IS NULL
          ORDER BY ra.checked_out_at DESC
          LIMIT 1`,

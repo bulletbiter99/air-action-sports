@@ -295,11 +295,14 @@ export async function getEventHqAggregate(env, eventId) {
          WHERE b.event_id = ? AND b.status IN ('paid', 'comp')`,
     ).bind(eventId).first();
 
-    // Staffing: count assignments and "present" = rsvp accepted + not no-show.
+    // Staffing: count assignments and "present" = RSVP confirmed + not no-show.
+    // The column is `status` and the accepted value is 'confirmed' (see the
+    // CHECK in migration 0035) — this read `rsvp = 'accepted'`, so the silent
+    // .catch() below turned the HQ staffing tile into a permanent 0/0.
     const staffRow = await env.DB.prepare(
         `SELECT
            COUNT(*) AS total,
-           SUM(CASE WHEN rsvp = 'accepted' AND no_show_at IS NULL THEN 1 ELSE 0 END) AS present
+           SUM(CASE WHEN status = 'confirmed' AND no_show_at IS NULL THEN 1 ELSE 0 END) AS present
          FROM event_staffing
          WHERE event_id = ?`,
     ).bind(eventId).first().catch(() => ({ total: 0, present: 0 }));

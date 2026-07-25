@@ -56,7 +56,8 @@
       ],
       "audit_group": "(2026-06-24 true Stripe-fee capture; 2026-06-25 refund-side reconciliation)",
       "tests": [
-        "tests/unit/lib/stripeFeeSync.test.js"
+        "tests/unit/lib/stripeFeeSync.test.js",
+        "tests/unit/schema/workerSql.test.js"
       ]
     },
     "worker/lib/reviewInvites.js": {
@@ -764,7 +765,8 @@
       ],
       "audit_group": "(M7 Batch 1a shell + Batch 2 Owner reports)",
       "tests": [
-        "tests/unit/admin/reports/reports-stub.test.js"
+        "tests/unit/admin/reports/reports-stub.test.js",
+        "tests/unit/schema/workerSql.test.js"
       ]
     },
     "worker/lib/auditSearch.js": {
