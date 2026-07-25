@@ -54,6 +54,7 @@ export default function AdminBookingsDetail() {
     const [detachPmOpen, setDetachPmOpen] = useState(false);
     const [detaching, setDetaching] = useState(false);
     const [resendingWaiverConf, setResendingWaiverConf] = useState(false);
+    const [resendingReview, setResendingReview] = useState(false);
     // Move-to-another-event modal
     const [rescheduleOpen, setRescheduleOpen] = useState(false);
 
@@ -121,6 +122,29 @@ export default function AdminBookingsDetail() {
             flashMsg('err', e?.message || 'Network error');
         } finally {
             setResendingWaiverConf(false);
+        }
+    };
+
+    // Review invite (2026-07) — manual (re)send of the post-event review
+    // email; sibling of resendWaiverConfirmation. Reloads so the "Sent …"
+    // status row reflects the new sentinel.
+    const resendReviewInvite = async () => {
+        setResendingReview(true);
+        try {
+            const res = await fetch(`/api/admin/bookings/${encodeURIComponent(id)}/resend-review-invite`, {
+                method: 'POST', credentials: 'include',
+            });
+            const j = await res.json().catch(() => ({}));
+            if (res.ok) {
+                flashMsg('ok', `Review invite sent to ${j.sentTo || 'customer'}`);
+                await load();
+            } else {
+                flashMsg('err', j.error || 'Send failed');
+            }
+        } catch (e) {
+            flashMsg('err', e?.message || 'Network error');
+        } finally {
+            setResendingReview(false);
         }
     };
 
@@ -202,6 +226,13 @@ export default function AdminBookingsDetail() {
     const canDetachPM = canOwnerActions && stripeIntent && !isExternalIntent;
     // Reschedule: a paid/comp booking that hasn't been refunded can move events.
     const canReschedule = ['paid', 'comp'].includes(booking.status) && !booking.refundedAt;
+    // Review invite (2026-07): sendable for a paid/comp booking once the
+    // event's last day has passed and no review was submitted — mirrors the
+    // server's 409 gates (date portions, UTC).
+    const eventEndDay = String(event?.endDateIso || event?.dateIso || '').slice(0, 10);
+    const eventEnded = Boolean(eventEndDay && eventEndDay < new Date().toISOString().slice(0, 10));
+    const canSendReviewInvite = ['paid', 'comp'].includes(booking.status) && eventEnded && !data.review;
+    const reviewInviteSentAt = data.reviewInvite?.sentAt || null;
 
     return (
         <div className="abd">
@@ -238,6 +269,13 @@ export default function AdminBookingsDetail() {
                         {booking.taxCents > 0 && <Row label="Tax" value={formatMoney(booking.taxCents)} />}
                         {booking.feeCents > 0 && <Row label="Fee" value={formatMoney(booking.feeCents)} />}
                         <Row label="Payment" value={<MethodBadge method={booking.paymentMethod} />} />
+                        <Row label="Review invite" value={
+                            data.review
+                                ? `Review submitted${data.review.rating ? ` (${data.review.rating}★)` : ''}${data.review.status === 'hidden' ? ' · hidden' : ''}`
+                                : reviewInviteSentAt
+                                    ? `Sent ${new Date(reviewInviteSentAt).toLocaleString()}`
+                                    : eventEnded ? 'Not sent' : 'Sends after the event ends'
+                        } />
                         <Row label="Buyer" value={
                             <>
                                 <strong>{booking.fullName}</strong>
@@ -369,6 +407,16 @@ export default function AdminBookingsDetail() {
                                         className="abd-action-btn"
                                     >
                                         {resendingWaiverConf ? 'Sending…' : '✉ Resend waiver confirmation'}
+                                    </button>
+                                )}
+                                {canSendReviewInvite && (
+                                    <button
+                                        type="button"
+                                        onClick={resendReviewInvite}
+                                        disabled={resendingReview}
+                                        className="abd-action-btn"
+                                    >
+                                        {resendingReview ? 'Sending…' : (reviewInviteSentAt ? '✉ Resend review invite' : '✉ Send review invite')}
                                     </button>
                                 )}
                                 {canRefundStripe && (
