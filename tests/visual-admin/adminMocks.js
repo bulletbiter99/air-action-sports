@@ -92,6 +92,19 @@ export async function installAdminMocks(page, { authed = true, overrides = [] } 
         // Without this it falls through to the generic EMPTY mock → deferredCents
         // is undefined → formatMoney(undefined) renders "$NaN" in the baseline.
         if (path.includes('/analytics/deferred-revenue')) return json({ deferredCents: 0, recognizedCents: 0, upcomingEvents: [] });
+        // Owner-dashboard "Reminder cron" widget (CronHealth). Without this it
+        // fell through to the generic EMPTY mock → no lastSweepAt → the tile
+        // captured a red STALE / "last sweep unknown ago", which is exactly the
+        // broken state the baseline had pixel-locked. lastSweepAt is computed
+        // per-run at a mid-bucket offset so formatAge() renders a stable "12m"
+        // on both capture and compare (a fixed epoch would drift with the clock).
+        if (path.includes('/analytics/cron-status')) {
+            return json({
+                lastSweepAt: Date.now() - 12 * 60 * 1000,
+                lastSweepMeta: null,
+                reminders24h: { sent24hr: 0, sent1hr: 0 },
+            });
+        }
         if (path.includes('/analytics/funnel')) return json(ZERO_FUNNEL);
         if (path.includes('/analytics/sales-series')) return json({ series: [] });
         if (path.includes('/dashboard/action-queue')) return json(ZERO_ACTION_QUEUE);
