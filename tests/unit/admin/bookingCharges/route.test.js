@@ -140,7 +140,7 @@ describe('POST /api/admin/booking-charges/:id/approve', () => {
         expect(data.currentStatus).toBe('sent');
     });
 
-    it('returns 200 + flips to sent + writes audit + generates payment link', async () => {
+    it('returns 200 + flips to sent + writes audit, with NO payment link', async () => {
         bindCharge();
         env.DB.__on(/UPDATE booking_charges[\s\S]+approval_required = 0/, { meta: { changes: 1 } }, 'run');
         env.DB.__on(/INSERT INTO audit_log/, { meta: { changes: 1 } }, 'run');
@@ -155,7 +155,13 @@ describe('POST /api/admin/booking-charges/:id/approve', () => {
         const body = await res.json();
         expect(body.ok).toBe(true);
         expect(body.status).toBe('sent');
-        expect(body.paymentLink).toMatch(/\/admin\/booking-charges\/pay\//);
+        // Approving used to mint {SITE_URL}/admin/booking-charges/pay/<token>,
+        // a URL that has never resolved (audit A3) and whose intended landing
+        // sat behind requireAuth. It is not generated any more; the notice
+        // email no longer references one (migration 0079).
+        expect(body.paymentLink).toBeUndefined();
+        const update = env.DB.__writes().find((w) => /UPDATE booking_charges/.test(w.sql));
+        expect(update.sql).not.toMatch(/payment_link/);
 
         const writes = env.DB.__writes();
         const audit = writes.find((w) =>
