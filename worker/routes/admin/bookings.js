@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
 import { formatBooking, formatEvent, safeJson } from '../../lib/formatters.js';
 import { issueRefund, createCheckoutSession, retrievePaymentIntent, detachPaymentMethod } from '../../lib/stripe.js';
-import { bookingId, attendeeId, qrToken } from '../../lib/ids.js';
-import { sendBookingConfirmation, sendWaiverRequest, sendRefundRecordedExternal, sendWaiverConfirmation } from '../../lib/emailSender.js';
+import { bookingId, attendeeId, qrToken, reviewToken } from '../../lib/ids.js';
+import { sendBookingConfirmation, sendWaiverRequest, sendRefundRecordedExternal, sendWaiverConfirmation, sendReviewInvite } from '../../lib/emailSender.js';
 import { findExistingValidWaiver } from '../../lib/waiverLookup.js';
 import { loadActiveTaxesFees } from '../../lib/pricing.js';
 import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
@@ -404,6 +404,24 @@ adminBookings.get('/:id', async (c) => {
         createdAt: r.created_at,
     }));
 
+    // Review-invite visibility (2026-07): surface the invite sentinel + any
+    // submitted review so the operator can answer "did they get the review
+    // email?" without SQL. Best-effort — reviews landed in migration 0077.
+    let review = null;
+    try {
+        const reviewRow = await c.env.DB.prepare(
+            `SELECT id, status, rating, created_at FROM reviews WHERE booking_id = ?`
+        ).bind(id).first();
+        if (reviewRow) {
+            review = {
+                id: reviewRow.id,
+                status: reviewRow.status,
+                rating: reviewRow.rating,
+                createdAt: reviewRow.created_at,
+            };
+        }
+    } catch { /* reviews table missing (pre-0077 fixture) — treat as none */ }
+
     // M4 B3a — PII masking per D05. Caller with bookings.read.pii sees
     // full email/phone (and an audit row 'customer_pii.unmasked' is written
     // per call). Caller without the capability sees masked values; no
@@ -442,6 +460,8 @@ adminBookings.get('/:id', async (c) => {
         })),
         customer: customerCard,
         activityLog,
+        reviewInvite: { sentAt: row.review_invite_sent_at || null },
+        review,
         viewerCanSeePII: canSeePII,
     });
 });
@@ -1028,6 +1048,92 @@ adminBookings.post('/:id/resend-waiver-confirmation', requireRole('owner', 'mana
     }
 
     return c.json(results);
+});
+
+// POST /api/admin/bookings/:id/resend-review-invite — manually (re)send the
+// post-event review invite. Support tool beside the nightly sweep
+// (worker/lib/reviewInvites.js): the sweep only touches bookings whose
+// sentinel is NULL inside its 18-48h post-event window, so a booking that
+// was suppressed, missed the window, or whose email never arrived can be
+// sent by hand here. Reuses the existing review_token when present (keeps a
+// previously-emailed link alive); mints one otherwise. Stamping
+// review_invite_sent_at also keeps the sweep from double-sending.
+adminBookings.post('/:id/resend-review-invite', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const booking = await c.env.DB.prepare(`SELECT * FROM bookings WHERE id = ?`).bind(id).first();
+    if (!booking) return c.json({ error: 'Booking not found' }, 404);
+    if (!['paid', 'comp'].includes(booking.status)) {
+        return c.json({ error: 'Only paid or comp bookings can receive review invites' }, 409);
+    }
+    if (!booking.email) return c.json({ error: 'No buyer email on file' }, 400);
+
+    const event = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(booking.event_id).first();
+    if (!event) return c.json({ error: 'Event not found' }, 404);
+
+    // Reviews are post-event: the event's last day (date portions — date_iso
+    // is timezone-naive) must be before today (UTC). Mirrors the sweep's
+    // end-anchor rule loosely enough for a manual send the morning after.
+    const endIso = String(event.end_date_iso || event.date_iso || '').slice(0, 10);
+    const todayIso = new Date().toISOString().slice(0, 10);
+    if (!endIso || endIso >= todayIso) {
+        return c.json({ error: 'Event has not ended yet — review invites go out after the event' }, 409);
+    }
+
+    // A submitted review means the invite already did its job.
+    let existingReview = null;
+    try {
+        existingReview = await c.env.DB.prepare(
+            `SELECT id FROM reviews WHERE booking_id = ?`
+        ).bind(id).first();
+    } catch { /* reviews table missing (pre-0077 fixture) — proceed */ }
+    if (existingReview) {
+        return c.json({ error: 'This booking already submitted a review' }, 409);
+    }
+
+    const prevSentAt = booking.review_invite_sent_at || null;
+    const prevToken = booking.review_token || null;
+    const token = prevToken || reviewToken();
+    const now = Date.now();
+    await c.env.DB.prepare(
+        `UPDATE bookings SET review_invite_sent_at = ?, review_token = ? WHERE id = ?`
+    ).bind(now, token, id).run();
+
+    // Mirror the sweep's sentinel discipline: if no mail actually goes out,
+    // restore the prior state so the row doesn't read as "invited".
+    const restore = async () => {
+        try {
+            await c.env.DB.prepare(
+                `UPDATE bookings SET review_invite_sent_at = ?, review_token = ? WHERE id = ?`
+            ).bind(prevSentAt, prevToken, id).run();
+        } catch (restoreErr) {
+            console.error('resend-review-invite sentinel restore failed for', id, restoreErr);
+        }
+    };
+
+    let outcome;
+    try {
+        outcome = await sendReviewInvite(c.env, {
+            booking: { id: booking.id, full_name: booking.full_name, email: booking.email },
+            event: { title: event.title, display_date: event.display_date },
+            reviewLink: `${c.env.SITE_URL || 'https://airactionsport.com'}/review?token=${token}`,
+        });
+    } catch (err) {
+        console.error('resend-review-invite send failed for', id, err);
+        await restore();
+        return c.json({ error: 'Email send failed' }, 502);
+    }
+    if (outcome?.skipped) {
+        await restore();
+        return c.json({ error: `Not sent: ${outcome.skipped}` }, 500);
+    }
+
+    await c.env.DB.prepare(
+        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+         VALUES (?, 'booking.review_invite_resent', 'booking', ?, ?, ?)`
+    ).bind(user.id, id, JSON.stringify({ to: booking.email }), now).run();
+
+    return c.json({ success: true, sentTo: booking.email });
 });
 
 // M6 B9 — POST /:id/detach-saved-pm
