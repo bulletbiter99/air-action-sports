@@ -1,912 +1,912 @@
 {
-    "$comment": "Test-gate map for Air Action Sports. Maps do-not-touch source paths (per docs/audit/06-do-not-touch.md) to the test paths that lock their behavior. Rule: before editing any path under `gates`, run the listed test paths and confirm they pass. After your edit, re-run them — they must still pass. If a test reveals current behavior conflicting with audit-documented behavior, STOP and ask the operator. The `uncovered` section enumerates do-not-touch files without tests yet — their `audit_tests_prescribed` arrays form the post-M1 punch list per docs/audit/09-test-coverage.md. When adding tests for a gated path in a future batch, also append the new test paths to the relevant `gates[<path>].tests` array.",
-    "version": 1,
-    "audit_reference": "docs/audit/06-do-not-touch.md",
-    "test_coverage_reference": "docs/audit/09-test-coverage.md",
-    "test_directory": "tests/unit/",
-    "gates": {
-        "worker/lib/pricing.js": {
-            "tier": "critical",
-            "covers": [
-                "calculateQuote",
-                "loadActiveTaxesFees",
-                "centsToDollars"
-            ],
-            "audit_group": "A",
-            "tests": [
-                "tests/unit/pricing/empty-cart.test.js",
-                "tests/unit/pricing/single-ticket-no-addon.test.js",
-                "tests/unit/pricing/multi-ticket-with-addon.test.js",
-                "tests/unit/pricing/percent-tax-fixed-fee.test.js",
-                "tests/unit/pricing/percent-fee-on-percent-tax.test.js",
-                "tests/unit/pricing/applies-to-tickets.test.js",
-                "tests/unit/pricing/applies-to-all.test.js",
-                "tests/unit/pricing/line-items-shape.test.js",
-                "tests/unit/pricing/promo-percent.test.js",
-                "tests/unit/pricing/promo-fixed.test.js",
-                "tests/unit/pricing/per-unit-multipliers.test.js",
-                "tests/unit/pricing/capacity-errors.test.js",
-                "tests/unit/pricing/min-max-per-order.test.js",
-                "tests/unit/pricing/inactive-fee-excluded.test.js",
-                "tests/unit/pricing/cents-precision.test.js"
-            ]
-        },
-        "worker/lib/stripe.js": {
-            "tier": "critical",
-            "covers": [
-                "verifyWebhookSignature",
-                "createCheckoutSession (M6 B5 — optional setupFutureUsage)",
-                "retrievePaymentIntent (M6 B7)",
-                "chargeOffSession (M6 B7 — POST /v1/payment_intents with off_session=true + confirm=true; idempotency-keyed)",
-                "detachPaymentMethod (M6 B9 — POST /v1/payment_methods/:id/detach)"
-            ],
-            "audit_group": "B (signature subset) + M6 B5 + M6 B7 + M6 B9",
-            "tests": [
-                "tests/unit/webhook/signature-verify-valid.test.js",
-                "tests/unit/webhook/signature-verify-invalid.test.js",
-                "tests/unit/webhook/signature-verify-stale.test.js",
-                "tests/unit/webhook/signature-verify-multi-v1.test.js",
-                "tests/unit/webhook/signature-constant-time.test.js",
-                "tests/unit/lib/stripe-setup-future-usage.test.js",
-                "tests/unit/lib/stripe-off-session-charge.test.js",
-                "tests/unit/lib/stripe-detach-pm.test.js",
-                "tests/unit/lib/stripeFeeSync.test.js"
-            ]
-        },
-        "worker/lib/stripeFeeSync.js": {
-            "tier": "high",
-            "covers": [
-                "runStripeFeeSync (nightly reconciliation cron: backfills bookings.stripe_fee_cents/_net/_balance_transaction_id from each charge's true Stripe fee for PAID and REFUNDED bookings — a refund keeps the original fee; per-row guarded; idempotent via the stripe_fee_cents IS NULL candidate filter)"
-            ],
-            "audit_group": "(2026-06-24 true Stripe-fee capture; 2026-06-25 refund-side reconciliation)",
-            "tests": [
-                "tests/unit/lib/stripeFeeSync.test.js"
-            ]
-        },
-        "worker/lib/reviewInvites.js": {
-            "tier": "high",
-            "covers": [
-                "runReviewInviteSweep (03:00 cron: emails each paid/comp booking a per-booking review_token link ~24h after the event ends; sentinel-first claim + roll-both-back on send failure OR sender-decline/deferred; best-effort audit cannot roll back a sent email; blast protection = [now-48h,now-18h] window + REVIEW_LAUNCH_CUTOFF_MS forward fence + per-run LIMIT cap, plus a soft-alarm log on unusually large runs; COALESCE(end_date_iso,date_iso) anchor)"
-            ],
-            "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 2)",
-            "tests": [
-                "tests/unit/lib/reviewInvites.test.js"
-            ]
-        },
-        "worker/lib/ids.js": {
-            "tier": "high",
-            "covers": [
-                "Review ID/token generators (migration 0077): reviewToken (40 base62 chars — the SECURITY-critical length mirrored by REVIEW_TOKEN_LEN=40 + TOKEN_RE ^[0-9A-Za-z]{40}$ in worker/routes/reviews.js; a change here silently breaks every real review link) + reviewId (rv_ + 14-char base62 body) + the shared randomId primitive (exact length, base62 alphabet, randomness). ids.js is a do-not-touch ID-format-contract file; this entry locks the review helpers only."
-            ],
-            "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 2)",
-            "tests": [
-                "tests/unit/lib/ids.test.js"
-            ]
-        },
-        "worker/routes/reviews.js": {
-            "tier": "high",
-            "covers": [
-                "Public attendee-verified reviews API: GET /context (token->form state, RL_TOKEN_LOOKUP), POST / (submit/edit, auto-publish, one-per-booking + 30d/3-edit cap, honeypot 'company', RL_FEEDBACK, paid/comp-only gate), GET /?event= (per-event feed+avg), GET /summary (overall+recent+perEvent), GET /all (paginated). Token-gated, publish-independent visibility (status='published'); whitelisted public output (no email/booking_id/ip_hash/status)"
-            ],
-            "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 3)",
-            "tests": [
-                "tests/unit/reviews/context.test.js",
-                "tests/unit/reviews/submit.test.js",
-                "tests/unit/reviews/feeds.test.js"
-            ]
-        },
-        "worker/lib/reviewAggregates.js": {
-            "tier": "high",
-            "covers": [
-                "Server-injected review JSON-LD: getOrgReviewAggregate / getEventReviewBundle (shared status='published' predicate; null at zero rows / on error), serializeJsonLd (MANDATORY </script>/<>&/U+2028-9 escaping — the only stored-XSS guard on auto-published review text injected into HTML), buildOrgJsonLd / buildEventJsonLd (real aggregateRating + review[], crawler-visible). Consumed by rewriteHomeJsonLd + rewriteEventOg in worker/index.js"
-            ],
-            "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 4)",
-            "tests": [
-                "tests/unit/lib/reviewAggregates.test.js",
-                "tests/unit/worker/reviewJsonLd.test.js"
-            ]
-        },
-        "worker/routes/admin/reviews.js": {
-            "tier": "high",
-            "covers": [
-                "Admin review moderation: GET / (list + event_id/status/rating/q filters + published/hidden/avg summary + bookingFlag for refunded/cancelled bookings; admin-only email/ip_hash behind the cap), PUT /:id (hide/unhide + reason + writeAudit review.hidden/unhidden). Gated by requireCapability('reviews.moderate'). A hide drops the review from every public feed + SSR aggregate (all filter status='published')."
-            ],
-            "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 5)",
-            "tests": [
-                "tests/unit/admin/reviews-route.test.js"
-            ]
-        },
-        "worker/routes/bookings.js": {
-            "tier": "critical",
-            "covers": [
-                "POST /api/bookings/checkout — public Stripe Checkout Session creation; pricing pinned by Group A + setupFutureUsage='off_session' (M6 B5) authorizing future off-session damage charges (B7+)"
-            ],
-            "audit_group": "(M6 B5 promoted from `uncovered`)",
-            "tests": [
-                "tests/unit/bookings/checkout-setup-future-usage.test.js"
-            ]
-        },
-        "worker/routes/webhooks.js": {
-            "tier": "critical",
-            "covers": [
-                "POST /api/webhooks/stripe",
-                "handleCheckoutCompleted",
-                "handleDisputeCreated (M6 B6 — charge.dispute.created consumer)",
-                "POST /api/webhooks/resend (M7 B8 — Resend bounce/complaint consumer; handleResendEmailEvent)"
-            ],
-            "audit_group": "B + M6 B6 dispute handler + M7 B8 resend consumer",
-            "tests": [
-                "tests/unit/webhook/idempotency-already-paid.test.js",
-                "tests/unit/webhook/unknown-event-type.test.js",
-                "tests/unit/webhook/attendee-creation.test.js",
-                "tests/unit/webhook/ticket-types-sold-increment.test.js",
-                "tests/unit/webhook/promo-uses-increment.test.js",
-                "tests/unit/webhook/audit-log-emission.test.js",
-                "tests/unit/webhook/email-send-confirmation.test.js",
-                "tests/unit/webhook/email-send-admin-notify.test.js",
-                "tests/unit/webhook/waiver-auto-link-on-paid.test.js",
-                "tests/unit/webhook/dispute-created-handler.test.js",
-                "tests/unit/webhook/resend-consumer.test.js"
-            ]
-        },
-        "worker/lib/waiverLookup.js": {
-            "tier": "critical",
-            "covers": [
-                "findExistingValidWaiver"
-            ],
-            "audit_group": "D",
-            "tests": [
-                "tests/unit/auto-link/null-inputs-return-null.test.js",
-                "tests/unit/auto-link/match-by-email-and-name.test.js",
-                "tests/unit/auto-link/case-insensitive-email.test.js",
-                "tests/unit/auto-link/whitespace-tolerant-name.test.js",
-                "tests/unit/auto-link/claim-period-required.test.js",
-                "tests/unit/auto-link/expired-claim-period-no-match.test.js",
-                "tests/unit/auto-link/latest-by-signed-at.test.js",
-                "tests/unit/auto-link/sibling-different-name-no-match.test.js",
-                "tests/unit/auto-link/cross-flow-consistency.test.js"
-            ]
-        },
-        "worker/routes/waivers.js": {
-            "tier": "critical",
-            "covers": [
-                "POST /api/waivers/:qrToken",
-                "GET /api/waivers/:qrToken",
-                "getLiveWaiverDocument"
-            ],
-            "audit_group": "C",
-            "tests": [
-                "tests/unit/waiver/erecords-consent-required.test.js",
-                "tests/unit/waiver/signature-must-match-name.test.js",
-                "tests/unit/waiver/age-tier-under-12-blocked.test.js",
-                "tests/unit/waiver/age-tier-12-15-requires-parent-and-supervisor.test.js",
-                "tests/unit/waiver/age-tier-16-17-requires-parent-only.test.js",
-                "tests/unit/waiver/age-tier-18-plus-independent.test.js",
-                "tests/unit/waiver/jury-trial-initials-required.test.js",
-                "tests/unit/waiver/row-doc-link-and-snapshot.test.js",
-                "tests/unit/waiver/row-claim-period.test.js",
-                "tests/unit/waiver/row-tier-flags.test.js",
-                "tests/unit/waiver/attendee-waiver-id-set.test.js",
-                "tests/unit/waiver/audit-log-waiver-signed.test.js",
-                "tests/unit/waiver/already-signed-409.test.js",
-                "tests/unit/waiver/integrity-fail-on-post.test.js",
-                "tests/unit/waiver/integrity-fail-on-get.test.js",
-                "tests/unit/waiver/confirmation-email-sent.test.js"
-            ]
-        },
-        "worker/routes/admin/bookings.js": {
-            "tier": "critical",
-            "covers": [
-                "POST /api/admin/bookings/manual",
-                "POST /api/admin/bookings/:id/refund",
-                "GET /api/admin/bookings (list with rich filters: status, event_id, q, from, to, payment_method, has_refund, waiver_status, min_amount, max_amount, customer_id) — M4 B2b",
-                "POST /api/admin/bookings/bulk/resend-confirmation — M4 B2b",
-                "POST /api/admin/bookings/bulk/resend-waiver-request — M4 B2b",
-                "GET /api/admin/bookings/export.csv — M4 B2b",
-                "GET /api/admin/bookings/:id (detail with customer card + activity log + PII masking + audit) — M4 B3a",
-                "POST /api/admin/bookings/:id/refund-external (5 methods, always-notify customer per D06) — M4 B3a",
-                "POST /api/admin/bookings/:id/detach-saved-pm (M6 B9 — privacy: detach Stripe PM from Customer)",
-                "POST /api/admin/bookings/:id/reschedule (move booking to another event — remap event/ticket-type/attendees + adjust sold counts; payment preserved)",
-                "POST /api/admin/bookings/:id/resend-waiver-confirmation (re-send waiver receipt per signed attendee)"
-            ],
-            "audit_group": "E + M6 B9",
-            "tests": [
-                "tests/unit/admin/manual-cash.test.js",
-                "tests/unit/admin/manual-comp.test.js",
-                "tests/unit/admin/manual-card.test.js",
-                "tests/unit/admin/manual-pricing-parity.test.js",
-                "tests/unit/admin/manual-auto-link.test.js",
-                "tests/unit/admin/refund-idempotency-key.test.js",
-                "tests/unit/admin/refund-rejects-cash.test.js",
-                "tests/unit/admin/bookings/list-rich-filters.test.js",
-                "tests/unit/admin/bookings/bulk-actions.test.js",
-                "tests/unit/admin/bookings/export-csv.test.js",
-                "tests/unit/admin/bookings/detail-view.test.js",
-                "tests/unit/admin/bookings/refund-external.test.js",
-                "tests/unit/admin/bookings/detach-saved-pm.test.js",
-                "tests/unit/admin/bookings/reschedule.test.js",
-                "tests/unit/admin/bookings/resend-waiver-confirmation.test.js",
-                "tests/unit/admin/bookings/resend-review-invite.test.js"
-            ]
-        },
-        "worker/lib/capabilities.js": {
-            "tier": "high",
-            "covers": [
-                "listCapabilities(env, userId) — async DB-backed; joins role_preset_capabilities + user_capability_overrides; legacy fallback when role_preset_key NULL or M5 tables missing",
-                "userHasCapability(env, userId, key) — async DB check with dependency-chain walk via capabilities.requires_capability_key",
-                "hasCapability(user, key) — sync; checks user.capabilities array first, falls back to legacy role mapping",
-                "requireCapability(key) — Hono middleware factory; lazy-loads capabilities onto user; 401/403 with requiresCapability hint",
-                "userCapabilities(user) — sync; backward-compat alias for the M4 stub's import surface"
-            ],
-            "audit_group": "(M5 B2 DB-backed RBAC replacing M4 stub)",
-            "tests": [
-                "tests/unit/lib/capabilities.test.js",
-                "tests/unit/admin/bookings/detail-view.test.js"
-            ]
-        },
-        "worker/lib/users.js": {
-            "tier": "high",
-            "covers": [
-                "legacyRoleToRolePreset(role) — pure mapping owner->event_director, manager->booking_coordinator, staff->staff_legacy",
-                "migrateUserToRolePreset(env, userId) — idempotent; assigns role_preset_key based on legacy role",
-                "migrateAllUsersToRolePresets(env) — bulk migration with breakdown summary"
-            ],
-            "audit_group": "(M5 B2 role-preset migration helpers)",
-            "tests": [
-                "tests/unit/lib/users.test.js"
-            ]
-        },
-        "worker/lib/customers.js": {
-            "tier": "critical",
-            "covers": [
-                "findOrCreateCustomerForBooking",
-                "recomputeCustomerDenormalizedFields"
-            ],
-            "audit_group": "(M3 B5 dual-write helpers)",
-            "tests": [
-                "tests/unit/lib/customers.test.js"
-            ]
-        },
-        "worker/lib/password.js": {
-            "tier": "high",
-            "covers": [
-                "hashPassword",
-                "verifyPassword"
-            ],
-            "audit_group": "F",
-            "audit_tests_prescribed": [
-                "F54",
-                "F55",
-                "F56"
-            ],
-            "tests": [
-                "tests/unit/auth/password.test.js"
-            ]
-        },
-        "worker/lib/auth.js": {
-            "tier": "high",
-            "covers": [
-                "requireAuth",
-                "requireRole"
-            ],
-            "audit_group": "F",
-            "audit_tests_prescribed": [
-                "F57",
-                "F58",
-                "F59",
-                "F60",
-                "F61"
-            ],
-            "tests": [
-                "tests/unit/auth/auth.test.js"
-            ]
-        },
-        "worker/lib/vendorToken.js": {
-            "tier": "high",
-            "covers": [
-                "createVendorToken",
-                "verifyVendorToken"
-            ],
-            "audit_group": "F",
-            "audit_tests_prescribed": [
-                "F62",
-                "F63",
-                "F64"
-            ],
-            "tests": [
-                "tests/unit/auth/vendor-token.test.js"
-            ]
-        },
-        "worker/routes/admin/customers.js": {
-            "tier": "high",
-            "covers": [
-                "GET /api/admin/customers",
-                "GET /api/admin/customers/:id",
-                "POST /api/admin/customers/merge"
-            ],
-            "audit_group": "(M3 B8a customers admin route)",
-            "tests": [
-                "tests/unit/admin/customers-route.test.js"
-            ]
-        },
-        "worker/lib/customerTags.js": {
-            "tier": "high",
-            "covers": [
-                "computeSystemTags",
-                "runCustomerTagsSweep"
-            ],
-            "audit_group": "(M3 B10 nightly tag refresh)",
-            "tests": [
-                "tests/unit/lib/customer-tags.test.js"
-            ]
-        },
-        "worker/routes/admin/staff.js": {
-            "tier": "high",
-            "covers": [
-                "GET /api/admin/staff (list + typeahead)",
-                "GET /api/admin/staff/roles-catalog",
-                "GET /api/admin/staff/:id (detail)",
-                "POST /api/admin/staff (create person)",
-                "PUT /api/admin/staff/:id (edit profile)",
-                "POST /api/admin/staff/:id/role-assign",
-                "PUT /api/admin/staff/:id/notes",
-                "POST /api/admin/staff/:id/archive",
-                "POST /api/admin/staff/:id/invite",
-                "GET /api/admin/staff/:id/portal-sessions",
-                "POST /api/admin/staff/:id/portal-sessions/:sid/revoke",
-                "GET /api/admin/staff/:id/incidents"
-            ],
-            "audit_group": "(M5 R4 + R17 + post-M5.5 create-flow fix + P1/P3/P4 tabs)",
-            "tests": [
-                "tests/unit/admin/staff/list.test.js",
-                "tests/unit/admin/staff/detail.test.js",
-                "tests/unit/admin/staff/typeahead.test.js",
-                "tests/unit/admin/staff/roles.test.js",
-                "tests/unit/admin/staff/notes.test.js",
-                "tests/unit/admin/staff/archive.test.js",
-                "tests/unit/admin/staff/create.test.js",
-                "tests/unit/admin/staff/profile-edit.test.js",
-                "tests/unit/admin/staff/access.test.js",
-                "tests/unit/admin/staff/issues.test.js"
-            ]
-        },
-        "worker/routes/admin/staffDocuments.js": {
-            "tier": "high",
-            "covers": [
-                "GET /api/admin/staff-documents (list)",
-                "GET /api/admin/staff-documents/:id (detail)",
-                "POST /api/admin/staff-documents (new doc or new version)",
-                "POST /api/admin/staff-documents/:id/retire",
-                "POST /api/admin/staff-documents/:id/role-tag",
-                "DELETE /api/admin/staff-documents/:id/role-tag/:tagId",
-                "GET /api/admin/staff-documents/for-person/:personId",
-                "POST /api/admin/staff-documents/:id/acknowledge-for-person"
-            ],
-            "audit_group": "(M5 B5 library + post-M5.5 P2 per-person ack)",
-            "tests": [
-                "tests/unit/admin/staffDocuments/list.test.js",
-                "tests/unit/admin/staffDocuments/create.test.js",
-                "tests/unit/admin/staffDocuments/retire.test.js",
-                "tests/unit/admin/staffDocuments/role-tag.test.js",
-                "tests/unit/admin/staffDocuments/for-person.test.js"
-            ]
-        },
-        "worker/routes/admin/personsHelpers.js": {
-            "tier": "high",
-            "covers": [
-                "createPersonForUser (idempotent persons-row creation + primary role + audit)"
-            ],
-            "audit_group": "(M5 B3 + post-M5.5 audit-shape fix; called from /setup + /accept-invite)",
-            "tests": [
-                "tests/unit/admin/personsHelpers.test.js"
-            ]
-        },
-        "worker/routes/admin/savedViews.js": {
-            "tier": "high",
-            "covers": [
-                "GET /api/admin/saved-views (list with table-missing graceful fallback)",
-                "POST /api/admin/saved-views (upsert by user+page+name)",
-                "PUT /api/admin/saved-views/:id (rename with user_id ownership check)",
-                "DELETE /api/admin/saved-views/:id (delete with user_id ownership check)"
-            ],
-            "audit_group": "(M4 B2a per-user saved filter views)",
-            "tests": [
-                "tests/unit/admin/saved-views.test.js"
-            ]
-        },
-        "worker/index.js": {
-            "tier": "critical",
-            "covers": [
-                "serveUpload (full — allowlist regex, MIME mapping, 404/500 paths, security headers)",
-                "rewriteEventOg (full — DB lookup, all 10 SEO meta selectors, fallback when event missing, slug parsing variants)",
-                "scheduled outer dispatch (full — cron-string branching, parallel sweep dispatch, error containment, always-on cron.swept audit row, ctx.waitUntil contract)"
-            ],
-            "audit_group": "G (full), H (outer dispatch only — inner sweeps runReminderSweep/runAbandonPendingSweep/runVendorSweep remain uncovered, see uncovered.worker/index.js)",
-            "audit_tests_prescribed": [
-                "G65",
-                "G66",
-                "G67",
-                "G68",
-                "G69",
-                "G70"
-            ],
-            "tests": [
-                "tests/unit/worker/serveUpload.test.js",
-                "tests/unit/worker/rewriteEventOg.test.js",
-                "tests/unit/worker/scheduled.test.js"
-            ]
-        },
-        "worker/routes/admin/dashboard.js": {
-            "tier": "high",
-            "covers": [
-                "GET /api/admin/today/active (activeEventToday / eventId / checkInOpen response shape — contract for B5 sidebar + B6 banner)",
-                "GET /api/admin/dashboard/upcoming-readiness (top-3 events with capacity + waiver pct — M4 B4d)",
-                "GET /api/admin/dashboard/action-queue (4-count aggregate for owner triage — M4 B4d)"
-            ],
-            "audit_group": "(M4 B4b persona dashboard foundation; B4d owner extension)",
-            "tests": [
-                "tests/unit/admin/today-active.test.js",
-                "tests/unit/admin/upcoming-readiness.test.js",
-                "tests/unit/admin/action-queue.test.js"
-            ]
-        },
-        "worker/routes/admin/analytics.js": {
-            "tier": "high",
-            "covers": [
-                "GET /api/admin/analytics/overview (?event_id + ?period=mtd query params — M4 B4d added MTD scoping for the RevenueSummary widget; 2026-06-23 earned-revenue basis excludes tax + processing fee)",
-                "GET /api/admin/analytics/funnel (?days N-day checkout funnel: Created -> Paid -> Waivers -> Checked in — M4 B4e powers the ConversionFunnel widget)",
-                "GET /api/admin/analytics/deferred-revenue (recognized vs deferred split of earned revenue by event date — 2026-06-24 DeferredRevenue widget)"
-            ],
-            "audit_group": "(M4 B4d owner persona MTD revenue scoping; B4e marketing persona funnel; 2026-06-24 deferred-revenue recognition)",
-            "tests": [
-                "tests/unit/admin/analytics-mtd.test.js",
-                "tests/unit/admin/analytics-funnel.test.js",
-                "tests/unit/admin/analytics-deferred-revenue.test.js"
-            ]
-        },
-        "worker/routes/admin/finances.js": {
-            "tier": "high",
-            "covers": [
-                "GET/POST/PUT/DELETE /api/admin/expenses (operating-cost CRUD, finances.read/write gated — migration 0074)",
-                "GET/PUT(upsert)/DELETE /api/admin/budgets (monthly per-category budget targets, finances.read/write gated)"
-            ],
-            "audit_group": "(2026-06-24 expenses + budgets foundation for per-event P&L + P&L-vs-budget)",
-            "tests": [
-                "tests/unit/admin/finances-route.test.js"
-            ]
-        },
-        "worker/lib/cashFlow.js": {
-            "tier": "high",
-            "covers": [
-                "computeCashFlowForecast (13-week direct-method roll-forward: opening + receipts − disbursements; per-day budget allocation; FR-receipt bucketing; min-closing trough)"
-            ],
-            "audit_group": "(2026-06-24 13-week cash-flow forecast)",
-            "tests": [
-                "tests/unit/lib/cashFlow.test.js"
-            ]
-        },
-        "worker/routes/admin/cashFlow.js": {
-            "tier": "high",
-            "covers": [
-                "GET /api/admin/cash-flow (13-week forecast: opening_cents + weekly_revenue_cents override / trailing-8wk derived run-rate; FR-due + budget reads; finances.read gated)"
-            ],
-            "audit_group": "(2026-06-24 13-week cash-flow forecast)",
-            "tests": [
-                "tests/unit/admin/cashFlow-route.test.js"
-            ]
-        },
-        "src/hooks/useWidgetData.js": {
-            "tier": "high",
-            "covers": [
-                "intervalForTier (cadence rule: 5min default / 30s on event day / 10s during check-in)",
-                "useTodayActive (shared module-level subscription)",
-                "useWidgetData (fetch + poll + visibility-aware)"
-            ],
-            "audit_group": "(M4 B4b persona dashboard foundation)",
-            "tests": [
-                "tests/unit/hooks/useWidgetData.test.js"
-            ]
-        },
-        "src/admin/personaLayouts.js": {
-            "tier": "high",
-            "covers": [
-                "PERSONA_LAYOUTS registry (6 persona enum values per migration 0028 + decision D08)",
-                "resolveLayout (read user.persona; alias-only personas fall back to roleDerivedDefault)",
-                "roleDerivedDefault (role → widget set fallback)",
-                "personaLabel (display name for all 6 personas + legacy role compat)"
-            ],
-            "audit_group": "(M4 B4b persona dashboard foundation)",
-            "tests": [
-                "tests/unit/admin/personaLayouts.test.js"
-            ]
-        },
-        "src/admin/sidebarConfig.js": {
-            "tier": "high",
-            "covers": [
-                "SIDEBAR registry (Surface 1 IA per docs/m4-discovery/sidebar-ia-audit.md — Home / Today / Events / Bookings / Customers / Rentals / Roster / Scan / Settings group with 10 sub-items; Rentals/Roster/Scan restored to standing nav per M5 B0 D10)",
-                "getVisibleItems (filters by dynamic todayActive + requiresFlag + capability predicates)",
-                "userHasCapabilityStub (M5 B0 stub mapping capability → minimum legacy role; M5 B2 swaps to DB-backed check)",
-                "loadSidebarExpand / saveSidebarExpand (localStorage helpers for Settings group expand state; namespaced aas:admin:sidebar:expand:*)"
-            ],
-            "audit_group": "(M4 B5 sidebar IA reorganization; M5 B0 D10 capability-gated standing nav)",
-            "tests": [
-                "tests/unit/admin/sidebarConfig.test.js"
-            ]
-        },
-        "src/admin/walkUpHelpers.js": {
-            "tier": "high",
-            "covers": [
-                "pickRecallableBookings (filter customer history to most recent N paid/comp; tolerates camelCase + snake_case timestamp keys)",
-                "formatBookingHint (one-line recall summary for AdminNewBooking)",
-                "formatRelativeAge (just now / minutes / hours / days / weeks / months / years)"
-            ],
-            "audit_group": "(M4 B6 walk-up booking speed wins)",
-            "tests": [
-                "tests/unit/admin/walkUpHelpers.test.js"
-            ]
-        },
-        "src/admin/commandRegistry.js": {
-            "tier": "high",
-            "covers": [
-                "commandsFromSidebar (derive flat command list from SIDEBAR; honors getVisibleItems predicates for dynamic todayActive + requiresFlag)",
-                "filterCommands (case-insensitive substring match; prefix-priority sort; defensive against non-array/non-string-label inputs)"
-            ],
-            "audit_group": "(M4 B7 command palette)",
-            "tests": [
-                "tests/unit/admin/commandRegistry.test.js"
-            ]
-        },
-        "worker/lib/thresholds1099.js": {
-            "tier": "high",
-            "covers": [
-                "IRS_1099_THRESHOLD_CENTS (60000 = $600.00 — IRS 1099-NEC reporting threshold)",
-                "requires1099 / previousTaxYear / shouldAutoLockToday — pure helpers exposed for testability + UI use",
-                "formatIrs1099Csv / formatGenericCsv — pure CSV formatters used by the /export endpoint and the bookkeeper rollup",
-                "aggregate1099TotalsForYear (env, taxYear) — I/O wrapper that powers GET /api/admin/1099-thresholds and GET /export",
-                "getYearLock / lockTaxYear — I/O wrappers used by GET / and POST /lock-year + the auto-lock cron sweep",
-                "runTaxYearAutoLockSweep — nightly cron wired into worker/index.js 03:00 UTC dispatch; auto-locks the previous tax year on March 1+ and sends w9_reminder to threshold-meeting recipients with missing legal_name/EIN"
-            ],
-            "audit_group": "(M5 R11 1099 thresholds completion)",
-            "tests": [
-                "tests/unit/lib/thresholds1099.test.js",
-                "tests/unit/admin/thresholds1099/route.test.js"
-            ]
-        },
-        "worker/lib/eventDaySession.js": {
-            "tier": "high",
-            "covers": [
-                "EVENT_DAY_WINDOW_MS (30-hour window starting 00:00 UTC of event date_iso) + ACTIVITY_KINDS (4-element frozen list mapping to 0037 schema columns)",
-                "randomEventDaySessionId / isEventActive / eventDayWindowExpired — pure helpers exposed for testability + middleware",
-                "startEventDaySession / getActiveEventDaySession / getEventDaySessionById — I/O wrappers used by the session route + middleware",
-                "endEventDaySession (writes audit row; reason bound positionally) + bumpActivityCounter (whitelist-validated kind → column mapping for R13/R14/R16) + touchActivity (heartbeat)",
-                "requireEventDayAuth — Hono middleware chains portal-cookie verify -> session lookup -> portal_session ownership check -> event-window enforcement (auto-ends on event_window_closed)",
-                "parseEventDayCookie / setEventDayCookie / clearEventDayCookie + EVENT_DAY_COOKIE_NAME constant"
-            ],
-            "audit_group": "(M5 R12 event-day foundations — Surface 5)",
-            "tests": [
-                "tests/unit/lib/eventDaySession.test.js",
-                "tests/unit/event-day/session.test.js"
-            ]
-        },
-        "worker/routes/event-day/session.js": {
-            "tier": "high",
-            "covers": [
-                "POST /api/event-day/sessions/start (portal-cookie + event-staffed gate; idempotent reuse if active session exists for person+event)",
-                "POST /api/event-day/sessions/heartbeat (touch last_activity_at; gated by requireEventDayAuth)",
-                "POST /api/event-day/sessions/end (set signed_out_at + clear cookie + audit; gated by requireEventDayAuth)",
-                "GET /api/event-day/sessions/me (counters shape used by HQ dashboard in R15)"
-            ],
-            "audit_group": "(M5 R12 event-day foundations — Surface 5)",
-            "tests": [
-                "tests/unit/event-day/session.test.js"
-            ]
-        },
-        "worker/lib/fieldRentals.js": {
-            "tier": "high",
-            "covers": [
-                "FIELD_RENTAL_STATUSES + transition matrix (8-state graph with operator-confirmed back-reverts sent→draft + agreed→sent)",
-                "allowedTransitions / validateStatusTransition — pure helpers used by /:id/status + /:id/cancel + lifecycle audits",
-                "parseAddonFees — JSON or array; rejects >20 items, label >100 chars, non-integer or negative cents",
-                "computePricing — server-trusted: total = site_fee + sum(addons.cents) - discount + tax; rejects negative total",
-                "formatFieldRental / formatFieldRentalContact — DB row → API shape with PII masking (notes / notes_sensitive / contact email+phone)"
-            ],
-            "audit_group": "(M5.5 B7a field rentals pure helpers)",
-            "tests": [
-                "tests/unit/lib/fieldRentals.test.js"
-            ]
-        },
-        "worker/routes/admin/fieldRentals.js": {
-            "tier": "high",
-            "covers": [
-                "GET /api/admin/field-rentals (list with status/site/customer/engagement/coi filters; q PII-aware free-text search; pagination + order whitelist)",
-                "GET /api/admin/field-rentals/:id (detail + contacts + site/customer JOIN; PII unmask audits customer_pii.unmasked)",
-                "POST /api/admin/field-rentals (conflict-detection 409; bypass_conflict cap + acknowledgeConflicts override; server-trusted pricing recompute)",
-                "PUT /api/admin/field-rentals/:id (rejects status/schedule changes; recomputes total_cents on pricing-input change; archived rejected)",
-                "POST /api/admin/field-rentals/:id/status (non-cancel/non-refund transitions only; validateStatusTransition gate)",
-                "POST /api/admin/field-rentals/:id/cancel (sets cancelled_at + cancellation_reason + deposit_retained; audit field_rental.cancelled)",
-                "POST /api/admin/field-rentals/:id/archive (terminal-status-only; soft-archive; audit field_rental.archived)",
-                "POST /api/admin/field-rentals/:id/reschedule (re-runs conflict check with excludeFieldRentalId; same bypass override path)"
-            ],
-            "audit_group": "(M5.5 B7a admin field rentals route)",
-            "tests": [
-                "tests/unit/admin/fieldRentals/list.test.js",
-                "tests/unit/admin/fieldRentals/detail.test.js"
-            ]
-        },
-        "worker/routes/admin/fieldRentalDocuments.js": {
-            "tier": "high",
-            "covers": [
-                "POST /api/admin/field-rental-documents (multipart upload + magic-byte sniff via worker/lib/magicBytes.js; 10MB cap; R2 key field_rentals/<rental>/<doc>.<ext>)",
-                "kind='coi' required metadata (carrier/policy/amount/effective/expires); denormalizes field_rentals.coi_status='received' + coi_expires_at + requirements_coi_received=1",
-                "kind='agreement' requires live SUA template (returns 409 with hint when none exists); captures sua_body_sha256_snapshot for integrity check; denormalizes requirements_agreement_signed=1",
-                "Versioning: new agreement or coi upload retires prior live row (retired_at = now)",
-                "GET /api/admin/field-rental-documents?rental_id=… (list; COI carrier/policy/amount fields masked unless field_rentals.coi.read_pii)",
-                "GET /api/admin/field-rental-documents/:docId/download (proxies R2 bytes; audit field_rental_document.downloaded with ip_address)",
-                "POST /api/admin/field-rental-documents/:docId/retire (manual retire without replacement)"
-            ],
-            "audit_group": "(M5.5 B7b admin field rental documents)",
-            "tests": [
-                "tests/unit/admin/fieldRentals/documents.test.js"
-            ]
-        },
-        "worker/routes/admin/fieldRentalPayments.js": {
-            "tier": "high",
-            "covers": [
-                "POST /api/admin/field-rental-payments (per-kind capability gating: deposit_record / balance_record / write; kind='refund' rejected — refunds only via /refund endpoint)",
-                "Aggregate sync on received: kind=deposit/full syncs field_rentals.deposit_*; kind=balance/full syncs balance_* (full syncs BOTH)",
-                "Auto-transition rental agreed → paid on first received deposit/balance/full payment (writes status_changed audit)",
-                "Refused 409 on cancelled/refunded parent rental (except kind='refund' which is already rejected upstream)",
-                "GET /api/admin/field-rental-payments?rental_id=… (gated by field_rentals.read.financials; reference + notes PII-gated)",
-                "PUT /api/admin/field-rental-payments/:paymentId (pending→received transition triggers aggregate sync + auto-flip; refunded/void rejected)",
-                "POST /api/admin/field-rental-payments/:paymentId/refund (canonical refund flow; validates amount ≤ original; reverseAggregateOnRefund re-binds to newer received row OR clears aggregate)"
-            ],
-            "audit_group": "(M5.5 B7b admin field rental payments)",
-            "tests": [
-                "tests/unit/admin/fieldRentals/payments.test.js"
-            ]
-        },
-        "worker/routes/admin/vendorPackageTemplates.js": {
-            "tier": "m6_new_surface",
-            "covers": [
-                "GET /api/admin/vendor-package-templates (list)",
-                "GET /api/admin/vendor-package-templates/:id (detail)",
-                "POST /api/admin/vendor-package-templates (create)",
-                "PUT /api/admin/vendor-package-templates/:id (partial update)",
-                "DELETE /api/admin/vendor-package-templates/:id (soft delete)",
-                "POST /api/admin/vendor-package-templates/:id/clone-to-event (clone)"
-            ],
-            "audit_group": "(M6 B1+B2 new — closes deferred admin UI from migration 0012)",
-            "tests": [
-                "tests/unit/admin/vendor-package-templates/list-route.test.js",
-                "tests/unit/admin/vendor-package-templates/edit-route.test.js",
-                "tests/unit/admin/vendor-package-templates/clone-route.test.js"
-            ]
-        },
-        "worker/lib/vendorPackageTemplates.js": {
-            "tier": "m6_new_surface",
-            "covers": [
-                "VALID_SECTION_KINDS",
-                "parseSections",
-                "normalizeSections (with kind-enum coercion to 'custom')",
-                "cloneTemplateSections (env.DB.batch atomic insert)"
-            ],
-            "audit_group": "(M6 B2 new helper)",
-            "tests": [
-                "tests/unit/lib/vendor-package-templates.test.js"
-            ]
-        },
-        "worker/lib/emailTemplates.js": {
-            "tier": "m6_new_surface",
-            "covers": [
-                "STATUS_VALUES enum + DEFAULT_STATUS constant",
-                "isPublishedTemplate (legacy null + draft + published predicate)",
-                "isValidStatus (strict enum check)",
-                "normalizeStatus (trim + lowercase + validate)"
-            ],
-            "audit_group": "(M6 B3 new — email_templates.status column helpers)",
-            "tests": [
-                "tests/unit/lib/emailTemplates-helpers.test.js"
-            ]
-        },
-        "worker/lib/emailTemplatePreview.js": {
-            "tier": "m6_new_surface",
-            "covers": [
-                "TEMPLATE_SPECS (booking-flavored slug→spec map)",
-                "getSpecForSlug (null for unsupported)",
-                "supportedSlugs",
-                "fetchEntityForPreview (booking + event + attendees JOIN; error codes)",
-                "buildVarsFromEntity (per-template var construction mirroring senders)"
-            ],
-            "audit_group": "(M6 B4 new — admin preview-with-real-data helper)",
-            "tests": [
-                "tests/unit/lib/emailTemplatePreview.test.js"
-            ]
-        },
-        "worker/lib/bookingCharges.js": {
-            "tier": "high",
-            "covers": [
-                "createDamageCharge / approveCharge / waiveCharge / markChargePaid (M5 R16 lifecycle)",
-                "chargeOffSessionForCharge (M6 B7 — Option A activation via off-session PI)",
-                "signPaymentToken / verifyPaymentToken (HMAC payment-link signing)"
-            ],
-            "audit_group": "(M5 R16 + M6 B7 damage charge)",
-            "tests": [
-                "tests/unit/admin/bookingCharges/route.test.js",
-                "tests/unit/admin/bookingCharges/charge-card.test.js"
-            ]
-        },
-        "worker/routes/admin/bookingCharges.js": {
-            "tier": "high",
-            "covers": [
-                "GET /api/admin/booking-charges (queue listing)",
-                "POST /:id/approve, /:id/waive, /:id/mark-paid (M5 R16)",
-                "POST /:id/charge-card (M6 B7 — Option A off-session capture)"
-            ],
-            "audit_group": "(M5 R16 + M6 B7)",
-            "tests": [
-                "tests/unit/admin/bookingCharges/route.test.js",
-                "tests/unit/admin/bookingCharges/charge-card.test.js"
-            ]
-        },
-        "worker/lib/templates.js (loadTemplate draft filter)": {
-            "tier": "high",
-            "covers": [
-                "loadTemplate { includeDrafts } option — drafts return null by default; opt-in for admin preview"
-            ],
-            "audit_group": "(M6 B3 surgical extension of High-DNT chokepoint; existing renderTemplate behavior unchanged)",
-            "tests": [
-                "tests/unit/lib/templates-load-status-filter.test.js"
-            ]
-        },
-        "worker/routes/admin/emailTemplates.js": {
-            "tier": "m6_new_surface",
-            "covers": [
-                "GET /api/admin/email-templates (with ?status= filter)",
-                "GET /api/admin/email-templates/:slug",
-                "GET /api/admin/email-templates/:slug/preview (with ?bookingId= real-data path)",
-                "PUT /api/admin/email-templates/:slug (with status validation)",
-                "POST /api/admin/email-templates/:slug/send-test (refuses drafts)"
-            ],
-            "audit_group": "(M6 B3+B4 — email-templates admin surface)",
-            "tests": [
-                "tests/unit/admin/email-templates-status.test.js",
-                "tests/unit/admin/email-templates-preview-with-data.test.js"
-            ]
-        },
-        "worker/lib/reports.js": {
-            "tier": "m7_new_surface",
-            "covers": [
-                "resolvePeriodWindow (mtd/qtd/ytd/last_30d/last_90d UTC windows; custom→last_30d fallback)",
-                "priorWindow (equal-length preceding window for comparison)",
-                "computeDelta (deltaPct null when prior=0)",
-                "computeRevenueTrends / computeRefundRate / computeAovTrend / bucketRepeatCustomers / computeSeriesRetention (Owner report shapers)",
-                "computeScorecard / median (EOS-style weekly scorecard: trailing-median targets, 3-state status, volume-floor neutral, current-week excluded)",
-                "computeArAging (field-rental A/R aging buckets + DSO) / computePerEventPnl / computeBudgetVsActual / computeStripeFees (accounting-suite shapers; computeStripeFees is refund-aware — merges refunded-booking fee loss + netKept)",
-                "csvEscape / toCsv (CSV serialization)"
-            ],
-            "audit_group": "(M7 Batch 2 Owner reports pure helpers)",
-            "tests": [
-                "tests/unit/lib/reports.test.js"
-            ]
-        },
-        "worker/routes/admin/reports.js": {
-            "tier": "m7_new_surface",
-            "covers": [
-                "GET /api/admin/reports/owner/revenue-trends — daily gross + prior-period delta (JSON + ?format=csv)",
-                "GET /api/admin/reports/owner/retention — series-to-series retention via events.site",
-                "GET /api/admin/reports/owner/refund-rate — monthly refunded÷charged (Stripe + external)",
-                "GET /api/admin/reports/owner/repeat-customers — lifetime total_bookings bucket distribution",
-                "GET /api/admin/reports/owner/aov-trend — monthly AVG(total_cents) over paid bookings",
-                "GET /api/admin/reports/owner/scorecard — EOS-style 13-week scorecard (Monday-anchored window, auto-median targets) + /owner/per-event-pnl",
-                "Bookkeeper (payouts / tax-fee-summary / period-comparison / budget-vs-actual / stripe-fees / ar-aging), Marketing (4), Site-Coordinator (4) all implemented; CSV export gated on reports.export"
-            ],
-            "audit_group": "(M7 Batch 1a shell + Batch 2 Owner reports)",
-            "tests": [
-                "tests/unit/admin/reports/reports-stub.test.js"
-            ]
-        },
-        "worker/lib/auditSearch.js": {
-            "tier": "m7_new_surface",
-            "covers": [
-                "buildFtsMatchQuery(q) — injection-safe FTS5 MATCH builder (per-token char-strip + double-quote + prefix *; null when no usable input)"
-            ],
-            "audit_group": "(M7 Batch 6 audit-log full-text search)",
-            "tests": [
-                "tests/unit/lib/auditSearch.test.js"
-            ]
-        },
-        "worker/routes/admin/auditLog.js": {
-            "tier": "high",
-            "covers": [
-                "GET /api/admin/audit-log — q full-text via FTS5 (audit_log_fts MATCH) when the audit_log_fts flag is on + index exists; LIKE fallback otherwise + on FTS error; structured filters (action/target_type/user_id/from/to) + pagination",
-                "GET /api/admin/audit-log/actions — distinct action values"
-            ],
-            "audit_group": "(M7 Batch 6 — FTS5 search upgrade to the q path)",
-            "tests": [
-                "tests/unit/admin/audit-log-search.test.js"
-            ]
-        },
-        "worker/lib/resendWebhook.js": {
-            "tier": "m7_new_surface",
-            "covers": [
-                "verifyResendWebhook — svix HMAC-SHA256 signature verify (whsec_ base64-decode key, ${id}.${ts}.${body} signed content, base64 sig, v1 token match, 300s replay tolerance, constant-time compare)"
-            ],
-            "audit_group": "(M7 Batch 8 — Resend bounce/complaint webhook signature verification)",
-            "tests": [
-                "tests/unit/lib/resendWebhook.test.js"
-            ]
-        },
-        "worker/lib/emailEvents.js": {
-            "tier": "m7_new_surface",
-            "covers": [
-                "emailEventId / classifyResendEvent (defensive recipient + hard|soft|Permanent|Transient bounce parsing) / shouldSuppressMarketing (complaint OR hard bounce) / eventActionName"
-            ],
-            "audit_group": "(M7 Batch 8 — Resend bounce/complaint pure helpers)",
-            "tests": [
-                "tests/unit/lib/emailEvents.test.js"
-            ]
-        },
-        "src/admin/VirtualizedList.jsx": {
-            "tier": "m8_a11y_surface",
-            "covers": [
-                "ARIA table semantics for the virtualized-list primitive: role=table + aria-rowcount (incl. header) + aria-colcount; sticky/spacer/row wrappers role=presentation so the a11y tree flattens to table>row>cell; consumers tag the header (role=row/columnheader) + rows (role=row/cell + aria-rowindex/colindex). Used by AdminEvents / AdminPromoCodes / AdminRoster / AdminRentalAssignments."
-            ],
-            "audit_group": "(M8 — ARIA table roles on virtualized tables; builds on #241 region pass)",
-            "tests": [
-                "tests/unit/admin/VirtualizedList.test.jsx"
-            ]
-        }
+  "$comment": "Test-gate map for Air Action Sports. Maps do-not-touch source paths (per docs/audit/06-do-not-touch.md) to the test paths that lock their behavior. Rule: before editing any path under `gates`, run the listed test paths and confirm they pass. After your edit, re-run them — they must still pass. If a test reveals current behavior conflicting with audit-documented behavior, STOP and ask the operator. The `uncovered` section enumerates do-not-touch files without tests yet — their `audit_tests_prescribed` arrays form the post-M1 punch list per docs/audit/09-test-coverage.md. When adding tests for a gated path in a future batch, also append the new test paths to the relevant `gates[<path>].tests` array.",
+  "version": 1,
+  "audit_reference": "docs/audit/06-do-not-touch.md",
+  "test_coverage_reference": "docs/audit/09-test-coverage.md",
+  "test_directory": "tests/unit/",
+  "gates": {
+    "worker/lib/pricing.js": {
+      "tier": "critical",
+      "covers": [
+        "calculateQuote",
+        "loadActiveTaxesFees",
+        "centsToDollars"
+      ],
+      "audit_group": "A",
+      "tests": [
+        "tests/unit/pricing/empty-cart.test.js",
+        "tests/unit/pricing/single-ticket-no-addon.test.js",
+        "tests/unit/pricing/multi-ticket-with-addon.test.js",
+        "tests/unit/pricing/percent-tax-fixed-fee.test.js",
+        "tests/unit/pricing/percent-fee-on-percent-tax.test.js",
+        "tests/unit/pricing/applies-to-tickets.test.js",
+        "tests/unit/pricing/applies-to-all.test.js",
+        "tests/unit/pricing/line-items-shape.test.js",
+        "tests/unit/pricing/promo-percent.test.js",
+        "tests/unit/pricing/promo-fixed.test.js",
+        "tests/unit/pricing/per-unit-multipliers.test.js",
+        "tests/unit/pricing/capacity-errors.test.js",
+        "tests/unit/pricing/min-max-per-order.test.js",
+        "tests/unit/pricing/inactive-fee-excluded.test.js",
+        "tests/unit/pricing/cents-precision.test.js"
+      ]
     },
-    "uncovered": {
-        "worker/routes/bookings.js (quote endpoint)": {
-            "tier": "critical",
-            "covers": [
-                "POST /api/bookings/quote"
-            ],
-            "audit_group": "(public-side quote — POST /checkout was promoted to gates in M6 B5)",
-            "audit_tests_prescribed": [],
-            "status": "quote pricing covered indirectly via Group A; no dedicated quote-endpoint integration tests yet"
-        },
-        "worker/index.js": {
-            "tier": "critical",
-            "covers": [
-                "runReminderSweep inner behavior (sentinel-first idempotency, 24hr/1hr window math, batch parallelism, send/rollback)",
-                "runAbandonPendingSweep inner behavior (PENDING_ABANDON_MS cutoff)",
-                "runVendorSweep inner behavior (COI 30d/7d, package reminder, signature reminder windows + sentinels)"
-            ],
-            "audit_groups": [
-                "H"
-            ],
-            "audit_tests_prescribed": [
-                "H71",
-                "H72",
-                "H73",
-                "H74",
-                "H75",
-                "H76"
-            ],
-            "status": "Group G outer dispatch covered M4 B1a; H deferred to M5 per docs/runbooks/m3-baseline-coverage.txt + M4 milestone plan"
-        },
-        "worker/lib/emailSender.js": {
-            "tier": "critical",
-            "covers": [
-                "the 9 named senders (booking_confirmation, admin_notify, waiver_request, etc.)"
-            ],
-            "audit_group": "(B partial)",
-            "audit_tests_prescribed": [],
-            "status": "no dedicated tests; covered indirectly via tests/unit/webhook/email-send-confirmation.test.js + email-send-admin-notify.test.js"
-        },
-        "worker/lib/formatters.js": {
-            "tier": "critical",
-            "covers": [
-                "formatEvent",
-                "formatTicketType",
-                "formatBooking",
-                "safeJson"
-            ],
-            "audit_group": "(shared with public site)",
-            "audit_tests_prescribed": [],
-            "status": "no dedicated suite for the whole module; the additive endDateIso field (multi-day events Phase 1) is covered by tests/unit/admin/events-end-date.test.js; otherwise covered indirectly via webhook fixture's event lookup"
-        }
+    "worker/lib/stripe.js": {
+      "tier": "critical",
+      "covers": [
+        "verifyWebhookSignature",
+        "createCheckoutSession (M6 B5 — optional setupFutureUsage)",
+        "retrievePaymentIntent (M6 B7)",
+        "chargeOffSession (M6 B7 — POST /v1/payment_intents with off_session=true + confirm=true; idempotency-keyed)",
+        "detachPaymentMethod (M6 B9 — POST /v1/payment_methods/:id/detach)"
+      ],
+      "audit_group": "B (signature subset) + M6 B5 + M6 B7 + M6 B9",
+      "tests": [
+        "tests/unit/webhook/signature-verify-valid.test.js",
+        "tests/unit/webhook/signature-verify-invalid.test.js",
+        "tests/unit/webhook/signature-verify-stale.test.js",
+        "tests/unit/webhook/signature-verify-multi-v1.test.js",
+        "tests/unit/webhook/signature-constant-time.test.js",
+        "tests/unit/lib/stripe-setup-future-usage.test.js",
+        "tests/unit/lib/stripe-off-session-charge.test.js",
+        "tests/unit/lib/stripe-detach-pm.test.js",
+        "tests/unit/lib/stripeFeeSync.test.js"
+      ]
+    },
+    "worker/lib/stripeFeeSync.js": {
+      "tier": "high",
+      "covers": [
+        "runStripeFeeSync (nightly reconciliation cron: backfills bookings.stripe_fee_cents/_net/_balance_transaction_id from each charge's true Stripe fee for PAID and REFUNDED bookings — a refund keeps the original fee; per-row guarded; idempotent via the stripe_fee_cents IS NULL candidate filter)"
+      ],
+      "audit_group": "(2026-06-24 true Stripe-fee capture; 2026-06-25 refund-side reconciliation)",
+      "tests": [
+        "tests/unit/lib/stripeFeeSync.test.js"
+      ]
+    },
+    "worker/lib/reviewInvites.js": {
+      "tier": "high",
+      "covers": [
+        "runReviewInviteSweep (03:00 cron: emails each paid/comp booking a per-booking review_token link ~24h after the event ends; sentinel-first claim + roll-both-back on send failure OR sender-decline/deferred; best-effort audit cannot roll back a sent email; blast protection = [now-48h,now-18h] window + REVIEW_LAUNCH_CUTOFF_MS forward fence + per-run LIMIT cap, plus a soft-alarm log on unusually large runs; COALESCE(end_date_iso,date_iso) anchor)"
+      ],
+      "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 2)",
+      "tests": [
+        "tests/unit/lib/reviewInvites.test.js"
+      ]
+    },
+    "worker/lib/ids.js": {
+      "tier": "high",
+      "covers": [
+        "Review ID/token generators (migration 0077): reviewToken (40 base62 chars — the SECURITY-critical length mirrored by REVIEW_TOKEN_LEN=40 + TOKEN_RE ^[0-9A-Za-z]{40}$ in worker/routes/reviews.js; a change here silently breaks every real review link) + reviewId (rv_ + 14-char base62 body) + the shared randomId primitive (exact length, base62 alphabet, randomness). ids.js is a do-not-touch ID-format-contract file; this entry locks the review helpers only."
+      ],
+      "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 2)",
+      "tests": [
+        "tests/unit/lib/ids.test.js"
+      ]
+    },
+    "worker/routes/reviews.js": {
+      "tier": "high",
+      "covers": [
+        "Public attendee-verified reviews API: GET /context (token->form state, RL_TOKEN_LOOKUP), POST / (submit/edit, auto-publish, one-per-booking + 30d/3-edit cap, honeypot 'company', RL_FEEDBACK, paid/comp-only gate), GET /?event= (per-event feed+avg), GET /summary (overall+recent+perEvent), GET /all (paginated). Token-gated, publish-independent visibility (status='published'); whitelisted public output (no email/booking_id/ip_hash/status)"
+      ],
+      "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 3)",
+      "tests": [
+        "tests/unit/reviews/context.test.js",
+        "tests/unit/reviews/submit.test.js",
+        "tests/unit/reviews/feeds.test.js"
+      ]
+    },
+    "worker/lib/reviewAggregates.js": {
+      "tier": "high",
+      "covers": [
+        "Server-injected review JSON-LD: getOrgReviewAggregate / getEventReviewBundle (shared status='published' predicate; null at zero rows / on error), serializeJsonLd (MANDATORY </script>/<>&/U+2028-9 escaping — the only stored-XSS guard on auto-published review text injected into HTML), buildOrgJsonLd / buildEventJsonLd (real aggregateRating + review[], crawler-visible). Consumed by rewriteHomeJsonLd + rewriteEventOg in worker/index.js"
+      ],
+      "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 4)",
+      "tests": [
+        "tests/unit/lib/reviewAggregates.test.js",
+        "tests/unit/worker/reviewJsonLd.test.js"
+      ]
+    },
+    "worker/routes/admin/reviews.js": {
+      "tier": "high",
+      "covers": [
+        "Admin review moderation: GET / (list + event_id/status/rating/q filters + published/hidden/avg summary + bookingFlag for refunded/cancelled bookings; admin-only email/ip_hash behind the cap), PUT /:id (hide/unhide + reason + writeAudit review.hidden/unhidden). Gated by requireCapability('reviews.moderate'). A hide drops the review from every public feed + SSR aggregate (all filter status='published')."
+      ],
+      "audit_group": "(2026-06-28 attendee-verified reviews, migration 0077, Batch 5)",
+      "tests": [
+        "tests/unit/admin/reviews-route.test.js"
+      ]
+    },
+    "worker/routes/bookings.js": {
+      "tier": "critical",
+      "covers": [
+        "POST /api/bookings/checkout — public Stripe Checkout Session creation; pricing pinned by Group A + setupFutureUsage='off_session' (M6 B5) authorizing future off-session damage charges (B7+)"
+      ],
+      "audit_group": "(M6 B5 promoted from `uncovered`)",
+      "tests": [
+        "tests/unit/bookings/checkout-setup-future-usage.test.js"
+      ]
+    },
+    "worker/routes/webhooks.js": {
+      "tier": "critical",
+      "covers": [
+        "POST /api/webhooks/stripe",
+        "handleCheckoutCompleted",
+        "handleDisputeCreated (M6 B6 — charge.dispute.created consumer)",
+        "POST /api/webhooks/resend (M7 B8 — Resend bounce/complaint consumer; handleResendEmailEvent)"
+      ],
+      "audit_group": "B + M6 B6 dispute handler + M7 B8 resend consumer",
+      "tests": [
+        "tests/unit/webhook/idempotency-already-paid.test.js",
+        "tests/unit/webhook/unknown-event-type.test.js",
+        "tests/unit/webhook/attendee-creation.test.js",
+        "tests/unit/webhook/ticket-types-sold-increment.test.js",
+        "tests/unit/webhook/promo-uses-increment.test.js",
+        "tests/unit/webhook/audit-log-emission.test.js",
+        "tests/unit/webhook/email-send-confirmation.test.js",
+        "tests/unit/webhook/email-send-admin-notify.test.js",
+        "tests/unit/webhook/waiver-auto-link-on-paid.test.js",
+        "tests/unit/webhook/dispute-created-handler.test.js",
+        "tests/unit/webhook/resend-consumer.test.js"
+      ]
+    },
+    "worker/lib/waiverLookup.js": {
+      "tier": "critical",
+      "covers": [
+        "findExistingValidWaiver"
+      ],
+      "audit_group": "D",
+      "tests": [
+        "tests/unit/auto-link/null-inputs-return-null.test.js",
+        "tests/unit/auto-link/match-by-email-and-name.test.js",
+        "tests/unit/auto-link/case-insensitive-email.test.js",
+        "tests/unit/auto-link/whitespace-tolerant-name.test.js",
+        "tests/unit/auto-link/claim-period-required.test.js",
+        "tests/unit/auto-link/expired-claim-period-no-match.test.js",
+        "tests/unit/auto-link/latest-by-signed-at.test.js",
+        "tests/unit/auto-link/sibling-different-name-no-match.test.js",
+        "tests/unit/auto-link/cross-flow-consistency.test.js"
+      ]
+    },
+    "worker/routes/waivers.js": {
+      "tier": "critical",
+      "covers": [
+        "POST /api/waivers/:qrToken",
+        "GET /api/waivers/:qrToken",
+        "getLiveWaiverDocument"
+      ],
+      "audit_group": "C",
+      "tests": [
+        "tests/unit/waiver/erecords-consent-required.test.js",
+        "tests/unit/waiver/signature-must-match-name.test.js",
+        "tests/unit/waiver/age-tier-under-12-blocked.test.js",
+        "tests/unit/waiver/age-tier-12-15-requires-parent-and-supervisor.test.js",
+        "tests/unit/waiver/age-tier-16-17-requires-parent-only.test.js",
+        "tests/unit/waiver/age-tier-18-plus-independent.test.js",
+        "tests/unit/waiver/jury-trial-initials-required.test.js",
+        "tests/unit/waiver/row-doc-link-and-snapshot.test.js",
+        "tests/unit/waiver/row-claim-period.test.js",
+        "tests/unit/waiver/row-tier-flags.test.js",
+        "tests/unit/waiver/attendee-waiver-id-set.test.js",
+        "tests/unit/waiver/audit-log-waiver-signed.test.js",
+        "tests/unit/waiver/already-signed-409.test.js",
+        "tests/unit/waiver/integrity-fail-on-post.test.js",
+        "tests/unit/waiver/integrity-fail-on-get.test.js",
+        "tests/unit/waiver/confirmation-email-sent.test.js"
+      ]
+    },
+    "worker/routes/admin/bookings.js": {
+      "tier": "critical",
+      "covers": [
+        "POST /api/admin/bookings/manual",
+        "POST /api/admin/bookings/:id/refund",
+        "GET /api/admin/bookings (list with rich filters: status, event_id, q, from, to, payment_method, has_refund, waiver_status, min_amount, max_amount, customer_id) — M4 B2b",
+        "POST /api/admin/bookings/bulk/resend-confirmation — M4 B2b",
+        "POST /api/admin/bookings/bulk/resend-waiver-request — M4 B2b",
+        "GET /api/admin/bookings/export.csv — M4 B2b",
+        "GET /api/admin/bookings/:id (detail with customer card + activity log + PII masking + audit) — M4 B3a",
+        "POST /api/admin/bookings/:id/refund-external (5 methods, always-notify customer per D06) — M4 B3a",
+        "POST /api/admin/bookings/:id/detach-saved-pm (M6 B9 — privacy: detach Stripe PM from Customer)",
+        "POST /api/admin/bookings/:id/reschedule (move booking to another event — remap event/ticket-type/attendees + adjust sold counts; payment preserved)",
+        "POST /api/admin/bookings/:id/resend-waiver-confirmation (re-send waiver receipt per signed attendee)"
+      ],
+      "audit_group": "E + M6 B9",
+      "tests": [
+        "tests/unit/admin/manual-cash.test.js",
+        "tests/unit/admin/manual-comp.test.js",
+        "tests/unit/admin/manual-card.test.js",
+        "tests/unit/admin/manual-pricing-parity.test.js",
+        "tests/unit/admin/manual-auto-link.test.js",
+        "tests/unit/admin/refund-idempotency-key.test.js",
+        "tests/unit/admin/refund-rejects-cash.test.js",
+        "tests/unit/admin/bookings/list-rich-filters.test.js",
+        "tests/unit/admin/bookings/bulk-actions.test.js",
+        "tests/unit/admin/bookings/export-csv.test.js",
+        "tests/unit/admin/bookings/detail-view.test.js",
+        "tests/unit/admin/bookings/refund-external.test.js",
+        "tests/unit/admin/bookings/detach-saved-pm.test.js",
+        "tests/unit/admin/bookings/reschedule.test.js",
+        "tests/unit/admin/bookings/resend-waiver-confirmation.test.js",
+        "tests/unit/admin/bookings/resend-review-invite.test.js"
+      ]
+    },
+    "worker/lib/capabilities.js": {
+      "tier": "high",
+      "covers": [
+        "listCapabilities(env, userId) — async DB-backed; joins role_preset_capabilities + user_capability_overrides; legacy fallback when role_preset_key NULL or M5 tables missing",
+        "userHasCapability(env, userId, key) — async DB check with dependency-chain walk via capabilities.requires_capability_key",
+        "hasCapability(user, key) — sync; checks user.capabilities array first, falls back to legacy role mapping",
+        "requireCapability(key) — Hono middleware factory; lazy-loads capabilities onto user; 401/403 with requiresCapability hint",
+        "userCapabilities(user) — sync; backward-compat alias for the M4 stub's import surface"
+      ],
+      "audit_group": "(M5 B2 DB-backed RBAC replacing M4 stub)",
+      "tests": [
+        "tests/unit/lib/capabilities.test.js",
+        "tests/unit/admin/bookings/detail-view.test.js"
+      ]
+    },
+    "worker/lib/users.js": {
+      "tier": "high",
+      "covers": [
+        "legacyRoleToRolePreset(role) — pure mapping owner->event_director, manager->booking_coordinator, staff->staff_legacy",
+        "migrateUserToRolePreset(env, userId) — idempotent; assigns role_preset_key based on legacy role",
+        "migrateAllUsersToRolePresets(env) — bulk migration with breakdown summary"
+      ],
+      "audit_group": "(M5 B2 role-preset migration helpers)",
+      "tests": [
+        "tests/unit/lib/users.test.js"
+      ]
+    },
+    "worker/lib/customers.js": {
+      "tier": "critical",
+      "covers": [
+        "findOrCreateCustomerForBooking",
+        "recomputeCustomerDenormalizedFields"
+      ],
+      "audit_group": "(M3 B5 dual-write helpers)",
+      "tests": [
+        "tests/unit/lib/customers.test.js"
+      ]
+    },
+    "worker/lib/password.js": {
+      "tier": "high",
+      "covers": [
+        "hashPassword",
+        "verifyPassword"
+      ],
+      "audit_group": "F",
+      "audit_tests_prescribed": [
+        "F54",
+        "F55",
+        "F56"
+      ],
+      "tests": [
+        "tests/unit/auth/password.test.js"
+      ]
+    },
+    "worker/lib/auth.js": {
+      "tier": "high",
+      "covers": [
+        "requireAuth",
+        "requireRole"
+      ],
+      "audit_group": "F",
+      "audit_tests_prescribed": [
+        "F57",
+        "F58",
+        "F59",
+        "F60",
+        "F61"
+      ],
+      "tests": [
+        "tests/unit/auth/auth.test.js"
+      ]
+    },
+    "worker/lib/vendorToken.js": {
+      "tier": "high",
+      "covers": [
+        "createVendorToken",
+        "verifyVendorToken"
+      ],
+      "audit_group": "F",
+      "audit_tests_prescribed": [
+        "F62",
+        "F63",
+        "F64"
+      ],
+      "tests": [
+        "tests/unit/auth/vendor-token.test.js"
+      ]
+    },
+    "worker/routes/admin/customers.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/customers",
+        "GET /api/admin/customers/:id",
+        "POST /api/admin/customers/merge"
+      ],
+      "audit_group": "(M3 B8a customers admin route)",
+      "tests": [
+        "tests/unit/admin/customers-route.test.js"
+      ]
+    },
+    "worker/lib/customerTags.js": {
+      "tier": "high",
+      "covers": [
+        "computeSystemTags",
+        "runCustomerTagsSweep"
+      ],
+      "audit_group": "(M3 B10 nightly tag refresh)",
+      "tests": [
+        "tests/unit/lib/customer-tags.test.js"
+      ]
+    },
+    "worker/routes/admin/staff.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/staff (list + typeahead)",
+        "GET /api/admin/staff/roles-catalog",
+        "GET /api/admin/staff/:id (detail)",
+        "POST /api/admin/staff (create person)",
+        "PUT /api/admin/staff/:id (edit profile)",
+        "POST /api/admin/staff/:id/role-assign",
+        "PUT /api/admin/staff/:id/notes",
+        "POST /api/admin/staff/:id/archive",
+        "POST /api/admin/staff/:id/invite",
+        "GET /api/admin/staff/:id/portal-sessions",
+        "POST /api/admin/staff/:id/portal-sessions/:sid/revoke",
+        "GET /api/admin/staff/:id/incidents"
+      ],
+      "audit_group": "(M5 R4 + R17 + post-M5.5 create-flow fix + P1/P3/P4 tabs)",
+      "tests": [
+        "tests/unit/admin/staff/list.test.js",
+        "tests/unit/admin/staff/detail.test.js",
+        "tests/unit/admin/staff/typeahead.test.js",
+        "tests/unit/admin/staff/roles.test.js",
+        "tests/unit/admin/staff/notes.test.js",
+        "tests/unit/admin/staff/archive.test.js",
+        "tests/unit/admin/staff/create.test.js",
+        "tests/unit/admin/staff/profile-edit.test.js",
+        "tests/unit/admin/staff/access.test.js",
+        "tests/unit/admin/staff/issues.test.js"
+      ]
+    },
+    "worker/routes/admin/staffDocuments.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/staff-documents (list)",
+        "GET /api/admin/staff-documents/:id (detail)",
+        "POST /api/admin/staff-documents (new doc or new version)",
+        "POST /api/admin/staff-documents/:id/retire",
+        "POST /api/admin/staff-documents/:id/role-tag",
+        "DELETE /api/admin/staff-documents/:id/role-tag/:tagId",
+        "GET /api/admin/staff-documents/for-person/:personId",
+        "POST /api/admin/staff-documents/:id/acknowledge-for-person"
+      ],
+      "audit_group": "(M5 B5 library + post-M5.5 P2 per-person ack)",
+      "tests": [
+        "tests/unit/admin/staffDocuments/list.test.js",
+        "tests/unit/admin/staffDocuments/create.test.js",
+        "tests/unit/admin/staffDocuments/retire.test.js",
+        "tests/unit/admin/staffDocuments/role-tag.test.js",
+        "tests/unit/admin/staffDocuments/for-person.test.js"
+      ]
+    },
+    "worker/routes/admin/personsHelpers.js": {
+      "tier": "high",
+      "covers": [
+        "createPersonForUser (idempotent persons-row creation + primary role + audit)"
+      ],
+      "audit_group": "(M5 B3 + post-M5.5 audit-shape fix; called from /setup + /accept-invite)",
+      "tests": [
+        "tests/unit/admin/personsHelpers.test.js"
+      ]
+    },
+    "worker/routes/admin/savedViews.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/saved-views (list with table-missing graceful fallback)",
+        "POST /api/admin/saved-views (upsert by user+page+name)",
+        "PUT /api/admin/saved-views/:id (rename with user_id ownership check)",
+        "DELETE /api/admin/saved-views/:id (delete with user_id ownership check)"
+      ],
+      "audit_group": "(M4 B2a per-user saved filter views)",
+      "tests": [
+        "tests/unit/admin/saved-views.test.js"
+      ]
+    },
+    "worker/index.js": {
+      "tier": "critical",
+      "covers": [
+        "serveUpload (full — allowlist regex, MIME mapping, 404/500 paths, security headers)",
+        "rewriteEventOg (full — DB lookup, all 10 SEO meta selectors, fallback when event missing, slug parsing variants)",
+        "scheduled outer dispatch (full — cron-string branching, parallel sweep dispatch, error containment, always-on cron.swept audit row, ctx.waitUntil contract)"
+      ],
+      "audit_group": "G (full), H (outer dispatch only — inner sweeps runReminderSweep/runAbandonPendingSweep/runVendorSweep remain uncovered, see uncovered.worker/index.js)",
+      "audit_tests_prescribed": [
+        "G65",
+        "G66",
+        "G67",
+        "G68",
+        "G69",
+        "G70"
+      ],
+      "tests": [
+        "tests/unit/worker/serveUpload.test.js",
+        "tests/unit/worker/rewriteEventOg.test.js",
+        "tests/unit/worker/scheduled.test.js"
+      ]
+    },
+    "worker/routes/admin/dashboard.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/today/active (activeEventToday / eventId / checkInOpen response shape — contract for B5 sidebar + B6 banner)",
+        "GET /api/admin/dashboard/upcoming-readiness (top-3 events with capacity + waiver pct — M4 B4d)",
+        "GET /api/admin/dashboard/action-queue (4-count aggregate for owner triage — M4 B4d)"
+      ],
+      "audit_group": "(M4 B4b persona dashboard foundation; B4d owner extension)",
+      "tests": [
+        "tests/unit/admin/today-active.test.js",
+        "tests/unit/admin/upcoming-readiness.test.js",
+        "tests/unit/admin/action-queue.test.js"
+      ]
+    },
+    "worker/routes/admin/analytics.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/analytics/overview (?event_id + ?period=mtd query params — M4 B4d added MTD scoping for the RevenueSummary widget; 2026-06-23 earned-revenue basis excludes tax + processing fee)",
+        "GET /api/admin/analytics/funnel (?days N-day checkout funnel: Created -> Paid -> Waivers -> Checked in — M4 B4e powers the ConversionFunnel widget)",
+        "GET /api/admin/analytics/deferred-revenue (recognized vs deferred split of earned revenue by event date — 2026-06-24 DeferredRevenue widget)"
+      ],
+      "audit_group": "(M4 B4d owner persona MTD revenue scoping; B4e marketing persona funnel; 2026-06-24 deferred-revenue recognition)",
+      "tests": [
+        "tests/unit/admin/analytics-mtd.test.js",
+        "tests/unit/admin/analytics-funnel.test.js",
+        "tests/unit/admin/analytics-deferred-revenue.test.js"
+      ]
+    },
+    "worker/routes/admin/finances.js": {
+      "tier": "high",
+      "covers": [
+        "GET/POST/PUT/DELETE /api/admin/expenses (operating-cost CRUD, finances.read/write gated — migration 0074)",
+        "GET/PUT(upsert)/DELETE /api/admin/budgets (monthly per-category budget targets, finances.read/write gated)"
+      ],
+      "audit_group": "(2026-06-24 expenses + budgets foundation for per-event P&L + P&L-vs-budget)",
+      "tests": [
+        "tests/unit/admin/finances-route.test.js"
+      ]
+    },
+    "worker/lib/cashFlow.js": {
+      "tier": "high",
+      "covers": [
+        "computeCashFlowForecast (13-week direct-method roll-forward: opening + receipts − disbursements; per-day budget allocation; FR-receipt bucketing; min-closing trough)"
+      ],
+      "audit_group": "(2026-06-24 13-week cash-flow forecast)",
+      "tests": [
+        "tests/unit/lib/cashFlow.test.js"
+      ]
+    },
+    "worker/routes/admin/cashFlow.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/cash-flow (13-week forecast: opening_cents + weekly_revenue_cents override / trailing-8wk derived run-rate; FR-due + budget reads; finances.read gated)"
+      ],
+      "audit_group": "(2026-06-24 13-week cash-flow forecast)",
+      "tests": [
+        "tests/unit/admin/cashFlow-route.test.js"
+      ]
+    },
+    "src/hooks/useWidgetData.js": {
+      "tier": "high",
+      "covers": [
+        "intervalForTier (cadence rule: 5min default / 30s on event day / 10s during check-in)",
+        "useTodayActive (shared module-level subscription)",
+        "useWidgetData (fetch + poll + visibility-aware)"
+      ],
+      "audit_group": "(M4 B4b persona dashboard foundation)",
+      "tests": [
+        "tests/unit/hooks/useWidgetData.test.js"
+      ]
+    },
+    "src/admin/personaLayouts.js": {
+      "tier": "high",
+      "covers": [
+        "PERSONA_LAYOUTS registry (6 persona enum values per migration 0028 + decision D08)",
+        "resolveLayout (read user.persona; alias-only personas fall back to roleDerivedDefault)",
+        "roleDerivedDefault (role → widget set fallback)",
+        "personaLabel (display name for all 6 personas + legacy role compat)"
+      ],
+      "audit_group": "(M4 B4b persona dashboard foundation)",
+      "tests": [
+        "tests/unit/admin/personaLayouts.test.js"
+      ]
+    },
+    "src/admin/sidebarConfig.js": {
+      "tier": "high",
+      "covers": [
+        "SIDEBAR registry (Surface 1 IA per docs/m4-discovery/sidebar-ia-audit.md — Home / Today / Events / Bookings / Customers / Rentals / Roster / Scan / Settings group with 10 sub-items; Rentals/Roster/Scan restored to standing nav per M5 B0 D10)",
+        "getVisibleItems (filters by dynamic todayActive + requiresFlag + capability predicates)",
+        "userHasCapabilityStub (M5 B0 stub mapping capability → minimum legacy role; M5 B2 swaps to DB-backed check)",
+        "loadSidebarExpand / saveSidebarExpand (localStorage helpers for Settings group expand state; namespaced aas:admin:sidebar:expand:*)"
+      ],
+      "audit_group": "(M4 B5 sidebar IA reorganization; M5 B0 D10 capability-gated standing nav)",
+      "tests": [
+        "tests/unit/admin/sidebarConfig.test.js"
+      ]
+    },
+    "src/admin/walkUpHelpers.js": {
+      "tier": "high",
+      "covers": [
+        "pickRecallableBookings (filter customer history to most recent N paid/comp; tolerates camelCase + snake_case timestamp keys)",
+        "formatBookingHint (one-line recall summary for AdminNewBooking)",
+        "formatRelativeAge (just now / minutes / hours / days / weeks / months / years)"
+      ],
+      "audit_group": "(M4 B6 walk-up booking speed wins)",
+      "tests": [
+        "tests/unit/admin/walkUpHelpers.test.js"
+      ]
+    },
+    "src/admin/commandRegistry.js": {
+      "tier": "high",
+      "covers": [
+        "commandsFromSidebar (derive flat command list from SIDEBAR; honors getVisibleItems predicates for dynamic todayActive + requiresFlag)",
+        "filterCommands (case-insensitive substring match; prefix-priority sort; defensive against non-array/non-string-label inputs)"
+      ],
+      "audit_group": "(M4 B7 command palette)",
+      "tests": [
+        "tests/unit/admin/commandRegistry.test.js"
+      ]
+    },
+    "worker/lib/thresholds1099.js": {
+      "tier": "high",
+      "covers": [
+        "IRS_1099_THRESHOLD_CENTS (60000 = $600.00 — IRS 1099-NEC reporting threshold)",
+        "requires1099 / previousTaxYear / shouldAutoLockToday — pure helpers exposed for testability + UI use",
+        "formatIrs1099Csv / formatGenericCsv — pure CSV formatters used by the /export endpoint and the bookkeeper rollup",
+        "aggregate1099TotalsForYear (env, taxYear) — I/O wrapper that powers GET /api/admin/1099-thresholds and GET /export",
+        "getYearLock / lockTaxYear — I/O wrappers used by GET / and POST /lock-year + the auto-lock cron sweep",
+        "runTaxYearAutoLockSweep — nightly cron wired into worker/index.js 03:00 UTC dispatch; auto-locks the previous tax year on March 1+ and sends w9_reminder to threshold-meeting recipients with missing legal_name/EIN"
+      ],
+      "audit_group": "(M5 R11 1099 thresholds completion)",
+      "tests": [
+        "tests/unit/lib/thresholds1099.test.js",
+        "tests/unit/admin/thresholds1099/route.test.js"
+      ]
+    },
+    "worker/lib/eventDaySession.js": {
+      "tier": "high",
+      "covers": [
+        "EVENT_DAY_WINDOW_MS (30-hour window starting 00:00 UTC of event date_iso) + ACTIVITY_KINDS (4-element frozen list mapping to 0037 schema columns)",
+        "randomEventDaySessionId / isEventActive / eventDayWindowExpired — pure helpers exposed for testability + middleware",
+        "startEventDaySession / getActiveEventDaySession / getEventDaySessionById — I/O wrappers used by the session route + middleware",
+        "endEventDaySession (writes audit row; reason bound positionally) + bumpActivityCounter (whitelist-validated kind → column mapping for R13/R14/R16) + touchActivity (heartbeat)",
+        "requireEventDayAuth — Hono middleware chains portal-cookie verify -> session lookup -> portal_session ownership check -> event-window enforcement (auto-ends on event_window_closed)",
+        "parseEventDayCookie / setEventDayCookie / clearEventDayCookie + EVENT_DAY_COOKIE_NAME constant"
+      ],
+      "audit_group": "(M5 R12 event-day foundations — Surface 5)",
+      "tests": [
+        "tests/unit/lib/eventDaySession.test.js",
+        "tests/unit/event-day/session.test.js"
+      ]
+    },
+    "worker/routes/event-day/session.js": {
+      "tier": "high",
+      "covers": [
+        "POST /api/event-day/sessions/start (portal-cookie + event-staffed gate; idempotent reuse if active session exists for person+event)",
+        "POST /api/event-day/sessions/heartbeat (touch last_activity_at; gated by requireEventDayAuth)",
+        "POST /api/event-day/sessions/end (set signed_out_at + clear cookie + audit; gated by requireEventDayAuth)",
+        "GET /api/event-day/sessions/me (counters shape used by HQ dashboard in R15)"
+      ],
+      "audit_group": "(M5 R12 event-day foundations — Surface 5)",
+      "tests": [
+        "tests/unit/event-day/session.test.js"
+      ]
+    },
+    "worker/lib/fieldRentals.js": {
+      "tier": "high",
+      "covers": [
+        "FIELD_RENTAL_STATUSES + transition matrix (8-state graph with operator-confirmed back-reverts sent→draft + agreed→sent)",
+        "allowedTransitions / validateStatusTransition — pure helpers used by /:id/status + /:id/cancel + lifecycle audits",
+        "parseAddonFees — JSON or array; rejects >20 items, label >100 chars, non-integer or negative cents",
+        "computePricing — server-trusted: total = site_fee + sum(addons.cents) - discount + tax; rejects negative total",
+        "formatFieldRental / formatFieldRentalContact — DB row → API shape with PII masking (notes / notes_sensitive / contact email+phone)"
+      ],
+      "audit_group": "(M5.5 B7a field rentals pure helpers)",
+      "tests": [
+        "tests/unit/lib/fieldRentals.test.js"
+      ]
+    },
+    "worker/routes/admin/fieldRentals.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/field-rentals (list with status/site/customer/engagement/coi filters; q PII-aware free-text search; pagination + order whitelist)",
+        "GET /api/admin/field-rentals/:id (detail + contacts + site/customer JOIN; PII unmask audits customer_pii.unmasked)",
+        "POST /api/admin/field-rentals (conflict-detection 409; bypass_conflict cap + acknowledgeConflicts override; server-trusted pricing recompute)",
+        "PUT /api/admin/field-rentals/:id (rejects status/schedule changes; recomputes total_cents on pricing-input change; archived rejected)",
+        "POST /api/admin/field-rentals/:id/status (non-cancel/non-refund transitions only; validateStatusTransition gate)",
+        "POST /api/admin/field-rentals/:id/cancel (sets cancelled_at + cancellation_reason + deposit_retained; audit field_rental.cancelled)",
+        "POST /api/admin/field-rentals/:id/archive (terminal-status-only; soft-archive; audit field_rental.archived)",
+        "POST /api/admin/field-rentals/:id/reschedule (re-runs conflict check with excludeFieldRentalId; same bypass override path)"
+      ],
+      "audit_group": "(M5.5 B7a admin field rentals route)",
+      "tests": [
+        "tests/unit/admin/fieldRentals/list.test.js",
+        "tests/unit/admin/fieldRentals/detail.test.js"
+      ]
+    },
+    "worker/routes/admin/fieldRentalDocuments.js": {
+      "tier": "high",
+      "covers": [
+        "POST /api/admin/field-rental-documents (multipart upload + magic-byte sniff via worker/lib/magicBytes.js; 10MB cap; R2 key field_rentals/<rental>/<doc>.<ext>)",
+        "kind='coi' required metadata (carrier/policy/amount/effective/expires); denormalizes field_rentals.coi_status='received' + coi_expires_at + requirements_coi_received=1",
+        "kind='agreement' requires live SUA template (returns 409 with hint when none exists); captures sua_body_sha256_snapshot for integrity check; denormalizes requirements_agreement_signed=1",
+        "Versioning: new agreement or coi upload retires prior live row (retired_at = now)",
+        "GET /api/admin/field-rental-documents?rental_id=… (list; COI carrier/policy/amount fields masked unless field_rentals.coi.read_pii)",
+        "GET /api/admin/field-rental-documents/:docId/download (proxies R2 bytes; audit field_rental_document.downloaded with ip_address)",
+        "POST /api/admin/field-rental-documents/:docId/retire (manual retire without replacement)"
+      ],
+      "audit_group": "(M5.5 B7b admin field rental documents)",
+      "tests": [
+        "tests/unit/admin/fieldRentals/documents.test.js"
+      ]
+    },
+    "worker/routes/admin/fieldRentalPayments.js": {
+      "tier": "high",
+      "covers": [
+        "POST /api/admin/field-rental-payments (per-kind capability gating: deposit_record / balance_record / write; kind='refund' rejected — refunds only via /refund endpoint)",
+        "Aggregate sync on received: kind=deposit/full syncs field_rentals.deposit_*; kind=balance/full syncs balance_* (full syncs BOTH)",
+        "Auto-transition rental agreed → paid on first received deposit/balance/full payment (writes status_changed audit)",
+        "Refused 409 on cancelled/refunded parent rental (except kind='refund' which is already rejected upstream)",
+        "GET /api/admin/field-rental-payments?rental_id=… (gated by field_rentals.read.financials; reference + notes PII-gated)",
+        "PUT /api/admin/field-rental-payments/:paymentId (pending→received transition triggers aggregate sync + auto-flip; refunded/void rejected)",
+        "POST /api/admin/field-rental-payments/:paymentId/refund (canonical refund flow; validates amount ≤ original; reverseAggregateOnRefund re-binds to newer received row OR clears aggregate)"
+      ],
+      "audit_group": "(M5.5 B7b admin field rental payments)",
+      "tests": [
+        "tests/unit/admin/fieldRentals/payments.test.js"
+      ]
+    },
+    "worker/routes/admin/vendorPackageTemplates.js": {
+      "tier": "m6_new_surface",
+      "covers": [
+        "GET /api/admin/vendor-package-templates (list)",
+        "GET /api/admin/vendor-package-templates/:id (detail)",
+        "POST /api/admin/vendor-package-templates (create)",
+        "PUT /api/admin/vendor-package-templates/:id (partial update)",
+        "DELETE /api/admin/vendor-package-templates/:id (soft delete)",
+        "POST /api/admin/vendor-package-templates/:id/clone-to-event (clone)"
+      ],
+      "audit_group": "(M6 B1+B2 new — closes deferred admin UI from migration 0012)",
+      "tests": [
+        "tests/unit/admin/vendor-package-templates/list-route.test.js",
+        "tests/unit/admin/vendor-package-templates/edit-route.test.js",
+        "tests/unit/admin/vendor-package-templates/clone-route.test.js"
+      ]
+    },
+    "worker/lib/vendorPackageTemplates.js": {
+      "tier": "m6_new_surface",
+      "covers": [
+        "VALID_SECTION_KINDS",
+        "parseSections",
+        "normalizeSections (with kind-enum coercion to 'custom')",
+        "cloneTemplateSections (env.DB.batch atomic insert)"
+      ],
+      "audit_group": "(M6 B2 new helper)",
+      "tests": [
+        "tests/unit/lib/vendor-package-templates.test.js"
+      ]
+    },
+    "worker/lib/emailTemplates.js": {
+      "tier": "m6_new_surface",
+      "covers": [
+        "STATUS_VALUES enum + DEFAULT_STATUS constant",
+        "isPublishedTemplate (legacy null + draft + published predicate)",
+        "isValidStatus (strict enum check)",
+        "normalizeStatus (trim + lowercase + validate)"
+      ],
+      "audit_group": "(M6 B3 new — email_templates.status column helpers)",
+      "tests": [
+        "tests/unit/lib/emailTemplates-helpers.test.js"
+      ]
+    },
+    "worker/lib/emailTemplatePreview.js": {
+      "tier": "m6_new_surface",
+      "covers": [
+        "TEMPLATE_SPECS (booking-flavored slug→spec map)",
+        "getSpecForSlug (null for unsupported)",
+        "supportedSlugs",
+        "fetchEntityForPreview (booking + event + attendees JOIN; error codes)",
+        "buildVarsFromEntity (per-template var construction mirroring senders)"
+      ],
+      "audit_group": "(M6 B4 new — admin preview-with-real-data helper)",
+      "tests": [
+        "tests/unit/lib/emailTemplatePreview.test.js"
+      ]
+    },
+    "worker/lib/bookingCharges.js": {
+      "tier": "high",
+      "covers": [
+        "createDamageCharge / approveCharge / waiveCharge / markChargePaid (M5 R16 lifecycle)",
+        "chargeOffSessionForCharge (M6 B7 — Option A activation via off-session PI)",
+        "signPaymentToken / verifyPaymentToken (HMAC payment-link signing)"
+      ],
+      "audit_group": "(M5 R16 + M6 B7 damage charge)",
+      "tests": [
+        "tests/unit/admin/bookingCharges/route.test.js",
+        "tests/unit/admin/bookingCharges/charge-card.test.js"
+      ]
+    },
+    "worker/routes/admin/bookingCharges.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/booking-charges (queue listing)",
+        "POST /:id/approve, /:id/waive, /:id/mark-paid (M5 R16)",
+        "POST /:id/charge-card (M6 B7 — Option A off-session capture)"
+      ],
+      "audit_group": "(M5 R16 + M6 B7)",
+      "tests": [
+        "tests/unit/admin/bookingCharges/route.test.js",
+        "tests/unit/admin/bookingCharges/charge-card.test.js"
+      ]
+    },
+    "worker/lib/templates.js (loadTemplate draft filter)": {
+      "tier": "high",
+      "covers": [
+        "loadTemplate { includeDrafts } option — drafts return null by default; opt-in for admin preview"
+      ],
+      "audit_group": "(M6 B3 surgical extension of High-DNT chokepoint; existing renderTemplate behavior unchanged)",
+      "tests": [
+        "tests/unit/lib/templates-load-status-filter.test.js"
+      ]
+    },
+    "worker/routes/admin/emailTemplates.js": {
+      "tier": "m6_new_surface",
+      "covers": [
+        "GET /api/admin/email-templates (with ?status= filter)",
+        "GET /api/admin/email-templates/:slug",
+        "GET /api/admin/email-templates/:slug/preview (with ?bookingId= real-data path)",
+        "PUT /api/admin/email-templates/:slug (with status validation)",
+        "POST /api/admin/email-templates/:slug/send-test (refuses drafts)"
+      ],
+      "audit_group": "(M6 B3+B4 — email-templates admin surface)",
+      "tests": [
+        "tests/unit/admin/email-templates-status.test.js",
+        "tests/unit/admin/email-templates-preview-with-data.test.js"
+      ]
+    },
+    "worker/lib/reports.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "resolvePeriodWindow (mtd/qtd/ytd/last_30d/last_90d UTC windows; custom→last_30d fallback)",
+        "priorWindow (equal-length preceding window for comparison)",
+        "computeDelta (deltaPct null when prior=0)",
+        "computeRevenueTrends / computeRefundRate / computeAovTrend / bucketRepeatCustomers / computeSeriesRetention (Owner report shapers)",
+        "computeScorecard / median (EOS-style weekly scorecard: trailing-median targets, 3-state status, volume-floor neutral, current-week excluded)",
+        "computeArAging (field-rental A/R aging buckets + DSO) / computePerEventPnl / computeBudgetVsActual / computeStripeFees (accounting-suite shapers; computeStripeFees is refund-aware — merges refunded-booking fee loss + netKept)",
+        "csvEscape / toCsv (CSV serialization)"
+      ],
+      "audit_group": "(M7 Batch 2 Owner reports pure helpers)",
+      "tests": [
+        "tests/unit/lib/reports.test.js"
+      ]
+    },
+    "worker/routes/admin/reports.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "GET /api/admin/reports/owner/revenue-trends — daily gross + prior-period delta (JSON + ?format=csv)",
+        "GET /api/admin/reports/owner/retention — series-to-series retention via events.site",
+        "GET /api/admin/reports/owner/refund-rate — monthly refunded÷charged (Stripe + external)",
+        "GET /api/admin/reports/owner/repeat-customers — lifetime total_bookings bucket distribution",
+        "GET /api/admin/reports/owner/aov-trend — monthly AVG(total_cents) over paid bookings",
+        "GET /api/admin/reports/owner/scorecard — EOS-style 13-week scorecard (Monday-anchored window, auto-median targets) + /owner/per-event-pnl",
+        "Bookkeeper (payouts / tax-fee-summary / period-comparison / budget-vs-actual / stripe-fees / ar-aging), Marketing (4), Site-Coordinator (4) all implemented; CSV export gated on reports.export"
+      ],
+      "audit_group": "(M7 Batch 1a shell + Batch 2 Owner reports)",
+      "tests": [
+        "tests/unit/admin/reports/reports-stub.test.js"
+      ]
+    },
+    "worker/lib/auditSearch.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "buildFtsMatchQuery(q) — injection-safe FTS5 MATCH builder (per-token char-strip + double-quote + prefix *; null when no usable input)"
+      ],
+      "audit_group": "(M7 Batch 6 audit-log full-text search)",
+      "tests": [
+        "tests/unit/lib/auditSearch.test.js"
+      ]
+    },
+    "worker/routes/admin/auditLog.js": {
+      "tier": "high",
+      "covers": [
+        "GET /api/admin/audit-log — q full-text via FTS5 (audit_log_fts MATCH) when the audit_log_fts flag is on + index exists; LIKE fallback otherwise + on FTS error; structured filters (action/target_type/user_id/from/to) + pagination",
+        "GET /api/admin/audit-log/actions — distinct action values"
+      ],
+      "audit_group": "(M7 Batch 6 — FTS5 search upgrade to the q path)",
+      "tests": [
+        "tests/unit/admin/audit-log-search.test.js"
+      ]
+    },
+    "worker/lib/resendWebhook.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "verifyResendWebhook — svix HMAC-SHA256 signature verify (whsec_ base64-decode key, ${id}.${ts}.${body} signed content, base64 sig, v1 token match, 300s replay tolerance, constant-time compare)"
+      ],
+      "audit_group": "(M7 Batch 8 — Resend bounce/complaint webhook signature verification)",
+      "tests": [
+        "tests/unit/lib/resendWebhook.test.js"
+      ]
+    },
+    "worker/lib/emailEvents.js": {
+      "tier": "m7_new_surface",
+      "covers": [
+        "emailEventId / classifyResendEvent (defensive recipient + hard|soft|Permanent|Transient bounce parsing) / shouldSuppressMarketing (complaint OR hard bounce) / eventActionName"
+      ],
+      "audit_group": "(M7 Batch 8 — Resend bounce/complaint pure helpers)",
+      "tests": [
+        "tests/unit/lib/emailEvents.test.js"
+      ]
+    },
+    "src/admin/VirtualizedList.jsx": {
+      "tier": "m8_a11y_surface",
+      "covers": [
+        "ARIA table semantics for the virtualized-list primitive: role=table + aria-rowcount (incl. header) + aria-colcount; sticky/spacer/row wrappers role=presentation so the a11y tree flattens to table>row>cell; consumers tag the header (role=row/columnheader) + rows (role=row/cell + aria-rowindex/colindex). Used by AdminEvents / AdminPromoCodes / AdminRoster / AdminRentalAssignments."
+      ],
+      "audit_group": "(M8 — ARIA table roles on virtualized tables; builds on #241 region pass)",
+      "tests": [
+        "tests/unit/admin/VirtualizedList.test.jsx"
+      ]
     }
+  },
+  "uncovered": {
+    "worker/routes/bookings.js (quote endpoint)": {
+      "tier": "critical",
+      "covers": [
+        "POST /api/bookings/quote"
+      ],
+      "audit_group": "(public-side quote — POST /checkout was promoted to gates in M6 B5)",
+      "audit_tests_prescribed": [],
+      "status": "quote pricing covered indirectly via Group A; no dedicated quote-endpoint integration tests yet"
+    },
+    "worker/index.js": {
+      "tier": "critical",
+      "covers": [
+        "runReminderSweep inner behavior (sentinel-first idempotency, 24hr/1hr window math, batch parallelism, send/rollback)",
+        "runAbandonPendingSweep inner behavior (PENDING_ABANDON_MS cutoff)",
+        "runVendorSweep inner behavior (COI 30d/7d, package reminder, signature reminder windows + sentinels)"
+      ],
+      "audit_groups": [
+        "H"
+      ],
+      "audit_tests_prescribed": [
+        "H71",
+        "H72",
+        "H73",
+        "H74",
+        "H75",
+        "H76"
+      ],
+      "status": "Group G outer dispatch covered M4 B1a; H deferred to M5 per docs/runbooks/m3-baseline-coverage.txt + M4 milestone plan"
+    },
+    "worker/lib/emailSender.js": {
+      "tier": "critical",
+      "covers": [
+        "the 9 named senders (booking_confirmation, admin_notify, waiver_request, etc.)"
+      ],
+      "audit_group": "(B partial)",
+      "audit_tests_prescribed": [],
+      "status": "no dedicated tests; covered indirectly via tests/unit/webhook/email-send-confirmation.test.js + email-send-admin-notify.test.js"
+    },
+    "worker/lib/formatters.js": {
+      "tier": "critical",
+      "covers": [
+        "formatEvent",
+        "formatTicketType",
+        "formatBooking",
+        "safeJson"
+      ],
+      "audit_group": "(shared with public site)",
+      "audit_tests_prescribed": [],
+      "status": "no dedicated suite for the whole module; the additive endDateIso field (multi-day events Phase 1) is covered by tests/unit/admin/events-end-date.test.js; otherwise covered indirectly via webhook fixture's event lookup"
+    }
+  }
 }
