@@ -129,6 +129,11 @@ function EventTileGroup({ event, showTitle }) {
           accent
         />
         <ActionTile
+          to={`/admin/new-booking${eventQs}`}
+          label="New Booking"
+          desc="Walk-up sales — cash, card, or comp"
+        />
+        <ActionTile
           to="/admin/rentals/assignments"
           label="Rentals"
           desc="Equipment assignment + return"

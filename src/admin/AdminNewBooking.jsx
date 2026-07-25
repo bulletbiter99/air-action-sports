@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAdmin } from './AdminContext';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
@@ -18,6 +18,11 @@ const PAYMENT_METHODS = [
 export default function AdminNewBooking() {
   const { isAuthenticated, loading, hasRole } = useAdmin();
   const navigate = useNavigate();
+  // Event-day deep-link (2026-07): the Today page's walk-in "New Booking"
+  // tile links here with ?event=<id> so the desk doesn't have to pick the
+  // event by hand on a two-event day.
+  const [searchParams] = useSearchParams();
+  const preselectEventId = searchParams.get('event');
 
   const [events, setEvents] = useState([]);
   const [eventId, setEventId] = useState('');
@@ -55,8 +60,12 @@ export default function AdminNewBooking() {
     if (!res.ok) return;
     const data = await res.json();
     setEvents(data.events || []);
-    if (data.events?.length && !eventId) setEventId(data.events[0].id);
-  }, [eventId]);
+    if (data.events?.length && !eventId) {
+      const preselected = preselectEventId
+        && data.events.find((e) => e.id === preselectEventId);
+      setEventId(preselected ? preselected.id : data.events[0].id);
+    }
+  }, [eventId, preselectEventId]);
 
   useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
 
