@@ -209,6 +209,13 @@ export function parseEventBody(body, { partial = false } = {}) {
             if (col === 'type' && v !== null) {
                 v = v.toLowerCase();
             }
+            // site_id is a FK into sites — "no venue" must be NULL, not ''.
+            // The admin form's Venue picker posts '' for its blank option, and
+            // POST already coerced via `patch.site_id || null`, but the PUT
+            // patch loop writes the value straight through.
+            if (col === 'site_id' && v === '') {
+                v = null;
+            }
             patch[col] = v;
         } else if (EVENT_INT_FIELDS.includes(col)) {
             if (body[k] === null || body[k] === '') patch[col] = null;

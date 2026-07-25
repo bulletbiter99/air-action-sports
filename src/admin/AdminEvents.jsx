@@ -252,7 +252,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
   const [form, setForm] = useState({
     title: '', slug: '', dateIso: '', endDateIso: '',
     displayDate: '', displayDay: '', displayMonth: '',
-    location: '', site: '', type: 'airsoft',
+    location: '', site: '', siteId: '', type: 'airsoft',
     timeRange: '', checkIn: '', firstGame: '', endTime: '',
     basePriceCents: 8000, totalSlots: 100,
     coverImageUrl: '', cardImageUrl: '', heroImageUrl: '', bannerImageUrl: '', ogImageUrl: '',
@@ -264,12 +264,24 @@ function EventEditor({ eventId, onClose, onSaved }) {
     details: emptyDetailsFormState(),
   });
   const [ticketTypes, setTicketTypes] = useState([]);
+  // Venues for the site_id picker. Until this existed nothing in the admin ever
+  // sent siteId, so every UI-created event had site_id NULL — and
+  // detectEventConflicts short-circuits on a falsy siteId, which made the whole
+  // conflict engine (and the override banner below) unreachable.
+  const [sites, setSites] = useState([]);
   const [savingEvent, setSavingEvent] = useState(false);
   const [err, setErr] = useState('');
   const [currentEventId, setCurrentEventId] = useState(eventId);
   // M5.5 B3 — conflict detection state. Populated when the API returns 409
   // with a conflicts payload. Cleared on every submit attempt.
   const [conflicts, setConflicts] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/admin/sites', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { sites: [] }))
+      .then((d) => setSites(d.sites || []))
+      .catch(() => setSites([]));
+  }, []);
 
   useEffect(() => {
     if (isNew) return;
@@ -281,7 +293,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
           title: event.title || '', slug: event.slug || '',
           dateIso: event.dateIso || '', endDateIso: event.endDateIso || '',
           displayDate: event.displayDate || '', displayDay: event.displayDay || '', displayMonth: event.displayMonth || '',
-          location: event.location || '', site: event.site || '', type: event.type || 'airsoft',
+          location: event.location || '', site: event.site || '', siteId: event.siteId || '', type: event.type || 'airsoft',
           timeRange: event.timeRange || '', checkIn: event.checkIn || '', firstGame: event.firstGame || '', endTime: event.endTime || '',
           basePriceCents: event.basePriceCents || 0, totalSlots: event.totalSlots || 0,
           coverImageUrl: event.coverImageUrl || '',
@@ -524,7 +536,16 @@ function EventEditor({ eventId, onClose, onSaved }) {
           <div style={sectionLabel}>Location & type</div>
           <div style={twoCol}>
             <Field label="Location"><input value={form.location} onChange={(e) => updateField('location', e.target.value)} style={input} /></Field>
-            <Field label="Site"><input value={form.site} onChange={(e) => updateField('site', e.target.value)} style={input} placeholder="delta / alpha / …" /></Field>
+            {/* Two different things, historically both labelled "Site":
+                `site` is series/brand text ("Delta"); `siteId` is the physical
+                venue FK that conflict detection keys on (migration 0045). */}
+            <Field label="Series / brand"><input value={form.site} onChange={(e) => updateField('site', e.target.value)} style={input} placeholder="delta / alpha / …" /></Field>
+            <Field label="Venue">
+              <select value={form.siteId} onChange={(e) => updateField('siteId', e.target.value)} style={input}>
+                <option value="">— none (no double-booking check) —</option>
+                {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </Field>
           </div>
           <Field label="Type">
             <select value={form.type} onChange={(e) => updateField('type', e.target.value)} style={input}>

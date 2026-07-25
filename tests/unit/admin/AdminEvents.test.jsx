@@ -16,6 +16,14 @@ import { installClientFetch } from '../../helpers/mockClientFetch.js';
 import AdminEvents from '../../../src/admin/AdminEvents.jsx';
 
 const SAVED_VIEWS = { match: '/api/admin/saved-views', body: { views: [] } };
+// The editor's Venue picker (audit B3). Must be registered BEFORE the
+// '/api/admin/events' catch-all, since installClientFetch matches by substring
+// in order — though '/api/admin/sites' doesn't collide, keeping it first
+// mirrors how the page actually resolves.
+const SITES = {
+    match: '/api/admin/sites',
+    body: { sites: [{ id: 'site_ghosttown', name: 'Ghost Town' }, { id: 'site_foxtrot', name: 'Foxtrot' }] },
+};
 
 const EVENTS = [
     { id: 'evt_1', title: 'Operation Nightfall', displayDate: 'Jun 20', dateIso: '2026-06-20', location: 'Ghost Town', ticketTypes: [{ id: 'tt_1' }], attendeesCount: 12, grossCents: 96000, published: true, past: false },
@@ -47,7 +55,7 @@ afterEach(() => {
 });
 
 function mockList(extra = []) {
-    return installClientFetch([SAVED_VIEWS, ...extra, { match: '/api/admin/events', body: { events: EVENTS } }]);
+    return installClientFetch([SAVED_VIEWS, SITES, ...extra, { match: '/api/admin/events', body: { events: EVENTS } }]);
 }
 
 describe('AdminEvents', () => {
@@ -136,6 +144,46 @@ describe('AdminEvents', () => {
         await waitFor(() => expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBeGreaterThan(0));
         fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
         expect(await screen.findByRole('heading', { name: 'Edit: Operation Nightfall' })).toBeInTheDocument();
+    });
+
+    // Audit B3 — nothing in the admin ever sent siteId, so every UI-created
+    // event had site_id NULL and the whole conflict engine was unreachable.
+    it('offers a Venue picker populated from /api/admin/sites, hydrated from the event', async () => {
+        mockList([{
+            match: '/detail',
+            body: { ...EVT_DETAIL, event: { ...EVT_DETAIL.event, site: 'Delta', siteId: 'site_foxtrot' } },
+        }]);
+        renderWithAdmin(<AdminEvents />);
+        await waitFor(() => expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBeGreaterThan(0));
+        fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+        expect(await screen.findByRole('heading', { name: 'Edit: Operation Nightfall' })).toBeInTheDocument();
+
+        const venue = screen.getByLabelText('Venue');
+        expect(venue.value).toBe('site_foxtrot');
+        expect(screen.getByRole('option', { name: 'Ghost Town' })).toBeInTheDocument();
+
+        // The series/brand text field is a DIFFERENT thing and keeps its own value.
+        expect(screen.getByLabelText('Series / brand').value).toBe('Delta');
+    });
+
+    it('sends the chosen siteId when saving, which is what makes conflicts detectable', async () => {
+        mockList([{ match: '/detail', body: EVT_DETAIL }]);
+        const fetchMock = globalThis.fetch;
+        renderWithAdmin(<AdminEvents />);
+        await waitFor(() => expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBeGreaterThan(0));
+        fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+        expect(await screen.findByRole('heading', { name: 'Edit: Operation Nightfall' })).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Venue'), { target: { value: 'site_ghosttown' } });
+        // The save button is type="submit" inside <form onSubmit>; submit the
+        // form directly rather than relying on jsdom's click→submit behaviour.
+        fireEvent.submit(screen.getByRole('button', { name: 'Save changes' }).closest('form'));
+
+        await waitFor(() => {
+            const save = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT');
+            expect(save).toBeTruthy();
+            expect(JSON.parse(save[1].body).siteId).toBe('site_ghosttown');
+        });
     });
 
     it('duplicates an event after the title prompt', async () => {

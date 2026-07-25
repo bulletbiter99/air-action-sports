@@ -852,7 +852,11 @@
       "covers": ["formatEvent", "formatTicketType", "formatBooking", "safeJson"],
       "audit_group": "(shared with public site)",
       "audit_tests_prescribed": [],
-      "status": "no dedicated suite for the whole module; the additive endDateIso field (multi-day events Phase 1) is covered by tests/unit/admin/events-end-date.test.js; otherwise covered indirectly via webhook fixture's event lookup"
+      "tests": [
+        "tests/unit/admin/events-end-date.test.js",
+        "tests/unit/admin/events-site-conflict.test.js"
+      ],
+      "status": "no dedicated suite for the whole module; the additive endDateIso field (multi-day events Phase 1) is covered by tests/unit/admin/events-end-date.test.js and the additive siteId field (audit B3 — venue FK, distinct from the `site` series/brand string) by tests/unit/admin/events-site-conflict.test.js; otherwise covered indirectly via webhook fixture's event lookup"
     }
   }
 }
