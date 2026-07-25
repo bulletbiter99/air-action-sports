@@ -40,6 +40,7 @@ describe('AdminToday', () => {
         expect(screen.getByRole('heading', { name: 'Today' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: /Roster/ })).toHaveAttribute('href', '/admin/roster?event=evt_1');
         expect(screen.getByRole('link', { name: /Check in/ })).toHaveAttribute('href', '/admin/scan?event=evt_1');
+        expect(screen.getByRole('link', { name: /New Booking/ })).toHaveAttribute('href', '/admin/new-booking?event=evt_1');
         // Single event → title in the header description, no per-group heading.
         expect(screen.getByText(/Operation Last Light/)).toBeInTheDocument();
     });
@@ -65,6 +66,11 @@ describe('AdminToday', () => {
         expect(scanLinks.map((l) => l.getAttribute('href'))).toEqual([
             '/admin/scan?event=evt_ll',
             '/admin/scan?event=evt_fs',
+        ]);
+        const bookingLinks = screen.getAllByRole('link', { name: /New Booking/ });
+        expect(bookingLinks.map((l) => l.getAttribute('href'))).toEqual([
+            '/admin/new-booking?event=evt_ll',
+            '/admin/new-booking?event=evt_fs',
         ]);
     });
 

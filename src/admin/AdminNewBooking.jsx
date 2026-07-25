@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAdmin } from './AdminContext';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
@@ -18,6 +18,11 @@ const PAYMENT_METHODS = [
 export default function AdminNewBooking() {
   const { isAuthenticated, loading, hasRole } = useAdmin();
   const navigate = useNavigate();
+  // Event-day deep-link (2026-07): the Today page's walk-in "New Booking"
+  // tile links here with ?event=<id> so the desk doesn't have to pick the
+  // event by hand on a two-event day.
+  const [searchParams] = useSearchParams();
+  const preselectEventId = searchParams.get('event');
 
   const [events, setEvents] = useState([]);
   const [eventId, setEventId] = useState('');
@@ -50,13 +55,25 @@ export default function AdminNewBooking() {
     else if (!hasRole('manager')) navigate('/admin');
   }, [loading, isAuthenticated, hasRole, navigate]);
 
+  // NOTE: eventId is deliberately NOT a dependency — reading it via the
+  // functional setEventId keeps `load`'s identity stable, so the mount
+  // effect below runs load() exactly once (an eventId dep made setting the
+  // event re-trigger the effect → a second, pointless /events fetch that
+  // could also outlive a test's mock window).
   const load = useCallback(async () => {
     const res = await fetch('/api/admin/events', { credentials: 'include', cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
     setEvents(data.events || []);
-    if (data.events?.length && !eventId) setEventId(data.events[0].id);
-  }, [eventId]);
+    if (data.events?.length) {
+      setEventId((current) => {
+        if (current) return current;
+        const preselected = preselectEventId
+          && data.events.find((e) => e.id === preselectEventId);
+        return preselected ? preselected.id : data.events[0].id;
+      });
+    }
+  }, [preselectEventId]);
 
   useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
 
