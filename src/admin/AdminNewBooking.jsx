@@ -55,17 +55,25 @@ export default function AdminNewBooking() {
     else if (!hasRole('manager')) navigate('/admin');
   }, [loading, isAuthenticated, hasRole, navigate]);
 
+  // NOTE: eventId is deliberately NOT a dependency — reading it via the
+  // functional setEventId keeps `load`'s identity stable, so the mount
+  // effect below runs load() exactly once (an eventId dep made setting the
+  // event re-trigger the effect → a second, pointless /events fetch that
+  // could also outlive a test's mock window).
   const load = useCallback(async () => {
     const res = await fetch('/api/admin/events', { credentials: 'include', cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
     setEvents(data.events || []);
-    if (data.events?.length && !eventId) {
-      const preselected = preselectEventId
-        && data.events.find((e) => e.id === preselectEventId);
-      setEventId(preselected ? preselected.id : data.events[0].id);
+    if (data.events?.length) {
+      setEventId((current) => {
+        if (current) return current;
+        const preselected = preselectEventId
+          && data.events.find((e) => e.id === preselectEventId);
+        return preselected ? preselected.id : data.events[0].id;
+      });
     }
-  }, [eventId, preselectEventId]);
+  }, [preselectEventId]);
 
   useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
 
