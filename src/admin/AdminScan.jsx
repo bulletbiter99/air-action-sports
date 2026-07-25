@@ -41,7 +41,10 @@ export default function AdminScan() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/admin/events/${encodeURIComponent(expectedEventId)}`, {
+        // GET /:id/detail — there is no bare GET /:id on the admin events
+        // router (the old URL 404'd silently and the header never showed
+        // the event name).
+        const res = await fetch(`/api/admin/events/${encodeURIComponent(expectedEventId)}/detail`, {
           credentials: 'include', cache: 'no-store',
         });
         if (!res.ok || cancelled) return;
@@ -90,6 +93,8 @@ export default function AdminScan() {
         // than the one this scanner was opened for (via ?event= deep-link).
         if (expectedEventId && aData.event?.id && aData.event.id !== expectedEventId) {
           showFlashLocal('warn', `⚠ Different event: ${aData.event.title || aData.event.id}`, 3000);
+        } else if (aData.booking && !['paid', 'comp'].includes(aData.booking.status)) {
+          showFlashLocal('warn', `⚠ Payment due — booking is ${aData.booking.status}`, 3000);
         } else if (!aData.attendee.waiverSigned) showFlashLocal('warn', 'Waiver not signed');
         else if (aData.attendee.checkedInAt) showFlashLocal('ok', 'Already checked in');
         else showFlashLocal('ok', 'Ready to check in');
@@ -156,6 +161,13 @@ export default function AdminScan() {
 
   const checkIn = async () => {
     if (current?.type !== 'attendee') return;
+    // Wrong-event guard: with two events running the same day, a mis-scan is
+    // one tap from checking a player into the wrong roster. Confirm first.
+    const scannedEvent = current.data.event;
+    if (expectedEventId && scannedEvent?.id && scannedEvent.id !== expectedEventId) {
+      const label = scannedEvent.title || scannedEvent.id;
+      if (!window.confirm(`This ticket is for a different event (${label}). Check in anyway?`)) return;
+    }
     setBusy(true);
     const id = current.data.attendee.id;
     const res = await fetch(`/api/admin/attendees/${id}/check-in`, {
@@ -286,6 +298,7 @@ export default function AdminScan() {
         <AttendeeCard
           data={current.data}
           busy={busy}
+          expectedEventId={expectedEventId}
           onCheckIn={checkIn}
           onCheckOut={checkOut}
           onAssignRental={openAssignPicker}
@@ -323,9 +336,11 @@ export default function AdminScan() {
   );
 }
 
-function AttendeeCard({ data, busy, onCheckIn, onCheckOut, onAssignRental, onReturnRental }) {
-  const { attendee, event, rentalAssignments } = data;
+function AttendeeCard({ data, busy, expectedEventId, onCheckIn, onCheckOut, onAssignRental, onReturnRental }) {
+  const { attendee, booking, event, rentalAssignments } = data;
   const openRentals = (rentalAssignments || []).filter((r) => !r.checkedInAt);
+  const paymentDue = booking && !['paid', 'comp'].includes(booking.status);
+  const wrongEvent = Boolean(expectedEventId && event?.id && event.id !== expectedEventId);
   return (
     <div style={card}>
       <div style={cardHeader}>
@@ -338,6 +353,17 @@ function AttendeeCard({ data, busy, onCheckIn, onCheckOut, onAssignRental, onRet
           <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>{event?.displayDate || ''}</div>
         </div>
       </div>
+
+      {wrongEvent && (
+        <div style={dangerBanner} role="alert">
+          ⚠ Different event — this ticket is for {event.title || event.id}.
+        </div>
+      )}
+      {paymentDue && (
+        <div style={warnBanner} role="alert">
+          ⚠ Payment due — booking is {booking.status}. Collect payment before admitting.
+        </div>
+      )}
 
       <div style={badges}>
         {attendee.checkedInAt ? (
@@ -578,6 +604,22 @@ const badges = {
   gap: 'var(--space-4)',
   flexWrap: 'wrap',
   marginBottom: 'var(--space-12)',
+};
+const warnBanner = {
+  padding: 'var(--space-8) var(--space-12)',
+  background: 'var(--color-warning-soft)',
+  border: '1px solid var(--color-warning)',
+  color: 'var(--color-warning)',
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 'var(--font-weight-bold)',
+  borderRadius: 'var(--radius-sm)',
+  marginBottom: 'var(--space-8)',
+};
+const dangerBanner = {
+  ...warnBanner,
+  background: 'var(--color-danger-soft)',
+  borderColor: 'var(--color-danger)',
+  color: 'var(--color-danger)',
 };
 const badge = {
   padding: 'var(--space-4) var(--space-8)',
