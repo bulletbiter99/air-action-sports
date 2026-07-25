@@ -1,4 +1,29 @@
-# Next-session entry point — July-25 weekend events LIVE + doc sweep (2026-07-03)
+# Next-session entry point — event-day hardening + open-reads model + growth/audit roadmaps (2026-07-24/25)
+
+## ✅ DONE — Event-day readiness sprint + open-reads access model (2026-07-24 → 07-25, PRs #377–#381)
+
+**The July 25-26 events are HAPPENING NOW** (this session closed the night before / morning of). Five PRs merged + deployed (prod Version **`fabeb661`**); `main` **`051ba98`** + this docs sync · tests **3198 / 279** · lint 0 errors · NO new migrations. Two big research artifacts also landed (see the roadmaps section below).
+
+| PR | What |
+|---|---|
+| [#377](https://github.com/bulletbiter99/air-action-sports/pull/377) | **Two-event day + multi-day widget fixes** — `/today/active` returns an additive `events:[{id,title}]` (LIMIT 2→6; `eventId` contract unchanged); `/admin/today` renders one Roster/Check-in/Rentals tile group PER active event (was a link-less "ambiguous" card on exactly the July-25 shape); TodayEvents/TodayCheckIns widgets treat an event as "today" across its whole `endDateIso` span (Fire Storm's Sunday morning previously showed "No events today"); TodayEvents Scan link now carries `?event=`. |
+| [#378](https://github.com/bulletbiter99/air-action-sports/pull/378) | **AdminScan event-day safeguards** — persistent "⚠ Payment due — booking is {status}" banner on the scanned-attendee card (by-qr already returned `booking.status`; the card ignored it) + a "Different event" banner + `window.confirm` gate on wrong-event check-ins (two events, same site, same day) + fixed the dead expected-event fetch (`GET /:id` doesn't exist → `/:id/detail`; "Scanning for:" never resolved). |
+| [#379](https://github.com/bulletbiter99/air-action-sports/pull/379) | **OPEN-READS ACCESS MODEL** (operator-requested; 52 files). Every admin page is now VIEWABLE by any authenticated admin; every WRITE keeps its capability/role gate; field-level sensitive reads (bookings/staff PII masks, sensitive notes, EIN decrypt, compensation) preserved byte-identically. New greppable `requireReadAccess` middleware in `worker/lib/capabilities.js` (verifies auth + eagerly loads `user.capabilities` — the load downstream field-masks depend on). Deliberately still gated: `GET /users/invitations` (raw invite token = live credential), bulk exports (bookings CSV / `reports.export` / 1099), compensation-class reads (labor entries, 1099 thresholds). Reviews list opens but nulls reviewer email/ipHash for non-moderators. Sidebar/palette/page guards opened client-side; **Settings → Charges** nav entry added (the damage-charge queue was a hidden URL). Functionally a no-op for the 4 current owner-role admins. |
+| [#380](https://github.com/bulletbiter99/air-action-sports/pull/380) | **Today-page walk-in "New Booking" tile** — 4th tile per event group → `/admin/new-booking?event=<id>`; AdminNewBooking preselects that event (falls back to first). Covers the walk-up flow the dead kiosk was meant to serve. Also fixed a latent double-fetch (`load()` identity depended on `eventId` → the mount effect ran twice; surfaced as a CI unhandled-rejection). |
+| [#381](https://github.com/bulletbiter99/air-action-sports/pull/381) | **Sprint-1 completion** — (a) review-invite visibility: booking detail returns additive `reviewInvite.sentAt` + submitted `review{}`; new `POST /:id/resend-review-invite` (owner/manager; sentinel-disciplined like the sweep — stamp-before-send, restore-on-fail, reuses an existing token so previously-emailed links stay alive; 409s: not-paid/comp, event-not-ended [end_date_iso-aware], already-reviewed); "Review invite" status row + Send/Resend button on `/admin/bookings/:id`. (b) **Reschedule price-diff fix**: the move-booking modal read camelCase keys off snake_case line items → "They paid" always showed $0.00; now reads `unit_price_cents` (fixture corrected to the real stored shape + RTL pin). |
+
+**Event-weekend notes for the NEXT session (post-July-26):**
+- **Review invites fire the night of ~July 26** (18–48h after each event's end anchor). Check `/admin/bookings/:id` → "Review invite" row; manual (re)send button is live. ⚠️ `RESEND_WEBHOOK_SECRET` is still unset → suppression/bounce tracking inactive (operator-pending #2 below).
+- **First real reviews** will wake the dormant reviews feature (SSR aggregateRating appears once count ≥ 1; homepage Avg-Rating stat at ≥1; testimonial swap at ≥3 with comments). Run the SSR acceptance gate in the reviews section below.
+- **When the operator archives the July events**, the archive dead-end applies (audit finding C1: `/games` requires `published=1` but end-of-life actions unpublish; `sales_close_at` is unenforced — an "archived" published event stays bookable by deep link). Decide the archive contract before archiving.
+- The kiosk (`/event`) remains dead end-to-end (audit A1) — the admin path (Today → per-event Scan/Roster/New Booking) is the operational system and got hardened this session.
+
+## 🗺️ NEW ROADMAPS — two research artifacts now in-repo (2026-07-24)
+
+1. **[docs/growth-plan-2026-07.md](growth-plan-2026-07.md)** — conversion + LLM/AI-discoverability upgrade plan (10-agent audit+research workflow; all 22 high-impact claims code-verified). Headlines: the site is invisible to non-JS AI crawlers (Event JSON-LD is review-gated = zero today, no `offers` node); abandoned checkouts are silently swept warm leads; content contradictions (FAQ says milsim 18+ vs 12+ live events, fabricated About/testimonials/hero stats); zero analytics; the marketing engine is idle. 6 phases: operator quick wins → truth/funnel sprint → machine-readable site → measurement → lifecycle revenue → bigger bets. **Execution NOT started** (the admin-audit sprints took priority for event day).
+2. **[docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md)** — full admin operator-journey audit (9-agent workflow; all 23 high-impact claims confirmed). **Sprint 1 (event-day readiness) is COMPLETE** (#377/#378/#381) and the open-reads model (#379) shipped separately. Remaining: Sprint 2 (broken wiring: CronHealth field mismatch, event-duplicate drops custom questions/focal points, site_id dropdown → conflict detection reachable, 1099 `persons.legal_name/ein` missing-columns migration, damage-charge pay-link 404, command palette caps — palette part FIXED by #379), Sprint 3 (workflow completion: customer edit + manual tags, rental edit/reschedule modals, staff-doc/cert UI, incidents resolve, unpaid-status actions, marketing dormant-state banner + test-send), Sprint 4 (archive contract + sales cutoff, recurrence UI, SUA seed, persona decision, stale-copy sweep).
+
+---
 
 ## ✅ DONE — Follow-up fixes + close-out (2026-07-03)
 
@@ -72,13 +97,13 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `def6848` (re-pull for exact; event-type select + server normalize, PR #375 merged; latest deploy Version `58a2ef22`, 2026-07-03) |
-| Tests | **3162 / 277** all green |
+| `main` HEAD | `051ba98` + this docs sync (re-pull for exact; PRs #377–#381 merged; latest deploy Version **`fabeb661`**, 2026-07-25) |
+| Tests | **3198 / 279** all green |
 | Build | clean · Lint **0 errors** |
-| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + Marketing/deliverability schema + waiver receipts + accounting suite + multi-day support + attendee-verified reviews all deployed. `Operation Last Light` is PUBLISHED + live (real bookings). **`Operation Fire Storm` is PUBLISHED + LIVE** (16-hr night op, $80, Russian/NATO picker) — both July-25 events now take real bookings. **`/safety` briefing page is live.** |
+| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day support + reviews + **the open-reads admin access model** + the **event-day hardening** (per-event Today tiles incl. walk-in New Booking, AdminScan payment/wrong-event safeguards, review-invite tooling) all deployed. **Both July-25 events LIVE and running THIS weekend** (`Operation Last Light` $60 day op + `Operation Fire Storm` $80 16-hr night op). |
 | Migrations on remote | **0001–0077 ALL applied** — a `migrations apply` finds nothing new. (Migration `0077_reviews.sql` applied 2026-06-28 for attendee-verified reviews.) |
-| Open PRs | 0 (all merged through #375) |
-| Open milestone | **None active.** No milestone/roadmap items remain. The **attendee-verified reviews feature is COMPLETE + DEPLOYED** (dormant until the first review ~2026-07-25). **`Operation Last Light` is LIVE.** **`Operation Fire Storm`** (the former `ghost-town-18hr-milsim` 18HR draft) is **PUBLISHED + LIVE** (16-hr night op, $80). Remaining otherwise: operator activation only (Marketing send + Resend webhook + FTS flag — the reviews CAN-SPAM call was RESOLVED 2026-07-01: transactional + suppression). CI green. |
+| Open PRs | 0 (all merged through #381 + this docs PR) |
+| Open milestone | **None active.** Standing work menus = the two 2026-07-24 roadmaps (top section): **growth plan** (execution not started) + **admin workflow audit** (Sprint 1 ✅ + open-reads ✅; Sprints 2–4 remain). Reviews wake up with the first post-event submissions (~July 26-27). Remaining operator activation: Marketing send + Resend webhook + FTS flag. CI green. |
 
 ---
 
@@ -352,7 +377,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 3162 / 277
+npm test -- --run | tail -3        # expect 3198 / 279
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
@@ -364,6 +389,9 @@ curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 | Path | Purpose |
 |---|---|
 | `docs/next-session.md` | THIS FILE — current state + work menu |
+| `docs/growth-plan-2026-07.md` | **conversion + LLM-discoverability roadmap** (6 phases; execution not started) |
+| `docs/admin-workflow-audit-2026-07.md` | **admin operator-journey audit** (Sprint 1 + open-reads DONE; Sprints 2–4 remain) |
+| `worker/lib/capabilities.js` `requireReadAccess` | the open-reads model's greppable read-gate marker (#379) — reads open to any authed admin, loads caps for field-level masks |
 | `CLAUDE.md` | durable rules + per-milestone/session log (M1–M7 + post-M7 + M8 + **event-content session**) |
 | `HANDOFF.md` | full session-start onboarding (stack, schema, API surface) |
 | `src/pages/EventDetail.jsx` + `src/hooks/useEvents.js` | **per-event `details_json` rendering** (overrides w/ hardcoded fallbacks) — event-content session |
