@@ -7,12 +7,14 @@
 // activeEventToday=true (controlled by sidebarConfig.js's `dynamic`
 // field + getVisibleItems filter).
 //
-// Three render states based on useTodayActive():
+// Render states based on useTodayActive():
 //   - todayState === undefined → loading (first paint before /today/active resolves)
 //   - activeEventToday === false → empty-state card pointing to /admin/events
-//   - activeEventToday === true && eventId !== null → header + 3 action tiles
-//   - activeEventToday === true && eventId === null → ambiguous (2+ events today);
-//     point operator to /admin/events to pick one
+//   - activeEventToday === true → one tile group PER active event (the
+//     /today/active `events` array, added 2026-07, carries id+title; on a
+//     two-event day each event gets its own Roster/Check-in deep-links).
+//     Falls back to a single eventId-only group for a stale cached payload
+//     without `events`, and to the /admin/events pointer if neither exists.
 //
 // Inline styles (consistent with AdminDashboard.jsx pattern). Follows the
 // same color palette as other admin pages (var(--cream), var(--orange),
@@ -39,16 +41,21 @@ export default function AdminToday() {
 
   const activeEventToday = Boolean(todayState?.activeEventToday);
   const eventId = todayState?.eventId || null;
+  const events = Array.isArray(todayState?.events) && todayState.events.length > 0
+    ? todayState.events
+    : (eventId ? [{ id: eventId, title: null }] : []);
 
   if (!activeEventToday) {
     return <NoEventTodayState />;
   }
 
-  if (!eventId) {
+  // activeEventToday=true but no event list — a stale cached payload from a
+  // pre-`events` deploy. Point at /admin/events rather than render nothing.
+  if (events.length === 0) {
     return <AmbiguousState />;
   }
 
-  return <ActiveEventTodayView eventId={eventId} />;
+  return <ActiveEventTodayView events={events} />;
 }
 
 function NoEventTodayState() {
@@ -86,11 +93,29 @@ function AmbiguousState() {
   );
 }
 
-function ActiveEventTodayView({ eventId }) {
-  const eventQs = `?event=${encodeURIComponent(eventId)}`;
+function ActiveEventTodayView({ events }) {
+  const description = events.length === 1
+    ? `Event in progress · ${events[0].title || events[0].id}`
+    : `${events.length} events in progress`;
   return (
     <div style={page}>
-      <AdminPageHeader {...TODAY_HEADER} description={`Event in progress · ${eventId}`} />
+      <AdminPageHeader {...TODAY_HEADER} description={description} />
+      {events.map((event) => (
+        <EventTileGroup
+          key={event.id}
+          event={event}
+          showTitle={events.length > 1}
+        />
+      ))}
+    </div>
+  );
+}
+
+function EventTileGroup({ event, showTitle }) {
+  const eventQs = `?event=${encodeURIComponent(event.id)}`;
+  return (
+    <section style={tileGroup} aria-label={event.title || event.id}>
+      {showTitle && <h2 style={groupTitle}>{event.title || event.id}</h2>}
       <div style={tilesGrid}>
         <ActionTile
           to={`/admin/roster${eventQs}`}
@@ -109,7 +134,7 @@ function ActiveEventTodayView({ eventId }) {
           desc="Equipment assignment + return"
         />
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -138,6 +163,11 @@ const cardBody = {
 const muted = { color: 'var(--olive-light)', fontSize: 13, padding: '1.5rem' };
 const link = { color: 'var(--orange)', textDecoration: 'underline' };
 
+const tileGroup = { marginBottom: 28 };
+const groupTitle = {
+  fontSize: 15, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 2,
+  color: 'var(--orange)', margin: '0 0 12px',
+};
 const tilesGrid = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',

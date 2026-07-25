@@ -48,31 +48,35 @@ adminDashboard.get('/today/active', async (c) => {
     ).first();
     const today = todayRow?.today || new Date().toISOString().slice(0, 10);
 
-    // Find published, non-past events scheduled for today. Limit 2 so we
-    // can detect the multiple-events-today case without scanning the
-    // whole day's rows.
+    // Find published, non-past events scheduled for today. LIMIT 6 keeps
+    // the scan bounded while returning every same-day event the Today
+    // page needs to render tiles for (2 is the realistic max; 6 is slack).
     // Match events whose span CONTAINS today (date portions): a single-day
     // event today, OR a multi-day event on any day from its start through
     // end_date_iso. date(date_iso) also makes a timed date_iso match — a bare
     // `date_iso = today` never matched a "...T16:00:00" value.
     const eventsResult = await c.env.DB.prepare(
-        `SELECT id FROM events
+        `SELECT id, title FROM events
          WHERE date(date_iso) <= ? AND date(COALESCE(end_date_iso, date_iso)) >= ?
            AND published = 1 AND past = 0
          ORDER BY id
-         LIMIT 2`,
+         LIMIT 6`,
     ).bind(today, today).all();
 
     const events = eventsResult.results || [];
     const activeEventToday = events.length > 0;
     // eventId is null when there's 0 or 2+ events today (ambiguous —
-    // caller can fetch the list endpoint if it needs to disambiguate).
+    // consumers that need one event use `events` to disambiguate).
     const eventId = events.length === 1 ? events[0].id : null;
 
     return c.json({
         activeEventToday,
         eventId,
         checkInOpen: false,
+        // Additive (2026-07): every event active today, so multi-event days
+        // render per-event tiles instead of a dead-end "ambiguous" card.
+        // The activeEventToday/eventId/checkInOpen contract is unchanged.
+        events: events.map((e) => ({ id: e.id, title: e.title ?? null })),
     });
 });
 

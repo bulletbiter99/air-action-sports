@@ -162,10 +162,7 @@ export function TodayEvents() {
     // so the filter stays current as the day rolls.
     const today = ymdLocal(new Date());
     const events = rawData
-        ? (rawData.events || []).filter((e) => {
-            if (!e.dateIso) return false;
-            return ymdLocal(new Date(e.dateIso)) === today;
-        })
+        ? (rawData.events || []).filter((e) => isEventOnDay(e, today))
         : null;
 
     return (
@@ -186,7 +183,7 @@ export function TodayEvents() {
                             </span>
                             <div className="admin-persona-widget__event-links">
                                 <Link to={`/admin/roster?event=${encodeURIComponent(e.id)}`}>Roster</Link>
-                                <Link to="/admin/scan">Scan</Link>
+                                <Link to={`/admin/scan?event=${encodeURIComponent(e.id)}`}>Scan</Link>
                                 <Link to="/admin/rentals/assignments">Rentals</Link>
                             </div>
                         </li>
@@ -357,7 +354,7 @@ export function TodayCheckIns() {
 
     const today = ymdLocal(new Date());
     const todaysEvents = rawEvents
-        ? (rawEvents.events || []).filter((e) => e.dateIso && ymdLocal(new Date(e.dateIso)) === today)
+        ? (rawEvents.events || []).filter((e) => isEventOnDay(e, today))
         : null;
 
     const isActiveDay = todayActive?.activeEventToday;
@@ -1003,6 +1000,18 @@ function ymdLocal(d) {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+}
+
+// True when `today` (a YYYY-MM-DD string) falls inside the event's day span:
+// start day through endDateIso's day for multi-day events (migration 0076),
+// or just the start day when endDateIso is absent. String comparison is safe
+// on same-format YYYY-MM-DD values. Exported for tests.
+export function isEventOnDay(event, today) {
+    if (!event?.dateIso || !today) return false;
+    const start = ymdLocal(new Date(event.dateIso));
+    if (!start) return false;
+    const end = (event.endDateIso && ymdLocal(new Date(event.endDateIso))) || start;
+    return start <= today && today <= end;
 }
 
 function formatRelative(ms) {
