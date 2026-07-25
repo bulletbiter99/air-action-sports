@@ -1,8 +1,104 @@
-# Next-session entry point — event-day hardening + open-reads model + growth/audit roadmaps (2026-07-24/25)
+# Next-session entry point — admin-audit Sprint 2 (broken wiring) closed (2026-07-25)
+
+## 🔴 START HERE — reminder emails fire ~6 hours early (found live on event day)
+
+**`runReminderSweepWindow` (`worker/index.js:237-252`) mis-parses every timed event's start.** Its candidate filter is:
+
+```sql
+AND (unixepoch(e.date_iso) * 1000) BETWEEN ? AND ?
+```
+
+`events.date_iso` stores **local Mountain wall-clock with no timezone suffix** (`2026-07-25T08:30:00`), but SQLite's `unixepoch()` reads a naked ISO datetime as **UTC**. During MDT (UTC−6) every timed event looks 6 hours earlier than it is, so both reminder windows fire ~6–7 hours early.
+
+Verified: `unixepoch('2026-07-25T08:30:00')` = `1784968200` = 08:30 UTC = **2:30 AM MDT**, while Operation Last Light actually started **8:30 AM MDT**.
+
+**What it did on 2026-07-25:** 18 Last Light bookings got the *"T-MINUS 1 HOUR — BOOTS ON THE GROUND / kicks off in about an hour"* email at **1:15–1:30 AM MDT** — with `Check-in: 8:00 AM` printed in the same body. Their `reminder_1hr_sent_at` sentinels are now set and the window can't re-match, so they received **nothing** at the correct time. The 24h reminders are off by the same 6 hours (less visible — "tomorrow" survives it). The one remaining Fire Storm booking (`bk_Th57RDmqT0HUUD`) was suppressed by hand rather than let it fire 7 hours early — `scripts/suppress-firestorm-1hr-reminder.sql`, with a `booking.reminder_suppressed` audit row.
+
+**Why it wasn't fixed on the spot:** `scheduled()` is Critical do-not-touch, it was the morning of the year's biggest event, and both events' reminders had already fired — a same-day deploy carried real risk for zero same-day benefit. Operator agreed to defer.
+
+**Fixing it:** the window comparison needs the event's real UTC instant. Options: interpret `date_iso` with an explicit `America/Denver` offset at query time (`unixepoch(e.date_iso || '-06:00')` is wrong across DST — Denver is −06:00 in MDT and −07:00 in MST), or normalise on write. **Prefer a real fix with DST handling plus a test that pins a timed event in both MST and MDT.** Note this is the same root cause class as the multi-day `date_iso` NaN bugs fixed in 2026-06-26 — timed `date_iso` values keep biting.
+
+⚠️ The schema guard added this session **cannot** catch this: the SQL compiles fine, it's semantically wrong.
+
+
+## ✅ DONE — Sprint 2: broken-wiring fixes + a real-schema guard (2026-07-25, PRs #383–#389)
+
+**7 PRs merged.** `main` **`b6b26a1`** · tests **3198 → 3236 / 284** · lint 0 errors · build clean · **migrations 0078 + 0079 ship in-repo and are OPERATOR-PENDING** (see below).
+
+All six Sprint 2 items from [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md) were re-verified against current `main` first (the audit was written at `def6848`, before #379 landed 52 files) — **all six confirmed**, with three material corrections, plus production row counts that reframed two of them.
+
+| PR | What |
+|---|---|
+| [#383](https://github.com/bulletbiter99/air-action-sports/pull/383) | **Real-schema guard** (the audit's meta-fix) + the 5 bugs it caught on first run |
+| [#384](https://github.com/bulletbiter99/air-action-sports/pull/384) | check-in/check-out read `attendees.event_id`, a column that never existed → join `bookings` |
+| [#385](https://github.com/bulletbiter99/air-action-sports/pull/385) | **A4** CronHealth read 3 field names that exist nowhere in the repo |
+| [#386](https://github.com/bulletbiter99/air-action-sports/pull/386) | **A6** event duplicate named 31 of 40 columns → derive the carry set from the source row |
+| [#387](https://github.com/bulletbiter99/air-action-sports/pull/387) | **B3** Venue picker → conflict detection is reachable for the first time |
+| [#388](https://github.com/bulletbiter99/air-action-sports/pull/388) | **A2** migration **0078** — `persons.legal_name` + `ein_ciphertext`; 1099 surface unbroken |
+| [#389](https://github.com/bulletbiter99/air-action-sports/pull/389) | **A3** migration **0079** — stop emailing a payment link that goes nowhere |
+
+### ⭐ The headline finding — TRUE STRIPE FEE CAPTURE HAS NEVER WORKED
+
+Building the schema guard immediately surfaced **four bugs the audit never found**, one of them serious:
+
+`worker/lib/stripeFeeSync.js` ran `UPDATE bookings SET … updated_at = ?`. **`bookings` has no `updated_at` column** (it's `created_at`/`paid_at`-stamped only), and the per-row `catch` swallowed the throw — every candidate silently counted as "failed". Verified against production: **74 paid/refunded bookings, 0 with `stripe_fee_cents`.** So the nightly `runStripeFeeSync` cron has captured *nothing* since it shipped 2026-06-24, and the "Stripe fees & true net" report (#328) plus the refund-side reconciliation (#335) have never had data. Fixed in #383 — **the next 03:00 UTC run will begin backfilling** (LIMIT 50/night, so ~2 nights for the current 74).
+
+The other three: the Bookkeeper **A/R aging + DSO** report (#330) 500s on every request (`c.full_name`; the column is `name`); `rental_items.qr_token` in the equipment-return scan; and `attendees.event_id` in both check-in handlers (#384).
+
+### The guard itself
+
+`tests/helpers/realSchema.js` applies all 78 `migrations/*.sql` into an in-memory SQLite (`better-sqlite3`, pinned `^12` — v13 needs Node 22 and CI pins 20). `tests/unit/schema/workerSql.test.js` extracts **every static SQL literal in `worker/`** (717 today) and `prepare()`s each — SQLite resolves column names at prepare time, so a missing column throws with zero fixture rows. Runs in the existing CI `test` job in ~0.1s.
+
+**Why this class kept shipping:** `tests/helpers/mockD1.js` is a shape mock — it substring/regex-matches SQL and returns whatever fixture the test registered, never checking that the columns exist. `stripeFeeSync.test.js` passed before *and* after the fix.
+
+Allowlist (each needs a written reason; the suite asserts allowlisted statements **still fail**, so fixing one forces removing its entry): only `laborEntries.js`'s deliberate forward-compat write remains.
+
+**Known gaps:** only *static* SQL (~100 `${}`-interpolated statements are skipped), and only column existence — a statement can compile and still be semantically wrong.
+
+### Corrections to the audit (verified in source)
+
+- **A2**: `POST /lock-year` was never broken — it doesn't touch `persons`. Only the report, CSV and cron were dead. Separately the audit's **B7 is wrong**: compensation / mailing-address writes are *not* "built server-side with zero UI callers" — `PUT /api/admin/staff/:id` has an 8-column allow-list and those writes don't exist at all.
+- **A3**: the intended pay landing was specified *inside the admin router* (`requireAuth` on `'*'`), so a customer clicking it would have gotten **401** even if built. Never architecturally viable.
+- **A6**: two extra defects — the duplicate never called `instantiateChecklists`, and the client prompt default was the bare string `'(copy)'` (accepting it produced an event titled `(copy)` with id/slug `copy`).
+- **B3**: the server *already* accepted `siteId`; the gap was purely client-side plus a missing `formatEvent` key.
+
+### Production reality check (why A3/A2 were latent, not live)
+
+`booking_charges` = **0** and `event_day_sessions` = **0** — the kiosk has never opened a session, so no damage charge has ever existed and the 404 link never reached a customer. `labor_entries` = **0** — the 1099 report renders empty even when fixed. `events` with `site_id` = **2 of 5** (3 active sites).
+
+### ⚠️ OPERATOR-PENDING — apply the two new migrations
+
+```bash
+npx wrangler d1 migrations apply air-action-sports-db --remote
+```
+
+Applies **0078** (`persons.legal_name` + `ein_ciphertext`) and **0079** (rewrites the `additional_charge_notice` template to drop the dead `{{paymentLink}}`). Then:
+
+1. `GET /api/admin/1099-thresholds` → **200** with an empty `recipients` array (was 500).
+2. Next 03:00 UTC `cron.swept` audit row no longer carries `meta_json.taxYearAutoLock.error`.
+3. `/admin/email-templates` → `additional_charge_notice` shows no `{{paymentLink}}`.
+4. **Watch `stripe_fee_cents` start populating** after the next two 03:00 UTC runs.
+
+### Durable lessons
+
+1. **Admin visual baselines can drift semantically while the check stays green.** `maxDiffPixelRatio: 0.01` means a single-tile text change (~0.2% of a 1440×906 full-page shot) never trips the compare — and `--update-snapshots` only rewrites a snapshot whose comparison *failed*, so a `capture-baselines` run legitimately reports "No baseline changes to commit". Small UI regressions need unit coverage; the visual suite won't catch them.
+2. **Locally the admin visual suite reuses a running preview server** (`reuseExistingServer: !process.env.CI`) — i.e. a stale `dist/`. A real UI change will look like it had no effect. Use `CI=1` to force a fresh build.
+3. **`npm install` on Windows prunes the top-level `@esbuild/linux-x64` lock entry**, which would break `vite build` on the ubuntu runners. Splice new packages into the lock at npm's own key positions instead of regenerating it.
+4. **`npm run lint` reports 24 errors locally that CI never sees** — they're all in `static-backup/`, which is gitignored. Lint the tracked source (`npx eslint src worker tests scripts`) to reproduce CI.
+5. **Retargeting a PR's base does not re-trigger CI** (`pull_request` fires on opened/synchronize/reopened, not edited). Close + reopen it.
+
+### What's next
+
+**Sprint 3 (workflow completion)** and **Sprint 4 (contracts & polish)** in [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md) remain, as does the whole of [docs/growth-plan-2026-07.md](growth-plan-2026-07.md). Two items surfaced by this sprint that belong in Sprint 3:
+
+- **The 1099 tax-identity editor.** 0078 adds the columns but there is still **no write path** — `PUT /api/admin/staff/:id`'s allow-list excludes them, so they stay NULL. Needs `PUT /:id/tax-identity` + staff-detail UI.
+- **`pay_kind = 'w2_salary'` is dead SQL** (`thresholds1099.js:154,209`). `labor_entries.pay_kind`'s CHECK (migration 0036) doesn't permit that value — it's a `persons.compensation_kind` value — so salaried W-2 totals silently return 0. **Needs a product decision**, and note the schema guard *cannot* catch this class (it compiles fine).
+
+---
 
 ## ✅ DONE — Event-day readiness sprint + open-reads access model (2026-07-24 → 07-25, PRs #377–#381)
 
-**The July 25-26 events are HAPPENING NOW** (this session closed the night before / morning of). Five PRs merged + deployed (prod Version **`fabeb661`**); `main` **`051ba98`** + this docs sync · tests **3198 / 279** · lint 0 errors · NO new migrations. Two big research artifacts also landed (see the roadmaps section below).
+**This session closed the night before / morning of the July 25-26 events** (which have since run). Five PRs merged + deployed (prod Version **`fabeb661`**); `main` **`051ba98`** + this docs sync · tests **3198 / 279** · lint 0 errors · NO new migrations. Two big research artifacts also landed (see the roadmaps section below).
 
 | PR | What |
 |---|---|
@@ -97,13 +193,13 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `051ba98` + this docs sync (re-pull for exact; PRs #377–#381 merged; latest deploy Version **`fabeb661`**, 2026-07-25) |
-| Tests | **3198 / 279** all green |
-| Build | clean · Lint **0 errors** |
-| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day support + reviews + **the open-reads admin access model** + the **event-day hardening** (per-event Today tiles incl. walk-in New Booking, AdminScan payment/wrong-event safeguards, review-invite tooling) all deployed. **Both July-25 events LIVE and running THIS weekend** (`Operation Last Light` $60 day op + `Operation Fire Storm` $80 16-hr night op). |
-| Migrations on remote | **0001–0077 ALL applied** — a `migrations apply` finds nothing new. (Migration `0077_reviews.sql` applied 2026-06-28 for attendee-verified reviews.) |
-| Open PRs | 0 (all merged through #381 + this docs PR) |
-| Open milestone | **None active.** Standing work menus = the two 2026-07-24 roadmaps (top section): **growth plan** (execution not started) + **admin workflow audit** (Sprint 1 ✅ + open-reads ✅; Sprints 2–4 remain). Reviews wake up with the first post-event submissions (~July 26-27). Remaining operator activation: Marketing send + Resend webhook + FTS flag. CI green. |
+| `main` HEAD | `b6b26a1` + this docs sync (re-pull for exact; PRs #383–#389 merged, Sprint 2) |
+| Tests | **3236 / 284** all green |
+| Build | clean · Lint **0 errors** (`npx eslint src worker tests scripts` — plain `npm run lint` also walks the gitignored `static-backup/`, which CI never sees and which reports 24 pre-existing errors) |
+| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day support + reviews + the open-reads admin access model + event-day hardening + **the Sprint 2 broken-wiring fixes** all deployed. **The July 25-26 events have now RUN** (`Operation Last Light` $60 day op + `Operation Fire Storm` $80 16-hr night op). |
+| Migrations on remote | ⚠️ **0001–0077 applied; `0078` + `0079` are IN-REPO BUT NOT APPLIED.** Run `npx wrangler d1 migrations apply air-action-sports-db --remote` — 0078 unbreaks the 1099 surface + its nightly cron, 0079 drops the dead payment link from the damage-charge email. |
+| Open PRs | 0 (all merged through #389 + this docs PR) |
+| Open milestone | **None active.** Standing work menus: **admin workflow audit** (Sprints 1–2 ✅ + open-reads ✅; **Sprints 3–4 remain**) + the **growth plan** (execution not started). 🔴 Ahead of both: the **reminder-cron timezone bug** at the top of this file. Reviews wake up with the first post-event submissions. Remaining operator activation: apply 0078/0079, Marketing send, Resend webhook, FTS flag. CI green. |
 
 ---
 
@@ -332,7 +428,13 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 
 ---
 
-## ⚠️ Operator-pending (what's LEFT after the 2026-06-02 deploy)
+## ⚠️ Operator-pending (historical — as of the 2026-06-02 deploy)
+
+> **⚠️ SUPERSEDED — do not read this section as current.** The live operator-pending list is in the
+> **Sprint 2 section at the top of this file** and in the *Current state at a glance* table. Since this
+> section was written, migrations **0078 + 0079** were added and are **NOT yet applied**, which is now
+> the highest-priority operator action. Everything below is kept for the history of how the earlier
+> items were resolved.
 
 **Unchanged by the 2026-06-06 + 2026-06-11 sessions.** Migrations **0065–0070 are now applied** and the **marketing route-capability swap is deployed** (`b342b39f`). What remains is env/secret/flag activation — every feature degrades gracefully (empty lists / no-op cron / 500 on the unset webhook) until then.
 
@@ -377,7 +479,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 3198 / 279
+npm test -- --run | tail -3        # expect 3236 / 284
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
