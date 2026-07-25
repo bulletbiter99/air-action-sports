@@ -181,13 +181,15 @@ export async function createDamageCharge(env, opts) {
     const now = Date.now();
     const approvalRequired = requiresApproval(amountCents, operatorRoleCap) ? 1 : 0;
     const status = approvalRequired ? 'pending' : 'sent';
-    const linkExpiresAt = paymentLinkExpiresAt(now);
 
-    let paymentLink = null;
-    if (status === 'sent') {
-        const token = await signPaymentToken(id, linkExpiresAt, env.SESSION_SECRET);
-        paymentLink = `${env.SITE_URL || 'https://airactionsport.com'}/admin/booking-charges/pay/${token}`;
-    }
+    // NOTE: no payment link is minted. The URL this used to build
+    // (/admin/booking-charges/pay/<token>) has never resolved — there is no such
+    // SPA or worker route, and the landing was specified inside the admin router
+    // (requireAuth on '*'), so a customer clicking it would have gotten a 401
+    // even if it had been built. The notice email no longer references one
+    // (migration 0079); payment is arranged by the operator via "Charge card"
+    // (off-session) or "Mark paid". signPaymentToken/verifyPaymentToken are left
+    // in place as the scaffolding a real public pay page would reuse.
 
     await env.DB.prepare(
         `INSERT INTO booking_charges (
@@ -199,12 +201,11 @@ export async function createDamageCharge(env, opts) {
             refunded_at, refund_reference,
             created_by_person_id, created_by_user_id,
             created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, NULL, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, NULL, ?, ?)`,
     ).bind(
         id, bookingId, attendeeId || null, assignmentId,
         reasonKind, description || null, amountCents,
         status, approvalRequired,
-        paymentLink, status === 'sent' ? linkExpiresAt : null,
         operatorPersonId || null,
         now, now,
     ).run();
@@ -227,12 +228,12 @@ export async function createDamageCharge(env, opts) {
     });
 
     if (status === 'sent') {
-        await sendNoticeEmail(env, { chargeId: id, paymentLink, linkExpiresAt }).catch((err) => {
+        await sendNoticeEmail(env, { chargeId: id }).catch((err) => {
             console.error('charge_notice send failed', id, err?.message);
         });
     }
 
-    return { id, status, approvalRequired: !!approvalRequired, paymentLink, paymentLinkExpiresAt: linkExpiresAt };
+    return { id, status, approvalRequired: !!approvalRequired };
 }
 
 /**
@@ -314,30 +315,30 @@ export async function approveCharge(env, opts) {
     if (charge.status !== 'pending') return { error: 'not_pending', currentStatus: charge.status };
 
     const now = Date.now();
-    const linkExpiresAt = paymentLinkExpiresAt(now);
-    const token = await signPaymentToken(chargeId, linkExpiresAt, env.SESSION_SECRET);
-    const paymentLink = `${env.SITE_URL || 'https://airactionsport.com'}/admin/booking-charges/pay/${token}`;
 
+    // Approving marks the charge sent and notifies the customer. It no longer
+    // mints a payment link — see the note in createDamageCharge; the URL never
+    // resolved. Payment is arranged by the operator afterwards.
     await env.DB.prepare(
         `UPDATE booking_charges
          SET status = 'sent', approval_required = 0, approved_at = ?, approved_by_user_id = ?,
-             payment_link = ?, payment_link_expires_at = ?, updated_at = ?
+             updated_at = ?
          WHERE id = ?`,
-    ).bind(now, userId || null, paymentLink, linkExpiresAt, now, chargeId).run();
+    ).bind(now, userId || null, now, chargeId).run();
 
     await writeAudit(env, {
         userId: userId || null,
         action: 'charge.approved',
         targetType: 'booking_charge',
         targetId: chargeId,
-        meta: { amountCents: charge.amount_cents, paymentLink },
+        meta: { amountCents: charge.amount_cents },
     });
 
-    await sendNoticeEmail(env, { chargeId, paymentLink, linkExpiresAt }).catch((err) => {
+    await sendNoticeEmail(env, { chargeId }).catch((err) => {
         console.error('charge_notice send failed (after approve)', chargeId, err?.message);
     });
 
-    return { ok: true, chargeId, status: 'sent', paymentLink, paymentLinkExpiresAt: linkExpiresAt };
+    return { ok: true, chargeId, status: 'sent' };
 }
 
 export async function waiveCharge(env, opts) {
@@ -605,17 +606,17 @@ async function loadAndSend(env, { slug, charge, vars }) {
     });
 }
 
-async function sendNoticeEmail(env, { chargeId, paymentLink, linkExpiresAt }) {
+async function sendNoticeEmail(env, { chargeId }) {
     const charge = await getChargeFull(env, chargeId);
     if (!charge) return { skipped: 'charge_not_found' };
+    // paymentLink / linkExpiresOn are gone: migration 0079 removed them from the
+    // additional_charge_notice template because the URL never resolved.
     const vars = {
         customerName: charge.buyer_name || 'there',
         eventTitle: charge.event_id || 'your event',
         itemName: charge.item_name || 'rental equipment',
         reasonKind: charge.reason_kind,
         amountDisplay: formatChargeAmount(charge.amount_cents),
-        paymentLink: paymentLink || charge.payment_link || '',
-        linkExpiresOn: new Date(linkExpiresAt || charge.payment_link_expires_at).toLocaleDateString(),
     };
     return loadAndSend(env, { slug: 'additional_charge_notice', charge, vars });
 }

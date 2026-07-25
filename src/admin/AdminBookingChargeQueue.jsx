@@ -144,7 +144,7 @@ export default function AdminBookingChargeQueue() {
                 setChargeCardError({
                     kind: 'no_saved_pm',
                     message:
-                        'No saved payment method on this booking. This booking was created before the saved-PM feature shipped, OR the card was never saved. Fall back to "Approve" (email link) or "Mark paid" (Venmo / cash).',
+                        'No saved payment method on this booking. This booking was created before the saved-PM feature shipped, OR the card was never saved. Collect payment directly and record it with "Mark paid" (Venmo / PayPal / cash / check).',
                 });
             } else if (res.status === 402 && body.error === 'stripe_declined') {
                 const codeLabel = ({
@@ -156,7 +156,7 @@ export default function AdminBookingChargeQueue() {
                 }[body.code] || `Stripe error: ${body.code}`);
                 setChargeCardError({
                     kind: 'stripe_declined',
-                    message: `${codeLabel}. ${body.message || ''} Fall back to "Approve" (email link) or "Mark paid".`,
+                    message: `${codeLabel}. ${body.message || ''} Collect payment another way and record it with "Mark paid".`,
                 });
             } else if (res.status === 502) {
                 setChargeCardError({
@@ -205,7 +205,7 @@ export default function AdminBookingChargeQueue() {
         <div style={page}>
             <AdminPageHeader
                 title="Booking charges"
-                description="Review damage / lost-equipment charges queued from event-day mode. Approve sends the customer a payment link; waive cancels with a reason."
+                description="Review damage / lost-equipment charges queued from event-day mode. Approve notifies the customer that a charge is due; collect it with Charge card (saved card, off-session) or Mark paid (Venmo / PayPal / cash / check). Waive cancels with a reason."
                 breadcrumb={BREADCRUMB}
             />
 
@@ -320,7 +320,7 @@ export default function AdminBookingChargeQueue() {
                                                 Charge card
                                             </button>
                                         )}
-                                        {canManage && c.status === 'sent' && (
+                                        {canManage && (c.status === 'pending' || c.status === 'sent') && (
                                             <button
                                                 type="button"
                                                 onClick={() => setPaidOpen({ chargeId: c.id })}
@@ -383,7 +383,7 @@ export default function AdminBookingChargeQueue() {
                         <h2 style={modalTitle}>Charge saved card?</h2>
                         <p style={modalCopy}>
                             This will <strong>immediately charge</strong> the customer&apos;s saved payment method
-                            via Stripe off-session — no email link, no further customer action required.
+                            via Stripe off-session — no further customer action required.
                         </p>
                         <div style={chargeSummary}>
                             <div style={summaryRow}>
@@ -403,9 +403,9 @@ export default function AdminBookingChargeQueue() {
                             <div style={chargeErrorBanner}>{chargeCardError.message}</div>
                         )}
                         <p style={modalFootnote}>
-                            On decline / 3DS / missing PM: this won&apos;t charge. Fall back to{' '}
-                            <strong>Approve</strong> (email link) or <strong>Mark paid</strong>{' '}
-                            (Venmo / cash).
+                            On decline / 3DS / missing PM: this won&apos;t charge. Collect payment
+                            another way and record it with <strong>Mark paid</strong>{' '}
+                            (Venmo / PayPal / cash / check).
                         </p>
                         <div style={modalActions}>
                             <button
@@ -502,7 +502,7 @@ const tdRight = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' 
 const btnPrimary = { padding: '6px 12px', background: 'var(--orange)', color: 'white', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 3, marginRight: 6 };
 const btnSecondary = { padding: '6px 12px', background: 'transparent', color: 'var(--cream)', border: '1px solid var(--color-border-strong)', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 3, marginRight: 6 };
 // M6 B8 — Charge-card button uses success-green so it's visually distinct
-// from Approve (orange — sends email link) and Mark paid (subtle outline).
+// from Approve (orange — notifies the customer) and Mark paid (subtle outline).
 const btnAccent = { padding: '6px 12px', background: '#16a34a', color: 'white', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 3, marginRight: 6 };
 const successBanner = { padding: '10px 14px', background: 'rgba(22, 163, 74, 0.12)', border: '1px solid #16a34a', color: 'var(--cream)', fontSize: 13, borderRadius: 4, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, position: 'relative' };
 const bannerDismiss = { position: 'absolute', right: 12, top: 8, background: 'transparent', border: 'none', color: 'var(--cream)', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 4 };
