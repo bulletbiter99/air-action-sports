@@ -219,7 +219,7 @@ describe('POST /api/event-day/checkin/:attendeeId', () => {
     it('returns 404 when attendee not found', async () => {
         const cookie = await buildPortalCookie();
         bindEventDaySession();
-        env.DB.__on(/SELECT id, booking_id, event_id, waiver_id, checked_in_at FROM attendees/, null, 'first');
+        env.DB.__on(/SELECT a\.id, a\.booking_id, a\.waiver_id/, null, 'first');
         const req = new Request(`https://airactionsport.com/api/event-day/checkin/${ATTENDEE_ID}`, {
             method: 'POST',
             headers: { cookie: `${cookie}; aas_event_day_session=${EVENT_DAY_SESSION_ID}`, 'Content-Type': 'application/json' },
@@ -232,7 +232,7 @@ describe('POST /api/event-day/checkin/:attendeeId', () => {
     it('returns 200 idempotent when already checked in', async () => {
         const cookie = await buildPortalCookie();
         bindEventDaySession();
-        env.DB.__on(/SELECT id, booking_id, event_id, waiver_id, checked_in_at FROM attendees/, {
+        env.DB.__on(/SELECT a\.id, a\.booking_id, a\.waiver_id/, {
             id: ATTENDEE_ID,
             booking_id: 'b_1',
             event_id: EVENT_ID,
@@ -254,7 +254,7 @@ describe('POST /api/event-day/checkin/:attendeeId', () => {
     it('returns 409 waiver_required when waiver missing and not bypassing', async () => {
         const cookie = await buildPortalCookie();
         bindEventDaySession({ withRoles: ['field_marshal'] }); // not lead_marshal
-        env.DB.__on(/SELECT id, booking_id, event_id, waiver_id, checked_in_at FROM attendees/, {
+        env.DB.__on(/SELECT a\.id, a\.booking_id, a\.waiver_id/, {
             id: ATTENDEE_ID,
             booking_id: 'b_1',
             event_id: EVENT_ID,
@@ -276,7 +276,7 @@ describe('POST /api/event-day/checkin/:attendeeId', () => {
     it('returns 403 forbidden_bypass when bypass attempted without capability', async () => {
         const cookie = await buildPortalCookie();
         bindEventDaySession({ withRoles: ['field_marshal'] });
-        env.DB.__on(/SELECT id, booking_id, event_id, waiver_id, checked_in_at FROM attendees/, {
+        env.DB.__on(/SELECT a\.id, a\.booking_id, a\.waiver_id/, {
             id: ATTENDEE_ID,
             booking_id: 'b_1',
             event_id: EVENT_ID,
@@ -298,7 +298,7 @@ describe('POST /api/event-day/checkin/:attendeeId', () => {
     it('returns 400 bypass_reason_required when lead_marshal omits the reason', async () => {
         const cookie = await buildPortalCookie();
         bindEventDaySession({ withRoles: ['lead_marshal'] });
-        env.DB.__on(/SELECT id, booking_id, event_id, waiver_id, checked_in_at FROM attendees/, {
+        env.DB.__on(/SELECT a\.id, a\.booking_id, a\.waiver_id/, {
             id: ATTENDEE_ID,
             booking_id: 'b_1',
             event_id: EVENT_ID,
@@ -319,7 +319,7 @@ describe('POST /api/event-day/checkin/:attendeeId', () => {
     it('returns 200 + writes audit row + bumps counter on lead_marshal bypass', async () => {
         const cookie = await buildPortalCookie();
         bindEventDaySession({ withRoles: ['lead_marshal'] });
-        env.DB.__on(/SELECT id, booking_id, event_id, waiver_id, checked_in_at FROM attendees/, {
+        env.DB.__on(/SELECT a\.id, a\.booking_id, a\.waiver_id/, {
             id: ATTENDEE_ID,
             booking_id: 'b_1',
             event_id: EVENT_ID,
@@ -362,7 +362,7 @@ describe('POST /api/event-day/checkin/:attendeeId', () => {
     it('returns 200 + writes normal audit row + bumps counter on happy-path (waiver present)', async () => {
         const cookie = await buildPortalCookie();
         bindEventDaySession();
-        env.DB.__on(/SELECT id, booking_id, event_id, waiver_id, checked_in_at FROM attendees/, {
+        env.DB.__on(/SELECT a\.id, a\.booking_id, a\.waiver_id/, {
             id: ATTENDEE_ID,
             booking_id: 'b_1',
             event_id: EVENT_ID,
@@ -394,7 +394,7 @@ describe('POST /api/event-day/checkin/:attendeeId', () => {
     it('returns 404 wrong_event when attendee.event_id differs from active event', async () => {
         const cookie = await buildPortalCookie();
         bindEventDaySession();
-        env.DB.__on(/SELECT id, booking_id, event_id, waiver_id, checked_in_at FROM attendees/, {
+        env.DB.__on(/SELECT a\.id, a\.booking_id, a\.waiver_id/, {
             id: ATTENDEE_ID,
             booking_id: 'b_1',
             event_id: 'evt_DIFFERENT',
@@ -421,7 +421,7 @@ describe('POST /api/event-day/checkin/:attendeeId/check-out', () => {
     it('returns 409 when attendee is not currently checked in', async () => {
         const cookie = await buildPortalCookie();
         bindEventDaySession();
-        env.DB.__on(/SELECT id, event_id, booking_id, checked_in_at FROM attendees/, {
+        env.DB.__on(/SELECT a\.id, a\.booking_id, a\.checked_in_at/, {
             id: ATTENDEE_ID,
             event_id: EVENT_ID,
             booking_id: 'b_1',
@@ -440,7 +440,7 @@ describe('POST /api/event-day/checkin/:attendeeId/check-out', () => {
     it('returns 200 + writes audit on happy-path check-out', async () => {
         const cookie = await buildPortalCookie();
         bindEventDaySession();
-        env.DB.__on(/SELECT id, event_id, booking_id, checked_in_at FROM attendees/, {
+        env.DB.__on(/SELECT a\.id, a\.booking_id, a\.checked_in_at/, {
             id: ATTENDEE_ID,
             event_id: EVENT_ID,
             booking_id: 'b_1',

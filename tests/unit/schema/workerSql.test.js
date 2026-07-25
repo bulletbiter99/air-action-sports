@@ -60,15 +60,6 @@ const ALLOWED_FAILURES = [
             + 'try/catch, documented as a no-op until a future migration adds the columns.',
     },
     {
-        file: 'worker/routes/event-day/checkin.js',
-        match: 'FROM attendees WHERE id = ?',
-        reason: 'attendees has no event_id column — the check-in and check-out lookups read one '
-            + '(the code even comments that it "may be null pre-M3"). Both need to join bookings '
-            + 'for the event, which rewrites 11 mockD1 regexes in '
-            + 'tests/unit/event-day/checkin/route.test.js; split into its own PR to stay under '
-            + 'the 10-file cap. Unreachable today — the kiosk has never opened a session.',
-    },
-    {
         file: 'worker/lib/thresholds1099.js',
         match: 'SELECT le.person_id, p.full_name, p.email, p.legal_name, p.ein',
         reason: 'Audit finding A2 — persons.legal_name / persons.ein were never migrated, so '
