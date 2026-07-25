@@ -149,7 +149,11 @@ function csvEscape(s) {
  */
 export async function aggregate1099TotalsForYear(env, taxYear) {
     const rows = await env.DB.prepare(
-        `SELECT le.person_id, p.full_name, p.email, p.legal_name, p.ein,
+        // legal_name + ein_ciphertext ship in migration 0078. This used to
+        // select `p.legal_name, p.ein` — neither column had ever been
+        // migrated, so this statement threw and took the report, the CSV
+        // export and the nightly sweep down with it.
+        `SELECT le.person_id, p.full_name, p.email, p.legal_name, p.ein_ciphertext,
                 SUM(CASE WHEN le.pay_kind LIKE '1099%' THEN le.amount_cents ELSE 0 END) AS total_1099_cents,
                 SUM(CASE WHEN le.pay_kind = 'w2_hourly' OR le.pay_kind = 'w2_salary' THEN le.amount_cents ELSE 0 END) AS total_w2_cents,
                 COUNT(le.id) AS entry_count,
@@ -160,16 +164,20 @@ export async function aggregate1099TotalsForYear(env, taxYear) {
          INNER JOIN persons p ON p.id = le.person_id
          WHERE le.tax_year = ?
            AND p.archived_at IS NULL
-         GROUP BY le.person_id, p.full_name, p.email, p.legal_name, p.ein
+         GROUP BY le.person_id, p.full_name, p.email, p.legal_name, p.ein_ciphertext
          ORDER BY total_1099_cents DESC`,
     ).bind(taxYear).all();
 
+    // The EIN stays ENCRYPTED here. Decryption is the route's decision because
+    // it is capability-gated (`staff.read.pii`) and audited per call — see
+    // worker/routes/admin/thresholds1099.js, mirroring the
+    // customers.business_tax_id precedent.
     return (rows.results || []).map((r) => ({
         personId: r.person_id,
         fullName: r.full_name,
         email: r.email,
         legalName: r.legal_name,
-        ein: r.ein,
+        einCiphertext: r.ein_ciphertext,
         total1099Cents: r.total_1099_cents || 0,
         totalW2Cents: r.total_w2_cents || 0,
         entryCount: r.entry_count,
@@ -310,14 +318,18 @@ export async function runTaxYearAutoLockSweep(env, now = Date.now()) {
     //     legal_name or EIN. Run year-round so reminders go out as
     //     people cross the threshold, not only at lock time.
     const candidates = await env.DB.prepare(
-        `SELECT le.person_id, p.full_name, p.email, p.legal_name, p.ein,
+        // "Missing an EIN" is a plain NULL test: encrypt('') returns null
+        // (personEncryption.js), so a blank EIN is never stored as ''. That
+        // matters because ciphertext can't be compared to '' — there is no
+        // decrypting inside SQL.
+        `SELECT le.person_id, p.full_name, p.email, p.legal_name,
                 SUM(CASE WHEN le.pay_kind LIKE '1099%' THEN le.amount_cents ELSE 0 END) AS total_1099_cents
          FROM labor_entries le
          INNER JOIN persons p ON p.id = le.person_id
          WHERE le.tax_year = ?
            AND p.archived_at IS NULL
            AND p.email IS NOT NULL AND p.email != ''
-           AND (p.legal_name IS NULL OR p.legal_name = '' OR p.ein IS NULL OR p.ein = '')
+           AND (p.legal_name IS NULL OR p.legal_name = '' OR p.ein_ciphertext IS NULL)
          GROUP BY le.person_id
          HAVING total_1099_cents >= ?
          LIMIT 100`,
