@@ -11,7 +11,11 @@ export function formatEvent(row) {
         displayMonth: row.display_month,
         displayDate: row.display_date,
         location: row.location,
+        // `site` is SERIES/brand text ("Delta"); `siteId` is the FK to the
+        // physical venue in `sites` and is what conflict detection keys on
+        // (migration 0045). They are not interchangeable — do not merge them.
         site: row.site,
+        siteId: row.site_id ?? null,
         type: row.type,
         timeRange: row.time_range,
         checkIn: row.check_in,
