@@ -1,5 +1,26 @@
 # Next-session entry point — admin-audit Sprint 2 (broken wiring) closed (2026-07-25)
 
+## 🔴 START HERE — reminder emails fire ~6 hours early (found live on event day)
+
+**`runReminderSweepWindow` (`worker/index.js:237-252`) mis-parses every timed event's start.** Its candidate filter is:
+
+```sql
+AND (unixepoch(e.date_iso) * 1000) BETWEEN ? AND ?
+```
+
+`events.date_iso` stores **local Mountain wall-clock with no timezone suffix** (`2026-07-25T08:30:00`), but SQLite's `unixepoch()` reads a naked ISO datetime as **UTC**. During MDT (UTC−6) every timed event looks 6 hours earlier than it is, so both reminder windows fire ~6–7 hours early.
+
+Verified: `unixepoch('2026-07-25T08:30:00')` = `1784968200` = 08:30 UTC = **2:30 AM MDT**, while Operation Last Light actually started **8:30 AM MDT**.
+
+**What it did on 2026-07-25:** 18 Last Light bookings got the *"T-MINUS 1 HOUR — BOOTS ON THE GROUND / kicks off in about an hour"* email at **1:15–1:30 AM MDT** — with `Check-in: 8:00 AM` printed in the same body. Their `reminder_1hr_sent_at` sentinels are now set and the window can't re-match, so they received **nothing** at the correct time. The 24h reminders are off by the same 6 hours (less visible — "tomorrow" survives it). The one remaining Fire Storm booking (`bk_Th57RDmqT0HUUD`) was suppressed by hand rather than let it fire 7 hours early — `scripts/suppress-firestorm-1hr-reminder.sql`, with a `booking.reminder_suppressed` audit row.
+
+**Why it wasn't fixed on the spot:** `scheduled()` is Critical do-not-touch, it was the morning of the year's biggest event, and both events' reminders had already fired — a same-day deploy carried real risk for zero same-day benefit. Operator agreed to defer.
+
+**Fixing it:** the window comparison needs the event's real UTC instant. Options: interpret `date_iso` with an explicit `America/Denver` offset at query time (`unixepoch(e.date_iso || '-06:00')` is wrong across DST — Denver is −06:00 in MDT and −07:00 in MST), or normalise on write. **Prefer a real fix with DST handling plus a test that pins a timed event in both MST and MDT.** Note this is the same root cause class as the multi-day `date_iso` NaN bugs fixed in 2026-06-26 — timed `date_iso` values keep biting.
+
+⚠️ The schema guard added this session **cannot** catch this: the SQL compiles fine, it's semantically wrong.
+
+
 ## ✅ DONE — Sprint 2: broken-wiring fixes + a real-schema guard (2026-07-25, PRs #383–#389)
 
 **7 PRs merged.** `main` **`b6b26a1`** · tests **3198 → 3236 / 285** · lint 0 errors · build clean · **migrations 0078 + 0079 ship in-repo and are OPERATOR-PENDING** (see below).
