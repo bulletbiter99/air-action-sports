@@ -1,0 +1,53 @@
+-- 0078_persons_tax_identity.sql
+-- Sprint 2 (2026-07 admin workflow audit, finding A2) — the two columns the
+-- 1099 surface has always queried but which were never migrated.
+--
+-- WHY
+-- ---
+-- worker/lib/thresholds1099.js selects `p.legal_name` and `p.ein` in two
+-- statements. Neither column exists: `persons` has had exactly the 19 columns
+-- created by 0030_staff_foundation.sql since M5, and there is no
+-- `ALTER TABLE persons` anywhere in the repo. Consequently:
+--   * GET /api/admin/1099-thresholds          → 500
+--   * GET /api/admin/1099-thresholds/export   → 500
+--   * the nightly sweep's W-9 candidate query throws FIRST, which aborts the
+--     run before the tax-year auto-lock block ever executes — so auto-lock is
+--     dead as collateral damage, and the whole thing is swallowed by the
+--     .catch() in worker/index.js
+-- (POST /lock-year is unaffected — it never touches `persons`.)
+--
+-- PRE-MIGRATION SPOT-CHECK (remote, 2026-07-25)
+--   SELECT sql FROM sqlite_master WHERE name='persons';
+--   → 19 columns; no legal_name, no ein. Confirms the audit finding.
+--   SELECT COUNT(*) FROM persons;        → 4 (the admin team)
+--   SELECT COUNT(*) FROM labor_entries;  → 0
+--   So this is additive against a tiny, quiet table: no backfill, no rewrite,
+--   and the surface renders empty until labor logging is actually used.
+--
+-- DESIGN NOTES
+-- ------------
+-- * legal_name is plaintext. It is a name (the same class as full_name, which
+--   is already plaintext) and the IRS-facing report needs to sort/group on it.
+-- * ein is ENCRYPTED, and the column is named `ein_ciphertext` so the contract
+--   is self-documenting — matching the existing `mailing_address_ciphertext` on
+--   this same table and `customers.business_tax_id`. Values are written via
+--   worker/lib/personEncryption.js (AES-GCM 256, PBKDF2-SHA256 100k off
+--   SESSION_SECRET) and only decrypted for a caller holding `staff.read.pii`,
+--   which also writes a per-call unmask row to audit_log — mirroring the
+--   customers.business_tax_id precedent in worker/routes/admin/customers.js.
+-- * encrypt('') returns null, so "no EIN on file" is always NULL — never an
+--   empty string. The W-9 candidate query relies on that: it can test
+--   `ein_ciphertext IS NULL` and does not need to inspect the plaintext.
+--
+-- D1 QUIRKS HONORED
+--   * Additive ALTERs only — no table rebuild (D1 enforces FKs during DROP).
+--   * No transaction-control keywords (D1 quirk #1).
+--   * Nullable with no DEFAULT, so existing rows are untouched.
+--
+-- NOT IN SCOPE (deliberate): there is still no write path for these columns.
+-- PUT /api/admin/staff/:id has an 8-column allow-list and does not include
+-- them, so they stay NULL until the Sprint 3 tax-identity editor ships. This
+-- migration's job is to stop the report and the nightly cron from erroring.
+
+ALTER TABLE persons ADD COLUMN legal_name TEXT;
+ALTER TABLE persons ADD COLUMN ein_ciphertext TEXT;

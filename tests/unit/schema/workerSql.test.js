@@ -59,13 +59,6 @@ const ALLOWED_FAILURES = [
             + 'values for its caller and attempts the denormalized write inside an explicit '
             + 'try/catch, documented as a no-op until a future migration adds the columns.',
     },
-    {
-        file: 'worker/lib/thresholds1099.js',
-        match: 'SELECT le.person_id, p.full_name, p.email, p.legal_name, p.ein',
-        reason: 'Audit finding A2 — persons.legal_name / persons.ein were never migrated, so '
-            + 'the 1099 report, its CSV export and the nightly W-9 sweep all fail. Fixed in the '
-            + 'Sprint 2 PR that adds migration 0078; both statements come off this list there.',
-    },
 ];
 
 function walkJs(dir, out = []) {

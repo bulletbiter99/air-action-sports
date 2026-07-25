@@ -214,7 +214,10 @@ describe('aggregate1099TotalsForYear', () => {
                 full_name: 'Jane',
                 email: 'j@e.com',
                 legal_name: 'Jane Doe',
-                ein: '12-3456789',
+                // migration 0078 stores the EIN encrypted; the lib passes the
+                // ciphertext through and the ROUTE decrypts it behind
+                // staff.read.pii, so no plaintext ein exists at this layer.
+                ein_ciphertext: 'ZW5jcnlwdGVk',
                 total_1099_cents: 75000,
                 total_w2_cents: 0,
                 entry_count: 5,
@@ -231,13 +234,16 @@ describe('aggregate1099TotalsForYear', () => {
             fullName: 'Jane',
             email: 'j@e.com',
             legalName: 'Jane Doe',
-            ein: '12-3456789',
+            einCiphertext: 'ZW5jcnlwdGVk',
             total1099Cents: 75000,
             totalW2Cents: 0,
             entryCount: 5,
             unpaidCount: 1,
             requires1099: true,
         });
+        // The lib must never hand back plaintext — that decision belongs to the
+        // capability-gated, audited route.
+        expect(result[0].ein).toBeUndefined();
     });
 
     it('sets requires1099=false for sub-threshold rows', async () => {

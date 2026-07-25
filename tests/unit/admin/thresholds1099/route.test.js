@@ -260,3 +260,99 @@ describe('POST /api/admin/1099-thresholds/lock-year', () => {
         expect(auditWrite).toBeDefined();
     });
 });
+
+// ────────────────────────────────────────────────────────────────────
+// EIN encryption gate (migration 0078 / audit A2)
+//
+// persons.ein_ciphertext is AES-GCM encrypted. The lib hands the route the
+// ciphertext; the route decrypts only for a caller holding staff.read.pii and
+// writes one unmask row to audit_log per call that actually surfaced a value —
+// mirroring the customers.business_tax_id precedent.
+// ────────────────────────────────────────────────────────────────────
+
+describe('1099 rollup — EIN decryption is capability-gated + audited', () => {
+    const EIN = '12-3456789';
+
+    async function seedRecipient(caps) {
+        const { encrypt } = await import('../../../../worker/lib/personEncryption.js');
+        bindCapabilities(env.DB, 'u_owner', caps);
+        env.DB.__on(/FROM labor_entries le/, {
+            results: [{
+                person_id: 'prs_1', full_name: 'Jane Doe',
+                email: 'jane@example.com', legal_name: 'Jane Doe',
+                ein_ciphertext: await encrypt(EIN, env.SESSION_SECRET),
+                total_1099_cents: 75000, total_w2_cents: 0,
+                entry_count: 5, first_entry_at: 1, last_entry_at: 2, unpaid_count: 0,
+            }],
+        }, 'all');
+        env.DB.__on(/FROM tax_year_locks WHERE tax_year = \?/, null, 'first');
+    }
+
+    async function getRollup() {
+        const req = new Request('https://airactionsport.com/api/admin/1099-thresholds?tax_year=2025', {
+            headers: { cookie: cookieHeader },
+        });
+        const res = await worker.fetch(req, env, {});
+        return { res, body: await res.json() };
+    }
+
+    it('decrypts the EIN for a caller with staff.read.pii', async () => {
+        await seedRecipient(['staff.thresholds_1099.read', 'staff.read.pii']);
+
+        const { res, body } = await getRollup();
+        expect(res.status).toBe(200);
+        expect(body.recipients[0].ein).toBe(EIN);
+        expect(body.recipients[0].einOnFile).toBe(true);
+        // Never leak the stored ciphertext to the client.
+        expect(body.recipients[0].einCiphertext).toBeUndefined();
+    });
+
+    it('masks the EIN without staff.read.pii but still reports one is on file', async () => {
+        await seedRecipient(['staff.thresholds_1099.read']);
+
+        const { res, body } = await getRollup();
+        expect(res.status).toBe(200);
+        // The W-9 chase-list needs "has an EIN?", not the number itself.
+        expect(body.recipients[0].ein).toBeNull();
+        expect(body.recipients[0].einOnFile).toBe(true);
+        expect(body.recipients[0].einCiphertext).toBeUndefined();
+    });
+
+    it('writes an unmask audit row only when a value was actually surfaced', async () => {
+        await seedRecipient(['staff.thresholds_1099.read', 'staff.read.pii']);
+        await getRollup();
+
+        expect(env.DB.__writes().some(
+            (w) => /INSERT INTO audit_log/.test(w.sql)
+                && (w.args || []).includes('staff.tax_identity_unmasked'),
+        )).toBe(true);
+    });
+
+    it('writes no unmask audit row when the caller cannot decrypt', async () => {
+        await seedRecipient(['staff.thresholds_1099.read']);
+        await getRollup();
+
+        expect(env.DB.__writes().some(
+            (w) => (w.args || []).includes('staff.tax_identity_unmasked'),
+        )).toBe(false);
+    });
+
+    it('writes no unmask audit row when no recipient has an EIN on file', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['staff.thresholds_1099.read', 'staff.read.pii']);
+        env.DB.__on(/FROM labor_entries le/, {
+            results: [{
+                person_id: 'prs_2', full_name: 'Bob', email: 'b@e.com',
+                legal_name: null, ein_ciphertext: null,
+                total_1099_cents: 75000, total_w2_cents: 0,
+                entry_count: 1, first_entry_at: 1, last_entry_at: 1, unpaid_count: 0,
+            }],
+        }, 'all');
+        env.DB.__on(/FROM tax_year_locks WHERE tax_year = \?/, null, 'first');
+
+        const { body } = await getRollup();
+        expect(body.recipients[0].einOnFile).toBe(false);
+        expect(env.DB.__writes().some(
+            (w) => (w.args || []).includes('staff.tax_identity_unmasked'),
+        )).toBe(false);
+    });
+});
