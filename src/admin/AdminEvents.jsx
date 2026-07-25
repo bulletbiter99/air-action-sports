@@ -89,8 +89,10 @@ export default function AdminEvents() {
 
   useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
 
-  const duplicate = async (srcId) => {
-    const title = window.prompt('Title for duplicated event?', '(copy)');
+  const duplicate = async (srcId, srcTitle) => {
+    // The default used to be the bare string '(copy)', so accepting it produced
+    // an event literally titled "(copy)" with id/slug "copy".
+    const title = window.prompt('Title for duplicated event?', srcTitle ? `${srcTitle} (copy)` : '(copy)');
     if (title === null) return;
     setDuplicating(srcId);
     const res = await fetch(`/api/admin/events/${srcId}/duplicate`, {
@@ -216,7 +218,7 @@ export default function AdminEvents() {
                     <div role="cell" aria-colindex={8} style={td}>
                       <button onClick={() => setEditingId(e.id)} style={subtleBtn}>Edit</button>
                       {hasRole('manager') && (
-                        <button onClick={() => duplicate(e.id)} disabled={duplicating === e.id} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>
+                        <button onClick={() => duplicate(e.id, e.title)} disabled={duplicating === e.id} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>
                           {duplicating === e.id ? '…' : 'Duplicate'}
                         </button>
                       )}
