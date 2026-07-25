@@ -20,7 +20,9 @@ const DETAIL = {
         paymentMethod: 'card', fullName: 'Sarah Chen', email: 'sarah@example.com', phone: '555-1212',
         createdAt: 1_767_225_600_000, paidAt: 1_767_225_600_000, refundedAt: null,
         stripePaymentIntent: 'pi_123', eventId: 'evt_1',
-        lineItems: [{ type: 'ticket', name: 'GA Ticket', qty: 2, line_total_cents: 8000, unitPriceCents: 4000 }],
+        // Real stored shape: formatBooking passes line_items_json through
+        // verbatim, so keys are snake_case (unit_price_cents, line_total_cents).
+        lineItems: [{ type: 'ticket', name: 'GA Ticket', qty: 2, line_total_cents: 8000, unit_price_cents: 4000 }],
     },
     event: { id: 'evt_1', title: 'Operation Nightfall', displayDate: 'Jun 20' },
     attendees: [
@@ -124,5 +126,26 @@ describe('AdminBookingsDetail', () => {
         fireEvent.click(screen.getByRole('button', { name: '↪ Move to another event' }));
         expect(await screen.findByRole('heading', { name: 'Move to another event' })).toBeInTheDocument();
         expect(await screen.findByRole('option', { name: 'Volga Flank' })).toBeInTheDocument();
+    });
+
+    it('reschedule price-diff reads the stored snake_case line items (paid amount is real, not $0)', async () => {
+        installClientFetch([
+            { match: '/api/admin/events', body: { events: [{ id: 'evt_2', title: 'Volga Flank', ticketTypes: [{ id: 'tt_1', name: 'GA', priceCents: 5000 }] }] } },
+            { match: '/api/admin/bookings', body: DETAIL },
+        ]);
+        renderDetail();
+        await waitFor(() => expect(screen.getByRole('button', { name: '↪ Move to another event' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: '↪ Move to another event' }));
+        await screen.findByRole('option', { name: 'Volga Flank' });
+
+        // The modal selects have no accessible names — target by displayed value.
+        fireEvent.change(screen.getByDisplayValue('Select an event…'), { target: { value: 'evt_2' } });
+        fireEvent.change(await screen.findByDisplayValue('Select a ticket type…'), { target: { value: 'tt_1' } });
+
+        // Paid 2 × $40.00 = $80.00; target 2 × $50.00 = $100.00 → +$20.00.
+        // The old camelCase read made "They paid" always $0.00.
+        const footnote = await screen.findByText(/They paid \$80\.00 for tickets/);
+        expect(footnote.textContent).toContain('GA is $100.00');
+        expect(footnote.textContent).toContain('+$20.00');
     });
 });

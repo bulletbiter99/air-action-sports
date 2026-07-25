@@ -603,7 +603,11 @@ function RescheduleModal({ booking, currentEventId, onClose, onSuccess }) {
 
     const lineItems = Array.isArray(booking.lineItems) ? booking.lineItems : [];
     const ticketQty = lineItems.filter((i) => i.type === 'ticket').reduce((s, i) => s + (i.qty || 0), 0) || booking.playerCount || 1;
-    const paidTicketCents = lineItems.filter((i) => i.type === 'ticket').reduce((s, i) => s + (i.unitPriceCents || 0) * (i.qty || 0), 0);
+    // Line items keep the stored snake_case keys (formatBooking passes
+    // line_items_json through verbatim — see the Line items table above).
+    // Reading camelCase here made paidTicketCents always 0, so the modal
+    // showed the full target price as an "increase" on every reschedule.
+    const paidTicketCents = lineItems.filter((i) => i.type === 'ticket').reduce((s, i) => s + (i.unit_price_cents || 0) * (i.qty || 0), 0);
     const priceDiff = targetTicket ? (targetTicket.priceCents || 0) * ticketQty - paidTicketCents : 0;
 
     const submit = async () => {
