@@ -5,19 +5,29 @@
 //   - booking_charges (status enum: pending|sent|paid|waived|refunded|rejected)
 //   - charge_caps_config (role_key → cap_cents; -1 = unlimited; 0 = no charges)
 //
-// Lifecycle for the M5 fast-path (Option B email-link):
+// Lifecycle:
 //   damaged/lost equipment recorded by R14 →
 //   POST /api/event-day/damage-charge calls createDamageCharge →
-//     - within cap → status='sent' + email link out
+//     - within cap → status='sent' + notice email out
 //     - above cap → status='pending' + approval_required=1 (admin queue)
-//   admin approves → status='sent' + email link out
-//   customer clicks payment link → M6 lands a Stripe Checkout (deferred)
-//   admin manually marks paid (Venmo/cash) → status='paid' + receipt email
+//   admin approves → status='sent' + notice email out
+//   admin charges the saved card off-session (M6 B7) → status='paid' + receipt
+//   OR admin records an out-of-band payment → status='paid' + receipt
 //   admin waives → status='waived' + waived email
 //
-// HMAC-signed payment link reuses portalSession's primitive: SHA-256
-// HMAC over `${chargeId}.${expiresAt}` with SESSION_SECRET. Cleartext
-// link in the email; only the HMAC roundtrip authorizes payment.
+// NOTE: the M5 design was an "Option B email-link" flow where the customer
+// clicked a signed link to pay. That link pointed at
+// /admin/booking-charges/pay/<token>, which no SPA or worker route has ever
+// served — and its intended home was inside the admin router (requireAuth on
+// '*'), so it would have 401'd even if built. M6 shipped the off-session card
+// charge instead. Migration 0079 removed the link from the notice email and
+// neither create nor approve mints one any more.
+//
+// signPaymentToken / verifyPaymentToken and the payment_link columns are kept
+// as the scaffolding a real PUBLIC pay page would reuse (that page would need a
+// public token-verify endpoint, a Stripe Checkout session, and a new branch in
+// the Critical do-not-touch webhooks.js). HMAC-signed token reuses
+// portalSession's primitive: SHA-256 over `${chargeId}.${expiresAt}`.
 
 import { writeAudit } from './auditLog.js';
 import { loadTemplate, renderTemplate } from './templates.js';
@@ -99,10 +109,11 @@ function timingSafeEqualStr(a, b) {
 }
 
 /**
- * Sign a payment token: `<chargeId>.<expiresAt>.<hmac>`. The cleartext
- * is included in the magic-link email; verifyPaymentToken handshakes
- * it back at /api/admin/booking-charges/pay/:token (R16 ships the
- * generator + verify pair; the actual landing page is M6).
+ * Sign a payment token: `<chargeId>.<expiresAt>.<hmac>`.
+ *
+ * Currently UNUSED by the charge lifecycle — nothing mints a link any more (see
+ * the file header). Kept, with its round-trip/tamper/expiry tests, as the
+ * signing half of a future public pay page.
  */
 export async function signPaymentToken(chargeId, expiresAt, secret) {
     const payload = `${chargeId}.${expiresAt}`;
