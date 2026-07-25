@@ -25,13 +25,16 @@ describe('GET /api/admin/certifications', () => {
         expect(res.status).toBe(400);
     });
 
-    it('returns 403 without staff.certifications.read', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', ['staff.read']);
+        env.DB.__on(/FROM certifications WHERE person_id/, { results: [] }, 'all');
         const req = new Request('https://airactionsport.com/api/admin/certifications?person_id=prs_1', {
             headers: { cookie: cookieHeader },
         });
         const res = await worker.fetch(req, env, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.certifications).toEqual([]);
     });
 
     it('returns paginated certs for a person', async () => {

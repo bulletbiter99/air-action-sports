@@ -7,7 +7,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { computeCashFlowForecast } from '../../lib/cashFlow.js';
 
 const DAY_MS = 86400000;
@@ -21,7 +21,7 @@ adminCashFlow.use('*', requireAuth);
 //   opening_cents         — current cash balance (operator input; default 0)
 //   weekly_revenue_cents   — override the projected booking run-rate; omit to
 //                            derive it from the trailing 8 weeks of earned revenue
-adminCashFlow.get('/', requireCapability('finances.read'), async (c) => {
+adminCashFlow.get('/', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const openingCents = Math.round(Number(url.searchParams.get('opening_cents')) || 0);
     const overrideRaw = url.searchParams.get('weekly_revenue_cents');

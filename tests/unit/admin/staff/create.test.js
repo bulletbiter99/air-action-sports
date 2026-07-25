@@ -153,8 +153,13 @@ describe('POST /api/admin/staff — happy paths', () => {
 });
 
 describe('GET /api/admin/staff/roles-catalog', () => {
-    it('returns 403 without staff.read', async () => {
+    it('roles-catalog read is open to any authenticated admin (open-reads model)', async () => {
         bindCapabilities(env.DB, 'u_owner', []);
+        env.DB.__on(/SELECT id, key, name, tier FROM roles ORDER BY tier/, {
+            results: [
+                { id: 'role_event_director', key: 'event_director', name: 'Event Director', tier: 1 },
+            ],
+        }, 'all');
         const res = await worker.fetch(
             new Request('https://airactionsport.com/api/admin/staff/roles-catalog', {
                 headers: { cookie: cookieHeader },
@@ -162,7 +167,10 @@ describe('GET /api/admin/staff/roles-catalog', () => {
             env,
             {},
         );
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.roles).toHaveLength(1);
+        expect(body.roles[0].id).toBe('role_event_director');
     });
 
     it('returns the role catalog ordered by tier + name', async () => {

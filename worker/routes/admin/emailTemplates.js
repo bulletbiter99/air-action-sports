@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
+import { requireReadAccess } from '../../lib/capabilities.js';
 import { sendEmail, isValidEmail } from '../../lib/email.js';
 import { renderTemplate } from '../../lib/templates.js';
 import { writeAudit } from '../../lib/auditLog.js';
@@ -61,7 +62,7 @@ function sampleVars() {
 
 // GET /api/admin/email-templates — list (manager+)
 // Optional ?status=draft|published filter; omitted returns all.
-adminEmailTemplates.get('/', requireRole('owner', 'manager'), async (c) => {
+adminEmailTemplates.get('/', requireReadAccess, async (c) => {
     const statusFilter = normalizeStatus(c.req.query('status'));
     const rows = statusFilter
         ? await c.env.DB.prepare(
@@ -74,7 +75,7 @@ adminEmailTemplates.get('/', requireRole('owner', 'manager'), async (c) => {
 });
 
 // GET /api/admin/email-templates/:slug — single
-adminEmailTemplates.get('/:slug', requireRole('owner', 'manager'), async (c) => {
+adminEmailTemplates.get('/:slug', requireReadAccess, async (c) => {
     const row = await c.env.DB.prepare(
         `SELECT * FROM email_templates WHERE slug = ?`
     ).bind(c.req.param('slug')).first();
@@ -96,7 +97,7 @@ adminEmailTemplates.get('/:slug', requireRole('owner', 'manager'), async (c) => 
 // For unsupported slugs (no TEMPLATE_SPEC), the query param is silently
 // ignored — drops back to sample-vars path so the UI never hard-errors
 // when previewing a non-booking template.
-adminEmailTemplates.get('/:slug/preview', requireRole('owner', 'manager'), async (c) => {
+adminEmailTemplates.get('/:slug/preview', requireReadAccess, async (c) => {
     const slug = c.req.param('slug');
     const row = await c.env.DB.prepare(`SELECT * FROM email_templates WHERE slug = ?`).bind(slug).first();
     if (!row) return c.json({ error: 'Template not found' }, 404);

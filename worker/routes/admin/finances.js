@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { expenseId, budgetId } from '../../lib/ids.js';
 
@@ -72,7 +72,7 @@ adminExpenses.use('*', requireAuth);
 
 // GET /api/admin/expenses?start=&end=&category=&event_id=
 // start/end are epoch-ms bounds on incurred_at.
-adminExpenses.get('/', requireCapability('finances.read'), async (c) => {
+adminExpenses.get('/', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const clauses = [];
     const binds = [];
@@ -208,7 +208,7 @@ export const adminBudgets = new Hono();
 adminBudgets.use('*', requireAuth);
 
 // GET /api/admin/budgets?period=YYYY-MM | ?from=YYYY-MM&to=YYYY-MM
-adminBudgets.get('/', requireCapability('finances.read'), async (c) => {
+adminBudgets.get('/', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const period = url.searchParams.get('period');
     const from = url.searchParams.get('from');

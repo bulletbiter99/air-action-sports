@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import { requireAuth, requireRole } from '../../lib/auth.js';
+import { requireAuth } from '../../lib/auth.js';
+import { requireReadAccess } from '../../lib/capabilities.js';
 import { isEnabled } from '../../lib/featureFlags.js';
 import { buildFtsMatchQuery } from '../../lib/auditSearch.js';
 
@@ -11,7 +12,7 @@ adminAuditLog.use('*', requireAuth);
 // Free-text q: full-text (FTS5) when the audit_log_fts flag is on + the index
 //   exists (migration 0063); otherwise a target_id/meta_json LIKE scan.
 // Pagination: limit (default 50, max 200), offset
-adminAuditLog.get('/', requireRole('owner', 'manager'), async (c) => {
+adminAuditLog.get('/', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const action = url.searchParams.get('action')?.trim();
     const targetType = url.searchParams.get('target_type')?.trim();
@@ -117,7 +118,7 @@ adminAuditLog.get('/', requireRole('owner', 'manager'), async (c) => {
 });
 
 // GET /api/admin/audit-log/actions — distinct action values (for filter dropdown)
-adminAuditLog.get('/actions', requireRole('owner', 'manager'), async (c) => {
+adminAuditLog.get('/actions', requireReadAccess, async (c) => {
     const rows = await c.env.DB.prepare(
         `SELECT DISTINCT action FROM audit_log ORDER BY action ASC`
     ).all();

@@ -23,8 +23,9 @@ export default function AdminTaxesFees() {
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated) navigate('/admin/login');
-    else if (!hasRole('manager')) navigate('/admin');
-  }, [loading, isAuthenticated, hasRole, navigate]);
+    // Open-reads model (2026-07): viewing is open to any authenticated
+    // admin; edit/toggle/delete actions stay role-gated below + server-side.
+  }, [loading, isAuthenticated, navigate]);
 
   const load = useCallback(async () => {
     setLoadingList(true);

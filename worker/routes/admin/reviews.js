@@ -4,24 +4,24 @@
 // drops out of every public feed + SSR aggregate instantly — they all filter
 // status='published'.
 //
-// Gated by the reviews.moderate capability (migration 0077 binds it to owner +
-// event_director + booking_coordinator). Reading reviews publicly needs no cap;
-// only moderation is gated. Admin-only fields (email, ip_hash, booking_id) are
-// returned ONLY here, behind that cap.
+// Open-reads model (2026-07): any authenticated admin can VIEW the list;
+// the hide/unhide WRITE keeps the reviews.moderate capability (migration
+// 0077 binds it to owner + event_director + booking_coordinator).
+// Field-level: the sensitive columns (reviewer email, ip_hash) are returned
+// only to reviews.moderate holders — non-holders get them nulled.
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess, hasCapability } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { clientIp } from '../../lib/rateLimit.js';
 
 const adminReviews = new Hono();
 adminReviews.use('*', requireAuth);
-adminReviews.use('*', requireCapability('reviews.moderate'));
 
 const MAX_REASON = 500;
 
-function rowToDto(r) {
+function rowToDto(r, canModerate) {
     return {
         id: r.id,
         event: { id: r.event_id, title: r.event_title || null, slug: r.event_slug || null },
@@ -30,14 +30,14 @@ function rowToDto(r) {
         title: r.title,
         comment: r.comment,
         authorName: r.author_name,
-        email: r.email,            // admin-only (contact / verify)
+        email: canModerate ? r.email : null,      // moderator-only (contact / verify)
         verified: !!r.verified,
         status: r.status,
         hiddenAt: r.hidden_at,
         hiddenReason: r.hidden_reason,
         hiddenBy: r.hidden_by,
         editCount: r.edit_count,
-        ipHash: r.ip_hash,         // admin-only (abuse forensics)
+        ipHash: canModerate ? r.ip_hash : null,   // moderator-only (abuse forensics)
         createdAt: r.created_at,
         updatedAt: r.updated_at,
         // Surfaced so the operator can spot a live review whose booking was later
@@ -47,7 +47,9 @@ function rowToDto(r) {
 }
 
 // GET /api/admin/reviews — list with filters + a status/rating summary.
-adminReviews.get('/', async (c) => {
+// Open read; email/ip_hash masked for non-moderators (see rowToDto).
+adminReviews.get('/', requireReadAccess, async (c) => {
+    const canModerate = hasCapability(c.get('user'), 'reviews.moderate');
     const url = new URL(c.req.url);
     const eventId = url.searchParams.get('event_id')?.trim();
     const status = url.searchParams.get('status')?.trim();
@@ -83,7 +85,7 @@ adminReviews.get('/', async (c) => {
              ${whereSQL}
              ORDER BY r.created_at DESC LIMIT ? OFFSET ?`
         ).bind(...binds, limit, offset).all();
-        items = (rows?.results || []).map(rowToDto);
+        items = (rows?.results || []).map((r) => rowToDto(r, canModerate));
 
         // Unfiltered summary (drives the stat cards).
         const sum = await c.env.DB.prepare(
@@ -109,7 +111,8 @@ adminReviews.get('/', async (c) => {
 });
 
 // PUT /api/admin/reviews/:id — { action: 'hide' | 'unhide', reason? }
-adminReviews.put('/:id', async (c) => {
+// Moderation WRITE — keeps the reviews.moderate capability gate.
+adminReviews.put('/:id', requireCapability('reviews.moderate'), async (c) => {
     const id = c.req.param('id');
     const user = c.get('user');
     const body = await c.req.json().catch(() => null);
@@ -147,7 +150,8 @@ adminReviews.put('/:id', async (c) => {
          LEFT JOIN bookings b ON b.id = r.booking_id
          WHERE r.id = ?`
     ).bind(id).first();
-    return c.json({ item: rowToDto(updated) });
+    // Caller passed requireCapability('reviews.moderate') → full DTO.
+    return c.json({ item: rowToDto(updated, true) });
 });
 
 export default adminReviews;

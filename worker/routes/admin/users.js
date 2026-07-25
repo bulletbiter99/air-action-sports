@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
+import { requireReadAccess } from '../../lib/capabilities.js';
 import { randomId } from '../../lib/ids.js';
 import { sendUserInvite } from '../../lib/emailSender.js';
 import { writeAudit } from '../../lib/auditLog.js';
@@ -24,7 +25,7 @@ function publicUser(u) {
 }
 
 // GET /api/admin/users — list all users
-adminUsers.get('/', requireRole('owner', 'manager'), async (c) => {
+adminUsers.get('/', requireReadAccess, async (c) => {
     const rows = await c.env.DB.prepare(
         `SELECT id, email, display_name, role, active, created_at, last_login_at
          FROM users ORDER BY created_at ASC`

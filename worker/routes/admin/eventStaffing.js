@@ -11,7 +11,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 
 const adminEventStaffing = new Hono();
@@ -48,7 +48,7 @@ function format(row) {
     };
 }
 
-adminEventStaffing.get('/', requireCapability('staff.events.read'), async (c) => {
+adminEventStaffing.get('/', requireReadAccess, async (c) => {
     const url = new URL(c.req.url);
     const eventId = url.searchParams.get('event_id');
     const personId = url.searchParams.get('person_id');

@@ -3,6 +3,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
+import { requireReadAccess } from '../../lib/capabilities.js';
 import { clientIp } from '../../lib/rateLimit.js';
 import { sendFeedbackResolutionNotice, renderFeedbackResolutionNotice } from '../../lib/emailSender.js';
 
@@ -218,7 +219,7 @@ adminFeedback.put('/:id', requireRole('owner', 'manager', 'staff'), async (c) =>
 // email with this ticket's actual status + admin_note (not sample data),
 // so the preview-before-send modal shows exactly what would be sent.
 // Manager+ — same role gate as the send endpoint.
-adminFeedback.get('/:id/notify-preview', requireRole('owner', 'manager'), async (c) => {
+adminFeedback.get('/:id/notify-preview', requireReadAccess, async (c) => {
     const id = c.req.param('id');
     const row = await c.env.DB.prepare(`SELECT * FROM feedback WHERE id = ?`).bind(id).first();
     if (!row) return c.json({ error: 'Not found' }, 404);

@@ -20,7 +20,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { randomId } from '../../lib/ids.js';
 import {
@@ -32,16 +32,16 @@ import {
 const adminSegments = new Hono();
 adminSegments.use('*', requireAuth);
 // Marketing-capability gating (migration 0070 seeds marketing.* caps + owner /
-// marketing_manager bindings). requireAuth above sets the user; this picks the
-// cap by method: reads (incl. preview counts) → .read, deletes → .delete,
-// create/update → .write. requireCapability lazy-loads + checks the set.
+// marketing_manager bindings). requireAuth above sets the user. Open-reads
+// model (2026-07): reads (incl. preview counts) are visible to any
+// authenticated admin; deletes → .delete and create/update → .write keep
+// their capability gates.
 adminSegments.use('*', (c, next) => {
     const m = c.req.method;
-    const cap = (m === 'GET' || c.req.path.endsWith('/preview'))
-        ? 'marketing.segments.read'
-        : m === 'DELETE'
-            ? 'marketing.segments.delete'
-            : 'marketing.segments.write';
+    if (m === 'GET' || c.req.path.endsWith('/preview')) {
+        return requireReadAccess(c, next);
+    }
+    const cap = m === 'DELETE' ? 'marketing.segments.delete' : 'marketing.segments.write';
     return requireCapability(cap)(c, next);
 });
 

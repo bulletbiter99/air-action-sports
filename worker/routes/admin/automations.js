@@ -19,7 +19,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { automationId } from '../../lib/ids.js';
 import {
@@ -30,15 +30,15 @@ import {
 
 const adminAutomations = new Hono();
 adminAutomations.use('*', requireAuth);
-// Marketing-capability gating (migration 0070). GET → read; DELETE → delete;
-// create / update / activate / pause → write.
+// Marketing-capability gating (migration 0070). Open-reads model (2026-07):
+// GET is visible to any authenticated admin; DELETE → delete and
+// create / update / activate / pause → write keep their caps.
 adminAutomations.use('*', (c, next) => {
     const m = c.req.method;
-    const cap = m === 'GET'
-        ? 'marketing.automations.read'
-        : m === 'DELETE'
-            ? 'marketing.automations.delete'
-            : 'marketing.automations.write';
+    if (m === 'GET') {
+        return requireReadAccess(c, next);
+    }
+    const cap = m === 'DELETE' ? 'marketing.automations.delete' : 'marketing.automations.write';
     return requireCapability(cap)(c, next);
 });
 

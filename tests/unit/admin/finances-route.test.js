@@ -30,12 +30,16 @@ beforeEach(async () => {
 });
 
 describe('GET /api/admin/expenses', () => {
-    it('403 without finances.read', async () => {
+    it('read is open to any authenticated admin (open-reads model)', async () => {
         const e2 = createMockEnv();
         const s2 = await createAdminSession(e2, { id: 'u_owner', role: 'owner' });
         bindCapabilities(e2.DB, 'u_owner', ['bookings.read']); // no finances.*
+        e2.DB.__on(/FROM expenses/, { results: [] }, 'all');
         const res = await worker.fetch(req('/api/admin/expenses', { headers: { cookie: s2.cookieHeader } }), e2, {});
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(Array.isArray(data.expenses)).toBe(true);
+        expect(data.totalCents).toBe(0);
     });
 
     it('lists expenses with a totalCents sum + category catalog', async () => {

@@ -763,9 +763,8 @@ export default function AdminFieldRentalDetail() {
                                                 <span style={{ color: 'var(--text-secondary, #666)' }}>· {d.kind}{d.retiredAt ? ' (retired)' : ''}</span>
                                             </div>
                                             <div style={{ display: 'flex', gap: 6 }}>
-                                                {hasCap('field_rentals.documents.read') && (
-                                                    <a href={`/api/admin/field-rental-documents/${d.id}/download`} style={{ ...ghostBtn, textDecoration: 'none' }}>Download</a>
-                                                )}
+                                                {/* Open-reads model (2026-07): document reads are open to any admin. */}
+                                                <a href={`/api/admin/field-rental-documents/${d.id}/download`} style={{ ...ghostBtn, textDecoration: 'none' }}>Download</a>
                                                 {hasCap('field_rentals.documents.upload') && !d.retiredAt && (
                                                     <button style={ghostBtn} onClick={() => retireDoc(d.id)}>Retire</button>
                                                 )}

@@ -22,7 +22,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability, hasCapability } from '../../lib/capabilities.js';
+import { requireCapability, hasCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { rentalDocumentId as newDocId } from '../../lib/ids.js';
 import { sniffDocExt, DOC_MIME } from '../../lib/magicBytes.js';
@@ -278,7 +278,7 @@ adminFieldRentalDocuments.post('/', requireCapability('field_rentals.documents.u
 // GET /?rental_id=… — list documents for a rental
 // ────────────────────────────────────────────────────────────────────
 
-adminFieldRentalDocuments.get('/', requireCapability('field_rentals.documents.read'), async (c) => {
+adminFieldRentalDocuments.get('/', requireReadAccess, async (c) => {
     const user = c.get('user');
     const url = new URL(c.req.url);
     const rentalId = url.searchParams.get('rental_id');
@@ -311,7 +311,7 @@ adminFieldRentalDocuments.get('/', requireCapability('field_rentals.documents.re
 // GET /:docId — metadata only
 // ────────────────────────────────────────────────────────────────────
 
-adminFieldRentalDocuments.get('/:docId', requireCapability('field_rentals.documents.read'), async (c) => {
+adminFieldRentalDocuments.get('/:docId', requireReadAccess, async (c) => {
     const user = c.get('user');
     const docId = c.req.param('docId');
 
@@ -327,7 +327,7 @@ adminFieldRentalDocuments.get('/:docId', requireCapability('field_rentals.docume
 // GET /:docId/download — streamed R2 bytes
 // ────────────────────────────────────────────────────────────────────
 
-adminFieldRentalDocuments.get('/:docId/download', requireCapability('field_rentals.documents.read'), async (c) => {
+adminFieldRentalDocuments.get('/:docId/download', requireReadAccess, async (c) => {
     const user = c.get('user');
     const docId = c.req.param('docId');
 

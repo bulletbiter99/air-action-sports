@@ -50,8 +50,9 @@ export default function AdminExpenses() {
     useEffect(() => {
         if (loading) return;
         if (!isAuthenticated) navigate('/admin/login');
-        else if (!hasCapability('finances.read')) navigate('/admin');
-    }, [loading, isAuthenticated, hasCapability, navigate]);
+        // Open-reads model (2026-07): viewing is open to any authenticated
+        // admin; editing stays gated on finances.write (canWrite below).
+    }, [loading, isAuthenticated, navigate]);
 
     const load = useCallback(async () => {
         setLoadingList(true);

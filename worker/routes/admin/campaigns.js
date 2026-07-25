@@ -23,7 +23,7 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { requireCapability } from '../../lib/capabilities.js';
+import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
 import { campaignId, campaignRecipientId } from '../../lib/ids.js';
 import {
@@ -38,15 +38,15 @@ import { getCampaignStats } from '../../lib/campaignTracking.js';
 
 const adminCampaigns = new Hono();
 adminCampaigns.use('*', requireAuth);
-// Marketing-capability gating (migration 0070). GET + preview-recipients → read;
-// DELETE → delete; create / update / send / cancel → write.
+// Marketing-capability gating (migration 0070). Open-reads model (2026-07):
+// GET + preview-recipients are visible to any authenticated admin;
+// DELETE → delete and create / update / send / cancel → write keep their caps.
 adminCampaigns.use('*', (c, next) => {
     const m = c.req.method;
-    const cap = (m === 'GET' || c.req.path.endsWith('/preview-recipients'))
-        ? 'marketing.campaigns.read'
-        : m === 'DELETE'
-            ? 'marketing.campaigns.delete'
-            : 'marketing.campaigns.write';
+    if (m === 'GET' || c.req.path.endsWith('/preview-recipients')) {
+        return requireReadAccess(c, next);
+    }
+    const cap = m === 'DELETE' ? 'marketing.campaigns.delete' : 'marketing.campaigns.write';
     return requireCapability(cap)(c, next);
 });
 
