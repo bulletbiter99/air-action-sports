@@ -4,6 +4,7 @@ import { formatEvent, formatTicketType } from '../../lib/formatters.js';
 import { eventId as newEventId, ticketTypeId as newTicketTypeId, slugify } from '../../lib/ids.js';
 import { instantiateChecklists } from '../../lib/eventChecklists.js';
 import { detectEventConflicts, hasAnyConflict, dateIsoToDayWindow } from '../../lib/eventConflicts.js';
+import { eventInstantMs } from '../../lib/eventTime.js';
 
 const adminEvents = new Hono();
 adminEvents.use('*', requireAuth);
@@ -539,7 +540,12 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
     // mean "never auto-close".
     let salesCloseAt = patch.sales_close_at;
     if (salesCloseAt === undefined && patch.date_iso) {
-        const startMs = new Date(patch.date_iso).getTime();
+        // date_iso is naive Denver wall clock; `new Date(...)` in a Worker
+        // (TZ=UTC) read it as UTC, so the stored value was start − 8h (MDT) /
+        // −9h (MST), not the intended −2h. Nothing reads sales_close_at today,
+        // so this is latent — but it means whoever wires enforcement inherits a
+        // correct value instead of silently killing morning-of online sales.
+        const startMs = eventInstantMs(patch.date_iso);
         if (Number.isFinite(startMs)) salesCloseAt = startMs - (2 * 60 * 60 * 1000);
     }
 
@@ -809,7 +815,8 @@ adminEvents.post('/:id/duplicate', requireRole('owner', 'manager'), async (c) =>
     // is explicitly NULL means "never auto-close", so that intent is preserved.
     let salesCloseAtForDuplicate = null;
     if (src.sales_close_at != null) {
-        const startMs = Date.parse(dupStart);
+        // Same naive-as-UTC bug as the create path above.
+        const startMs = eventInstantMs(dupStart);
         salesCloseAtForDuplicate = Number.isFinite(startMs)
             ? startMs - (2 * 60 * 60 * 1000)
             : src.sales_close_at;

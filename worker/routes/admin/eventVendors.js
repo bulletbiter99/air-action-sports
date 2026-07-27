@@ -8,6 +8,7 @@ import { requireAuth, requireRole } from '../../lib/auth.js';
 import { randomId } from '../../lib/ids.js';
 import { clientIp } from '../../lib/rateLimit.js';
 import { createVendorToken } from '../../lib/vendorToken.js';
+import { eventInstantMs } from '../../lib/eventTime.js';
 import { loadTemplate, renderTemplate } from '../../lib/templates.js';
 import { sendEmail } from '../../lib/email.js';
 
