@@ -4,7 +4,7 @@
 // /fields and /blackouts endpoints. Uses mockD1 + createAdminSession.
 // Capability gating verified via requireCapability mocks.
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import worker from '../../../../worker/index.js';
 import { createMockEnv } from '../../../helpers/mockEnv.js';
 import { createAdminSession } from '../../../helpers/adminSession.js';
@@ -320,6 +320,49 @@ describe('PUT /api/admin/sites/:id — update', () => {
 });
 
 describe('DELETE /api/admin/sites/:id — archive', () => {
+    // ── The archive-guard timezone regression ──────────────────────────────
+    // This is the ONE enforcement point among the three `todayIso` derivations
+    // in sites.js (the other two are display stats). It used to bind
+    // new Date().toISOString().slice(0,10) — the UTC date — against a naive
+    // Denver `date_iso`. From 18:00 Mountain the UTC date is already tomorrow,
+    // so tomorrow-morning's event stopped counting as "upcoming" and an operator
+    // could archive an active venue hours before an op ran there.
+    it('counts upcoming events against the DENVER date, not the UTC date', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        try {
+            // 20:30 MDT on 2026-07-24 — UTC has already rolled to the 25th.
+            vi.setSystemTime(Date.parse('2026-07-25T02:30:00Z'));
+            const env = createMockEnv();
+            const { cookieHeader } = await createAdminSession(env, { id: 'u1', role: 'owner' });
+            bindCapabilities(env, 'u1', ALL_SITES_CAPS);
+
+            let eventsBinds = null;
+            env.DB.__on(/SELECT id, name, archived_at FROM sites WHERE id/, {
+                id: 'site_1', name: 'Ghost Town', archived_at: null,
+            }, 'first');
+            env.DB.__on(/COUNT\(\*\) AS n FROM events WHERE site_id/, (sql, args) => {
+                eventsBinds = args;
+                return { n: 0 };
+            }, 'first');
+            env.DB.__on(/COUNT\(\*\) AS n FROM field_rentals WHERE site_id/, { n: 0 }, 'first');
+            env.DB.__on(/UPDATE sites SET archived_at/, { meta: { changes: 1 }, success: true }, 'run');
+            env.DB.__on(/INSERT INTO audit_log/, { meta: { changes: 1 }, success: true }, 'run');
+
+            await worker.fetch(
+                req('/api/admin/sites/site_1', { method: 'DELETE', headers: { cookie: cookieHeader } }),
+                env, {},
+            );
+
+            // '2026-07-24' (Denver) — an event on the 25th still counts as
+            // upcoming and will block the archive. Binding the UTC '2026-07-25'
+            // would have let it through.
+            expect(eventsBinds[1]).toBe('2026-07-24');
+            expect(new Date().toISOString().slice(0, 10)).toBe('2026-07-25');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('archives when no upcoming events or rentals', async () => {
         const env = createMockEnv();
         const { cookieHeader } = await createAdminSession(env, { id: 'u1', role: 'owner' });

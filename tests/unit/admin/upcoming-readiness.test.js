@@ -1,7 +1,7 @@
 // M4 B4d — tests for GET /api/admin/dashboard/upcoming-readiness.
 //
 // Endpoint: worker/routes/admin/dashboard.js. Returns top-3 upcoming
-// events (date_iso > today, published=1, past=0) with capacity + waiver
+// events (date(date_iso) > today-in-Denver, published=1, past=0) with capacity + waiver
 // readiness percentages. Consumer: UpcomingEventsReadiness widget on
 // the owner persona dashboard.
 
@@ -22,7 +22,7 @@ describe('GET /api/admin/dashboard/upcoming-readiness', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
         env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-05-08' }, 'first');
-        env.DB.__on(/FROM events\s+WHERE date_iso > \? AND published = 1 AND past = 0/, {
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\) > \? AND published = 1 AND past = 0/, {
             results: [
                 { id: 'evt_a', title: 'Spring Showdown', date_iso: '2026-05-15', total_slots: 80 },
             ],
@@ -67,7 +67,7 @@ describe('GET /api/admin/dashboard/upcoming-readiness', () => {
         }, 'all');
 
         await worker.fetch(makeReq(PATH, { headers: { cookie: cookieHeader } }), env, {});
-        expect(capturedSql).toMatch(/date_iso > \?/);
+        expect(capturedSql).toMatch(/date\(date_iso\) > \?/);
         expect(capturedSql).toMatch(/published = 1/);
         expect(capturedSql).toMatch(/past = 0/);
     });
@@ -105,7 +105,7 @@ describe('GET /api/admin/dashboard/upcoming-readiness', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
         env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-05-08' }, 'first');
-        env.DB.__on(/FROM events\s+WHERE date_iso > \?/, {
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\) > \?/, {
             results: [{ id: 'evt_x', title: 'Sold Out Plus', date_iso: '2026-05-20', total_slots: 50 }],
         }, 'all');
         env.DB.__on(/FROM bookings\s+WHERE event_id IN/, {
@@ -126,7 +126,7 @@ describe('GET /api/admin/dashboard/upcoming-readiness', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u_owner', role: 'owner' });
 
         env.DB.__on(/SELECT date\('now'\) AS today/, { today: '2026-05-08' }, 'first');
-        env.DB.__on(/FROM events\s+WHERE date_iso > \?/, {
+        env.DB.__on(/FROM events\s+WHERE date\(date_iso\) > \?/, {
             results: [{ id: 'evt_z', title: 'Unlimited Capacity', date_iso: '2026-06-01', total_slots: 0 }],
         }, 'all');
         env.DB.__on(/FROM bookings\s+WHERE event_id IN/, {
