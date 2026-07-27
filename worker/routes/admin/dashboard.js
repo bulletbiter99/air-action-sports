@@ -36,17 +36,22 @@
 
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
+import { denverDateFor } from '../../lib/eventTime.js';
 
 const adminDashboard = new Hono();
 adminDashboard.use('*', requireAuth);
 
 adminDashboard.get('/today/active', async (c) => {
-    // Today in UTC YYYY-MM-DD format. SQLite's date('now') already
-    // returns this format, so we hand it directly to the comparison.
-    const todayRow = await c.env.DB.prepare(
-        `SELECT date('now') AS today`,
-    ).first();
-    const today = todayRow?.today || new Date().toISOString().slice(0, 10);
+    // "Today" must be the DENVER calendar date, not the UTC one. date_iso is
+    // naive Denver wall clock, so `date(date_iso)` on the left of the comparison
+    // is a Denver date — but SQLite's `date('now')` (and a Worker's
+    // toISOString(), since the host is UTC) is the UTC date, which from 18:00
+    // Mountain onward has already rolled to tomorrow. A single-day event then
+    // failed the `>= today` half and this endpoint reported activeEventToday
+    // false during the closing hours of the op, taking the /admin/today tiles,
+    // the check-in banner, the Today sidebar dot and the fast polling cadence
+    // with it. Mirror-image: it switched ON at 18:00 the evening BEFORE.
+    const today = denverDateFor() ?? new Date().toISOString().slice(0, 10);
 
     // Find published, non-past events scheduled for today. LIMIT 6 keeps
     // the scan bounded while returning every same-day event the Today
@@ -94,16 +99,24 @@ adminDashboard.get('/today/active', async (c) => {
 //
 // Auth: any admin role (matches /today/active — read-only event metadata).
 adminDashboard.get('/dashboard/upcoming-readiness', async (c) => {
-    // Today in UTC; events with date_iso strictly greater than today are
-    // the "upcoming" set. (Today's events live on the dashboard already
-    // via TodayEvents — no need to surface them here too.)
-    const todayRow = await c.env.DB.prepare(`SELECT date('now') AS today`).first();
-    const today = todayRow?.today || new Date().toISOString().slice(0, 10);
+    // Events strictly after today (Denver) are the "upcoming" set. Today's
+    // events live on the dashboard already via TodayEvents — no need to surface
+    // them here too.
+    //
+    // Two defects used to partially cancel here, so both had to be fixed
+    // together. (a) `date_iso > ?` string-compared a full datetime against a
+    // bare date, and '2026-07-25T08:30:00' > '2026-07-25' is TRUE, so today's
+    // event counted as upcoming — contradicting the comment above. (b) `today`
+    // came from UTC, so from 18:00 Mountain it was already tomorrow. Fixing
+    // either one alone is a regression: Denver-date alone leaves today's event
+    // listed 24/7, and date(date_iso) alone makes TOMORROW's event vanish for
+    // the six hours before it.
+    const today = denverDateFor() ?? new Date().toISOString().slice(0, 10);
 
     const eventsResult = await c.env.DB.prepare(
         `SELECT id, title, date_iso, total_slots
          FROM events
-         WHERE date_iso > ? AND published = 1 AND past = 0
+         WHERE date(date_iso) > ? AND published = 1 AND past = 0
          ORDER BY date_iso ASC
          LIMIT 3`,
     ).bind(today).all();

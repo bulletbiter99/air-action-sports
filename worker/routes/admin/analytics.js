@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
+import { denverDateFor } from '../../lib/eventTime.js';
 
 const adminAnalytics = new Hono();
 adminAnalytics.use('*', requireAuth);
@@ -145,9 +146,19 @@ adminAnalytics.get('/overview', async (c) => {
 // deferred + recognized == /overview's netRevenueCents (paid earned), so
 // the two cards reconcile.
 //
-// events.date_iso carries a time component (e.g. "2026-06-20T07:00:00"),
-// so normalize with date() and compare the calendar date against
-// date('now') (UTC, consistent with the ?period=mtd month boundary).
+// events.date_iso carries a time component (e.g. "2026-06-20T07:00:00"), so
+// normalize with date() and compare the calendar date against TODAY IN DENVER.
+//
+// It used to compare against SQLite date('now') — the UTC date — which looked
+// safe because both sides are dates, but date_iso is naive Denver wall clock.
+// From 18:00 Mountain onward the UTC date is already tomorrow, so an event
+// happening TOMORROW satisfied `recogDay <= today` and its prepaid cash flipped
+// out of deferred into recognized: an owner checking the books at 8 PM saw an
+// undelivered event's money booked as earned. It self-corrected at local
+// midnight, which made it read as flaky rather than broken. NOTE this
+// deliberately no longer matches the ?period=mtd month boundary, which is still
+// UTC — that wider business-calendar skew is tracked separately.
+//
 // Recognition point = the END of the event's span (a multi-day op's revenue
 // stays deferred until the whole event is delivered; single-day = its date).
 adminAnalytics.get('/deferred-revenue', async (c) => {
@@ -156,17 +167,18 @@ adminAnalytics.get('/deferred-revenue', async (c) => {
     // else date_iso). A multi-day op stays DEFERRED until the whole event is
     // delivered, not the start of day 1. date(...) handles a timed date_iso.
     const recogDay = `date(COALESCE(e.end_date_iso, e.date_iso))`;
+    const todayDenver = denverDateFor();
 
     const totals = await c.env.DB.prepare(
         `SELECT
-            COALESCE(SUM(CASE WHEN ${recogDay} > date('now')
+            COALESCE(SUM(CASE WHEN ${recogDay} > ?
                               THEN ${earned} ELSE 0 END), 0) AS deferred_cents,
-            COALESCE(SUM(CASE WHEN ${recogDay} IS NULL OR ${recogDay} <= date('now')
+            COALESCE(SUM(CASE WHEN ${recogDay} IS NULL OR ${recogDay} <= ?
                               THEN ${earned} ELSE 0 END), 0) AS recognized_cents
          FROM bookings b
          LEFT JOIN events e ON e.id = b.event_id
          WHERE b.status = 'paid'`
-    ).first();
+    ).bind(todayDenver, todayDenver).first();
 
     // Per-upcoming-event breakdown — what balance is held for each event whose
     // span has not fully ended, soonest first. Only events holding money appear.
@@ -177,11 +189,11 @@ adminAnalytics.get('/deferred-revenue', async (c) => {
                 COALESCE(SUM(${earned}), 0) AS deferred_cents
          FROM events e
          JOIN bookings b ON b.event_id = e.id AND b.status = 'paid'
-         WHERE ${recogDay} > date('now')
+         WHERE ${recogDay} > ?
          GROUP BY e.id
          HAVING deferred_cents > 0
          ORDER BY date(e.date_iso) ASC`
-    ).all();
+    ).bind(todayDenver).all();
 
     const deferredCents = totals?.deferred_cents || 0;
     const recognizedCents = totals?.recognized_cents || 0;

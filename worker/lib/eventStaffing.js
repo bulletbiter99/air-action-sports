@@ -11,6 +11,7 @@
 
 import { loadTemplate, renderTemplate } from './templates.js';
 import { sendEmail } from './email.js';
+import { eventInstantMs, denverWallClockWindow } from './eventTime.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -130,10 +131,7 @@ export async function runEventStaffingReminderSweep(env) {
                 r.name AS role_name,
                 e.title AS event_title, e.display_date AS event_display_date,
                 e.date_iso AS event_date_iso,
-                (CASE
-                    WHEN e.date_iso IS NOT NULL THEN unixepoch(e.date_iso) * 1000
-                    ELSE NULL
-                 END) AS event_start_ms
+                e.date_iso AS event_start_naive
          FROM event_staffing es
          INNER JOIN persons p ON p.id = es.person_id
          INNER JOIN roles r ON r.id = es.role_id
@@ -149,7 +147,13 @@ export async function runEventStaffingReminderSweep(env) {
     const results = { sent7: 0, sent3: 0, sent1: 0, sentDayOf: 0, skipped: 0, failed: 0 };
 
     for (const row of candidates) {
-        const startMs = row.event_start_ms ?? row.shift_start_at;
+        // events.date_iso is naive Denver wall clock. It used to come back as
+        // `unixepoch(date_iso) * 1000`, which reads it as UTC and put every
+        // event 6h (MDT) / 7h (MST) early — so every reminder bucket came out
+        // one step too urgent and a staffer on an 8:30 AM shift was told "your
+        // shift is TODAY" at 9 PM the night before. shift_start_at is a real
+        // epoch-ms column and needs no conversion.
+        const startMs = eventInstantMs(row.event_start_naive) ?? row.shift_start_at;
         const hours = hoursUntilEvent(startMs, now);
         if (hours == null || hours <= 0 || startMs > horizon) {
             results.skipped++;
@@ -213,13 +217,20 @@ export async function runEventStaffingReminderSweep(env) {
  */
 export async function runEventStaffingAutoDeclineSweep(env) {
     const now = Date.now();
+    // date_iso is naive Denver wall clock, so compare it against a Denver
+    // wall-clock string rather than epoch-ms. The old `unixepoch(date_iso)`
+    // form tripped the "event has started, treat non-response as a decline"
+    // threshold up to 7h early — masked today only by the daily cron cadence,
+    // and live for any event starting between midnight and 6 AM Mountain.
+    const nowDenverWallClock = denverWallClockWindow(now, now).hi;
+
     const r = await env.DB.prepare(
         `UPDATE event_staffing
          SET status = 'declined', updated_at = ?
          WHERE status = 'pending'
            AND event_id IN (
-               SELECT id FROM events WHERE date_iso IS NOT NULL AND unixepoch(date_iso) * 1000 < ?
+               SELECT id FROM events WHERE date_iso IS NOT NULL AND date_iso < ?
            )`,
-    ).bind(now, now).run();
+    ).bind(now, nowDenverWallClock).run();
     return { autoDeclined: r?.meta?.changes ?? 0 };
 }

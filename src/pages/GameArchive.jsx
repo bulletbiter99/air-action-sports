@@ -170,14 +170,24 @@ export default function GameArchive() {
     );
 }
 
+// `iso` is an event's date_iso — naive Denver wall clock, and since the
+// multi-day work it carries a TIME component ('2026-07-25T08:30:00'). The old
+// `iso + 'T00:00:00Z'` therefore built '2026-07-25T08:30:00T00:00:00Z', an
+// invalid date. The try/catch never caught it because toLocaleDateString on an
+// Invalid Date returns the literal STRING "Invalid Date" instead of throwing —
+// so /games rendered "Invalid Date" under every timed event.
+//
+// Take the date portion only and render it in Denver, so a late-evening event
+// doesn't display as the following day.
 function formatDate(iso) {
     if (!iso) return '';
-    try {
-        const d = new Date(iso + 'T00:00:00Z');
-        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
-    } catch {
-        return iso;
-    }
+    const datePart = String(iso).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return String(iso);
+    const d = new Date(`${datePart}T12:00:00Z`); // midday UTC — same calendar day in any US zone
+    if (Number.isNaN(d.getTime())) return String(iso);
+    return d.toLocaleDateString(undefined, {
+        year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
+    });
 }
 
 // ── Inline styles (matches /events page conventions) ────────────────

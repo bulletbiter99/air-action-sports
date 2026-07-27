@@ -188,9 +188,16 @@ describe('runEventStaffingAutoDeclineSweep', () => {
         const writes = env.DB.__writes();
         const updateWrite = writes.find((w) => /UPDATE event_staffing/.test(w.sql));
         expect(updateWrite).toBeDefined();
-        // Two timestamp args: now (for updated_at) and now (for cutoff)
+        // One epoch-ms arg (updated_at) and one DENVER WALL-CLOCK string (the
+        // cutoff). date_iso is naive local time, so comparing it against
+        // epoch-ms tripped the auto-decline up to 7h before the event started.
         const tsArgs = updateWrite.args.filter((a) => typeof a === 'number');
-        expect(tsArgs.length).toBe(2);
+        expect(tsArgs.length).toBe(1);
+        const wallClockArgs = updateWrite.args.filter(
+            (a) => typeof a === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(a),
+        );
+        expect(wallClockArgs.length).toBe(1);
+        expect(updateWrite.sql).toMatch(/date_iso < \?/);
         for (const ts of tsArgs) {
             expect(ts).toBeGreaterThanOrEqual(beforeMs);
             expect(ts).toBeLessThanOrEqual(afterMs);

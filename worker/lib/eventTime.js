@@ -221,6 +221,24 @@ export function denverWallClockWindow(startMs, endMs) {
 }
 
 /**
+ * The Denver calendar date ('YYYY-MM-DD') for a real instant — i.e. what "today"
+ * means to this business.
+ *
+ * Use this instead of SQLite's `date('now')` or JS
+ * `new Date().toISOString().slice(0,10)`. Both of those give the UTC date, and a
+ * Worker runs with TZ=UTC, so from 18:00 Mountain onward they have already
+ * rolled to tomorrow while the event's own `date_iso` is still today's Mountain
+ * date. That mismatch is its own bug family, separate from reading a naive
+ * string as an instant: the comparison looks safe because both sides are dates,
+ * but it is wrong for a six-hour band every single day.
+ */
+export function denverDateFor(ms = Date.now()) {
+    if (!Number.isFinite(ms)) return null;
+    const p = partsAt(ms);
+    return `${p.year}-${p.month}-${p.day}`;
+}
+
+/**
  * Exact membership test for a candidate row's stored wall-clock value against
  * a real instant window. Inclusive on both ends, matching SQL BETWEEN.
  *

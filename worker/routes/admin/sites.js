@@ -23,6 +23,7 @@ import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
 import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
+import { denverDateFor } from '../../lib/eventTime.js';
 import { siteId as newSiteId, fieldId as newFieldId, blackoutId as newBlackoutId, slugify } from '../../lib/ids.js';
 import { normalizeImagePosition } from './events.js';
 
@@ -191,9 +192,9 @@ adminSites.get('/', requireReadAccess, async (c) => {
 
     // Subqueries for stats:
     //   active_field_count: site_fields where archived_at IS NULL
-    //   upcoming_event_count: events where date_iso >= today's UTC date
+    //   upcoming_event_count: events where date_iso >= today's DENVER date
     //   upcoming_rental_count: field_rentals where scheduled_starts_at >= now
-    const todayIso = new Date().toISOString().slice(0, 10);
+    const todayIso = denverDateFor();
     const nowMs = Date.now();
 
     const sql = `
@@ -241,7 +242,7 @@ adminSites.get('/:id', requireReadAccess, async (c) => {
     ).bind(id).all();
 
     // Stats for the detail page (separate from list)
-    const todayIso = new Date().toISOString().slice(0, 10);
+    const todayIso = denverDateFor();
     const nowMs = Date.now();
     const upcomingEvents = await c.env.DB.prepare(
         `SELECT COUNT(*) AS n FROM events WHERE site_id = ? AND date_iso >= ?`,
@@ -371,7 +372,7 @@ adminSites.delete('/:id', requireCapability('sites.archive'), async (c) => {
     if (existing.archived_at) return c.json({ error: 'Site already archived' }, 409);
 
     // Archive guard — upcoming events OR upcoming rentals block
-    const todayIso = new Date().toISOString().slice(0, 10);
+    const todayIso = denverDateFor();
     const nowMs = Date.now();
     const upcomingEvents = await c.env.DB.prepare(
         `SELECT COUNT(*) AS n FROM events WHERE site_id = ? AND date_iso >= ?`,

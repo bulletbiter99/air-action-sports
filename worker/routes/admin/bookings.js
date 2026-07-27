@@ -9,6 +9,7 @@ import { loadActiveTaxesFees } from '../../lib/pricing.js';
 import { findOrCreateCustomerForBooking, recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
 import { hasCapability } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
+import { denverDateFor } from '../../lib/eventTime.js';
 
 // Allowed manual booking payment methods.
 //   card   → admin creates pending booking + Stripe Checkout URL;
@@ -460,7 +461,13 @@ adminBookings.get('/:id', async (c) => {
         })),
         customer: customerCard,
         activityLog,
-        reviewInvite: { sentAt: row.review_invite_sent_at || null },
+        reviewInvite: {
+            sentAt: row.review_invite_sent_at || null,
+            // Server-computed so the Denver-vs-UTC rule has ONE implementation.
+            // The client used to recompute it and got the same answer wrongly,
+            // so the two agreed and nothing caught the 6h-early hole.
+            eventEnded: eventHasEnded(eventRow),
+        },
         review,
         viewerCanSeePII: canSeePII,
     });
@@ -1050,6 +1057,28 @@ adminBookings.post('/:id/resend-waiver-confirmation', requireRole('owner', 'mana
     return c.json(results);
 });
 
+// Has the event finished, for review-invite purposes?
+//
+// `date_iso` / `end_date_iso` are NAIVE America/Denver wall clock, so the
+// left-hand side is a Denver calendar date. The right-hand side used to be
+// `new Date().toISOString().slice(0,10)` — the UTC date — and a Worker runs
+// TZ=UTC, so from 18:01 Mountain on event day "today" was already tomorrow and
+// this guard opened ~6h early: an operator could fire a review invite while the
+// event was still running. The client mirrored the same wrong math, so the two
+// agreed with each other and nothing caught it; the client now reads the
+// `reviewInvite.eventEnded` flag this computes rather than keeping a third copy
+// of the rule.
+//
+// Deliberately DATE-granular, matching the nightly sweep's tolerance: earliest
+// manual send is 00:00 Denver the day after the event's last day. For a
+// multi-day op ending at noon that is later than strictly necessary, but it can
+// never send early, which is the property that matters for a support tool.
+function eventHasEnded(event) {
+    const endIso = String(event?.end_date_iso || event?.date_iso || '').slice(0, 10);
+    if (!endIso) return false;
+    return endIso < denverDateFor();
+}
+
 // POST /api/admin/bookings/:id/resend-review-invite — manually (re)send the
 // post-event review invite. Support tool beside the nightly sweep
 // (worker/lib/reviewInvites.js): the sweep only touches bookings whose
@@ -1071,12 +1100,9 @@ adminBookings.post('/:id/resend-review-invite', requireRole('owner', 'manager'),
     const event = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(booking.event_id).first();
     if (!event) return c.json({ error: 'Event not found' }, 404);
 
-    // Reviews are post-event: the event's last day (date portions — date_iso
-    // is timezone-naive) must be before today (UTC). Mirrors the sweep's
-    // end-anchor rule loosely enough for a manual send the morning after.
-    const endIso = String(event.end_date_iso || event.date_iso || '').slice(0, 10);
-    const todayIso = new Date().toISOString().slice(0, 10);
-    if (!endIso || endIso >= todayIso) {
+    // Reviews are post-event. See eventHasEnded() for the rule and why the
+    // right-hand side must be the Denver date rather than the UTC one.
+    if (!eventHasEnded(event)) {
         return c.json({ error: 'Event has not ended yet — review invites go out after the event' }, 409);
     }
 

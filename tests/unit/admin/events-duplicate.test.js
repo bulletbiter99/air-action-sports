@@ -14,10 +14,15 @@ import worker from '../../../worker/index.js';
 import { createMockEnv } from '../../helpers/mockEnv.js';
 import { createAdminSession } from '../../helpers/adminSession.js';
 import { getSchemaDb } from '../../helpers/realSchema.js';
+import { eventInstantMs } from '../../../worker/lib/eventTime.js';
 
 const SOURCE_ID = 'operation-source';
 const START_ISO = '2026-09-12T08:30:00';
-const START_MS = Date.parse(START_ISO);
+// Resolve through eventInstantMs, NOT Date.parse. date_iso is naive Denver wall
+// clock and `Date.parse` on a value with no offset uses the RUNNER's ambient
+// zone — so a Date.parse expectation here passes on a Mountain dev machine and
+// fails on the UTC CI runner by exactly the offset (caught that way on PR #392).
+const START_MS = eventInstantMs(START_ISO);
 const TWO_HOURS = 2 * 60 * 60 * 1000;
 
 /** A source row carrying a distinctive value in every events column. */
@@ -168,7 +173,7 @@ describe('POST /api/admin/events/:id/duplicate', () => {
 
         expect(inserted.date_iso).toBe(newStart);
         // start − 2h, mirroring the create handler's default.
-        expect(inserted.sales_close_at).toBe(Date.parse(newStart) - TWO_HOURS);
+        expect(inserted.sales_close_at).toBe(eventInstantMs(newStart) - TWO_HOURS);
     });
 
     it('preserves an explicit "never auto-close" (NULL sales_close_at)', async () => {

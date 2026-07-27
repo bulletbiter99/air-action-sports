@@ -47,6 +47,7 @@
 import { sendReviewInvite } from './emailSender.js';
 import { reviewToken } from './ids.js';
 import { normalizeEmail } from './customerEmail.js';
+import { denverWallClockWindow, toDenverWallClock, eventStartsWithin } from './eventTime.js';
 
 const H = 60 * 60 * 1000;
 const WINDOW_FLOOR_H = 18;   // newest edge: event ended >=18h ago
@@ -79,25 +80,49 @@ export async function runReviewInviteSweep(env, { now = Date.now(), sender = sen
     const windowEnd = now - WINDOW_FLOOR_H * H;     // newest event end we invite
     const cutoff = launchCutoff(env);
 
+    // The event's end anchor is NAIVE Denver wall clock, so the old
+    // `unixepoch(...) * 1000` read it as UTC and placed every timed event 6h
+    // (MDT) / 7h (MST) early. The header's claim that the 30h-wide window
+    // "comfortably clears that skew" was wrong: this sweep runs on a DAILY cron,
+    // so a 6h shift moves a candidate across a whole tick. Observed in
+    // production on 2026-07-25 — Operation Last Light's invites went out at
+    // 9:00 PM Denver, THIRTY MINUTES after the event ended, instead of the
+    // following night.
+    //
+    // Same two-stage shape as the reminder sweep (worker/index.js): wall-clock
+    // string bounds in SQL — exact off a DST transition and needing no timezone
+    // math — then an exact instant re-check in JS below.
+    const { lo, hi } = denverWallClockWindow(windowStart, windowEnd);
+
     let rows;
     try {
         rows = await env.DB.prepare(
             `SELECT b.id, b.email, b.full_name, b.event_id,
-                    e.title AS event_title, e.display_date AS event_display_date
+                    e.title AS event_title, e.display_date AS event_display_date,
+                    e.date_iso AS event_date_iso, e.end_date_iso AS event_end_date_iso
              FROM bookings b
              JOIN events e ON e.id = b.event_id
              WHERE b.status IN ('paid', 'comp')
                AND b.review_invite_sent_at IS NULL
                AND b.email IS NOT NULL AND b.email != ''
-               AND (unixepoch(COALESCE(e.end_date_iso, e.date_iso)) * 1000) BETWEEN ? AND ?
-               AND (unixepoch(COALESCE(e.end_date_iso, e.date_iso)) * 1000) >= ?
+               AND COALESCE(e.end_date_iso, e.date_iso) BETWEEN ? AND ?
+               AND COALESCE(e.end_date_iso, e.date_iso) >= ?
              LIMIT ?`
-        ).bind(windowStart, windowEnd, cutoff, limit).all();
+        ).bind(lo, hi, toDenverWallClock(cutoff), limit).all();
     } catch (err) {
         return { considered: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, suppressed: 0, error: err?.message, durationMs: Date.now() - startedAt };
     }
 
     let candidates = rows?.results || [];
+
+    // Exact instant re-check. `??` not `||` — a faithful mirror of SQL COALESCE,
+    // which treats only NULL as absent. An unparseable anchor yields false,
+    // matching the old behavior where unixepoch() returned NULL and failed the
+    // BETWEEN. Runs BEFORE the suppression filter so `considered` stays honest.
+    const anchorOf = (r) => r.event_end_date_iso ?? r.event_date_iso;
+    candidates = candidates.filter(
+        (r) => eventStartsWithin(anchorOf(r), Math.max(windowStart, cutoff), windowEnd)
+    );
 
     // Deliverability suppression (best-effort — see header): drop candidates
     // whose address has a recorded hard bounce / spam complaint.
@@ -199,8 +224,22 @@ export async function runReviewInviteSweep(env, { now = Date.now(), sender = sen
     }
 
     // Small parallel batches — Resend rate limits ~10rps; D1 handles the concurrency.
+    //
+    // PACE THEM. Ten concurrent sends with no gap exceeds ~10rps, and sendEmail
+    // throws on a non-2xx so a 429 rolls the sentinel back and defers the row a
+    // full day. This is not hypothetical: on 2026-07-26 the sweep logged
+    // considered:23 sent:13 FAILED:10, and those 10 only went out the next
+    // night. Alone that was survivable, but the timezone fix above narrows most
+    // events from two eligible nightly ticks to one — so without pacing, a
+    // 429'd batch would go from "retried tomorrow" to silently never sent.
+    //
+    // ~1.1s between groups keeps us under the limit. At the LIMIT=100 ceiling
+    // that is ~10s of wall time inside scheduled(), which has a 15-minute
+    // budget; the 30s constraint is CPU and this is idle wait.
     const BATCH = 10;
+    const INTER_BATCH_MS = 1100;
     for (let i = 0; i < candidates.length; i += BATCH) {
+        if (i) await new Promise((resolve) => setTimeout(resolve, INTER_BATCH_MS));
         await Promise.allSettled(candidates.slice(i, i + BATCH).map(processOne));
     }
 

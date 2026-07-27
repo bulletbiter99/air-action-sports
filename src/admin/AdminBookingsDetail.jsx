@@ -226,11 +226,16 @@ export default function AdminBookingsDetail() {
     const canDetachPM = canOwnerActions && stripeIntent && !isExternalIntent;
     // Reschedule: a paid/comp booking that hasn't been refunded can move events.
     const canReschedule = ['paid', 'comp'].includes(booking.status) && !booking.refundedAt;
-    // Review invite (2026-07): sendable for a paid/comp booking once the
-    // event's last day has passed and no review was submitted — mirrors the
-    // server's 409 gates (date portions, UTC).
-    const eventEndDay = String(event?.endDateIso || event?.dateIso || '').slice(0, 10);
-    const eventEnded = Boolean(eventEndDay && eventEndDay < new Date().toISOString().slice(0, 10));
+    // Review invite (2026-07): sendable for a paid/comp booking once the event
+    // has ended and no review was submitted.
+    //
+    // `eventEnded` is SERVER-COMPUTED (reviewInvite.eventEnded) rather than
+    // recalculated here. This used to mirror the server's date math locally, and
+    // both copies made the identical mistake — comparing a naive Denver date_iso
+    // against `toISOString()`, the UTC date — so the button lit up ~6h early on
+    // event day AND the server's 409 agreed with it, which is exactly why
+    // nothing caught it. One implementation, one place to be right.
+    const eventEnded = Boolean(data.reviewInvite?.eventEnded);
     const canSendReviewInvite = ['paid', 'comp'].includes(booking.status) && eventEnded && !data.review;
     const reviewInviteSentAt = data.reviewInvite?.sentAt || null;
 

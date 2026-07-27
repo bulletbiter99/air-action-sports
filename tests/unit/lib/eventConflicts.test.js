@@ -9,6 +9,15 @@ import {
     intervalsOverlap,
     hasAnyConflict,
 } from '../../../worker/lib/eventConflicts.js';
+import { eventInstantMs } from '../../../worker/lib/eventTime.js';
+
+// Fixture instants are DENVER wall-clock moments: event day boundaries, and
+// rental/blackout windows as an operator types them into a datetime-local input
+// (whose value the browser resolves in LOCAL time before .getTime()). Event
+// windows are whole DENVER days now, so building fixtures with a '...Z' suffix
+// would compare two different calendars and quietly reintroduce the very bug
+// this file guards — an evening rental escaping conflict detection.
+const denverMs = (naiveIso) => eventInstantMs(naiveIso);
 
 // Helper: build a mock env wrapping a mockD1 instance
 function envWith(db) {
@@ -16,17 +25,17 @@ function envWith(db) {
 }
 
 describe('dateIsoToDayWindow', () => {
-    it('converts YYYY-MM-DD to a 24-hour UTC window', () => {
+    it('converts YYYY-MM-DD to a whole-DENVER-day window', () => {
         const w = dateIsoToDayWindow('2026-06-15');
         expect(w).not.toBeNull();
-        expect(w.startMs).toBe(Date.parse('2026-06-15T00:00:00Z'));
-        expect(w.endMs).toBe(Date.parse('2026-06-16T00:00:00Z'));
+        expect(w.startMs).toBe(denverMs('2026-06-15T00:00:00'));
+        expect(w.endMs).toBe(denverMs('2026-06-16T00:00:00'));
     });
 
     it('accepts YYYY-MM-DDTHH:... by truncating to date part', () => {
         const w = dateIsoToDayWindow('2026-06-15T14:30:00');
-        expect(w.startMs).toBe(Date.parse('2026-06-15T00:00:00Z'));
-        expect(w.endMs).toBe(Date.parse('2026-06-16T00:00:00Z'));
+        expect(w.startMs).toBe(denverMs('2026-06-15T00:00:00'));
+        expect(w.endMs).toBe(denverMs('2026-06-16T00:00:00'));
     });
 
     it('returns null for invalid input', () => {
@@ -40,21 +49,21 @@ describe('dateIsoToDayWindow', () => {
 
     it('spans multiple days when an end day is given (through end of the last day)', () => {
         const w = dateIsoToDayWindow('2026-06-20', '2026-06-21');
-        expect(w.startMs).toBe(Date.parse('2026-06-20T00:00:00Z'));
-        expect(w.endMs).toBe(Date.parse('2026-06-22T00:00:00Z')); // midnight after 06-21
+        expect(w.startMs).toBe(denverMs('2026-06-20T00:00:00'));
+        expect(w.endMs).toBe(denverMs('2026-06-22T00:00:00')); // midnight after 06-21
     });
 
     it('truncates time components on both ends of a span', () => {
         const w = dateIsoToDayWindow('2026-06-20T16:00:00', '2026-06-21T22:00:00');
-        expect(w.startMs).toBe(Date.parse('2026-06-20T00:00:00Z'));
-        expect(w.endMs).toBe(Date.parse('2026-06-22T00:00:00Z'));
+        expect(w.startMs).toBe(denverMs('2026-06-20T00:00:00'));
+        expect(w.endMs).toBe(denverMs('2026-06-22T00:00:00'));
     });
 
     it('falls back to a single day when the end is equal/earlier/malformed', () => {
-        expect(dateIsoToDayWindow('2026-06-20', '2026-06-20').endMs).toBe(Date.parse('2026-06-21T00:00:00Z'));
-        expect(dateIsoToDayWindow('2026-06-20', '2026-06-19').endMs).toBe(Date.parse('2026-06-21T00:00:00Z'));
-        expect(dateIsoToDayWindow('2026-06-20', 'not-a-date').endMs).toBe(Date.parse('2026-06-21T00:00:00Z'));
-        expect(dateIsoToDayWindow('2026-06-20', null).endMs).toBe(Date.parse('2026-06-21T00:00:00Z'));
+        expect(dateIsoToDayWindow('2026-06-20', '2026-06-20').endMs).toBe(denverMs('2026-06-21T00:00:00'));
+        expect(dateIsoToDayWindow('2026-06-20', '2026-06-19').endMs).toBe(denverMs('2026-06-21T00:00:00'));
+        expect(dateIsoToDayWindow('2026-06-20', 'not-a-date').endMs).toBe(denverMs('2026-06-21T00:00:00'));
+        expect(dateIsoToDayWindow('2026-06-20', null).endMs).toBe(denverMs('2026-06-21T00:00:00'));
     });
 });
 
@@ -88,8 +97,8 @@ describe('detectEventConflicts — edge cases', () => {
         const db = createMockD1();
         const result = await detectEventConflicts(envWith(db), {
             siteId: null,
-            startsAt: Date.parse('2026-06-15T00:00:00Z'),
-            endsAt: Date.parse('2026-06-16T00:00:00Z'),
+            startsAt: denverMs('2026-06-15T00:00:00'),
+            endsAt: denverMs('2026-06-16T00:00:00'),
         });
         expect(result).toEqual({ events: [], blackouts: [], fieldRentals: [] });
         // No SQL should have been issued
@@ -98,7 +107,7 @@ describe('detectEventConflicts — edge cases', () => {
 
     it('returns empty when endsAt <= startsAt', async () => {
         const db = createMockD1();
-        const t = Date.parse('2026-06-15T00:00:00Z');
+        const t = denverMs('2026-06-15T00:00:00');
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_x',
             startsAt: t,
@@ -112,7 +121,7 @@ describe('detectEventConflicts — edge cases', () => {
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_x',
             startsAt: NaN,
-            endsAt: Date.parse('2026-06-16T00:00:00Z'),
+            endsAt: denverMs('2026-06-16T00:00:00'),
         });
         expect(result).toEqual({ events: [], blackouts: [], fieldRentals: [] });
     });
@@ -136,8 +145,8 @@ describe('detectEventConflicts — events table', () => {
         ]);
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-15T00:00:00Z'),
-            endsAt: Date.parse('2026-06-16T00:00:00Z'),
+            startsAt: denverMs('2026-06-15T00:00:00'),
+            endsAt: denverMs('2026-06-16T00:00:00'),
         });
         expect(result.events).toHaveLength(1);
         expect(result.events[0].id).toBe('ev_a');
@@ -150,8 +159,8 @@ describe('detectEventConflicts — events table', () => {
         ]);
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-15T09:00:00Z'),
-            endsAt: Date.parse('2026-06-15T17:00:00Z'),
+            startsAt: denverMs('2026-06-15T09:00:00'),
+            endsAt: denverMs('2026-06-15T17:00:00'),
         });
         expect(result.events).toHaveLength(1);
     });
@@ -163,8 +172,8 @@ describe('detectEventConflicts — events table', () => {
         setupEventsMock(db, []);
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-16T00:00:00Z'),
-            endsAt: Date.parse('2026-06-17T00:00:00Z'),
+            startsAt: denverMs('2026-06-16T00:00:00'),
+            endsAt: denverMs('2026-06-17T00:00:00'),
         });
         expect(result.events).toHaveLength(0);
     });
@@ -174,8 +183,8 @@ describe('detectEventConflicts — events table', () => {
         setupEventsMock(db, []); // SQL filter handles the exclude
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-15T00:00:00Z'),
-            endsAt: Date.parse('2026-06-16T00:00:00Z'),
+            startsAt: denverMs('2026-06-15T00:00:00'),
+            endsAt: denverMs('2026-06-16T00:00:00'),
             excludeEventId: 'ev_self',
         });
         // Verify the SQL included AND id != ?
@@ -194,8 +203,8 @@ describe('detectEventConflicts — events table', () => {
         ]);
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-15T00:00:00Z'),
-            endsAt: Date.parse('2026-06-16T00:00:00Z'),
+            startsAt: denverMs('2026-06-15T00:00:00'),
+            endsAt: denverMs('2026-06-16T00:00:00'),
         });
         expect(result.events).toHaveLength(1);
         expect(result.events[0].id).toBe('ev_ok');
@@ -214,8 +223,8 @@ describe('detectEventConflicts — events table', () => {
         // day-1-only window missed this; the span window now overlaps.
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-21T00:00:00Z'),
-            endsAt: Date.parse('2026-06-22T00:00:00Z'),
+            startsAt: denverMs('2026-06-21T00:00:00'),
+            endsAt: denverMs('2026-06-22T00:00:00'),
         });
         expect(result.events).toHaveLength(1);
         expect(result.events[0].id).toBe('ev_2day');
@@ -228,8 +237,8 @@ describe('detectEventConflicts — events table', () => {
         ]);
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-21T00:00:00Z'),
-            endsAt: Date.parse('2026-06-22T00:00:00Z'),
+            startsAt: denverMs('2026-06-21T00:00:00'),
+            endsAt: denverMs('2026-06-22T00:00:00'),
         });
         expect(result.events).toHaveLength(0);
     });
@@ -239,8 +248,8 @@ describe('detectEventConflicts — events table', () => {
         setupEventsMock(db, []);
         await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-20T00:00:00Z'),
-            endsAt: Date.parse('2026-06-21T00:00:00Z'),
+            startsAt: denverMs('2026-06-20T00:00:00'),
+            endsAt: denverMs('2026-06-21T00:00:00'),
         });
         const q = db.__writes().find((w) => /FROM events/.test(w.sql));
         expect(q.sql).toMatch(/end_date_iso/);
@@ -257,8 +266,8 @@ describe('detectEventConflicts — blackouts', () => {
                 {
                     id: 'blk_1',
                     reason: 'Maintenance',
-                    starts_at: Date.parse('2026-06-15T08:00:00Z'),
-                    ends_at: Date.parse('2026-06-15T12:00:00Z'),
+                    starts_at: denverMs('2026-06-15T08:00:00'),
+                    ends_at: denverMs('2026-06-15T12:00:00'),
                 },
             ],
         }), 'all');
@@ -266,8 +275,8 @@ describe('detectEventConflicts — blackouts', () => {
 
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-15T09:00:00Z'),
-            endsAt: Date.parse('2026-06-15T11:00:00Z'),
+            startsAt: denverMs('2026-06-15T09:00:00'),
+            endsAt: denverMs('2026-06-15T11:00:00'),
         });
         expect(result.blackouts).toHaveLength(1);
         expect(result.blackouts[0].id).toBe('blk_1');
@@ -281,8 +290,8 @@ describe('detectEventConflicts — blackouts', () => {
         db.__on(/FROM field_rentals/, { results: [] }, 'all');
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_other',
-            startsAt: Date.parse('2026-06-15T00:00:00Z'),
-            endsAt: Date.parse('2026-06-16T00:00:00Z'),
+            startsAt: denverMs('2026-06-15T00:00:00'),
+            endsAt: denverMs('2026-06-16T00:00:00'),
         });
         expect(result.blackouts).toHaveLength(0);
     });
@@ -299,8 +308,8 @@ describe('detectEventConflicts — field_rentals table missing (pre-B4)', () => 
 
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-15T00:00:00Z'),
-            endsAt: Date.parse('2026-06-16T00:00:00Z'),
+            startsAt: denverMs('2026-06-15T00:00:00'),
+            endsAt: denverMs('2026-06-16T00:00:00'),
         });
         expect(result.fieldRentals).toEqual([]);
         // Other conflicts still computed normally
@@ -315,8 +324,8 @@ describe('detectEventConflicts — field_rentals table missing (pre-B4)', () => 
         db.__on(/FROM field_rentals/, { results: [] }, 'all');
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-15T00:00:00Z'),
-            endsAt: Date.parse('2026-06-16T00:00:00Z'),
+            startsAt: denverMs('2026-06-15T00:00:00'),
+            endsAt: denverMs('2026-06-16T00:00:00'),
         });
         expect(result.fieldRentals).toEqual([]);
     });
@@ -330,15 +339,15 @@ describe('detectEventConflicts — field_rentals table missing (pre-B4)', () => 
                 {
                     id: 'fr_1',
                     customer_id: 'cus_x',
-                    starts_at: Date.parse('2026-06-15T10:00:00Z'),
-                    ends_at: Date.parse('2026-06-15T14:00:00Z'),
+                    starts_at: denverMs('2026-06-15T10:00:00'),
+                    ends_at: denverMs('2026-06-15T14:00:00'),
                 },
             ],
         }), 'all');
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-15T12:00:00Z'),
-            endsAt: Date.parse('2026-06-15T16:00:00Z'),
+            startsAt: denverMs('2026-06-15T12:00:00'),
+            endsAt: denverMs('2026-06-15T16:00:00'),
         });
         expect(result.fieldRentals).toHaveLength(1);
         expect(result.fieldRentals[0].id).toBe('fr_1');
@@ -358,8 +367,8 @@ describe('detectEventConflicts — combined', () => {
                 {
                     id: 'blk_1',
                     reason: 'Weather',
-                    starts_at: Date.parse('2026-06-15T08:00:00Z'),
-                    ends_at: Date.parse('2026-06-15T12:00:00Z'),
+                    starts_at: denverMs('2026-06-15T08:00:00'),
+                    ends_at: denverMs('2026-06-15T12:00:00'),
                 },
             ],
         }), 'all');
@@ -368,16 +377,16 @@ describe('detectEventConflicts — combined', () => {
                 {
                     id: 'fr_1',
                     customer_id: 'cus_x',
-                    starts_at: Date.parse('2026-06-15T10:00:00Z'),
-                    ends_at: Date.parse('2026-06-15T14:00:00Z'),
+                    starts_at: denverMs('2026-06-15T10:00:00'),
+                    ends_at: denverMs('2026-06-15T14:00:00'),
                 },
             ],
         }), 'all');
 
         const result = await detectEventConflicts(envWith(db), {
             siteId: 'site_g',
-            startsAt: Date.parse('2026-06-15T09:00:00Z'),
-            endsAt: Date.parse('2026-06-15T11:00:00Z'),
+            startsAt: denverMs('2026-06-15T09:00:00'),
+            endsAt: denverMs('2026-06-15T11:00:00'),
         });
         expect(result.events).toHaveLength(1);
         expect(result.blackouts).toHaveLength(1);
@@ -403,5 +412,60 @@ describe('hasAnyConflict', () => {
 
     it('handles missing arrays gracefully', () => {
         expect(hasAnyConflict({})).toBe(false);
+    });
+});
+
+// ── The silent field double-booking (fixed 2026-07-27) ────────────────────
+// Event windows used to be pinned to UTC midnight, i.e. Denver 18:00 the day
+// BEFORE through 18:00 the day OF. Blackouts and field rentals hold genuine
+// epoch-ms, so an evening rental on an event day fell past the window's end and
+// was never nominated as a candidate: no 409, no conflict banner, the operator
+// double-booked the field. The evening BEFORE was symmetrically a false
+// positive. Event-vs-event was always fine (both sides shifted together), which
+// is why this survived — the engine looked self-consistent.
+describe('event window is a DENVER day, not a UTC day', () => {
+    const EVENT_DAY = '2026-07-25';
+
+    it('spans Denver midnight to Denver midnight', () => {
+        const w = dateIsoToDayWindow(`${EVENT_DAY}T08:30:00`);
+        expect(w.startMs).toBe(denverMs('2026-07-25T00:00:00'));
+        expect(w.endMs).toBe(denverMs('2026-07-26T00:00:00'));
+        // 24h in MDT — the guard is that it is not a fixed +24h across DST.
+        expect(w.endMs - w.startMs).toBe(24 * 3600000);
+    });
+
+    it('a 6-11 PM rental ON the event day now falls INSIDE the window', () => {
+        const w = dateIsoToDayWindow(`${EVENT_DAY}T08:30:00`);
+        const rentalStart = denverMs('2026-07-25T18:00:00');
+        const rentalEnd = denverMs('2026-07-25T23:00:00');
+        expect(intervalsOverlap(w.startMs, w.endMs, rentalStart, rentalEnd)).toBe(true);
+        // Under the old UTC-midnight window this rental began after endMs.
+        const utcWindowEnd = Date.parse(`2026-07-26T00:00:00Z`);
+        expect(rentalStart >= utcWindowEnd).toBe(true);
+    });
+
+    it('a 6-11 PM rental the EVENING BEFORE is no longer a false conflict', () => {
+        const w = dateIsoToDayWindow(`${EVENT_DAY}T08:30:00`);
+        const rentalStart = denverMs('2026-07-24T18:00:00');
+        const rentalEnd = denverMs('2026-07-24T23:00:00');
+        expect(intervalsOverlap(w.startMs, w.endMs, rentalStart, rentalEnd)).toBe(false);
+    });
+
+    it('handles a DST day correctly — spring forward is a 23-hour day', () => {
+        const w = dateIsoToDayWindow('2026-03-08');
+        expect(w.startMs).toBe(denverMs('2026-03-08T00:00:00'));
+        expect(w.endMs).toBe(denverMs('2026-03-09T00:00:00'));
+        // A fixed +24h would have overshot into the next day by an hour.
+        expect(w.endMs - w.startMs).toBe(23 * 3600000);
+    });
+
+    it('handles a DST day correctly — fall back is a 25-hour day', () => {
+        const w = dateIsoToDayWindow('2026-11-01');
+        expect(w.endMs - w.startMs).toBe(25 * 3600000);
+    });
+
+    it('a well-formed but nonexistent end date falls back to single-day', () => {
+        const w = dateIsoToDayWindow('2026-07-25', '2026-02-30');
+        expect(w.endMs).toBe(denverMs('2026-07-26T00:00:00'));
     });
 });
