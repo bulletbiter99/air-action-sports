@@ -20,6 +20,7 @@ import { runCampaignSendSweep as _runCampaignSendSweep } from './lib/campaignSen
 import { runAutomationSweep as _runAutomationSweep } from './lib/automations.js';
 import { runStripeFeeSync as _runStripeFeeSync } from './lib/stripeFeeSync.js';
 import { runReviewInviteSweep as _runReviewInviteSweep } from './lib/reviewInvites.js';
+import { denverWallClockWindow, eventStartsWithin } from './lib/eventTime.js';
 // Top-level const aliases so the verify-m5 cron-sweep check (regex:
 // `const NAME = ...`) detects the sweeps are wired up here. The actual
 // implementations live in worker/lib/{certifications,eventStaffing,thresholds1099}.js.
@@ -229,12 +230,44 @@ app.onError((err, c) => {
     return c.json({ error: 'Internal server error' }, 500);
 });
 
+// An instant window → the two Denver wall-clock bounds to bind into a
+// `... AND e.date_iso BETWEEN ? AND ?` filter. See worker/lib/eventTime.js:
+// date_iso is naive local wall clock, so comparing it against real epoch-ms
+// (the old `unixepoch(e.date_iso)` form) read every timed event 6-7h early.
+//
+// Used bare by the two vendor sweeps below, whose windows are 2 DAYS wide — the
+// bounds are exact off-transition and the once-a-year DST widening is far inside
+// their tolerance, so they need no second-stage filter. The reminder sweep's
+// windows are minutes wide, so it additionally re-tests each row exactly in JS.
+const wallClockBinds = (startMs, endMs) => {
+    const { lo, hi } = denverWallClockWindow(startMs, endMs);
+    return [lo, hi];
+};
+
 // Scheduled handler — fires on the cron triggers defined in wrangler.toml.
 // Two independent sweeps over paid/comp bookings:
 //   - 24hr reminder: event starts in 20-28hrs, stamps reminder_sent_at
 //   - 1hr reminder:  event starts in 45-75min, stamps reminder_1hr_sent_at
 // Each column is the idempotency key for its window; a booking gets both.
 async function runReminderSweepWindow(env, { windowStart, windowEnd, column, sender, auditAction }) {
+    // `events.date_iso` is LOCAL Denver wall clock with no offset, so the old
+    // `unixepoch(e.date_iso)` comparison against real epoch-ms read every timed
+    // event 6h (MDT) / 7h (MST) early — on 2026-07-25 that mailed 18 customers
+    // "starts in about an hour" at 1:20 AM and then suppressed the real send via
+    // the sentinel. See worker/lib/eventTime.js for why the obvious fixes
+    // (`unixepoch(x,'utc')`, a hardcoded -06:00) do not work.
+    //
+    // Two-stage filter. SQL compares wall clock against WALL-CLOCK bounds, which
+    // needs no timezone math at all (ISO-8601 sorts chronologically) and stays
+    // sargable; JS then re-tests each row against the true instant.
+    //
+    // The SQL bounds are EXACT except across a DST transition — deliberately, so
+    // the row set this LIMIT is applied to is the same one the old (broken)
+    // predicate would have produced had it been correct. Widening the range
+    // would let already-closed rows whose sentinel is still NULL consume the
+    // LIMIT and starve rows actually due; see denverWallClockWindow.
+    const { lo, hi } = denverWallClockWindow(windowStart, windowEnd);
+
     // LIMIT 100 keeps the sweep inside Workers' CPU budget (~30s) even after a
     // big event drop. Next 15-min tick will pick up any leftovers — each row's
     // `column IS NULL` filter is its own idempotency key.
@@ -247,11 +280,16 @@ async function runReminderSweepWindow(env, { windowStart, windowEnd, column, sen
          WHERE b.status IN ('paid', 'comp')
            AND b.${column} IS NULL
            AND b.email IS NOT NULL AND b.email != ''
-           AND (unixepoch(e.date_iso) * 1000) BETWEEN ? AND ?
+           AND e.date_iso BETWEEN ? AND ?
          LIMIT 100`
-    ).bind(windowStart, windowEnd).all();
+    ).bind(lo, hi).all();
 
-    const candidates = rows.results || [];
+    // Exact window test against the true UTC instant. An unparseable date_iso
+    // is excluded, matching the previous behavior (unixepoch() returned NULL,
+    // and NULL fails BETWEEN).
+    const candidates = (rows.results || []).filter(
+        (r) => eventStartsWithin(r.event_date_iso, windowStart, windowEnd)
+    );
     const results = { considered: candidates.length, sent: 0, failed: 0 };
 
     // Sentinel-first idempotency: stamp the reminder column BEFORE sending.
@@ -432,9 +470,9 @@ async function runVendorSweep(env) {
              LEFT JOIN vendor_contacts vc ON vc.id = ev.primary_contact_id
              WHERE ev.status = 'sent'
                AND ev.package_reminder_sent_at IS NULL
-               AND (unixepoch(e.date_iso) * 1000) BETWEEN ? AND ?
+               AND e.date_iso BETWEEN ? AND ?
              LIMIT 50`
-        ).bind(now + SIX_D, now + EIGHT_D).all();
+        ).bind(...wallClockBinds(now + SIX_D, now + EIGHT_D)).all();
 
         for (const r of rows.results || []) {
             if (!r.contact_email) continue;
@@ -472,9 +510,9 @@ async function runVendorSweep(env) {
                AND ev.contract_signed_at IS NULL
                AND ev.status != 'revoked'
                AND ev.signature_reminder_sent_at IS NULL
-               AND (unixepoch(e.date_iso) * 1000) BETWEEN ? AND ?
+               AND e.date_iso BETWEEN ? AND ?
              LIMIT 50`
-        ).bind(now + THIRTEEN_D, now + FIFTEEN_D).all();
+        ).bind(...wallClockBinds(now + THIRTEEN_D, now + FIFTEEN_D)).all();
 
         for (const r of rows.results || []) {
             if (!r.contact_email) continue;

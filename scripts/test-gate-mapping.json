@@ -389,14 +389,36 @@
       "covers": [
         "serveUpload (full — allowlist regex, MIME mapping, 404/500 paths, security headers)",
         "rewriteEventOg (full — DB lookup, all 10 SEO meta selectors, fallback when event missing, slug parsing variants)",
-        "scheduled outer dispatch (full — cron-string branching, parallel sweep dispatch, error containment, always-on cron.swept audit row, ctx.waitUntil contract)"
+        "scheduled outer dispatch (full — cron-string branching, parallel sweep dispatch, error containment, always-on cron.swept audit row, ctx.waitUntil contract)",
+        "runReminderSweep inner behavior (sentinel-first idempotency, 24hr/1hr window math, the two-stage Denver wall-clock window filter, unparseable-date_iso exclusion)",
+        "runAbandonPendingSweep + runVendorSweep inner behavior (PENDING_ABANDON_MS cutoff; COI/package/signature windows + sentinels)"
       ],
-      "audit_group": "G (full), H (outer dispatch only — inner sweeps runReminderSweep/runAbandonPendingSweep/runVendorSweep remain uncovered, see uncovered.worker/index.js)",
-      "audit_tests_prescribed": ["G65", "G66", "G67", "G68", "G69", "G70"],
+      "audit_group": "G (full), H (full — outer dispatch plus the inner sweeps). NOTE: the Group H suites shipped in M5 Batch 7 but were never registered here; an agent obeying this map literally ran 3 files and missed the two that pin the reminder sweep's sentinel-first semantics. Backfilled 2026-07-27 with the timezone fix.",
+      "audit_tests_prescribed": ["G65", "G66", "G67", "G68", "G69", "G70", "H71", "H72", "H73", "H74", "H75", "H76"],
       "tests": [
         "tests/unit/worker/serveUpload.test.js",
         "tests/unit/worker/rewriteEventOg.test.js",
-        "tests/unit/worker/scheduled.test.js"
+        "tests/unit/worker/scheduled.test.js",
+        "tests/unit/cron/reminder-24hr-sweep.test.js",
+        "tests/unit/cron/reminder-1hr-sweep.test.js",
+        "tests/unit/cron/scheduled-outer-dispatch.test.js",
+        "tests/unit/cron/abandon-pending-sweep.test.js",
+        "tests/unit/cron/vendor-coi-sweep.test.js"
+      ]
+    },
+    "worker/lib/eventTime.js": {
+      "tier": "high",
+      "covers": [
+        "eventInstantMs — events.date_iso (naive America/Denver wall clock) → true UTC epoch ms, DST-correct in both MST and MDT via Intl; date-only = local midnight; null on malformed input (incl. the Date.UTC out-of-range normalization trap)",
+        "toDenverWallClock / denverWallClockWindow — instant → the padded wall-clock TEXT bounds a SQL `date_iso BETWEEN ? AND ?` filter binds, so no query needs timezone math",
+        "eventStartsWithin — the exact instant membership test; the property that the padded SQL range can over-select but NEVER drop a true match"
+      ],
+      "audit_group": "n/a (post-audit; fixes the 2026-07-25 reminder misfire)",
+      "audit_tests_prescribed": [],
+      "tests": [
+        "tests/unit/lib/eventTime.test.js",
+        "tests/unit/cron/reminder-24hr-sweep.test.js",
+        "tests/unit/cron/reminder-1hr-sweep.test.js"
       ]
     },
     "worker/routes/admin/dashboard.js": {
@@ -832,13 +854,11 @@
     "worker/index.js": {
       "tier": "critical",
       "covers": [
-        "runReminderSweep inner behavior (sentinel-first idempotency, 24hr/1hr window math, batch parallelism, send/rollback)",
-        "runAbandonPendingSweep inner behavior (PENDING_ABANDON_MS cutoff)",
-        "runVendorSweep inner behavior (COI 30d/7d, package reminder, signature reminder windows + sentinels)"
+        "runReminderSweep batch parallelism + send/rollback on a failed send (the BATCH=10 slicing and the sentinel roll-back path specifically)"
       ],
       "audit_groups": ["H"],
-      "audit_tests_prescribed": ["H71", "H72", "H73", "H74", "H75", "H76"],
-      "status": "Group G outer dispatch covered M4 B1a; H deferred to M5 per docs/runbooks/m3-baseline-coverage.txt + M4 milestone plan"
+      "audit_tests_prescribed": ["H74", "H75", "H76"],
+      "status": "RESOLVED 2026-07-27 for H71-H73 — the Group H suites shipped in M5 Batch 7 (tests/unit/cron/reminder-{24hr,1hr}-sweep.test.js, abandon-pending-sweep, vendor-coi-sweep) and are now registered under gates['worker/index.js']; they had been sitting unregistered for two milestones. What genuinely remains uncovered: the BATCH=10 slicing and the roll-back-on-send-failure path."
     },
     "worker/lib/emailSender.js": {
       "tier": "critical",
