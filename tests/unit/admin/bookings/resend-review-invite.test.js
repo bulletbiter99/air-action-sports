@@ -202,7 +202,11 @@ describe('GET /:id — reviewInvite + review response fields (2026-07)', () => {
         const res = await get();
         expect(res.status).toBe(200);
         const j = await res.json();
-        expect(j.reviewInvite).toEqual({ sentAt: 1753500000000 });
+        // `eventEnded` is additive (2026-07-27): the client used to recompute
+        // this predicate locally and made the identical UTC-vs-Denver mistake as
+        // the server, so both agreed and the Resend button lit up ~6h early on
+        // event day. Now server-computed, single source of truth.
+        expect(j.reviewInvite).toEqual({ sentAt: 1753500000000, eventEnded: true });
         expect(j.review).toBe(null);
     });
 

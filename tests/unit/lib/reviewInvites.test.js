@@ -13,6 +13,15 @@ import {
     REVIEW_INVITE_SOFT_ALARM,
 } from '../../../worker/lib/reviewInvites.js';
 import { reviewId, reviewToken } from '../../../worker/lib/ids.js';
+import { toDenverWallClock, eventInstantMs } from '../../../worker/lib/eventTime.js';
+
+// The sweep is PINNED to a fixed instant. It now re-checks each candidate's real
+// end anchor in JS (the SQL wall-clock range can only over-select), so a fixture
+// needs an anchor that genuinely sits in the 18-48h post-event window — and a
+// hardcoded date would rot the moment the calendar walked past it.
+const NOW = Date.parse('2026-07-27T09:00:00Z');            // 03:00 MDT, the cron hour
+const ANCHOR_MS = NOW - 24 * 3600000;                       // squarely inside 18-48h
+const ANCHOR_ISO = toDenverWallClock(ANCHOR_MS);            // naive Denver, as stored
 
 const SELECT = /FROM bookings b\s+JOIN events e/;
 const CLAIM = /UPDATE bookings SET review_invite_sent_at = \?, review_token = \?/;
@@ -21,8 +30,20 @@ const ROLLBACK = /UPDATE bookings SET review_invite_sent_at = NULL, review_token
 // so assert on the SQL string, not the bound args (M5 lesson #3).
 const SENT_AUDIT = /INSERT INTO audit_log[\s\S]*'review_invite\.sent'/;
 
-function candidate(id = 'bk_1') {
-    return { id, email: `${id}@example.com`, full_name: 'Jane Player', event_id: 'ev_1', event_title: 'Op Last Light', event_display_date: '25 July 2026' };
+function candidate(id = 'bk_1', overrides = {}) {
+    return {
+        id,
+        email: `${id}@example.com`,
+        full_name: 'Jane Player',
+        event_id: 'ev_1',
+        event_title: 'Op Last Light',
+        event_display_date: '25 July 2026',
+        // Anchor columns the JS re-check reads. Without these every send-path
+        // test silently filters to zero candidates and asserts nothing.
+        event_date_iso: ANCHOR_ISO,
+        event_end_date_iso: null,
+        ...overrides,
+    };
 }
 
 describe('review id generators', () => {
@@ -44,10 +65,17 @@ describe('runReviewInviteSweep — windowing', () => {
         const select = env.DB.__writes().find((w) => SELECT.test(w.sql));
         expect(select).toBeDefined();
         expect(select.sql).toMatch(/COALESCE\(e\.end_date_iso, e\.date_iso\)/);
+        // Bounds are Denver WALL-CLOCK strings now — date_iso is naive local
+        // time, so comparing it against epoch-ms read every event 6-7h early and
+        // fired Last Light's invites 30 min after ENDEX instead of the next night.
         const [windowStart, windowEnd, cutoff] = select.args;
-        expect((now - windowStart) / 3600000).toBeCloseTo(48, 5);
-        expect((now - windowEnd) / 3600000).toBeCloseTo(18, 5);
-        expect(cutoff).toBe(DEFAULT_LAUNCH_CUTOFF_MS);
+        expect(windowStart).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
+        expect(windowEnd).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
+        // Precision 3 (~1.8s), not 5: a wall-clock string is second-granular, so
+        // the round-trip through it drops sub-second precision by design.
+        expect((now - eventInstantMs(windowStart)) / 3600000).toBeCloseTo(48, 3);
+        expect((now - eventInstantMs(windowEnd)) / 3600000).toBeCloseTo(18, 3);
+        expect(cutoff).toBe(toDenverWallClock(DEFAULT_LAUNCH_CUTOFF_MS));
         // Only paid/comp + unsent + has-email candidates.
         expect(select.sql).toMatch(/status IN \('paid', 'comp'\)/);
         expect(select.sql).toMatch(/review_invite_sent_at IS NULL/);
@@ -57,7 +85,7 @@ describe('runReviewInviteSweep — windowing', () => {
         const env = createMockEnv({ REVIEW_LAUNCH_CUTOFF_MS: 1700000000000 });
         await runReviewInviteSweep(env, { now: Date.now() });
         const select = env.DB.__writes().find((w) => SELECT.test(w.sql));
-        expect(select.args[2]).toBe(1700000000000);
+        expect(select.args[2]).toBe(toDenverWallClock(1700000000000));
     });
 
     it('falls back to the default cutoff when the env value is missing / non-numeric / 0', async () => {
@@ -65,7 +93,7 @@ describe('runReviewInviteSweep — windowing', () => {
             const env = createMockEnv(bad === undefined ? {} : { REVIEW_LAUNCH_CUTOFF_MS: bad });
             await runReviewInviteSweep(env, { now: Date.now() });
             const select = env.DB.__writes().find((w) => SELECT.test(w.sql));
-            expect(select.args[2]).toBe(DEFAULT_LAUNCH_CUTOFF_MS);
+            expect(select.args[2]).toBe(toDenverWallClock(DEFAULT_LAUNCH_CUTOFF_MS));
         }
     });
 
@@ -237,5 +265,106 @@ describe('runReviewInviteSweep — claim / send / rollback', () => {
         const out = await runReviewInviteSweep(env, { now: Date.now() });
         expect(out).toMatchObject({ considered: 0, sent: 0, failed: 0 });
         expect(out.error).toMatch(/d1 down/);
+    });
+});
+
+// ── The 2026-07-25 misfire + the pacing that must ship with its fix ────────
+describe('runReviewInviteSweep — Denver anchor + batch pacing (2026-07-27)', () => {
+    // Operation Last Light: date_iso '2026-07-25T08:30:00' (naive Denver), a
+    // single-day 12hr op, so the anchor is the START. Reading that as UTC put
+    // the anchor 6h early, which pulled the booking into the Jul 26 03:00Z tick
+    // — 9:00 PM Denver on the 25th, THIRTY MINUTES after the event ended.
+    const LAST_LIGHT = '2026-07-25T08:30:00';
+
+    it('does NOT invite on the tick 30 minutes after the event ended', async () => {
+        const env = createMockEnv();
+        // Jul 26 03:00Z — the run that actually misfired in production.
+        const now = Date.parse('2026-07-26T03:00:00Z');
+        env.DB.__on(SELECT, { results: [candidate('bk_ll', { event_date_iso: LAST_LIGHT })] }, 'all');
+        const out = await runReviewInviteSweep(env, { now });
+        expect(out.considered).toBe(0);
+        expect(out.sent).toBe(0);
+    });
+
+    it('DOES invite on the following night, inside the real 18-48h window', async () => {
+        const env = createMockEnv();
+        const now = Date.parse('2026-07-27T03:00:00Z'); // ~24.5h after the true end
+        env.DB.__on(SELECT, { results: [candidate('bk_ll', { event_date_iso: LAST_LIGHT })] }, 'all');
+        env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
+        const out = await runReviewInviteSweep(env, {
+            now,
+            sender: async () => ({ id: 'em_1' }),
+        });
+        expect(out.considered).toBe(1);
+        expect(out.sent).toBe(1);
+    });
+
+    it('prefers end_date_iso over date_iso as the anchor (multi-day op)', async () => {
+        const env = createMockEnv();
+        // Fire Storm: starts 19:45 Jul 25, ENDS noon Jul 26. At this tick the
+        // START is >18h old but the END is not — the end must win, or a
+        // multi-day op gets invited while it is still running.
+        const now = Date.parse('2026-07-26T21:00:00Z'); // 15:00 MDT Jul 26, 3h after ENDEX
+        env.DB.__on(SELECT, {
+            results: [candidate('bk_fs', {
+                event_date_iso: '2026-07-25T19:45:00',
+                event_end_date_iso: '2026-07-26T12:00:00',
+            })],
+        }, 'all');
+        const out = await runReviewInviteSweep(env, { now });
+        expect(out.considered).toBe(0); // only 3h past ENDEX — too soon
+    });
+
+    it('excludes a candidate whose anchor cannot be parsed', async () => {
+        const env = createMockEnv();
+        env.DB.__on(SELECT, {
+            results: [candidate('bk_bad', { event_date_iso: '', event_end_date_iso: null })],
+        }, 'all');
+        const out = await runReviewInviteSweep(env, { now: NOW });
+        expect(out.considered).toBe(0);
+    });
+
+    // Pacing had to ship WITH the timezone fix, not after it. The tz fix narrows
+    // most events from two eligible nightly ticks to one, so a 429'd batch goes
+    // from "retried tomorrow" to silently never sent. Production logged
+    // considered:23 sent:13 failed:10 on 2026-07-26 from exactly this.
+    it('paces between batches so a burst does not trip the ~10rps limit', async () => {
+        vi.useFakeTimers();
+        try {
+            const env = createMockEnv();
+            const results = Array.from({ length: 25 }, (_, i) => candidate(`bk_${i}`));
+            env.DB.__on(SELECT, { results }, 'all');
+            env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
+
+            const sendTimes = [];
+            const promise = runReviewInviteSweep(env, {
+                now: NOW,
+                sender: async () => { sendTimes.push(Date.now()); return { id: 'em' }; },
+            });
+            await vi.runAllTimersAsync();
+            const out = await promise;
+
+            expect(out.sent).toBe(25);
+            // 25 candidates → 3 groups of 10/10/5, so two inter-batch gaps.
+            const distinct = [...new Set(sendTimes)];
+            expect(distinct).toHaveLength(3);
+            expect(distinct[1] - distinct[0]).toBeGreaterThanOrEqual(1000);
+            expect(distinct[2] - distinct[1]).toBeGreaterThanOrEqual(1000);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not pace when everything fits in one batch', async () => {
+        const env = createMockEnv();
+        env.DB.__on(SELECT, { results: [candidate('bk_1'), candidate('bk_2')] }, 'all');
+        env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
+        const started = Date.now();
+        const out = await runReviewInviteSweep(env, {
+            now: NOW,
+            sender: async () => ({ id: 'em' }),
+        });
+        expect(out.sent).toBe(2);
+        expect(Date.now() - started).toBeLessThan(1000); // no sleep on a single group
     });
 });
