@@ -748,6 +748,255 @@ function RefundModal({ payment, onClose, onRefunded }) {
 // Main component
 // ────────────────────────────────────────────────────────────────────
 
+// Sprint 4 B4 — recurrence series management on the rental detail page.
+// The nightly cron has generated instances from field_rental_recurrences
+// since M5.5, but no UI could create/pause/end a series (SQL-only). A rental
+// that BELONGS to a series shows its series controls; a standalone rental
+// offers "Make recurring", using itself as the template.
+function RecurrenceCard({ rental, hasCap, isArchived, isTerminal, onChanged, onError }) {
+    const [series, setSeries] = useState(null);
+    const [showCreate, setShowCreate] = useState(false);
+    const [busy, setBusy] = useState(false);
+
+    useEffect(() => {
+        let alive = true;
+        if (!rental.recurrenceId) { setSeries(null); return undefined; }
+        fetch(`/api/admin/field-rental-recurrences/${encodeURIComponent(rental.recurrenceId)}`, {
+            credentials: 'include', cache: 'no-store',
+        })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((j) => { if (alive) setSeries(j); })
+            .catch(() => { if (alive) setSeries(null); });
+        return () => { alive = false; };
+    }, [rental.recurrenceId]);
+
+    const seriesAction = async (verb, body) => {
+        setBusy(true);
+        try {
+            const res = await fetch(`/api/admin/field-rental-recurrences/${encodeURIComponent(rental.recurrenceId)}/${verb}`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(body || {}),
+            });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+            await onChanged();
+        } catch (e) {
+            onError(e.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    // Not part of a series: offer creation (only for a live, non-generated rental).
+    if (!rental.recurrenceId) {
+        if (!hasCap('field_rentals.recurrence_create') || isArchived || isTerminal) return null;
+        return (
+            <div style={cardStyle}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ ...sectionTitleStyle, marginBottom: 0 }}>Recurring series</h2>
+                    <button style={ghostBtn} onClick={() => setShowCreate(true)}>↻ Make recurring</button>
+                </div>
+                <p style={{ margin: '8px 0 0', color: 'var(--text-secondary, #666)', fontSize: 12 }}>
+                    Turn this rental into the template for a repeating series — the nightly sweep
+                    generates future instances out to a 90-day horizon.
+                </p>
+                {showCreate && (
+                    <CreateRecurrenceModal
+                        rental={rental}
+                        onClose={() => setShowCreate(false)}
+                        onCreated={() => { setShowCreate(false); onChanged(); }}
+                    />
+                )}
+            </div>
+        );
+    }
+
+    const rec = series?.recurrence;
+    const canModify = hasCap('field_rentals.recurrence_modify');
+    const canEnd = hasCap('field_rentals.recurrence_end');
+    return (
+        <div style={cardStyle}>
+            <h2 style={sectionTitleStyle}>Recurring series</h2>
+            {!rec && <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #666)' }}>Instance {rental.recurrenceInstanceIndex ?? '—'} of series {rental.recurrenceId}</p>}
+            {rec && (
+                <>
+                    <dl style={dlStyle}>
+                        <dt style={dtStyle}>Status</dt>
+                        <dd style={ddStyle}>{rec.active ? 'Active — generating nightly' : 'Paused / ended'}</dd>
+                        <dt style={dtStyle}>Frequency</dt>
+                        <dd style={ddStyle}>{rec.frequency}{rec.frequency === 'weekly' && rec.weekdayMask ? ` (mask ${rec.weekdayMask})` : ''}</dd>
+                        <dt style={dtStyle}>Window</dt>
+                        <dd style={ddStyle}>{rec.startsOn} → {rec.endsOn || 'open-ended'}{rec.maxOccurrences ? ` (max ${rec.maxOccurrences})` : ''}</dd>
+                        <dt style={dtStyle}>This instance</dt>
+                        <dd style={ddStyle}>#{rental.recurrenceInstanceIndex ?? '—'} of {series.instances?.length ?? '—'} generated</dd>
+                        <dt style={dtStyle}>Generated through</dt>
+                        <dd style={ddStyle}>{rec.generatedThrough || 'nothing yet'}</dd>
+                    </dl>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                        {canModify && rec.active && (
+                            <button style={ghostBtn} disabled={busy} onClick={() => seriesAction('pause')}>⏸ Pause series</button>
+                        )}
+                        {canModify && !rec.active && (
+                            <button style={ghostBtn} disabled={busy} onClick={() => seriesAction('resume')}>▶ Resume series</button>
+                        )}
+                        {canEnd && (
+                            <button
+                                style={{ ...ghostBtn, borderColor: 'var(--color-danger, #b33)', color: 'var(--color-danger, #b33)' }}
+                                disabled={busy}
+                                onClick={() => {
+                                    // End is permanent and cancels future un-paid instances —
+                                    // spell that out before acting.
+                                    if (window.confirm(
+                                        'End this series permanently? Future instances that are not yet '
+                                        + 'paid will be CANCELLED. Paid/completed instances are untouched.',
+                                    )) seriesAction('end', { reason: 'Series ended from rental detail' });
+                                }}
+                            >
+                                ✕ End series
+                            </button>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+// Weekday bitmask per migration 0047: 1=Sun, 2=Mon, 4=Tue, 8=Wed, 16=Thu, 32=Fri, 64=Sat.
+const WEEKDAYS = [
+    ['Sun', 1], ['Mon', 2], ['Tue', 4], ['Wed', 8], ['Thu', 16], ['Fri', 32], ['Sat', 64],
+];
+
+function CreateRecurrenceModal({ rental, onClose, onCreated }) {
+    // Template times derive from THIS rental's schedule, formatted in the
+    // browser's local zone. The cron interprets template HH:MM as
+    // America/Denver wall clock — for the Mountain-based operator these
+    // agree; the times are shown for confirmation either way.
+    const hhmm = (ms) => {
+        const d = new Date(ms);
+        const pad = (n) => String(n).padStart(2, '0');
+        return Number.isFinite(d.getTime()) ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : '';
+    };
+    const startDate = (() => {
+        const d = new Date(rental.scheduledStartsAt);
+        if (!Number.isFinite(d.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    })();
+
+    const [frequency, setFrequency] = useState('weekly');
+    const [mask, setMask] = useState(() => {
+        const d = new Date(rental.scheduledStartsAt);
+        return Number.isFinite(d.getTime()) ? (1 << d.getDay()) : 2;
+    });
+    const [startsOn, setStartsOn] = useState(startDate);
+    const [endsOn, setEndsOn] = useState('');
+    const [maxOccurrences, setMaxOccurrences] = useState('');
+    const [startsLocal, setStartsLocal] = useState(hhmm(rental.scheduledStartsAt));
+    const [endsLocal, setEndsLocal] = useState(hhmm(rental.scheduledEndsAt));
+    const [monthlyDay, setMonthlyDay] = useState('1');
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState('');
+
+    const submit = async () => {
+        setBusy(true); setErr('');
+        try {
+            const body = {
+                customerId: rental.customerId,
+                siteId: rental.siteId,
+                frequency,
+                startsOn,
+                endsOn: endsOn || null,
+                maxOccurrences: maxOccurrences || null,
+                template: {
+                    engagementType: rental.engagementType,
+                    siteFieldIds: (rental.siteFieldIds || []).join(','),
+                    startsLocal,
+                    endsLocal,
+                    siteFeeCents: rental.siteFeeCents ?? 0,
+                },
+            };
+            if (frequency === 'weekly') body.weekdayMask = mask;
+            if (frequency === 'monthly') body.monthlyPattern = { kind: 'day_of_month', day: Number(monthlyDay) };
+            const res = await fetch('/api/admin/field-rental-recurrences', {
+                method: 'POST', credentials: 'include',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+            window.alert(j.note || 'Series created — instances generate on the nightly sweep.');
+            onCreated();
+        } catch (e) {
+            setErr(e.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div style={modalBg} onClick={() => !busy && onClose()}>
+            <div style={modalBox} onClick={(e) => e.stopPropagation()}>
+                <h2 style={sectionTitleStyle}>Make this rental recurring</h2>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary, #666)', marginTop: 0 }}>
+                    Uses this rental as the template (site, fields, times, fee). The nightly 03:00 UTC
+                    sweep generates instances out to a 90-day horizon — nothing appears immediately.
+                </p>
+                <label style={labelStyle}>Frequency
+                    <select value={frequency} onChange={(e) => setFrequency(e.target.value)} style={inputStyle}>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly (day of month)</option>
+                    </select>
+                </label>
+                {frequency === 'weekly' && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '6px 0' }}>
+                        {WEEKDAYS.map(([label, bit]) => (
+                            <label key={bit} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <input
+                                    type="checkbox"
+                                    checked={(mask & bit) !== 0}
+                                    onChange={(e) => setMask((m) => (e.target.checked ? m | bit : m & ~bit))}
+                                />
+                                {label}
+                            </label>
+                        ))}
+                    </div>
+                )}
+                {frequency === 'monthly' && (
+                    <label style={labelStyle}>Day of month (1–31)
+                        <input type="number" min="1" max="31" value={monthlyDay} onChange={(e) => setMonthlyDay(e.target.value)} style={inputStyle} />
+                    </label>
+                )}
+                <label style={labelStyle}>First occurrence on
+                    <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} style={inputStyle} />
+                </label>
+                <label style={labelStyle}>Ends on (optional)
+                    <input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} style={inputStyle} />
+                </label>
+                <label style={labelStyle}>Max occurrences (optional)
+                    <input type="number" min="1" value={maxOccurrences} onChange={(e) => setMaxOccurrences(e.target.value)} style={inputStyle} />
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <label style={labelStyle}>Start time
+                        <input type="time" value={startsLocal} onChange={(e) => setStartsLocal(e.target.value)} style={inputStyle} />
+                    </label>
+                    <label style={labelStyle}>End time
+                        <input type="time" value={endsLocal} onChange={(e) => setEndsLocal(e.target.value)} style={inputStyle} />
+                    </label>
+                </div>
+                {err && <div style={errorStyle}>{err}</div>}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                    <button style={ghostBtn} disabled={busy} onClick={onClose}>Cancel</button>
+                    <button style={primaryBtn} disabled={busy || !startsOn || !startsLocal || !endsLocal} onClick={submit}>
+                        {busy ? 'Creating…' : 'Create series'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function AdminFieldRentalDetail() {
     const { id } = useParams();
     const [detail, setDetail] = useState(null);
@@ -993,6 +1242,15 @@ export default function AdminFieldRentalDetail() {
                             <dd style={{ ...ddStyle, fontWeight: 700 }}>{moneyFmt(rental.totalCents)}</dd>
                         </dl>
                     </div>
+
+                    <RecurrenceCard
+                        rental={rental}
+                        hasCap={hasCap}
+                        isArchived={isArchived}
+                        isTerminal={isTerminal}
+                        onChanged={loadAll}
+                        onError={setErr}
+                    />
 
                     <div style={cardStyle}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
