@@ -21,7 +21,14 @@ export const CAMPAIGN_STATUSES = ['draft', 'scheduled', 'sending', 'sent', 'canc
 const TRANSITIONS = {
     draft: ['scheduled', 'sending', 'canceled'],
     scheduled: ['sending', 'canceled', 'draft'], // unschedule → back to draft
-    sending: ['sent'],
+    // `sending → canceled` exists so a campaign is never a one-way trip.
+    // The send sweep no-ops entirely while RESEND_API_KEY or
+    // MARKETING_POSTAL_ADDRESS is unset, so a campaign sent in that state was
+    // stranded permanently: `sending` had only `sent` as an exit (written by
+    // the sweep that isn't running), and DELETE accepts draft|canceled only.
+    // Cancelling drops the still-pending recipients, which is also the right
+    // semantic for stopping a genuinely in-flight send part-way.
+    sending: ['sent', 'canceled'],
     sent: [],
     canceled: [],
 };
@@ -29,6 +36,24 @@ const TRANSITIONS = {
 /** Whether a campaign may move from `from` status to `to`. Pure. */
 export function canTransition(from, to) {
     return Array.isArray(TRANSITIONS[from]) && TRANSITIONS[from].includes(to);
+}
+
+/**
+ * Whether the marketing send pipeline can actually deliver right now.
+ *
+ * runCampaignSendSweep returns early with `skipped: 'no_resend_key'` or
+ * `'no_postal_address'` when either is unset, so a campaign sent in that state
+ * sits in `sending` indefinitely with nothing to move it. The admin UI had no
+ * way to know — this makes the dormant state visible before the operator
+ * commits, instead of after.
+ *
+ * Reports NAMES only, never values: the response goes to the browser.
+ */
+export function marketingReadiness(env) {
+    const missing = [];
+    if (!env?.RESEND_API_KEY) missing.push('RESEND_API_KEY');
+    if (!env?.MARKETING_POSTAL_ADDRESS) missing.push('MARKETING_POSTAL_ADDRESS');
+    return { ready: missing.length === 0, missing };
 }
 
 /**

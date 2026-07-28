@@ -33,6 +33,7 @@ import {
     formatCampaign,
     formatCampaignSummary,
     resolveCampaignRecipients,
+    marketingReadiness,
 } from '../../lib/campaigns.js';
 import { getCampaignStats } from '../../lib/campaignTracking.js';
 
@@ -67,7 +68,12 @@ adminCampaigns.get('/', async (c) => {
     } catch {
         rows = []; // table missing on local/unmigrated — graceful empty
     }
-    return c.json({ campaigns: rows.map(formatCampaignSummary) });
+    // Additive `sending` block so the UI can warn BEFORE a campaign is sent
+    // into a pipeline that isn't running. Names only — never the values.
+    return c.json({
+        campaigns: rows.map(formatCampaignSummary),
+        sending: marketingReadiness(c.env),
+    });
 });
 
 // ── GET /:id — detail ─────────────────────────────────────────────────
@@ -187,6 +193,22 @@ adminCampaigns.post('/:id/send', async (c) => {
     const now = Date.now();
     const isFuture = scheduledAt != null && scheduledAt > now;
     const nextStatus = isFuture ? 'scheduled' : 'sending';
+
+    // Refuse to move a campaign into `sending` when the sweep that drains it
+    // is switched off — that combination is what stranded campaigns
+    // permanently. Scheduling is still allowed: a future send only needs the
+    // env to be configured by the time it fires, and the campaign stays
+    // recoverable (`scheduled` can go back to draft or canceled) meanwhile.
+    if (!isFuture) {
+        const readiness = marketingReadiness(c.env);
+        if (!readiness.ready) {
+            return c.json({
+                error: 'Marketing sending is not configured, so this campaign would sit unsent. '
+                    + `Missing: ${readiness.missing.join(', ')}.`,
+                missing: readiness.missing,
+            }, 409);
+        }
+    }
     if (!canTransition(camp.status, nextStatus)) {
         return c.json({ error: `Cannot transition ${camp.status} → ${nextStatus}` }, 409);
     }

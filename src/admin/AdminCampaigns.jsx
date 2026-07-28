@@ -21,12 +21,25 @@ const STATUS_COLORS = {
     canceled: 'var(--color-text-subtle)',
 };
 
+const dormantBanner = {
+    background: 'var(--color-warning-soft)',
+    border: '1px solid var(--color-warning)',
+    color: 'var(--color-text)',
+    padding: 'var(--space-12)',
+    borderRadius: 4,
+    marginBottom: 'var(--space-12)',
+    fontSize: 13,
+};
+
 export default function AdminCampaigns() {
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState(null);
     const [statusFilter, setStatusFilter] = useState('');
     const [editing, setEditing] = useState(null); // null | 'new' | {id,...}
+    // Additive readiness block from GET /campaigns — names of missing env vars
+    // only, never values.
+    const [sending, setSending] = useState(null);
 
     const reload = useCallback(async () => {
         setLoading(true);
@@ -37,6 +50,7 @@ export default function AdminCampaigns() {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             setCampaigns(data.campaigns || []);
+            setSending(data.sending || null);
         } catch (e) {
             setErr(String(e.message || e));
         } finally {
@@ -56,6 +70,19 @@ export default function AdminCampaigns() {
                     <button type="button" onClick={() => setEditing('new')} style={primaryBtn}>+ New campaign</button>
                 }
             />
+
+            {sending && !sending.ready && (
+                <div style={dormantBanner} role="status">
+                    <strong>Sending is switched off.</strong>{' '}
+                    The nightly send job stops immediately while{' '}
+                    {sending.missing.map((m, i) => (
+                        <span key={m}>{i > 0 ? ' and ' : ''}<code>{m}</code></span>
+                    ))}{' '}
+                    {sending.missing.length > 1 ? 'are' : 'is'} unset, so a campaign sent now would
+                    never leave the queue. You can still compose and schedule — “Send now” is
+                    refused until this is configured.
+                </div>
+            )}
 
             <div style={filterRow}>
                 {STATUS_FILTERS.map((s) => (

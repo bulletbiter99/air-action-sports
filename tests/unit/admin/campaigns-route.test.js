@@ -210,6 +210,7 @@ describe('POST /api/admin/campaigns/:id/send', () => {
     });
 
     it('400 when no recipients resolve', async () => {
+        env.MARKETING_POSTAL_ADDRESS = '1 Range Rd, Hiawatha UT 84545';
         env.DB.__on(/SELECT \* FROM campaigns WHERE id = \?/, campaignRow({ status: 'draft', segment_id: null }), 'first');
         env.DB.__on(/email_marketing = 1 AND archived_at IS NULL/, { results: [] }, 'all');
         const res = await worker.fetch(jsonReq('/api/admin/campaigns/cmp_1/send', 'POST', {}), env, {});
@@ -217,6 +218,9 @@ describe('POST /api/admin/campaigns/:id/send', () => {
     });
 
     it('send now → enqueues recipients, status sending, audit', async () => {
+        // Send-now now requires the pipeline to actually be configured — see
+        // the dormant-state tests below.
+        env.MARKETING_POSTAL_ADDRESS = '1 Range Rd, Hiawatha UT 84545';
         env.DB.__on(/SELECT \* FROM campaigns WHERE id = \?/, campaignRow({ status: 'draft', segment_id: null }), 'first');
         env.DB.__on(/email_marketing = 1 AND archived_at IS NULL/, {
             results: [{ id: 'cus_a', email: 'a@x.com', name: 'Alice' }, { id: 'cus_b', email: 'b@x.com', name: 'Bob' }],
