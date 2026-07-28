@@ -27,9 +27,17 @@ import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import { formatMoney } from '../utils/money.js';
 import './AdminBookings.css';
 
+// `unpaid` and `abandoned` are real statuses that were missing here, which made
+// every row carrying one unreachable through the UI (production had 10
+// abandoned bookings and no way to list them). `abandoned` is written by the
+// nightly sweep for pending bookings older than 30 minutes; `unpaid` is the
+// deliberate custom status for a booking whose payment never landed — the
+// abandon sweep only touches `pending`, so it is safe there.
 const STATUS_OPTIONS = [
     { value: 'paid', label: 'Paid' },
     { value: 'pending', label: 'Pending' },
+    { value: 'unpaid', label: 'Unpaid (payment due)' },
+    { value: 'abandoned', label: 'Abandoned (checkout not completed)' },
     { value: 'cancelled', label: 'Cancelled' },
     { value: 'refunded', label: 'Refunded' },
     { value: 'comp', label: 'Comp' },
@@ -66,6 +74,7 @@ const QUICK_FILTERS = [
     { id: 'needs-action',    label: 'Needs action',     filters: { waiver_status: 'missing', status: 'paid' }, dateFromShift: null },
     { id: 'pending-payment', label: 'Pending payment',  filters: { status: 'pending' }, dateFromShift: 24 * 60 * 60 * 1000 },
     { id: 'refund-queue',    label: 'Refund queue',     filters: { status: 'refunded' }, dateFromShift: null },
+    { id: 'payment-due',     label: 'Payment due',      filters: { status: 'unpaid' }, dateFromShift: null },
 ];
 
 const PAGE_SIZE = 50;

@@ -222,7 +222,8 @@
         "tests/unit/admin/bookings/detach-saved-pm.test.js",
         "tests/unit/admin/bookings/reschedule.test.js",
         "tests/unit/admin/bookings/resend-waiver-confirmation.test.js",
-        "tests/unit/admin/bookings/resend-review-invite.test.js"
+        "tests/unit/admin/bookings/resend-review-invite.test.js",
+        "tests/unit/admin/bookings/record-payment.test.js"
       ]
     },
     "worker/lib/capabilities.js": {

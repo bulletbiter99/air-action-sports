@@ -852,6 +852,117 @@ adminBookings.post('/:id/refund', requireRole('owner', 'manager'), async (c) => 
     return c.json({ refund: { id: refund?.id, amountCents: booking.total_cents, status: refund?.status } });
 });
 
+// POST /api/admin/bookings/:id/record-payment — out-of-band payment RECEIVED
+// (C7, 2026-07-27). The inverse of /refund-external, which already existed
+// while its counterpart did not: there was no way to record that money for an
+// unpaid booking had arrived. That is exactly the flow the Stripe live-cutover
+// invoices needed in June, and it was done by hand with SQL.
+//
+// Scope is deliberately narrow. This ONLY flips a booking that is already
+// PROVISIONED — one whose attendees exist, i.e. the webhook ran and minted QR
+// tickets, and inventory was already counted. That is the `unpaid` shape: a
+// booking that completed the flow but whose payment did not really land.
+//
+// A `pending` or `abandoned` booking has NO attendees (verified in production:
+// all 10 abandoned rows have zero). Flipping one to paid would produce a paid
+// booking with no attendee records, no QR tickets and no waiver links — a
+// ghost that fails at the gate on event day. So those are refused with a
+// pointer to the manual-booking flow, which provisions properly.
+//
+// Because the booking is already provisioned, ticket_types.sold was already
+// incremented and must NOT be touched again here.
+//
+// Body: { method: 'cash'|'venmo'|'paypal'|'check'|'invoice'|'other',
+//         reference?: string,   // invoice #, Venmo txn id, check #
+//         note?: string }
+const RECORD_PAYMENT_METHODS = new Set(['cash', 'venmo', 'paypal', 'check', 'invoice', 'other']);
+
+adminBookings.post('/:id/record-payment', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => null);
+
+    if (!body || typeof body !== 'object') {
+        return c.json({ error: 'JSON body required' }, 400);
+    }
+    if (!RECORD_PAYMENT_METHODS.has(body.method)) {
+        return c.json({ error: `method must be one of: ${[...RECORD_PAYMENT_METHODS].join(', ')}` }, 400);
+    }
+    const reference = body.reference != null ? String(body.reference).trim() : '';
+    const note = body.note != null ? String(body.note).trim() : '';
+
+    const booking = await c.env.DB.prepare(`SELECT * FROM bookings WHERE id = ?`).bind(id).first();
+    if (!booking) return c.json({ error: 'Booking not found' }, 404);
+
+    if (['paid', 'comp'].includes(booking.status)) {
+        return c.json({ error: `Booking is already ${booking.status}` }, 409);
+    }
+    if (['refunded', 'cancelled'].includes(booking.status)) {
+        return c.json({
+            error: `Cannot record a payment against a ${booking.status} booking. `
+                + 'Reinstate it first, or create a new booking.',
+        }, 409);
+    }
+
+    // The provisioning guard. Without attendees there is nothing to check in
+    // at the gate, so "paid" would be a lie.
+    const attendee = await c.env.DB.prepare(
+        `SELECT id FROM attendees WHERE booking_id = ? LIMIT 1`,
+    ).bind(id).first();
+    if (!attendee) {
+        return c.json({
+            error: 'This booking has no attendee records — it never completed checkout, so marking '
+                + 'it paid would create a booking with no tickets. Use New Booking to create a '
+                + 'proper manual booking instead.',
+        }, 409);
+    }
+
+    const now = Date.now();
+    const priorStatus = booking.status;
+
+    // paid_at is when the money actually arrived, which is now — the revenue
+    // reports bucket on it, so an invoice paid today belongs in today's period
+    // even if the booking row is months old.
+    await c.env.DB.prepare(
+        `UPDATE bookings SET status = 'paid', payment_method = ?, paid_at = ? WHERE id = ?`,
+    ).bind(body.method, now, id).run();
+
+    await c.env.DB.prepare(
+        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+         VALUES (?, 'booking.payment_recorded', 'booking', ?, ?, ?)`
+    ).bind(
+        user.id,
+        id,
+        JSON.stringify({
+            method: body.method,
+            reference: reference || null,
+            note: note || null,
+            amount_cents: booking.total_cents,
+            prior_status: priorStatus,
+        }),
+        now,
+    ).run();
+
+    // LTV + booking counts exclude non-paid rows, so the customer's aggregates
+    // (and therefore their system tags) are stale until this runs.
+    if (booking.customer_id) {
+        await recomputeCustomerDenormalizedFields(c.env.DB, booking.customer_id);
+    }
+
+    // Deliberately no email here. The customer already holds their booking and
+    // QR ticket from the original flow; if a receipt is wanted, "Resend
+    // confirmation" is now unlocked by this status change and is the existing,
+    // tested path for it.
+    return c.json({
+        bookingId: id,
+        status: 'paid',
+        priorStatus,
+        method: body.method,
+        reference: reference || null,
+        amountCents: booking.total_cents,
+    });
+});
+
 // POST /api/admin/bookings/:id/refund-external — out-of-band refund (M4 B3a)
 //
 // Records a refund processed outside Stripe (cash / venmo / paypal / comp /

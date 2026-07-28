@@ -273,6 +273,12 @@
 .admin-bookings__status--refunded  { background: rgba(230, 126, 34, 0.15); color: #e67e22; }
 .admin-bookings__status--comp      { background: rgba(155, 89, 182, 0.15); color: #9b59b6; }
 .admin-bookings__status--unknown   { background: rgba(149, 165, 166, 0.15); color: #95a5a6; }
+/* Previously unstyled — these two classes had no rule at all, so the pill
+   rendered as bare text and read as a glitch rather than a status. `unpaid`
+   is money owed, so it borrows the danger red; `abandoned` is inert, so it
+   reads muted like `cancelled`. */
+.admin-bookings__status--unpaid    { background: rgba(214, 69, 65, 0.15);  color: #e05c58; }
+.admin-bookings__status--abandoned { background: rgba(127, 140, 141, 0.15); color: #7f8c8d; }
 
 .admin-bookings__pagination {
     display: flex;
