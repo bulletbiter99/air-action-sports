@@ -901,6 +901,8 @@ function ScheduleTab({ personId, canEdit, canMarkPaid }) {
     const [loading, setLoading] = useState(true);
     const [showAdd, setShowAdd] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    // C9 — when set, the form edits this entry (PUT) instead of creating.
+    const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState({
         workedAt: '', source: 'manual_entry', payKind: 'w2_hourly',
         amountDollars: '', hours: '', notes: '',
@@ -930,13 +932,21 @@ function ScheduleTab({ personId, canEdit, canMarkPaid }) {
                 hours: form.hours ? parseFloat(form.hours) : null,
                 notes: form.notes || null,
             };
-            const res = await fetch('/api/admin/labor-entries', {
-                method: 'POST', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
+            // C9 — same form drives create (POST) and pre-approval edit (PUT).
+            const res = editingId
+                ? await fetch(`/api/admin/labor-entries/${editingId}`, {
+                    method: 'PUT', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                })
+                : await fetch('/api/admin/labor-entries', {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
             if (res.ok) {
                 setShowAdd(false);
+                setEditingId(null);
                 setForm({ workedAt: '', source: 'manual_entry', payKind: 'w2_hourly', amountDollars: '', hours: '', notes: '' });
                 load();
             } else {
@@ -946,9 +956,40 @@ function ScheduleTab({ personId, canEdit, canMarkPaid }) {
         } finally { setSubmitting(false); }
     }
 
+    // C9 — populate the form from an existing pre-approval entry.
+    // worked_at round-trips through the UTC calendar on BOTH sides: the create
+    // path stores new Date('YYYY-MM-DD') = UTC midnight, and toISOString here
+    // reads it back — an exact round trip (the skew cancels), matching the
+    // server's UTC tax-year bucketing. Not the Denver-date family.
+    function startEdit(e) {
+        setEditingId(e.id);
+        setShowAdd(true);
+        setForm({
+            workedAt: e.worked_at ? new Date(e.worked_at).toISOString().slice(0, 10) : '',
+            source: e.source || 'manual_entry',
+            payKind: e.pay_kind || 'w2_hourly',
+            amountDollars: e.amount_cents != null ? String(e.amount_cents / 100) : '',
+            hours: e.hours != null ? String(e.hours) : '',
+            notes: e.notes || '',
+        });
+    }
+
     async function approve(id) {
         const res = await fetch(`/api/admin/labor-entries/${id}/approve`, { method: 'POST', credentials: 'include' });
         if (res.ok) load();
+    }
+    async function reject(id) {
+        // A reason is required server-side — a rejection is consequential to
+        // the staffer and the reason is the only trace of why.
+        const reason = window.prompt('Rejection reason (required):');
+        if (reason == null || !reason.trim()) return;
+        const res = await fetch(`/api/admin/labor-entries/${id}/reject`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: reason.trim() }),
+        });
+        if (res.ok) load();
+        else alert((await res.json().catch(() => ({}))).error || 'Reject failed');
     }
     async function markPaid(id) {
         const ref = window.prompt('Payment reference (venmo, check #, etc.)?');
@@ -996,7 +1037,19 @@ function ScheduleTab({ personId, canEdit, canMarkPaid }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={h2}>Schedule &amp; Pay</h2>
                 {canEdit && (
-                    <button type="button" onClick={() => setShowAdd((v) => !v)} style={primaryBtn}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (showAdd) {
+                                setShowAdd(false);
+                                setEditingId(null);
+                                setForm({ workedAt: '', source: 'manual_entry', payKind: 'w2_hourly', amountDollars: '', hours: '', notes: '' });
+                            } else {
+                                setShowAdd(true);
+                            }
+                        }}
+                        style={primaryBtn}
+                    >
                         {showAdd ? 'Cancel' : '+ Manual entry'}
                     </button>
                 )}
@@ -1004,8 +1057,14 @@ function ScheduleTab({ personId, canEdit, canMarkPaid }) {
 
             {showAdd && (
                 <div style={{ marginTop: 16, padding: 16, background: 'var(--color-bg-sunken)', border: '1px solid var(--color-border)' }}>
+                    {editingId && (
+                        <p style={{ fontSize: 12, color: 'var(--color-accent)', margin: '0 0 8px', fontWeight: 700 }}>
+                            Editing entry {editingId}
+                        </p>
+                    )}
                     <label style={lbl}>Worked at <input type="date" value={form.workedAt} onChange={(e) => setForm({ ...form, workedAt: e.target.value })} style={input} /></label>
-                    <label style={lbl}>Source <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} style={input}>
+                    {/* Source is identity, not data — the server ignores it on edit. */}
+                    <label style={lbl}>Source <select value={form.source} disabled={!!editingId} onChange={(e) => setForm({ ...form, source: e.target.value })} style={input}>
                         <option value="manual_entry">Manual entry</option>
                         <option value="event_completion">Event completion</option>
                         <option value="adjustment">Adjustment</option>
@@ -1024,7 +1083,7 @@ function ScheduleTab({ personId, canEdit, canMarkPaid }) {
                         Manual entries above $200 require approval before they can be marked paid (HR self-approval cap).
                     </p>
                     <button type="button" onClick={submitEntry} disabled={!form.workedAt || !form.payKind || !form.amountDollars || submitting} style={primaryBtn}>
-                        {submitting ? 'Saving…' : 'Save entry'}
+                        {submitting ? 'Saving…' : (editingId ? 'Save changes' : 'Save entry')}
                     </button>
                 </div>
             )}
@@ -1058,6 +1117,8 @@ function ScheduleTab({ personId, canEdit, canMarkPaid }) {
                                         </td>
                                         <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                             {canEdit && s.key === 'pending' && <button onClick={() => approve(e.id)} style={{ ...primaryBtn, padding: '4px 10px', fontSize: 11 }}>Approve</button>}
+                                            {canEdit && s.key === 'pending' && <button onClick={() => reject(e.id)} style={{ padding: '4px 10px', fontSize: 11, marginLeft: 4, background: 'transparent', border: '1px solid var(--color-danger)', color: 'var(--color-danger)', cursor: 'pointer' }}>Reject</button>}
+                                            {canEdit && (s.key === 'pending' || s.key === 'recorded') && <button onClick={() => startEdit(e)} style={{ padding: '4px 10px', fontSize: 11, marginLeft: 4, background: 'transparent', border: '1px solid var(--color-border-strong)', color: 'var(--color-text-muted)', cursor: 'pointer' }}>Edit</button>}
                                             {canMarkPaid && (s.key === 'approved' || s.key === 'recorded') && <button onClick={() => markPaid(e.id)} style={{ ...primaryBtn, padding: '4px 10px', fontSize: 11, marginLeft: 4 }}>Mark paid</button>}
                                             {s.key !== 'disputed' && s.key !== 'rejected' && <button onClick={() => dispute(e.id)} style={{ padding: '4px 10px', fontSize: 11, marginLeft: 4, background: 'transparent', border: '1px solid var(--color-border-strong)', color: 'var(--color-text-muted)', cursor: 'pointer' }}>Dispute</button>}
                                             {canEdit && s.key === 'disputed' && <button onClick={() => resolve(e.id)} style={{ ...primaryBtn, padding: '4px 10px', fontSize: 11, marginLeft: 4 }}>Resolve</button>}
