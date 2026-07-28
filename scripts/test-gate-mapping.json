@@ -374,7 +374,8 @@
         "tests/unit/admin/staff/unarchive.test.js",
         "tests/unit/admin/staff/profile-edit.test.js",
         "tests/unit/admin/staff/access.test.js",
-        "tests/unit/admin/staff/issues.test.js"
+        "tests/unit/admin/staff/issues.test.js",
+        "tests/unit/admin/staff/tax-identity.test.js"
       ]
     },
     "worker/routes/admin/staffDocuments.js": {

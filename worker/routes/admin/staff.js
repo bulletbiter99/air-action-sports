@@ -22,7 +22,7 @@ import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
 import { requireCapability, listCapabilities, requireReadAccess } from '../../lib/capabilities.js';
 import { writeAudit } from '../../lib/auditLog.js';
-import { decryptSafely } from '../../lib/personEncryption.js';
+import { decryptSafely, encrypt } from '../../lib/personEncryption.js';
 import { mintInviteToken } from '../../lib/portalSession.js';
 import { sendStaffPortalInvite } from '../../lib/emailSender.js';
 import { isValidEmail } from '../../lib/email.js';
@@ -91,6 +91,13 @@ async function formatPerson(env, row, capabilities) {
         archivedReason: row.archived_reason,
         hiredAt: row.hired_at,
         separatedAt: row.separated_at,
+        // Sprint 4 — tax identity (migration 0078 columns, finally writable via
+        // PUT /:id/tax-identity). legalName mirrors the 1099 rollup: not
+        // PII-gated. The EIN itself NEVER appears here — only whether one is on
+        // file (the W-9 chase-list question); the decrypt lives solely in the
+        // 1099 report, gated on staff.read.pii + audited.
+        legalName: row.legal_name ?? null,
+        einOnFile: !!row.ein_ciphertext,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         viewerCanSeePii: canPii,
@@ -343,6 +350,80 @@ adminStaff.put('/:id', requireCapability('staff.write'), async (c) => {
         targetType: 'person',
         targetId: id,
         meta: { fields: Object.keys(body) },
+    });
+
+    return c.json({ ok: true });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// PUT /api/admin/staff/:id/tax-identity — legal name + EIN (Sprint 4)
+//
+// Migration 0078 added persons.legal_name + ein_ciphertext for the 1099
+// surface, but PUT /:id's allow-list excluded them — so they could only ever
+// be NULL and the W-9 chase list had nothing to chase toward. This is the
+// write path.
+//
+// Field semantics (present = applied; absent = untouched):
+//   legalName: string | null   → trimmed; empty/null clears
+//   ein:       string | null   → 9 digits (any formatting) → stored encrypted
+//                                 as NN-NNNNNNN; null/empty clears
+//
+// The plaintext EIN never lands in the audit log or any response — the meta
+// records only which fields changed. Reading it back is the 1099 report's
+// job (staff.read.pii gate + per-call audit).
+// ────────────────────────────────────────────────────────────────────
+adminStaff.put('/:id/tax-identity', requireCapability('staff.write'), async (c) => {
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => ({}));
+
+    if (!('legalName' in body) && !('ein' in body)) {
+        return c.json({ error: 'Nothing to update — send legalName and/or ein' }, 400);
+    }
+
+    const person = await c.env.DB.prepare('SELECT id FROM persons WHERE id = ?').bind(id).first();
+    if (!person) return c.json({ error: 'Not found' }, 404);
+
+    const sets = [];
+    const binds = [];
+    const meta = {};
+
+    if ('legalName' in body) {
+        const v = body.legalName == null ? null : String(body.legalName).trim() || null;
+        sets.push('legal_name = ?');
+        binds.push(v);
+        meta.legalNameSet = v != null;
+    }
+
+    if ('ein' in body) {
+        if (body.ein == null || String(body.ein).trim() === '') {
+            sets.push('ein_ciphertext = ?');
+            binds.push(null);
+            meta.einCleared = true;
+        } else {
+            // A W-9 carries either an EIN or an SSN — both are 9 digits.
+            // Accept any formatting, normalize to NN-NNNNNNN before encrypting.
+            const digits = String(body.ein).replace(/\D/g, '');
+            if (digits.length !== 9) {
+                return c.json({ error: 'EIN/TIN must be 9 digits (e.g. 12-3456789)' }, 400);
+            }
+            const normalized = `${digits.slice(0, 2)}-${digits.slice(2)}`;
+            sets.push('ein_ciphertext = ?');
+            binds.push(await encrypt(normalized, c.env.SESSION_SECRET));
+            meta.einSet = true;
+        }
+    }
+
+    sets.push('updated_at = ?');
+    binds.push(Date.now(), id);
+    await c.env.DB.prepare(`UPDATE persons SET ${sets.join(', ')} WHERE id = ?`).bind(...binds).run();
+
+    const user = c.get('user');
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'staff.tax_identity_updated',
+        targetType: 'person',
+        targetId: id,
+        meta,
     });
 
     return c.json({ ok: true });

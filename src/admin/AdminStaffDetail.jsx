@@ -188,6 +188,103 @@ function ProfileTab({ person, canEdit, onSaved }) {
                     onSaved={() => { setShowEdit(false); onSaved?.(); }}
                 />
             )}
+
+            <TaxIdentitySection person={person} canEdit={canEdit} onSaved={onSaved} />
+        </div>
+    );
+}
+
+// Sprint 4 — the 1099 tax-identity editor. Migration 0078's columns finally
+// have a write path (PUT /:id/tax-identity). The EIN plaintext never comes
+// back to this page — only whether one is on file; the 1099 thresholds report
+// is where a staff.read.pii holder sees it (audited per view).
+function TaxIdentitySection({ person, canEdit, onSaved }) {
+    const [editing, setEditing] = useState(false);
+    const [legalName, setLegalName] = useState(person.legalName || '');
+    const [ein, setEin] = useState('');
+    const [clearEin, setClearEin] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [err, setErr] = useState(null);
+
+    const save = async () => {
+        setSaving(true); setErr(null);
+        try {
+            const body = { legalName: legalName.trim() || null };
+            // Empty EIN input = unchanged; the explicit checkbox clears.
+            if (clearEin) body.ein = null;
+            else if (ein.trim()) body.ein = ein.trim();
+            const res = await fetch(`/api/admin/staff/${encodeURIComponent(person.id)}/tax-identity`, {
+                method: 'PUT', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) { setErr(j.error || `HTTP ${res.status}`); return; }
+            setEditing(false);
+            setEin('');
+            setClearEin(false);
+            onSaved?.();
+        } catch (e) {
+            setErr(String(e.message || e));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--color-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ ...h2, fontSize: 14 }}>Tax identity (1099)</h2>
+                {canEdit && !editing && (
+                    <button type="button" onClick={() => { setEditing(true); setLegalName(person.legalName || ''); }} style={primaryBtn}>
+                        Edit tax identity
+                    </button>
+                )}
+            </div>
+            {!editing && (
+                <div style={fieldGrid}>
+                    <Field label="Legal name (W-9)" value={person.legalName} />
+                    <Field label="EIN / TIN" value={person.einOnFile ? 'On file (encrypted)' : 'Not on file'} />
+                </div>
+            )}
+            {editing && (
+                <div style={{ marginTop: 12, maxWidth: 420 }}>
+                    <label style={lbl}>Legal name (as on their W-9)
+                        <input value={legalName} onChange={(e) => setLegalName(e.target.value)} style={input} />
+                    </label>
+                    <label style={lbl}>EIN / TIN — 9 digits
+                        <input
+                            value={ein}
+                            onChange={(e) => { setEin(e.target.value); if (e.target.value) setClearEin(false); }}
+                            placeholder={person.einOnFile ? 'Leave empty to keep the one on file' : '12-3456789'}
+                            disabled={clearEin}
+                            style={input}
+                        />
+                    </label>
+                    {person.einOnFile && (
+                        <label style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <input type="checkbox" checked={clearEin} onChange={(e) => setClearEin(e.target.checked)} />
+                            Remove the EIN on file
+                        </label>
+                    )}
+                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: '4px 0 8px' }}>
+                        Stored encrypted. It is never shown here again — the 1099 thresholds report decrypts it
+                        for authorized viewers only, with each view audit-logged.
+                    </p>
+                    {err && <p style={{ color: 'var(--color-danger)', fontSize: 12 }}>Error: {err}</p>}
+                    <button type="button" onClick={save} disabled={saving} style={primaryBtn}>
+                        {saving ? 'Saving…' : 'Save tax identity'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => { setEditing(false); setErr(null); setEin(''); setClearEin(false); }}
+                        disabled={saving}
+                        style={{ ...primaryBtn, marginLeft: 8, background: 'transparent', border: '1px solid var(--color-border-strong)', color: 'var(--color-text-muted)' }}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
