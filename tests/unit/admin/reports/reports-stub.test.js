@@ -417,3 +417,25 @@ describe('custom date range resolves on the Denver calendar', () => {
         expect((await windowFor('?period=custom&from=nope&to=2026-07-31')).period).toBe('last_30d');
     });
 });
+
+// End-to-end through a representative report: the month a payment lands in is
+// now its DENVER month. 2026-08-01T01:00Z is 31 July, 7 PM Mountain — the old
+// strftime bucket filed it under August; it is July's money.
+describe('month buckets are Denver months (end-to-end through payouts)', () => {
+    it('a 7 PM Mountain sale on the 31st lands in July, not August', async () => {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.bookkeeper']);
+        env.DB.__on(/SELECT paid_at, status, total_cents\s+FROM bookings/, {
+            results: [
+                { paid_at: Date.parse('2026-08-01T01:00:00Z'), status: 'paid', total_cents: 5000 },
+                { paid_at: Date.parse('2026-08-15T18:00:00Z'), status: 'paid', total_cents: 1000 },
+            ],
+        }, 'all');
+        env.DB.__on(/SELECT received_at, amount_cents\s+FROM field_rental_payments/, { results: [] }, 'all');
+        const res = await worker.fetch(req('/api/admin/reports/bookkeeper/payouts'), env, {});
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        const months = Object.fromEntries(data.rows.map((r) => [r.month, r.stripeGrossCents]));
+        expect(months['2026-07']).toBe(5000);
+        expect(months['2026-08']).toBe(1000);
+    });
+});

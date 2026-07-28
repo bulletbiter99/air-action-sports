@@ -12,15 +12,18 @@
 // Disbursements per week = the budgeted monthly spend, allocated per-day across
 // the week's days (so a week spanning a month boundary splits correctly).
 
+import { denverDateFor } from './eventTime.js';
+
 const DAY_MS = 86400000;
 
-function utcMonthKey(ms) {
-    const d = new Date(ms);
-    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+// Calendar arithmetic on 'YYYY-MM-DD' strings — pure UTC part math, no DST.
+function nextDate(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 }
-function daysInUtcMonth(ms) {
-    const d = new Date(ms);
-    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+function daysInMonthOf(dateStr) {
+    const [y, m] = dateStr.split('-').map(Number);
+    return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
 /**
@@ -56,18 +59,30 @@ export function computeCashFlowForecast({
         }
         const receiptsCents = projectedRevenue + frReceiptsCents;
 
-        // Disbursements — per-day allocation of each day's month budget.
+        // Disbursements — per-day allocation of each day's month budget, walked
+        // as DENVER calendar dates. Two reasons this is not the old fixed
+        // `dayMs += DAY_MS` loop: (1) the caller's weeks are Denver-midnight
+        // anchored, and a fall-back week is 7d1h long, so a fixed-ms step would
+        // take EIGHT steps through it and allocate a day of budget twice; (2)
+        // month membership is a business-calendar question — the evening of the
+        // 31st belongs to the old month, not the new one. The day count comes
+        // from rounding the span, which collapses 6d23h/7d1h back to exactly 7.
         let disb = 0;
-        for (let dayMs = startMs; dayMs < endMs; dayMs += DAY_MS) {
-            const monthTotal = monthlyBudget[utcMonthKey(dayMs)] || 0;
-            if (monthTotal > 0) disb += monthTotal / daysInUtcMonth(dayMs);
+        let date = denverDateFor(startMs);
+        const dayCount = Math.round((endMs - startMs) / DAY_MS);
+        for (let i = 0; i < dayCount && date; i++, date = nextDate(date)) {
+            const monthTotal = monthlyBudget[date.slice(0, 7)] || 0;
+            if (monthTotal > 0) disb += monthTotal / daysInMonthOf(date);
         }
         const disbursementsCents = Math.round(disb);
 
         const netCents = receiptsCents - disbursementsCents;
         const closingCents = opening + netCents;
         const row = {
-            label: w.label ?? new Date(startMs).toISOString().slice(0, 10),
+            // Denver date of the week start (identical to the old UTC-ISO slice
+            // for Denver-midnight-anchored weeks, since 06:00Z/07:00Z shares the
+            // calendar date — but derived on the right calendar).
+            label: w.label ?? denverDateFor(startMs),
             startMs,
             openingCents: opening,
             projectedRevenueCents: projectedRevenue,

@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
     resolvePeriodWindow,
     priorWindow,
+    rollupByDenverMonth,
     computeDelta,
     computeRevenueTrends,
     computeRefundRate,
@@ -901,5 +902,73 @@ describe('computeRecurrenceRetention', () => {
     it('handles empty input', () => {
         const out = computeRecurrenceRetention({ rows: [], nowMs: NOW });
         expect(out.retention.d90).toEqual({ eligible: 0, retained: 0, pct: 0 });
+    });
+});
+
+// The JS replacement for the nine SQL `GROUP BY strftime('%Y-%m', …)` month
+// buckets, which could only produce UTC months (D1's SQLite has no tz database
+// and 'localtime' is a verified silent no-op). Buckets on the DENVER month.
+describe('rollupByDenverMonth', () => {
+    it('produces the same {month, ...sums} shape the old GROUP BY month emitted', () => {
+        const rows = [
+            { paid_at: Date.parse('2026-07-10T18:00:00Z'), total_cents: 1000 },
+            { paid_at: Date.parse('2026-07-20T18:00:00Z'), total_cents: 500 },
+            { paid_at: Date.parse('2026-06-05T18:00:00Z'), total_cents: 250 },
+        ];
+        const out = rollupByDenverMonth(rows, 'paid_at', {
+            sum_cents: (r) => r.total_cents ?? 0,
+            n: () => 1,
+        });
+        expect(out).toEqual([
+            { month: '2026-06', sum_cents: 250, n: 1 },
+            { month: '2026-07', sum_cents: 1500, n: 2 },
+        ]);
+    });
+
+    // THE reattribution case: 2026-08-01T01:00Z is 31 July, 7 PM Mountain. The
+    // strftime bucket filed this into August; it is July's money.
+    it('buckets a late-evening Mountain payment into the month it was made', () => {
+        const rows = [{ paid_at: Date.parse('2026-08-01T01:00:00Z'), total_cents: 4200 }];
+        const out = rollupByDenverMonth(rows, 'paid_at', { sum_cents: (r) => r.total_cents });
+        expect(out).toEqual([{ month: '2026-07', sum_cents: 4200 }]);
+    });
+
+    it('uses the 7h MST offset in winter — a hardcoded 6h fails here', () => {
+        // 06:30Z on 1 Jan is 23:30 MST on 31 Dec — December's money.
+        const rows = [{ paid_at: Date.parse('2026-01-01T06:30:00Z'), total_cents: 100 }];
+        expect(rollupByDenverMonth(rows, 'paid_at', { c: (r) => r.total_cents })[0].month).toBe('2025-12');
+    });
+
+    it('excludes rows whose timestamp is missing rather than filing them into now', () => {
+        const rows = [
+            { paid_at: null, total_cents: 999 },
+            { paid_at: Date.parse('2026-07-10T18:00:00Z'), total_cents: 1 },
+        ];
+        const out = rollupByDenverMonth(rows, 'paid_at', { sum_cents: (r) => r.total_cents });
+        expect(out).toEqual([{ month: '2026-07', sum_cents: 1 }]);
+    });
+
+    it('supports an extra group key, sorted (key, month) like the old ORDER BY', () => {
+        const t = (iso) => Date.parse(iso);
+        const rows = [
+            { site: 'Ghost Town', scheduled_starts_at: t('2026-07-04T18:00:00Z'), total_cents: 100 },
+            { site: 'Foxtrot', scheduled_starts_at: t('2026-07-04T18:00:00Z'), total_cents: 200 },
+            { site: 'Ghost Town', scheduled_starts_at: t('2026-06-04T18:00:00Z'), total_cents: 50 },
+            { site: 'Ghost Town', scheduled_starts_at: t('2026-07-11T18:00:00Z'), total_cents: 25 },
+        ];
+        const out = rollupByDenverMonth(rows, 'scheduled_starts_at', {
+            rentals: () => 1,
+            revenue_cents: (r) => r.total_cents,
+        }, ['site']);
+        expect(out).toEqual([
+            { site: 'Foxtrot', month: '2026-07', rentals: 1, revenue_cents: 200 },
+            { site: 'Ghost Town', month: '2026-06', rentals: 1, revenue_cents: 50 },
+            { site: 'Ghost Town', month: '2026-07', rentals: 2, revenue_cents: 125 },
+        ]);
+    });
+
+    it('handles empty and missing input', () => {
+        expect(rollupByDenverMonth([], 'paid_at', { n: () => 1 })).toEqual([]);
+        expect(rollupByDenverMonth(null, 'paid_at', { n: () => 1 })).toEqual([]);
     });
 });
