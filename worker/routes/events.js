@@ -10,14 +10,22 @@ events.get('/', async (c) => {
     // and attach `archiveLinks[]` per event (with computed embedUrl). Cheap
     // extra query bounded by the same event-id set already in scope.
     const wantsArchive = url.searchParams.get('archive') === '1';
-    const pastClause = includePast ? '' : 'AND past = 0';
+    // Visibility contract (Sprint 4 C1): upcoming = published AND not past;
+    // archived = past=1 regardless of published. Every natural end-of-life
+    // action (soft-archive, unpublish+mark-past) sets published=0, so gating
+    // the archive view on published=1 meant nothing could EVER appear on
+    // /games. Archived events are visible but never bookable — /quote and
+    // /checkout 409 on past=1 (worker/routes/bookings.js salesClosedError).
+    const whereClause = includePast
+        ? '(published = 1 AND past = 0) OR past = 1'
+        : 'published = 1 AND past = 0';
 
     // Sort: featured first (so admin-picked headliner wins ties), then by date.
     // For upcoming-only: nearest date wins among same featured-rank.
     // When include_past is on: featured first within each rank, latest first by date.
     const eventsResult = await c.env.DB.prepare(
         `SELECT * FROM events
-         WHERE published = 1 ${pastClause}
+         WHERE ${whereClause}
          ORDER BY featured DESC, date_iso ${includePast ? 'DESC' : 'ASC'}`
     ).all();
 
@@ -95,8 +103,11 @@ events.get('/', async (c) => {
 events.get('/:id', async (c) => {
     const idOrSlug = c.req.param('id');
     // Match on either id or slug so URLs can switch between the two.
+    // Archived events (past=1) stay reachable — /games links straight to the
+    // detail page, and formatEvent's `past` flag lets the client render the
+    // "event ended" state. Bookability is gated at /quote + /checkout, not here.
     const eventRow = await c.env.DB.prepare(
-        `SELECT * FROM events WHERE (id = ? OR slug = ?) AND published = 1 LIMIT 1`
+        `SELECT * FROM events WHERE (id = ? OR slug = ?) AND (published = 1 OR past = 1) LIMIT 1`
     ).bind(idOrSlug, idOrSlug).first();
     if (!eventRow) return c.json({ error: 'Event not found' }, 404);
 

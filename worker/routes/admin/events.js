@@ -542,9 +542,11 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
     if (salesCloseAt === undefined && patch.date_iso) {
         // date_iso is naive Denver wall clock; `new Date(...)` in a Worker
         // (TZ=UTC) read it as UTC, so the stored value was start − 8h (MDT) /
-        // −9h (MST), not the intended −2h. Nothing reads sales_close_at today,
-        // so this is latent — but it means whoever wires enforcement inherits a
-        // correct value instead of silently killing morning-of online sales.
+        // −9h (MST), not the intended −2h. Since Sprint 4 C1 this value IS
+        // enforced (public /quote + /checkout 409 past the cutoff), so the
+        // resolver matters. Note the admin form always sends salesCloseAt
+        // explicitly (a value, or null for "never auto-close"), so this
+        // default only applies to direct API callers that omit the key.
         const startMs = eventInstantMs(patch.date_iso);
         if (Number.isFinite(startMs)) salesCloseAt = startMs - (2 * 60 * 60 * 1000);
     }

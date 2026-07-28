@@ -175,10 +175,18 @@ export default function Booking() {
     )));
   };
 
+  // Sales-closed contract (Sprint 4 C1) — mirrors the server's /quote +
+  // /checkout 409 gate. The public list only serves upcoming published events,
+  // so `past` never appears here; the cutoff is the case that matters.
+  const salesClosed = !!selectedEvent
+    && selectedEvent.salesCloseAt != null
+    && Date.now() >= selectedEvent.salesCloseAt;
+
   // Validation per step
   const validateStep1 = () => {
     const errs = {};
     if (!selectedEventId) errs.event = 'Please choose an event.';
+    else if (salesClosed) errs.event = 'Online ticket sales for this event have closed.';
     if (totalTickets < 1) errs.tickets = 'Select at least 1 ticket.';
     setValidationErrors(errs);
     return Object.keys(errs).length === 0;
@@ -300,6 +308,7 @@ export default function Booking() {
             setAddonQty={setAddonQty}
             totals={totals}
             validationErrors={validationErrors}
+            salesClosed={salesClosed}
           />
         )}
 
@@ -396,6 +405,7 @@ function QtyControl({ value, onChange, max = 99, disabled }) {
 function StepTicketsAndAddons({
   events, selectedEvent, selectedEventId, setSelectedEventId,
   ticketQtys, setTicketQty, addonQtys, setAddonQty, totals, validationErrors,
+  salesClosed,
 }) {
   return (
     <>
@@ -468,7 +478,28 @@ function StepTicketsAndAddons({
         </div>
       )}
 
-      {selectedEvent && (
+      {selectedEvent && salesClosed && (
+        <div className="booking-section">
+          <div
+            role="alert"
+            style={{
+              border: '1px solid var(--color-warning, #b8860b)',
+              borderLeftWidth: 4,
+              borderLeftStyle: 'solid',
+              padding: '1rem 1.25rem',
+              fontSize: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            <strong>Online ticket sales for this event have closed.</strong>
+            <br />
+            Walk-up spots may still be available at the gate — or{' '}
+            <Link to="/contact" style={{ color: 'inherit', textDecoration: 'underline' }}>contact us</Link> with any questions.
+          </div>
+        </div>
+      )}
+
+      {selectedEvent && !salesClosed && (
         <>
           <div className="booking-section">
             <h3 className="booking-section-title">

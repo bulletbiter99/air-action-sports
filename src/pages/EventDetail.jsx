@@ -95,6 +95,12 @@ export default function EventDetail() {
 
   const spots = spotsSignal(event.slots?.taken, event.slots?.total);
 
+  // Sales-closed contract (Sprint 4 C1): archived events (past=1) and events
+  // whose sales cutoff has passed stay viewable but lose the booking CTA.
+  // /quote + /checkout enforce the same rule server-side.
+  const salesClosed = event.past
+    || (event.salesCloseAt != null && Date.now() >= event.salesCloseAt);
+
   return (
     <>
       <SEO
@@ -503,8 +509,18 @@ export default function EventDetail() {
 
           {/* Right Column — Sidebar */}
           <div className="event-sidebar">
-            {/* Mini Countdown */}
-            <MiniCountdown targetDate={eventDateISO} />
+            {/* Mini Countdown — or the ended state for archived events, which
+                stay reachable from /games (Sprint 4 C1) but are not bookable. */}
+            {event.past ? (
+              <div className="countdown-mini" style={{ textAlign: 'center' }}>
+                <div className="countdown-mini-label">Event Complete</div>
+                <div style={{ fontSize: 13, color: 'var(--olive-light)', padding: '0.5rem 0' }}>
+                  This operation has ended.
+                </div>
+              </div>
+            ) : (
+              <MiniCountdown targetDate={eventDateISO} />
+            )}
 
             {/* Event Info Card */}
             <div className="info-card">
@@ -557,7 +573,7 @@ export default function EventDetail() {
             </div>
 
             {/* Spots-left urgency — positive framing only (see utils/eventSlots.js) */}
-            {spots && (
+            {!salesClosed && spots && (
               <div
                 style={{
                   textAlign: 'center',
@@ -573,19 +589,38 @@ export default function EventDetail() {
               </div>
             )}
 
-            {/* Book Now Button */}
-            <Link
-              to={`${siteConfig.bookingLink}?event=${slug}`}
-              className="form-submit"
-              style={{ display: 'block', textAlign: 'center', textDecoration: 'none', marginBottom: '1.5rem' }}
-            >
-              &#9658; Book Now
-            </Link>
+            {/* Book Now Button — replaced by a sales-closed state for archived
+                events or once the sales cutoff has passed (the API 409s both). */}
+            {salesClosed ? (
+              <>
+                <div
+                  className="form-submit"
+                  style={{ display: 'block', textAlign: 'center', marginBottom: '0.75rem', opacity: 0.55, cursor: 'default' }}
+                >
+                  {event.past ? 'Event Complete' : 'Online Sales Closed'}
+                </div>
+                {event.past && (
+                  <p style={{ fontSize: '12px', color: 'var(--olive-light)', textAlign: 'center', marginBottom: '1.5rem' }}>
+                    <Link to="/games" style={{ color: 'inherit' }}>See highlights from past games &rarr;</Link>
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <Link
+                  to={`${siteConfig.bookingLink}?event=${slug}`}
+                  className="form-submit"
+                  style={{ display: 'block', textAlign: 'center', textDecoration: 'none', marginBottom: '1.5rem' }}
+                >
+                  &#9658; Book Now
+                </Link>
 
-            {/* Waiver Notice */}
-            <p style={{ fontSize: '12px', color: 'var(--olive-light)', textAlign: 'center', marginBottom: '1.5rem' }}>
-              Waiver will be emailed after booking
-            </p>
+                {/* Waiver Notice */}
+                <p style={{ fontSize: '12px', color: 'var(--olive-light)', textAlign: 'center', marginBottom: '1.5rem' }}>
+                  Waiver will be emailed after booking
+                </p>
+              </>
+            )}
 
             {/* Share Buttons */}
             <div className="share-btns">
