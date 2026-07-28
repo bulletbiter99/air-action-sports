@@ -24,6 +24,7 @@ import { useAdmin } from './AdminContext';
 import { formatMoney } from '../utils/money.js';
 import AdminBookingRefund from './AdminBookingRefund.jsx';
 import AdminBookingExternalRefund from './AdminBookingExternalRefund.jsx';
+import AdminBookingRecordPayment from './AdminBookingRecordPayment.jsx';
 import './AdminBookingsDetail.css';
 
 function dateFmt(ms) {
@@ -49,6 +50,7 @@ export default function AdminBookingsDetail() {
     const [actionMsg, setActionMsg] = useState(null);
     const [refundOpen, setRefundOpen] = useState(false);
     const [externalRefundOpen, setExternalRefundOpen] = useState(false);
+    const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
     const [resending, setResending] = useState(false);
     // M6 B9 — detach-saved-PM confirm + busy state
     const [detachPmOpen, setDetachPmOpen] = useState(false);
@@ -218,6 +220,13 @@ export default function AdminBookingsDetail() {
     // External refund: paid or comp, not already refunded.
     const canRefundExternal = ['paid', 'comp'].includes(booking.status) && !booking.refundedAt;
     const canResend = ['paid', 'comp'].includes(booking.status);
+    // C7 — record an out-of-band payment received. Only for a booking that is
+    // already provisioned: attendees exist, so inventory was already counted
+    // and the customer already holds a QR ticket. A pending/abandoned booking
+    // has no attendees, and the server refuses those rather than minting a
+    // paid booking with nothing to check in.
+    const canRecordPayment = ['unpaid', 'pending', 'abandoned'].includes(booking.status)
+        && (attendees || []).length > 0;
     // Waiver receipts are about waivers, not payment — gate on a signed
     // waiver existing, matching the server's 409 when none are signed.
     const hasSignedWaiver = (attendees || []).some((a) => a.waiverSigned);
@@ -424,6 +433,15 @@ export default function AdminBookingsDetail() {
                                         {resendingReview ? 'Sending…' : (reviewInviteSentAt ? '✉ Resend review invite' : '✉ Send review invite')}
                                     </button>
                                 )}
+                                {canRecordPayment && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setRecordPaymentOpen(true)}
+                                        className="abd-action-btn"
+                                    >
+                                        ＄ Record payment received
+                                    </button>
+                                )}
                                 {canRefundStripe && (
                                     <button
                                         type="button"
@@ -451,8 +469,9 @@ export default function AdminBookingsDetail() {
                                         ↪ Move to another event
                                     </button>
                                 )}
-                                {!canRefundStripe && !canRefundExternal && !canResend && !canDetachPM && !canReschedule && (
-                                    <p className="abd-empty">No actions available for this booking's status.</p>
+                                {!canRefundStripe && !canRefundExternal && !canResend && !canDetachPM
+                                    && !canReschedule && !canRecordPayment && (
+                                    <p className="abd-empty">No actions available for this booking&apos;s status.</p>
                                 )}
                             </div>
                             {canDetachPM && (
@@ -522,6 +541,18 @@ export default function AdminBookingsDetail() {
                         setExternalRefundOpen(false);
                         load();
                         flashMsg('ok', `Out-of-band refund recorded (${method}); customer notified`);
+                    }}
+                />
+            )}
+
+            {recordPaymentOpen && (
+                <AdminBookingRecordPayment
+                    booking={booking}
+                    onClose={() => setRecordPaymentOpen(false)}
+                    onSuccess={(method) => {
+                        setRecordPaymentOpen(false);
+                        load();
+                        flashMsg('ok', `Payment recorded (${method}) — booking is now paid`);
                     }}
                 />
             )}
