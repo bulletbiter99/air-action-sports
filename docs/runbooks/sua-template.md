@@ -9,18 +9,15 @@ managed with the SQL recipes below, run via `wrangler d1 execute --remote`.
 
 ## Current state
 
-⚠️ **Migration 0080 is IN-REPO but NOT YET APPLIED to remote D1** (verified against
-`d1_migrations`, which tops out at 0079). **Until the operator applies it, there is no
-active SUA and agreement uploads still 409 in production.** Apply with:
+✅ **Migration 0080 APPLIED to remote 2026-07-28** (operator-authorized). Verified:
+`sua_seed_v1_placeholder` is the active version 1, and `body_sha256` was independently
+recomputed from `body_html` **as stored in production** — it matches, so the
+signature-snapshot integrity contract holds. Agreement uploads no longer 409.
 
-```bash
-npx wrangler d1 migrations apply air-action-sports-db --remote
-```
-
-Once applied, migration **0080** seeds **version 1** (`sua_seed_v1_placeholder`) — a
-**PLACEHOLDER whose body opens with a red NOT-ATTORNEY-REVIEWED banner**. It
-exists so the agreement-upload flow works end-to-end; replace it with
-counsel-approved text before relying on it for a real rental.
+The seeded version 1 is a **PLACEHOLDER whose body opens with a red
+NOT-ATTORNEY-REVIEWED banner**. It exists so the agreement-upload flow works
+end-to-end; **replace it with counsel-approved text before a real renter signs**
+(retire v1 + insert v2 per the recipes below — never UPDATE a live row's body).
 
 ## The rules (why the recipes look the way they do)
 

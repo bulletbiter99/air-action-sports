@@ -32,9 +32,8 @@ surface changed** — the `/stripe` webhook handler, `verifyWebhookSignature`, p
 waivers, and auth are byte-untouched — so existing production behavior is unchanged.
 
 ## OPERATOR-PENDING (post-deploy, to activate the deferred features)
-1. ✅ **Done 2026-06-02 — migrations 0065 + 0066 applied to remote.** ⚠️ The parenthetical that used
-   to sit here ("all 0001–0077 recorded; a `migrations apply` finds nothing new") is **stale**: the
-   repo is now at 0080 and **0080 is not applied** — a `migrations apply` today *would* find work.
+1. ✅ **Done 2026-06-02 — migrations 0065 + 0066 applied to remote.** (As of 2026-07-28 all
+   migrations 0001–0080 are applied — a `migrations apply` finds nothing new.)
    Items 2–3 below are the only remaining *M7* activation steps.
 2. **Resend webhooks** (activates the bounce/complaint consumer + alert emails — and, since
    2026-07-01, also feeds the review-invite deliverability suppression, PR #370):
