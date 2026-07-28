@@ -22,6 +22,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { classifyStatus, classifyCoiStatus } from './AdminFieldRentals.jsx';
+import { toDateTimeLocal } from './AdminFieldRentalNew.jsx';
 
 // ────────────────────────────────────────────────────────────────────
 // Pure helpers (exported for tests)
@@ -95,6 +96,33 @@ export function allowedNextStatuses(from) {
     return TRANSITIONS[from] || [];
 }
 
+// What the STATUS ROUTE will actually accept, which is narrower than the map
+// above. `POST /:id/status` special-cases `to === 'refunded'` and 400s BEFORE
+// consulting STATUS_TRANSITIONS: a rental becomes refunded as a CONSEQUENCE of
+// refunding its payments, otherwise the rental would read refunded while its
+// payment rows still said received.
+//
+// allowedNextStatuses stays a faithful mirror of the server's data map (its
+// test pins exactly that). This is the separate question of what the operator
+// should be OFFERED — putting `refunded` in the dropdown only ever produced an
+// error they could do nothing with.
+export function selectableNextStatuses(from) {
+    return allowedNextStatuses(from).filter((s) => s !== 'refunded');
+}
+
+// Mirrors FIELD_RENTAL_ENGAGEMENT_TYPES in worker/lib/fieldRentals.js, which is
+// the CHECK-constrained set the server accepts. Same cross-bundle constraint as
+// allowedNextStatuses — the worker bundle is not part of the SPA.
+export const ENGAGEMENT_TYPES = [
+    { value: 'private_skirmish',  label: 'Private skirmish' },
+    { value: 'paintball',         label: 'Paintball' },
+    { value: 'tactical_training', label: 'Tactical training' },
+    { value: 'film_shoot',        label: 'Film shoot' },
+    { value: 'corporate',         label: 'Corporate' },
+    { value: 'youth_program',     label: 'Youth program' },
+    { value: 'other',             label: 'Other' },
+];
+
 // ────────────────────────────────────────────────────────────────────
 // Inline styles
 // ────────────────────────────────────────────────────────────────────
@@ -143,8 +171,218 @@ function dateFmt(ms) { return Number.isFinite(Number(ms)) ? new Date(Number(ms))
 // Modal: change status
 // ────────────────────────────────────────────────────────────────────
 
+// C2 (2026-07-27) — triage a rental into a scheduled booking.
+//
+// Both endpoints below already existed and were fully tested; the detail page
+// simply never called them. A lead arriving from the public /contact inquiry
+// form has site_id NULL and an epoch-0 schedule (which renders as
+// "Dec 31, 1969"), and until now the only ways forward were raw SQL or
+// recreating it through the wizard and cancelling the original.
+
+function EditDetailsModal({ rental, onClose, onSaved }) {
+    const [sites, setSites] = useState([]);
+    const [siteId, setSiteId] = useState(rental.siteId || '');
+    const [siteFieldIds, setSiteFieldIds] = useState(rental.siteFieldIds || []);
+    const [engagementType, setEngagementType] = useState(rental.engagementType || ENGAGEMENT_TYPES[0].value);
+    const [headcount, setHeadcount] = useState(rental.headcountEstimate ?? '');
+    const [notes, setNotes] = useState(rental.notes || '');
+    const [submitting, setSubmitting] = useState(false);
+    const [err, setErr] = useState('');
+
+    useEffect(() => {
+        let cancelled = false;
+        fetch('/api/admin/sites', { credentials: 'include', cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : { sites: [] }))
+            .then((d) => { if (!cancelled) setSites(d.sites || []); })
+            .catch(() => { if (!cancelled) setSites([]); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const selectedSite = sites.find((s) => s.id === siteId);
+    const fields = selectedSite?.fields || [];
+
+    const toggleField = (fid) => setSiteFieldIds((prev) => (
+        prev.includes(fid) ? prev.filter((x) => x !== fid) : [...prev, fid]
+    ));
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true); setErr('');
+        try {
+            const body = {
+                site_id: siteId || null,
+                site_field_ids: siteFieldIds,
+                engagement_type: engagementType,
+                headcount_estimate: headcount === '' ? null : Number(headcount),
+                notes: notes.trim() || null,
+            };
+            const res = await fetch(`/api/admin/field-rentals/${encodeURIComponent(rental.id)}`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok) { setErr(d.error || `HTTP ${res.status}`); return; }
+            await onSaved?.();
+        } catch (e2) {
+            setErr(e2.message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div style={modalBg} onClick={onClose}>
+            <form style={modalBox} onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+                <h3 style={{ marginTop: 0 }}>Edit details</h3>
+                {err && <div style={errorStyle}>{err}</div>}
+
+                <div style={fieldRow}>
+                    <label style={labelStyle} htmlFor="fr-site">Venue</label>
+                    <select
+                        id="fr-site"
+                        style={inputStyle}
+                        value={siteId}
+                        onChange={(e) => { setSiteId(e.target.value); setSiteFieldIds([]); }}
+                    >
+                        <option value="">— none selected —</option>
+                        {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                </div>
+
+                {fields.length > 0 && (
+                    <div style={fieldRow}>
+                        <label style={labelStyle}>Fields</label>
+                        <div>
+                            {fields.map((f) => (
+                                <label key={f.id} style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={siteFieldIds.includes(f.id)}
+                                        onChange={() => toggleField(f.id)}
+                                        style={{ marginRight: 6 }}
+                                    />
+                                    {f.name}
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div style={fieldRow}>
+                    <label style={labelStyle} htmlFor="fr-engagement">Engagement type</label>
+                    <select id="fr-engagement" style={inputStyle} value={engagementType} onChange={(e) => setEngagementType(e.target.value)}>
+                        {ENGAGEMENT_TYPES.map((t) => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div style={fieldRow}>
+                    <label style={labelStyle} htmlFor="fr-headcount">Expected headcount</label>
+                    <input
+                        id="fr-headcount" type="number" min="0" style={inputStyle}
+                        value={headcount} onChange={(e) => setHeadcount(e.target.value)}
+                    />
+                </div>
+
+                <div style={fieldRow}>
+                    <label style={labelStyle} htmlFor="fr-notes">Notes</label>
+                    <textarea id="fr-notes" rows={4} style={inputStyle} value={notes} onChange={(e) => setNotes(e.target.value)} />
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button type="button" style={ghostBtn} onClick={onClose}>Cancel</button>
+                    <button type="submit" style={primaryBtn} disabled={submitting}>{submitting ? 'Saving…' : 'Save'}</button>
+                </div>
+            </form>
+        </div>
+    );
+}
+
+function RescheduleModal({ rental, onClose, onSubmit, onDone }) {
+    // A lead from the inquiry form has no schedule at all, so epoch 0 would
+    // prefill "1969". Start from a sensible near-future window instead.
+    const hasSchedule = !!rental.scheduledStartsAt;
+    const defaultStart = hasSchedule ? rental.scheduledStartsAt : Date.now() + 7 * 86400000;
+    const defaultEnd = rental.scheduledEndsAt && hasSchedule
+        ? rental.scheduledEndsAt
+        : defaultStart + 4 * 3600000;
+
+    const [startsAt, setStartsAt] = useState(toDateTimeLocal(defaultStart));
+    const [endsAt, setEndsAt] = useState(toDateTimeLocal(defaultEnd));
+    const [acknowledge, setAcknowledge] = useState(false);
+    const [conflicts, setConflicts] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [err, setErr] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true); setErr('');
+        try {
+            await onSubmit({
+                scheduled_starts_at: new Date(startsAt).getTime(),
+                scheduled_ends_at: new Date(endsAt).getTime(),
+                ...(acknowledge ? { acknowledgeConflicts: true } : {}),
+            });
+            onDone?.();
+        } catch (e2) {
+            // The conflict engine returns 409 with the colliding rows; surface
+            // them and let the operator acknowledge rather than dead-ending.
+            setErr(e2.message);
+            setConflicts(true);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div style={modalBg} onClick={onClose}>
+            <form style={modalBox} onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+                <h3 style={{ marginTop: 0 }}>{hasSchedule ? 'Reschedule' : 'Set schedule'}</h3>
+                {err && <div style={errorStyle}>{err}</div>}
+
+                <div style={fieldRow}>
+                    <label style={labelStyle} htmlFor="fr-starts">Starts</label>
+                    <input
+                        id="fr-starts" type="datetime-local" style={inputStyle}
+                        value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required
+                    />
+                </div>
+                <div style={fieldRow}>
+                    <label style={labelStyle} htmlFor="fr-ends">Ends</label>
+                    <input
+                        id="fr-ends" type="datetime-local" style={inputStyle}
+                        value={endsAt} onChange={(e) => setEndsAt(e.target.value)} required
+                    />
+                </div>
+
+                {conflicts && (
+                    <div style={fieldRow}>
+                        <label style={{ fontSize: 13 }}>
+                            <input
+                                type="checkbox"
+                                checked={acknowledge}
+                                onChange={(e) => setAcknowledge(e.target.checked)}
+                                style={{ marginRight: 6 }}
+                            />
+                            Book anyway, despite the conflict above
+                        </label>
+                    </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button type="button" style={ghostBtn} onClick={onClose}>Cancel</button>
+                    <button type="submit" style={primaryBtn} disabled={submitting}>{submitting ? 'Saving…' : 'Save schedule'}</button>
+                </div>
+            </form>
+        </div>
+    );
+}
+
 function StatusModal({ rental, onClose, onSubmit }) {
-    const allowed = allowedNextStatuses(rental.status);
+    const allowed = selectableNextStatuses(rental.status);
     const [to, setTo] = useState(allowed[0] || '');
     const [reason, setReason] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -608,6 +846,14 @@ export default function AdminFieldRentalDetail() {
     const reqProgress = computeRequirementsProgress(rental);
     const isTerminal = ['completed', 'cancelled', 'refunded'].includes(rental.status);
     const isArchived = !!rental.archivedAt;
+    // "Dead" is narrower than terminal: a COMPLETED rental may still legitimately
+    // have money outstanding, but a cancelled or refunded one must not be
+    // collected against. Mirrors the server-side A/R aging filter (#330).
+    const rentalIsDead = ['cancelled', 'refunded'].includes(rental.status);
+    // Triage affordances: a lead arriving from the public inquiry form has no
+    // site and an epoch-0 schedule, and until now had no UI path to either.
+    const canEdit = hasCap('field_rentals.write') && !isArchived && !isTerminal;
+    const canReschedule = hasCap('field_rentals.reschedule') && !isArchived && !rentalIsDead;
 
     return (
         <div style={containerStyle}>
@@ -643,7 +889,15 @@ export default function AdminFieldRentalDetail() {
                             )}
                         </dl>
                         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                            {hasCap('field_rentals.write') && !isTerminal && !isArchived && allowedNextStatuses(rental.status).length > 0 && (
+                            {canEdit && (
+                                <button style={ghostBtn} onClick={() => setModal({ kind: 'edit' })}>Edit details</button>
+                            )}
+                            {canReschedule && (
+                                <button style={ghostBtn} onClick={() => setModal({ kind: 'reschedule' })}>
+                                    {rental.scheduledStartsAt ? 'Reschedule' : 'Set schedule'}
+                                </button>
+                            )}
+                            {hasCap('field_rentals.write') && !isTerminal && !isArchived && selectableNextStatuses(rental.status).length > 0 && (
                                 <button style={ghostBtn} onClick={() => setModal({ kind: 'status' })}>Change status</button>
                             )}
                             {hasCap('field_rentals.cancel') && !isTerminal && !isArchived && (
@@ -802,8 +1056,18 @@ export default function AdminFieldRentalDetail() {
                                                 </span>
                                             </div>
                                             <div style={{ display: 'flex', gap: 6 }}>
-                                                {p.status === 'pending' && (
+                                                {/* Gated on the RENTAL's status, not just the payment's.
+                                                    A cancelled or refunded rental keeps its pending payment
+                                                    rows, and this button stayed live on them — collecting
+                                                    against a dead deal. Same leak the A/R aging report was
+                                                    fixed for server-side in #330. */}
+                                                {p.status === 'pending' && !rentalIsDead && (
                                                     <button style={ghostBtn} onClick={() => markPaymentReceived(p.id)}>Mark received</button>
+                                                )}
+                                                {p.status === 'pending' && rentalIsDead && (
+                                                    <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                                        rental {rental.status} — not collectable
+                                                    </span>
                                                 )}
                                                 {p.status === 'received' && hasCap('field_rentals.refund') && (
                                                     <button style={dangerBtn} onClick={() => setRefundFor(p)}>Refund</button>
@@ -833,6 +1097,21 @@ export default function AdminFieldRentalDetail() {
                 <CancelModal
                     onClose={() => setModal(null)}
                     onSubmit={(body) => action(`/api/admin/field-rentals/${id}/cancel`, body)}
+                />
+            )}
+            {modal?.kind === 'edit' && (
+                <EditDetailsModal
+                    rental={rental}
+                    onClose={() => setModal(null)}
+                    onSaved={async () => { setModal(null); await loadAll(); }}
+                />
+            )}
+            {modal?.kind === 'reschedule' && (
+                <RescheduleModal
+                    rental={rental}
+                    onClose={() => setModal(null)}
+                    onSubmit={(body) => action(`/api/admin/field-rentals/${id}/reschedule`, body)}
+                    onDone={() => setModal(null)}
                 />
             )}
             {modal?.kind === 'upload' && (

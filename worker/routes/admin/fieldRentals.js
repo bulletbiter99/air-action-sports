@@ -710,8 +710,13 @@ adminFieldRentals.post('/:id/status', requireCapability('field_rentals.write'), 
         return c.json({ error: 'Use POST /:id/cancel for cancellations' }, 400);
     }
     if (to === 'refunded') {
-        // Refund flow ships in B7b — direct status flip not permitted in B7a.
-        return c.json({ error: 'Refund must be issued via the payments endpoint (B7b)' }, 400);
+        // A rental becomes `refunded` as a CONSEQUENCE of refunding its
+        // payments, never by flipping the status directly — otherwise the
+        // rental would read refunded while the payment rows still say received.
+        return c.json({
+            error: 'To refund this rental, refund its payments individually under Payments. '
+                + 'The rental status follows automatically.',
+        }, 400);
     }
 
     const existing = await fetchRental(c.env, id);

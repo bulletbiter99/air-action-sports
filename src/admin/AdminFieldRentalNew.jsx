@@ -125,11 +125,25 @@ const dropdownStyle = {
 };
 const dropdownItemStyle = { padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-soft, #f0f0f0)', fontSize: 13 };
 
-function nowPlusHoursDtLocal(hoursAhead) {
-    const t = new Date(Date.now() + hoursAhead * 3600 * 1000);
-    // Format as YYYY-MM-DDTHH:mm (compatible with input[type=datetime-local])
+// epoch ms → the YYYY-MM-DDTHH:mm shape input[type=datetime-local] expects,
+// in the BROWSER'S LOCAL zone.
+//
+// Local is not a detail here, it is the whole bug. `new Date(value)` on a naive
+// datetime-local string parses as local, so the input's onChange already stored
+// local — but the display used `toISOString().slice(0, 16)`, which is UTC. The
+// round trip was therefore asymmetric: the field rendered the stored instant
+// shifted by the UTC offset, and touching it re-parsed that shifted wall clock
+// as local, moving the real instant by the offset AGAIN. Times visibly jumped
+// on every edit. Format and parse must agree.
+export function toDateTimeLocal(ms) {
+    const t = new Date(ms);
+    if (Number.isNaN(t.getTime())) return '';
     const pad = (n) => String(n).padStart(2, '0');
     return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
+}
+
+function nowPlusHoursDtLocal(hoursAhead) {
+    return toDateTimeLocal(Date.now() + hoursAhead * 3600 * 1000);
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -388,8 +402,8 @@ function Step1Customer({ state, update }) {
 // ────────────────────────────────────────────────────────────────────
 
 function Step2Schedule({ state, update, sites, siteFields }) {
-    const startsDt = new Date(state.scheduledStartsAt).toISOString().slice(0, 16);
-    const endsDt = new Date(state.scheduledEndsAt).toISOString().slice(0, 16);
+    const startsDt = toDateTimeLocal(state.scheduledStartsAt);
+    const endsDt = toDateTimeLocal(state.scheduledEndsAt);
 
     const toggleField = (id) => {
         const next = state.siteFieldIds.includes(id)
