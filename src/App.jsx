@@ -62,6 +62,7 @@ const AdminVendorContracts = lazy(() => import('./admin/AdminVendorContracts'));
 const AdminWaivers = lazy(() => import('./admin/AdminWaivers'));
 const AdminFeedback = lazy(() => import('./admin/AdminFeedback'));
 const AdminReviews = lazy(() => import('./admin/AdminReviews'));
+const AdminIncidents = lazy(() => import('./admin/AdminIncidents'));
 const AdminCustomers = lazy(() => import('./admin/AdminCustomers'));
 const AdminCustomerDetail = lazy(() => import('./admin/AdminCustomerDetail'));
 const AdminSites = lazy(() => import('./admin/AdminSites'));
@@ -193,6 +194,7 @@ export default function App() {
             <Route path="waivers" element={<AdminWaivers />} />
             <Route path="feedback" element={<AdminFeedback />} />
             <Route path="reviews" element={<AdminReviews />} />
+            <Route path="incidents" element={<AdminIncidents />} />
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="customers/:id" element={<AdminCustomerDetail />} />
             <Route path="segments" element={<AdminSegments />} />
