@@ -6,18 +6,32 @@
 // review fields).
 //
 // Event dates are DERIVED from now (never hardcoded — the 2026-06-11
-// sales-series calendar-time-bomb lesson): the endpoint compares UTC date
-// portions, so "ended" = yesterday, "not ended" = tomorrow.
+// sales-series calendar-time-bomb lesson), and derived on the DENVER calendar,
+// because that is what the endpoint compares against (`eventHasEnded` →
+// `endIso < denverDateFor()`). Deriving them in UTC instead — via
+// `new Date().toISOString().slice(0,10)` — makes this file fail every day
+// between 18:00 and 24:00 Mountain, when the UTC date has already rolled over
+// and UTC-yesterday IS Denver-today, collapsing the strict `<`. That is the
+// UTC-"today"-vs-Mountain-date trap from the 2026-07-27 timezone sweep, and it
+// bit this very file: green on CI at merge (morning), red the same evening.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import worker from '../../../../worker/index.js';
+import { denverDateFor } from '../../../../worker/lib/eventTime.js';
 import { createMockEnv } from '../../../helpers/mockEnv.js';
 import { createAdminSession } from '../../../helpers/adminSession.js';
 import { mockResendFetch } from '../../../helpers/mockResend.js';
 
 const BOOKING_ID = 'bk_rvi_test';
 
-const dayOffsetIso = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+// Denver's calendar date today, then ±days of pure UTC calendar arithmetic on
+// those parts. Anchoring on an already-resolved date (rather than adding
+// 86400000ms to `now`) keeps the offset exact across a DST transition, where a
+// real 24h can land on the next-but-one calendar day.
+const dayOffsetIso = (days) => {
+    const [y, m, d] = denverDateFor().split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+};
 const YESTERDAY = dayOffsetIso(-1);
 const TOMORROW = dayOffsetIso(1);
 
