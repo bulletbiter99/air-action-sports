@@ -131,10 +131,15 @@ B2 charge-queue nav + A3 pay-link decision (build the pay landing or stop emaili
 A2 1099 migration (`persons.legal_name`/`ein` or encrypted variants); B6 command palette caps;
 the mockD1 meta-fix (one real-schema integration test).
 
-**Sprint 3 — workflow completion:** C3 customer edit + manual tags; C2 rental edit/reschedule
-modals + pending-payment void; B7 staff-doc/cert/archive buttons; C6 incidents resolve + owner
-alert; C7 unpaid/abandoned status actions; C4 marketing dormant-state banner + sending→canceled
-transition + test-send.
+**Sprint 3 — workflow completion:** ✅ **CLOSED 2026-07-28** (PRs #393–#400, no migrations).
+C3 customer edit + manual tags; C2 rental edit/reschedule modals; B7 staff-doc/cert/archive
+buttons; C6 incidents — built with a FILING path too, since the kiosk (the only existing one) is
+dead; C7 unpaid/abandoned status actions + record-payment; C4 marketing dormant-state banner +
+sending→canceled. **Deferred:** C4 test-send / per-recipient view / segment-count cache (not
+exercisable until the marketing env vars land), B7 document role-tagging (a feature, not a button).
+**Three items in this list were wrong** — see the corrections in
+[docs/next-session.md](next-session.md): B7 claims an `/unarchive` endpoint that does not exist and
+cert edit/renew UI that was never wired; C2's `refunded` claim misreads which layer rejects it.
 
 **Sprint 4 — contracts & polish:** C1 archive contract + sales-cutoff decision (DNT conversation);
 B4 recurrence UI or runbook; B5 SUA seed; C8/C9; persona-system decision (dormant vs dropdown);

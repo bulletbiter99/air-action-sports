@@ -1,18 +1,54 @@
-# Next-session entry point — date_iso timezone family CLOSED + DEPLOYED (2026-07-27)
+# Next-session entry point — Admin-audit SPRINT 3 CLOSED (2026-07-28)
 
-## ✅ Current state — everything is merged, applied, and live
+## ✅ Current state
 
-`main` **`0e64078`** · **3359 / 287** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0079 ALL APPLIED** · production deployed (version `2ab3f7c4`, 2026-07-27T07:13:52Z) and verified.
+`main` **`caf9abc`** · **3494 / 296** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0079 ALL APPLIED** (Sprint 3 added none) · production deployed + verified.
 
-**There is no blocking item.** The 🔴 that headed this file for two sessions — reminder emails firing ~6 hours early — is fixed, along with the entire bug family behind it.
+**Nothing is blocking.** Sprint 3 of the admin workflow audit is **complete** — all six items, plus two bugs found along the way.
 
-## 🎯 START HERE — pick from the work menu
+## ✅ DONE — Admin-audit SPRINT 3 (2026-07-28, PRs #393–#400)
 
-No milestone is active. In rough priority order:
+Eight PRs. **No migrations** — every column these features needed already existed, which is itself the theme: most of Sprint 3 was wiring up things the schema and the server had been ready for since M5.
 
-1. **Admin workflow audit Sprints 3 & 4** — [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md). Sprint 1 (event-day readiness) and Sprint 2 (broken wiring) are closed. Sprint 3 is workflow completion (customer edit + manual tags, rental edit/reschedule modals, staff-doc/cert UI, incidents resolve, unpaid-status actions, marketing dormant-state banner + test-send). Sprint 4 is contracts & polish (archive contract + unenforced `sales_close_at`, recurrence UI, SUA seed, persona decision, stale-copy sweep).
+| PR | What |
+|---|---|
+| [#393](https://github.com/bulletbiter99/air-action-sports/pull/393) | **`main` was red.** A clock-flaky test — see below. |
+| [#394](https://github.com/bulletbiter99/air-action-sports/pull/394) | **A latent production landmine** in the nightly customer-tag sweep — see below. |
+| [#395](https://github.com/bulletbiter99/air-action-sports/pull/395) | **C3** customer edit + marketing-consent write path + manual tags |
+| [#396](https://github.com/bulletbiter99/air-action-sports/pull/396) | **C7** surface `unpaid`/`abandoned` + record an out-of-band payment received |
+| [#397](https://github.com/bulletbiter99/air-action-sports/pull/397) | **C2** field-rental lead triage (edit + reschedule) + 3 adjacent defects |
+| [#398](https://github.com/bulletbiter99/air-action-sports/pull/398) | **C4** dormant marketing pipeline made visible and recoverable |
+| [#399](https://github.com/bulletbiter99/air-action-sports/pull/399) | **B7** staff archive / cert revoke+edit+renew / doc retire wired to the UI |
+| [#400](https://github.com/bulletbiter99/air-action-sports/pull/400) | **C6** admin incidents — file **and** resolve |
+
+### The two bugs found along the way
+
+**`main` was red on arrival, six hours a day.** `resend-review-invite.test.js` derived its fixture dates in UTC while #392 had correctly moved `eventHasEnded` onto the Denver calendar. Between 18:00 and 24:00 Mountain, UTC-yesterday *is* Denver-today, so the strict `<` collapsed and every happy path 409'd. Green on CI at merge (morning), red the same evening. **This is the UTC-vs-Mountain trap from the previous session landing inside the fix for it** — worth expecting again in any fixture that derives a date.
+
+**A latent landmine in the nightly tag sweep.** `customer_tags` has `PRIMARY KEY (customer_id, tag)` with `tag_type` **outside** the key; the sweep INSERTed system tags bare, in one atomic `db.batch()`, and `worker/index.js` only `.catch()`es it to `console.error`. So one manual tag named `vip` would have rolled back the whole batch and **silently frozen system-tag refresh for every customer, indefinitely**. It arms itself on a delay — the system tags are conditional, so a manual `vip` on a $40 customer collides with nothing until their lifetime value crosses $500. Unreachable only because nothing wrote manual tags; **C3's UI is what would have armed it**, so it was fixed first and separately (`INSERT OR IGNORE` + an exported `SYSTEM_TAG_NAMES` the write path reserves).
+
+### Operator-facing changes worth knowing
+
+- **A phone opt-out can finally be honoured.** Production was **79 of 79** customers `email_marketing=1` — nobody had ever opted out, because only the customer's own emailed unsubscribe link could write it. Opting *out* is a plain toggle; opting back **in** requires a typed reason (it overrides the customer's own decision, and `email_marketing = 0` is the only persisted trace an unsubscribe happened), and is **refused outright** for an address that hard-bounced or filed a spam complaint.
+- **`unpaid` / `abandoned` bookings are visible for the first time** (10 abandoned rows existed with no way to list them), and **"Record payment received"** now exists — the flow the Stripe-cutover invoices needed by hand in June. It only accepts an already-**provisioned** booking; a `pending`/`abandoned` one has no attendees, so marking it paid would mint a ticketless ghost.
+- **Marketing can no longer strand a campaign.** Sending while `MARKETING_POSTAL_ADDRESS` is unset used to leave it in `sending` forever with no exit. Send-now is now refused with a banner naming what's missing; scheduling still works; `sending → canceled` recovers anything already stuck.
+
+### Corrections to the audit (verified in source)
+
+- **B7 is wrong twice.** `/archive` exists but there is **no `/unarchive`** — archiving was one-way, so #399 shipped the mirror rather than putting an unrecoverable button on the page. And `AdminStaffCertEditor` already implemented `edit`/`renew` in full — nothing ever *passed* those modes.
+- **C2's "refunded status rejected with jargon"**: `allowedNextStatuses` is a faithful mirror of the server's `STATUS_TRANSITIONS` map, which *does* include `refunded`; the route special-cases it earlier. The mirror stayed; a separate `selectableNextStatuses` answers what to *offer*.
+
+### Deliberately deferred, with reasons
+
+- **C4's test-send, per-recipient delivery view, and the segment "Last count" cache.** None can be exercised until the operator lands the marketing env vars, and no test-send path exists anywhere to reuse — a feature, not a fix.
+- **B7's staff-document role-tagging.** Needs a roles-catalogue picker and a per-document tag list; a feature rather than a button.
+
+## 🎯 START HERE — what's left
+
+1. **Admin workflow audit Sprint 4** — [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md). Contracts & polish: the **archive contract** (`/games` requires `published=1`, but every end-of-life action unpublishes) + the unenforced **`sales_close_at`** (a checkout change = Critical DNT protocol), recurrence UI, SUA template seed, C8/C9, the persona-system decision, and a stale-copy sweep (**"Mailchimp" in the public privacy policy should change before marketing activation**).
 2. **The growth plan** — [docs/growth-plan-2026-07.md](growth-plan-2026-07.md). Execution still **not started**. Headline: the SPA serves an empty shell to non-JS AI crawlers, and the only JSON-LD is review-gated (it now fires, since real reviews exist).
-3. **Two follow-ups this series created** (both agreed, neither started):
+3. **The kiosk decision** (audit D4), now more pointed: `/event` is dead end-to-end and #400 gave incidents an admin-side filing path that no longer needs it. Repair the kiosk, or retire it and finish moving its surfaces admin-side.
+4. **Two follow-ups from the timezone series** (both agreed, neither started):
    - **Narrow event conflict windows** from whole-day to real start→end times, so an evening field rental after a morning event stops being a conflict at all. Right now the whole-day rule is correctly *enforced*, which means a site coordinator must escalate to an owner for that booking.
    - **`docs/business-calendar-utc-skew.md`** — parked by operator decision. Every financial surface buckets on the UTC calendar, so "MTD" begins at 6 PM Mountain on the last day of the prior month.
 
@@ -231,13 +267,13 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | **`0e64078`** + this docs sync (re-pull for exact; PRs #391 + #392 merged — the date_iso timezone family) |
-| Tests | **3359 / 287** all green |
+| `main` HEAD | **`caf9abc`** + this docs sync (re-pull for exact; PRs #393–#400 merged — admin-audit Sprint 3) |
+| Tests | **3494 / 296** all green |
 | Build | clean · Lint **0 errors** (`npx eslint src worker tests scripts` — plain `npm run lint` also walks the gitignored `static-backup/`, which CI never sees and which reports 24 pre-existing errors). **Reproduce CI exactly with `TZ=UTC npx vitest run`** — the runner is UTC and a naive-ISO fixture is ambient-TZ-dependent. |
 | Production | deployed + verified · version **`2ab3f7c4`** (2026-07-27T07:13:52Z) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day + reviews + open-reads admin + event-day hardening + Sprint 2 + **the full date_iso timezone fix** all live. The July 25-26 events have RUN and all events are currently `published=0`, so `/api/events` returns `[]` (correct archive behavior, not a regression). |
 | Migrations on remote | ✅ **0001–0079 ALL APPLIED** (0078 + 0079 applied 2026-07-27; verified `persons.legal_name`/`ein_ciphertext` exist and the dead `{{paymentLink}}` is gone from `additional_charge_notice`). |
 | Open PRs | 0 |
-| Open milestone | **None active, and nothing is blocking.** Work menu: **admin workflow audit Sprints 3–4** → **growth plan** (not started) → two agreed follow-ups from the timezone series (narrow conflict windows; the parked business-calendar skew). Operator activation: Resend plan upgrade, `RESEND_WEBHOOK_SECRET` + webhook, `audit_log_fts` flag. |
+| Open milestone | **None active, and nothing is blocking.** Admin-audit **Sprint 3 is CLOSED** (2026-07-28). Work menu: **Sprint 4** → **growth plan** (not started) → the kiosk decision → two agreed follow-ups from the timezone series (narrow conflict windows; the parked business-calendar skew). Operator activation: Resend plan upgrade, `MARKETING_POSTAL_ADDRESS`, `RESEND_WEBHOOK_SECRET` + webhook, `audit_log_fts` flag. |
 | Reviews | **LIVE with real data** — 3 submitted, 1 operator-hidden → public aggregate **2 / 4.5★**. |
 
 ---
