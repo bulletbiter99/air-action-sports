@@ -33,7 +33,7 @@ export default function AdminSegments() {
     useEffect(() => { reload(); }, [reload]);
 
     async function handleDelete(id) {
-        if (!window.confirm('Delete this segment? It will be permanently removed (B1 has no undo).')) return;
+        if (!window.confirm('Delete this segment? It will be permanently removed — there is no undo.')) return;
         try {
             const res = await fetch(`/api/admin/segments/${encodeURIComponent(id)}`, {
                 method: 'DELETE', credentials: 'include',
