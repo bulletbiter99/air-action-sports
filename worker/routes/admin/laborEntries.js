@@ -1,11 +1,19 @@
 // M5 Batch 10 — admin labor log routes (Surface 4b).
+// Sprint 4 C9 — the PUT edit this header always advertised finally exists,
+// plus /:id/reject (the rejected_at/rejection_reason columns sat unwritten
+// since migration 0036) and tax-year-lock enforcement on the financial
+// mutations, per 0036's contract: "no further labor entries can be created
+// OR MODIFIED for that year". Dispute/resolve stay lock-exempt on purpose —
+// they're annotations, and recording a dispute against a filed year is
+// legitimate information, not a change to the filed totals.
 //
 // Endpoints (capability-gated):
 //   GET  /api/admin/labor-entries?person_id=&tax_year=
 //   POST /api/admin/labor-entries (manual entry; auto-flags for approval if amount > $200)
-//   PUT  /api/admin/labor-entries/:id (edit pre-approval)
-//   POST /api/admin/labor-entries/:id/approve
-//   POST /api/admin/labor-entries/:id/mark-paid
+//   PUT  /api/admin/labor-entries/:id (edit pre-approval; lock-enforced)
+//   POST /api/admin/labor-entries/:id/approve   (lock-enforced)
+//   POST /api/admin/labor-entries/:id/reject    (lock-enforced; requires a reason)
+//   POST /api/admin/labor-entries/:id/mark-paid (lock-enforced)
 //   POST /api/admin/labor-entries/:id/dispute
 //   POST /api/admin/labor-entries/:id/resolve
 
@@ -31,6 +39,26 @@ function randomLeId() {
 
 function taxYearOf(ms) {
     return new Date(ms).getUTCFullYear();
+}
+
+// Mirrors migration 0036's CHECK on labor_entries.pay_kind. Note w2_salary is
+// deliberately NOT here — it's a persons.compensation_kind value the CHECK
+// never permitted, so accepting it would 500 at INSERT/UPDATE time (and the
+// dead `pay_kind = 'w2_salary'` terms in thresholds1099.js can never match
+// until a migration widens the CHECK — a product decision, parked while
+// labor_entries has zero rows).
+const PAY_KINDS = ['w2_hourly', '1099_per_event', '1099_hourly', 'volunteer', 'comp'];
+
+async function getEntry(env, id) {
+    return env.DB.prepare('SELECT * FROM labor_entries WHERE id = ?').bind(id).first();
+}
+
+// 409-shaped lock check. Returns the error Response or null when unlocked.
+async function lockedYearError(c, taxYear) {
+    const lock = await c.env.DB.prepare('SELECT * FROM tax_year_locks WHERE tax_year = ?')
+        .bind(taxYear).first();
+    if (lock) return c.json({ error: `Tax year ${taxYear} is locked` }, 409);
+    return null;
 }
 
 adminLaborEntries.get('/', requireCapability('staff.schedule.read'), async (c) => {
@@ -95,8 +123,81 @@ adminLaborEntries.post('/', requireCapability('staff.schedule.write'), async (c)
     return c.json({ ok: true, id, approvalRequired: approvalRequired === 1 }, 201);
 });
 
+// PUT /api/admin/labor-entries/:id — edit an entry BEFORE it is approved,
+// rejected or paid. Editable: workedAt, hours, payKind, amountCents, notes.
+// `source` is identity, not data — not editable. approval_required is
+// RECOMPUTED from the new amount, so editing a $150 entry up to $500 sends
+// it back through the approval gate rather than smuggling it past the cap.
+adminLaborEntries.put('/:id', requireCapability('staff.schedule.write'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => ({}));
+
+    const entry = await getEntry(c.env, id);
+    if (!entry) return c.json({ error: 'Not found' }, 404);
+    if (entry.approved_at || entry.rejected_at || entry.paid_at) {
+        return c.json({ error: 'Only entries that are not yet approved, rejected or paid can be edited' }, 409);
+    }
+
+    const workedAt = body.workedAt != null ? Number(body.workedAt) : entry.worked_at;
+    if (!Number.isFinite(workedAt)) return c.json({ error: 'workedAt must be a timestamp' }, 400);
+    const payKind = body.payKind != null ? String(body.payKind) : entry.pay_kind;
+    if (!PAY_KINDS.includes(payKind)) {
+        return c.json({ error: `payKind must be one of ${PAY_KINDS.join(', ')}` }, 400);
+    }
+    const amountCents = body.amountCents != null ? Number(body.amountCents) : entry.amount_cents;
+    if (!Number.isFinite(amountCents) || amountCents < 0) {
+        return c.json({ error: 'amountCents must be a non-negative number' }, 400);
+    }
+    const hours = body.hours !== undefined ? (body.hours == null ? null : Number(body.hours)) : entry.hours;
+    const notes = body.notes !== undefined ? (body.notes || null) : entry.notes;
+
+    // Lock check on BOTH years: the entry's current year (its totals may be
+    // filed) and the year it would move into.
+    const oldYear = entry.tax_year;
+    const newYear = taxYearOf(workedAt);
+    const lockedOld = await lockedYearError(c, oldYear);
+    if (lockedOld) return lockedOld;
+    if (newYear !== oldYear) {
+        const lockedNew = await lockedYearError(c, newYear);
+        if (lockedNew) return lockedNew;
+    }
+
+    const approvalRequired = entry.source === 'manual_entry' && amountCents > SELF_APPROVAL_CAP_CENTS ? 1 : 0;
+    const now = Date.now();
+    await c.env.DB.prepare(
+        `UPDATE labor_entries
+         SET worked_at = ?, hours = ?, pay_kind = ?, amount_cents = ?, notes = ?,
+             approval_required = ?, tax_year = ?, updated_at = ?
+         WHERE id = ?`,
+    ).bind(workedAt, hours, payKind, amountCents, notes, approvalRequired, newYear, now, id).run();
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'labor_entry.updated',
+        targetType: 'labor_entry',
+        targetId: id,
+        meta: {
+            amountCents,
+            priorAmountCents: entry.amount_cents,
+            payKind,
+            taxYear: newYear,
+            approvalRequired: approvalRequired === 1,
+        },
+    });
+    return c.json({ ok: true, approvalRequired: approvalRequired === 1 });
+});
+
 adminLaborEntries.post('/:id/approve', requireCapability('staff.schedule.write'), async (c) => {
     const id = c.req.param('id');
+
+    // C9 — locked-year guard. Needs the row's tax_year, so the blind UPDATE
+    // gained a SELECT; the guarded-UPDATE predicate below is unchanged.
+    const entry = await getEntry(c.env, id);
+    if (!entry) return c.json({ error: 'Not found' }, 404);
+    const locked = await lockedYearError(c, entry.tax_year);
+    if (locked) return locked;
+
     const now = Date.now();
     const r = await c.env.DB.prepare(
         `UPDATE labor_entries SET approved_at = ?, approved_by_user_id = ?, updated_at = ?
@@ -113,10 +214,51 @@ adminLaborEntries.post('/:id/approve', requireCapability('staff.schedule.write')
     return c.json({ ok: true });
 });
 
+// POST /api/admin/labor-entries/:id/reject — the other half of the approval
+// gate. rejected_at + rejection_reason existed since migration 0036 with no
+// writer; approve's WHERE even guarded on rejected_at IS NULL. A reason is
+// required — a rejection is consequential to the staffer and the reason is
+// the only trace of why.
+adminLaborEntries.post('/:id/reject', requireCapability('staff.schedule.write'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => ({}));
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    if (!reason) return c.json({ error: 'A rejection reason is required' }, 400);
+
+    const entry = await getEntry(c.env, id);
+    if (!entry) return c.json({ error: 'Not found' }, 404);
+    const locked = await lockedYearError(c, entry.tax_year);
+    if (locked) return locked;
+
+    const now = Date.now();
+    const r = await c.env.DB.prepare(
+        `UPDATE labor_entries SET rejected_at = ?, rejection_reason = ?, updated_at = ?
+         WHERE id = ? AND approval_required = 1 AND approved_at IS NULL AND rejected_at IS NULL AND paid_at IS NULL`,
+    ).bind(now, reason, now, id).run();
+    if (!r?.meta?.changes) return c.json({ error: 'Not found or not in a rejectable state' }, 409);
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'labor_entry.rejected',
+        targetType: 'labor_entry',
+        targetId: id,
+        meta: { reason },
+    });
+    return c.json({ ok: true });
+});
+
 adminLaborEntries.post('/:id/mark-paid', requireCapability('staff.schedule.mark_paid'), async (c) => {
     const id = c.req.param('id');
     const body = await c.req.json().catch(() => ({}));
     const { paymentReference } = body || {};
+
+    // C9 — locked-year guard (payment records for a filed year are final).
+    const entry = await getEntry(c.env, id);
+    if (!entry) return c.json({ error: 'Not found' }, 404);
+    const locked = await lockedYearError(c, entry.tax_year);
+    if (locked) return locked;
+
     const now = Date.now();
     const r = await c.env.DB.prepare(
         `UPDATE labor_entries SET paid_at = ?, paid_by_user_id = ?, payment_reference = ?, updated_at = ?

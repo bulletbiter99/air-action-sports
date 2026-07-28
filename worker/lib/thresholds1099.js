@@ -153,6 +153,14 @@ export async function aggregate1099TotalsForYear(env, taxYear) {
         // select `p.legal_name, p.ein` — neither column had ever been
         // migrated, so this statement threw and took the report, the CSV
         // export and the nightly sweep down with it.
+        // ⚠ `pay_kind = 'w2_salary'` is a DEAD TERM: labor_entries.pay_kind's
+        // CHECK (migration 0036) permits only w2_hourly / 1099_per_event /
+        // 1099_hourly / volunteer / comp — w2_salary is a
+        // persons.compensation_kind value that can never appear in this
+        // column, so salaried W-2 totals are structurally 0 here. Left in
+        // place so a future CHECK-widening migration (a product decision,
+        // parked while labor_entries has zero rows) makes it live without a
+        // silent gap; the schema guard can't catch this class (it compiles).
         `SELECT le.person_id, p.full_name, p.email, p.legal_name, p.ein_ciphertext,
                 SUM(CASE WHEN le.pay_kind LIKE '1099%' THEN le.amount_cents ELSE 0 END) AS total_1099_cents,
                 SUM(CASE WHEN le.pay_kind = 'w2_hourly' OR le.pay_kind = 'w2_salary' THEN le.amount_cents ELSE 0 END) AS total_w2_cents,
@@ -213,6 +221,8 @@ export async function getYearLock(env, taxYear) {
  */
 export async function lockTaxYear(env, { taxYear, userId, reason, notes }) {
     const totals = await env.DB.prepare(
+        // ⚠ `pay_kind = 'w2_salary'` is a dead term — see the sibling note on
+        // aggregate1099TotalsForYear. The CHECK never permits it.
         `SELECT
            SUM(CASE WHEN pay_kind = 'w2_hourly' OR pay_kind = 'w2_salary' THEN amount_cents ELSE 0 END) AS w2,
            SUM(CASE WHEN pay_kind LIKE '1099%' THEN amount_cents ELSE 0 END) AS k1099
