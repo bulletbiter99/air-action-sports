@@ -44,7 +44,7 @@ describe('SIDEBAR config', () => {
         expect(SIDEBAR[13]).toMatchObject({ type: 'separator' });
         // Operational: Analytics (14) · Reports (15) · Expenses (16) ·
         // Budgets (17) · Cash Flow (18) · Segments (19) · Campaigns (20) ·
-        // Automations (21) · Feedback (22) · Reviews (23) · Promo Codes (24) · Vendors (25) · sep (26)
+        // Automations (21) · Feedback (22) · Reviews (23) · Incidents (24) · Promo Codes (25) · Vendors (26) · sep (27)
         expect(SIDEBAR[14]).toMatchObject({ type: 'item', to: '/admin/analytics', label: 'Analytics' });
         expect(SIDEBAR[15]).toMatchObject({ type: 'item', to: '/admin/reports', label: 'Reports' });
         expect(SIDEBAR[16]).toMatchObject({ type: 'item', to: '/admin/expenses', label: 'Expenses' });
@@ -57,9 +57,10 @@ describe('SIDEBAR config', () => {
             type: 'item', to: '/admin/feedback', label: 'Feedback', badgeKey: 'newFeedback',
         });
         expect(SIDEBAR[23]).toMatchObject({ type: 'item', to: '/admin/reviews', label: 'Reviews' });
-        expect(SIDEBAR[24]).toMatchObject({ type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' });
-        expect(SIDEBAR[25]).toMatchObject({ type: 'item', to: '/admin/vendors', label: 'Vendors' });
-        expect(SIDEBAR[26]).toMatchObject({ type: 'separator' });
+        expect(SIDEBAR[24]).toMatchObject({ type: 'item', to: '/admin/incidents', label: 'Incidents' });
+        expect(SIDEBAR[25]).toMatchObject({ type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' });
+        expect(SIDEBAR[26]).toMatchObject({ type: 'item', to: '/admin/vendors', label: 'Vendors' });
+        expect(SIDEBAR[27]).toMatchObject({ type: 'separator' });
     });
 
     it('open-reads model (2026-07): no SIDEBAR entry carries a capability gate', () => {
@@ -74,7 +75,7 @@ describe('SIDEBAR config', () => {
 
     it('Settings group sits at the end, separated by a divider', () => {
         const groupIdx = SIDEBAR.findIndex((e) => e.type === 'group');
-        expect(groupIdx).toBe(27);
+        expect(groupIdx).toBe(28);
         expect(SIDEBAR[groupIdx]).toMatchObject({ type: 'group', label: 'Settings' });
         // The separator immediately precedes the group.
         expect(SIDEBAR[groupIdx - 1]).toMatchObject({ type: 'separator' });
@@ -170,7 +171,7 @@ describe('userHasCapabilityStub (M5 B0)', () => {
 });
 
 describe('getVisibleItems', () => {
-    it('owner with today active sees all 22 items + 5 separators + Settings group = 28', () => {
+    it('owner with today active sees all 23 items + 5 separators + Settings group = 29', () => {
         // 22 top-level items: Home, Today, Events, Bookings, Customers,
         // Sites, Field Rentals, Rentals, Roster, Scan, Analytics, Reports,
         // Expenses, Budgets, Cash Flow, Segments (B1), Campaigns (B3),
@@ -180,7 +181,7 @@ describe('getVisibleItems', () => {
             todayState: { activeEventToday: true, eventId: 'evt_1', checkInOpen: false },
             userRole: 'owner',
         });
-        expect(visible).toHaveLength(28);
+        expect(visible).toHaveLength(29);
         expect(visible.filter((e) => e.type === 'separator')).toHaveLength(5);
         expect(visible.find((e) => e.label === 'Reviews')).toBeDefined();
         expect(visible.find((e) => e.label === 'Today')).toBeDefined();

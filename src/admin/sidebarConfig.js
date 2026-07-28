@@ -67,6 +67,7 @@ export const SIDEBAR = [
         badgeKey: 'newFeedback',
     },
     { type: 'item', to: '/admin/reviews', label: 'Reviews' },
+    { type: 'item', to: '/admin/incidents', label: 'Incidents' },
     { type: 'item', to: '/admin/promo-codes', label: 'Promo Codes' },
     { type: 'item', to: '/admin/vendors', label: 'Vendors' },
     { type: 'separator' },
