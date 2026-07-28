@@ -49,7 +49,7 @@ export default function AdminSegments() {
         <div style={pageWrap}>
             <AdminPageHeader
                 title="Segments"
-                description="Customer groups for analysis (Batch 1) and campaigns (Batch 2+). Each segment combines tags + LTV + booking count, AND-ed together. All segments respect customer email-marketing consent automatically."
+                description="Customer groups for analysis and campaign targeting. Each segment combines tags + LTV + booking count, AND-ed together. All segments respect customer email-marketing consent automatically."
                 breadcrumb={[{ label: 'Segments' }]}
                 primaryAction={
                     <button type="button" onClick={() => setEditingSegment('new')} style={primaryBtn}>+ New segment</button>
