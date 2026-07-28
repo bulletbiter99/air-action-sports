@@ -299,7 +299,8 @@
       ],
       "audit_group": "(M3 B8a customers admin route)",
       "tests": [
-        "tests/unit/admin/customers-route.test.js"
+        "tests/unit/admin/customers-route.test.js",
+        "tests/unit/admin/customers-edit.test.js"
       ]
     },
     "worker/lib/customerTags.js": {

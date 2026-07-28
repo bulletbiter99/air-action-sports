@@ -28,6 +28,7 @@ import { writeAudit } from '../../lib/auditLog.js';
 import { recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
 import { encrypt, decryptSafely } from '../../lib/personEncryption.js';
 import { customerId } from '../../lib/ids.js';
+import { SYSTEM_TAG_NAMES } from '../../lib/customerTags.js';
 
 const adminCustomers = new Hono();
 
@@ -444,6 +445,231 @@ adminCustomers.put('/:id/business', requireCapability('customers.write.business_
 });
 
 // ────────────────────────────────────────────────────────────────────
+// PUT /api/admin/customers/:id — contact details, notes, comm prefs
+//
+// Until this landed, customers were create-only: name/phone/notes and all
+// four comm-preference columns were writable exactly once, at creation. The
+// operational consequence was a consent gap — a customer who PHONES IN to be
+// taken off the list could not be honoured, because the only paths that
+// clear email_marketing are the customer's own emailed unsubscribe link
+// (worker/routes/unsubscribe.js) and the bounce/complaint webhook.
+//
+// Email address is deliberately NOT editable here. `POST /` normalizes with a
+// bare toLowerCase() while worker/lib/customerEmail.js also strips Gmail dots
+// and plus-aliases, so the two would disagree on email_normalized for the same
+// address; combined with the partial unique index that is its own decision,
+// not a field to slip into a general edit endpoint.
+//
+// Consent has extra ceremony — see the emailMarketing branch below.
+// ────────────────────────────────────────────────────────────────────
+adminCustomers.put('/:id', requireCapability('customers.write'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: 'Invalid body' }, 400);
+
+    const row = await c.env.DB.prepare(
+        'SELECT id, archived_at, email_marketing FROM customers WHERE id = ?',
+    ).bind(id).first();
+    if (!row) return c.json({ error: 'Customer not found' }, 404);
+    if (row.archived_at) return c.json({ error: 'Cannot edit archived customer' }, 409);
+
+    const updates = {};
+
+    if (body.name !== undefined) {
+        updates.name = body.name ? String(body.name).trim() || null : null;
+    }
+    if (body.phone !== undefined) {
+        updates.phone = body.phone ? String(body.phone).trim() || null : null;
+    }
+    if (body.notes !== undefined) {
+        updates.notes = body.notes ? String(body.notes).trim() || null : null;
+    }
+
+    // Comm prefs are CHECK (x IN (0,1)) columns. Require a real boolean rather
+    // than coercing: the string "false" is truthy in JS, and on a consent
+    // column that would silently opt someone IN on a client-side bug.
+    for (const [key, column] of [
+        ['emailTransactional', 'email_transactional'],
+        ['emailMarketing', 'email_marketing'],
+        ['smsTransactional', 'sms_transactional'],
+        ['smsMarketing', 'sms_marketing'],
+    ]) {
+        if (body[key] === undefined) continue;
+        if (typeof body[key] !== 'boolean') {
+            return c.json({ error: `${key} must be a boolean` }, 400);
+        }
+        updates[column] = body[key] ? 1 : 0;
+    }
+
+    // Consent direction matters, so resolve it before writing.
+    //
+    // 1 -> 0 (honouring an opt-out) is pure compliance upside and needs no
+    // ceremony. 0 -> 1 overrides a decision the CUSTOMER made, and
+    // email_marketing = 0 is the ONLY persisted trace that an unsubscribe ever
+    // happened — the unsubscribe token is a stateless HMAC with no DB record.
+    // So re-subscribing requires a typed reason, which lands in the audit row.
+    const priorConsent = Number(row.email_marketing) === 1 ? 1 : 0;
+    const nextConsent = updates.email_marketing;
+    const consentChanged = nextConsent !== undefined && nextConsent !== priorConsent;
+    let consentReason = null;
+
+    if (consentChanged && nextConsent === 1) {
+        const reason = body.marketingOptInReason ? String(body.marketingOptInReason).trim() : '';
+        if (!reason) {
+            return c.json({
+                error: 'marketingOptInReason is required to opt a customer back into marketing — '
+                    + 'this overrides their own unsubscribe',
+            }, 400);
+        }
+        consentReason = reason;
+    }
+
+    if (Object.keys(updates).length === 0) {
+        return c.json({ error: 'No fields to update' }, 400);
+    }
+
+    const now = Date.now();
+    updates.updated_at = now;
+    const keys = Object.keys(updates);
+    const sets = keys.map((k) => `${k} = ?`).join(', ');
+    const binds = keys.map((k) => updates[k]);
+    binds.push(id);
+    await c.env.DB.prepare(`UPDATE customers SET ${sets} WHERE id = ?`).bind(...binds).run();
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'customer.updated',
+        targetType: 'customer',
+        targetId: id,
+        meta: { fields: keys.filter((k) => k !== 'updated_at') },
+    });
+
+    // A second, dedicated row when consent moves. Consent history is otherwise
+    // scattered across customer.unsubscribed / newsletter.resubscribed /
+    // newsletter.subscribed / email.complained — this makes "why is this
+    // customer opted out?" one greppable query instead of four.
+    if (consentChanged) {
+        await writeAudit(c.env, {
+            userId: user.id,
+            action: 'customer.marketing_consent_changed',
+            targetType: 'customer',
+            targetId: id,
+            meta: { from: priorConsent, to: nextConsent, via: 'admin', reason: consentReason },
+        });
+    }
+
+    return c.json({ success: true, customerId: id });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// POST /api/admin/customers/:id/tags — add a manual tag
+//   Body: { tag: string }
+//
+// Manual tags are live marketing criteria the moment they are written:
+// worker/lib/segments.js matches on ct.tag and worker/lib/automations.js's
+// tag_added trigger JOINs it, neither filtering on tag_type. The UI says so.
+//
+// Reserved names: the PRIMARY KEY is (customer_id, tag) with tag_type OUTSIDE
+// it, so a manual tag sharing a system tag's name collides with the row the
+// nightly sweep inserts. The sweep now uses INSERT OR IGNORE and survives it,
+// but a shared name would still make 'vip' ambiguous between "operator said
+// so" and "computed from lifetime value" — so reject them here as well.
+// ────────────────────────────────────────────────────────────────────
+const TAG_PATTERN = /^[a-z0-9][a-z0-9 _-]{0,39}$/;
+
+adminCustomers.post('/:id/tags', requireCapability('customers.write'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: 'Invalid body' }, 400);
+
+    // Lowercase on write. System tags are lowercase, and both the segment
+    // builder and the automation trigger compare with a plain `=` after only
+    // trimming — so an operator who types "VIP" would otherwise create a tag
+    // that matches nothing, and would also slip past the reserved-name check.
+    const tag = body.tag ? String(body.tag).trim().toLowerCase() : '';
+    if (!tag) return c.json({ error: 'tag is required' }, 400);
+    if (!TAG_PATTERN.test(tag)) {
+        return c.json({
+            error: 'tag must be 1-40 characters of letters, numbers, spaces, hyphens or '
+                + 'underscores, and start with a letter or number',
+        }, 400);
+    }
+    if (SYSTEM_TAG_NAMES.includes(tag)) {
+        return c.json({
+            error: `"${tag}" is a system tag, applied automatically from booking history. `
+                + `Reserved names: ${SYSTEM_TAG_NAMES.join(', ')}.`,
+        }, 400);
+    }
+
+    const row = await c.env.DB.prepare(
+        'SELECT id, archived_at FROM customers WHERE id = ?',
+    ).bind(id).first();
+    if (!row) return c.json({ error: 'Customer not found' }, 404);
+    if (row.archived_at) return c.json({ error: 'Cannot edit archived customer' }, 409);
+
+    const existing = await c.env.DB.prepare(
+        'SELECT tag FROM customer_tags WHERE customer_id = ? AND tag = ?',
+    ).bind(id, tag).first();
+    if (existing) return c.json({ error: 'Customer already has this tag' }, 409);
+
+    await c.env.DB.prepare(
+        `INSERT INTO customer_tags (customer_id, tag, tag_type, created_at, created_by)
+         VALUES (?, ?, 'manual', ?, ?)`,
+    ).bind(id, tag, Date.now(), user.id).run();
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'customer.tag_added',
+        targetType: 'customer',
+        targetId: id,
+        meta: { tag },
+    });
+
+    return c.json({ success: true, customerId: id, tag }, 201);
+});
+
+// ────────────────────────────────────────────────────────────────────
+// DELETE /api/admin/customers/:id/tags/:tag — remove a manual tag
+//
+// Scoped to tag_type='manual'. A system tag is derived from booking history
+// and would simply reappear on the next nightly sweep, so deleting one is
+// never what the operator meant — it 404s rather than pretending to work.
+// ────────────────────────────────────────────────────────────────────
+adminCustomers.delete('/:id/tags/:tag', requireCapability('customers.write'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    const tag = decodeURIComponent(c.req.param('tag') || '').trim().toLowerCase();
+    if (!tag) return c.json({ error: 'tag is required' }, 400);
+
+    const existing = await c.env.DB.prepare(
+        'SELECT tag_type FROM customer_tags WHERE customer_id = ? AND tag = ?',
+    ).bind(id, tag).first();
+    if (!existing) return c.json({ error: 'Tag not found on this customer' }, 404);
+    if (existing.tag_type !== 'manual') {
+        return c.json({
+            error: `"${tag}" is a system tag, applied automatically from booking history. `
+                + 'It cannot be removed by hand.',
+        }, 409);
+    }
+
+    await c.env.DB.prepare(
+        `DELETE FROM customer_tags WHERE customer_id = ? AND tag = ? AND tag_type = 'manual'`,
+    ).bind(id, tag).run();
+
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'customer.tag_removed',
+        targetType: 'customer',
+        targetId: id,
+        meta: { tag },
+    });
+
+    return c.json({ success: true, customerId: id, tag });
+});
+
+// ────────────────────────────────────────────────────────────────────
 // POST /api/admin/customers/merge — manager+ archives duplicates
 //   Body: { primaryId: string, duplicateIds: string[] }
 //   Each duplicate is soft-archived (archived_at, archived_reason='merged',
@@ -504,6 +730,19 @@ adminCustomers.post('/merge', requireRole('owner', 'manager'), async (c) => {
         await c.env.DB.prepare(
             `UPDATE attendees SET customer_id = ? WHERE customer_id = ?`,
         ).bind(primaryId, dup.id).run();
+
+        // Carry the duplicate's MANUAL tags onto the primary. Without this,
+        // merging silently discards operator work — invisible until manual
+        // tags existed, which is now. System tags are skipped deliberately:
+        // they're recomputed from the primary's own (just-merged) aggregates
+        // by the nightly sweep. OR IGNORE covers the case where the primary
+        // already holds the same tag.
+        await c.env.DB.prepare(
+            `INSERT OR IGNORE INTO customer_tags (customer_id, tag, tag_type, created_at, created_by)
+             SELECT ?, tag, 'manual', ?, created_by
+               FROM customer_tags
+              WHERE customer_id = ? AND tag_type = 'manual'`,
+        ).bind(primaryId, now, dup.id).run();
 
         await c.env.DB.prepare(
             `UPDATE customers SET
