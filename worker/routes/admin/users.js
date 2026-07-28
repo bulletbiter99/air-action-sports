@@ -11,6 +11,9 @@ adminUsers.use('*', requireAuth);
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const ROLES = ['owner', 'manager', 'staff'];
+// Mirrors migration 0028's CHECK on users.persona (decision D08). Persona is a
+// dashboard-layout lens ONLY — access is still gated by role + capabilities.
+const PERSONAS = ['owner', 'booking_coordinator', 'marketing', 'bookkeeper', 'generic_manager', 'staff'];
 
 function publicUser(u) {
     return {
@@ -18,6 +21,7 @@ function publicUser(u) {
         email: u.email,
         displayName: u.display_name,
         role: u.role,
+        persona: u.persona ?? null,
         active: !!u.active,
         createdAt: u.created_at,
         lastLoginAt: u.last_login_at,
@@ -27,7 +31,7 @@ function publicUser(u) {
 // GET /api/admin/users — list all users
 adminUsers.get('/', requireReadAccess, async (c) => {
     const rows = await c.env.DB.prepare(
-        `SELECT id, email, display_name, role, active, created_at, last_login_at
+        `SELECT id, email, display_name, role, persona, active, created_at, last_login_at
          FROM users ORDER BY created_at ASC`
     ).all();
     return c.json({ users: (rows.results || []).map(publicUser) });
@@ -157,6 +161,15 @@ adminUsers.put('/:id', requireRole('owner'), async (c) => {
         if (id === actor.id && !body.active) return c.json({ error: "You can't deactivate yourself" }, 403);
         patch.active = body.active ? 1 : 0;
     }
+    // Sprint 4 — persona selection (the M4 D08 column finally has a UI write
+    // path). Changing your OWN persona is fine — it only picks your dashboard
+    // layout; null falls back to the role-derived default (personaLayouts).
+    if (body.persona !== undefined) {
+        if (body.persona !== null && !PERSONAS.includes(body.persona)) {
+            return c.json({ error: `Invalid persona — must be one of ${PERSONAS.join(', ')} or null` }, 400);
+        }
+        patch.persona = body.persona;
+    }
 
     // Guard against removing the last active owner
     const wouldRemoveLastOwner =
@@ -183,7 +196,7 @@ adminUsers.put('/:id', requireRole('owner'), async (c) => {
         action: 'user.updated',
         targetType: 'user',
         targetId: id,
-        meta: { fields: keys, prev_role: target.role, prev_active: !!target.active },
+        meta: { fields: keys, prev_role: target.role, prev_active: !!target.active, prev_persona: target.persona ?? null },
     });
 
     const row = await c.env.DB.prepare(`SELECT * FROM users WHERE id = ?`).bind(id).first();

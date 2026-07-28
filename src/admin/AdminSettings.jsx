@@ -119,6 +119,8 @@ export default function AdminSettings() {
         ))}
       </div>
 
+      <LoginAccountsSection />
+
       {visible.length === 0 && (
         <EmptyState
           title="No settings available"
@@ -128,6 +130,116 @@ export default function AdminSettings() {
     </div>
   );
 }
+
+// Sprint 4 — login accounts + the persona dropdown (audit "persona-system
+// decision", operator chose: keep the system AND give it a UI). This is also
+// the first read surface for login accounts since AdminUsers was
+// decommissioned in M5 R17 — role/active editing stays API-only; persona is
+// the one write here because it's a LENS preference (dashboard layout only,
+// per decision D08), not an access change. PUT /api/admin/users/:id is
+// owner-gated, so the dropdown is disabled for everyone else.
+const PERSONA_OPTIONS = [
+  ['', 'Role default'],
+  ['owner', 'Owner'],
+  ['booking_coordinator', 'Booking Coordinator'],
+  ['marketing', 'Marketing'],
+  ['bookkeeper', 'Bookkeeper'],
+  ['generic_manager', 'General Manager'],
+  ['staff', 'Staff'],
+];
+
+function LoginAccountsSection() {
+  const { hasRole } = useAdmin();
+  const isOwner = hasRole?.('owner');
+  const [users, setUsers] = useState(null);
+  const [err, setErr] = useState(null);
+  const [savingId, setSavingId] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/admin/users', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((j) => { if (alive) setUsers(j.users || []); })
+      .catch((e) => { if (alive) setErr(e.message); });
+    return () => { alive = false; };
+  }, []);
+
+  const setPersona = async (userId, persona) => {
+    setSavingId(userId); setErr(null);
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ persona: persona || null }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, persona: persona || null } : u)));
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  return (
+    <div style={{ ...densitySection, marginTop: 'var(--space-24)', display: 'block' }}>
+      <div style={densityLabel}>Login Accounts &amp; Dashboard Personas</div>
+      <div style={{ ...densityHint, marginBottom: 'var(--space-12)' }}>
+        The persona picks which dashboard layout an admin sees — it never changes what they can
+        access (that&apos;s role + capabilities). &quot;Role default&quot; derives the layout from their role.
+        {isOwner ? '' : ' Changing personas is owner-only.'}
+      </div>
+      {err && <div style={{ color: 'var(--color-danger)', fontSize: 'var(--font-size-sm)', marginBottom: 8 }}>Error: {err}</div>}
+      {!users && !err && <div style={densityHint}>Loading…</div>}
+      {users && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)' }}>
+          <thead>
+            <tr>
+              {['Name', 'Email', 'Role', 'Status', 'Dashboard persona'].map((h) => (
+                <th key={h} style={usersTh}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                <td style={usersTd}>{u.displayName || '—'}</td>
+                <td style={usersTd}>{u.email}</td>
+                <td style={usersTd}>{u.role}</td>
+                <td style={usersTd}>{u.active ? 'active' : 'inactive'}</td>
+                <td style={usersTd}>
+                  <select
+                    value={u.persona || ''}
+                    disabled={!isOwner || savingId === u.id}
+                    onChange={(e) => setPersona(u.id, e.target.value)}
+                    aria-label={`Dashboard persona for ${u.email}`}
+                    style={{
+                      background: 'var(--color-bg-sunken)', color: 'var(--color-text)',
+                      border: '1px solid var(--color-border-strong)', padding: '4px 8px',
+                      fontSize: 'var(--font-size-sm)',
+                    }}
+                  >
+                    {PERSONA_OPTIONS.map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+const usersTh = {
+  textAlign: 'left', padding: '6px 8px', fontSize: 'var(--font-size-xs)',
+  textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)',
+  color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border-strong)',
+};
+const usersTd = { padding: '8px', color: 'var(--color-text)' };
 
 const page = { maxWidth: 1000, margin: '0 auto', padding: 'var(--space-32)' };
 const grid = {
