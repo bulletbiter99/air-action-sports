@@ -34,7 +34,8 @@
         "createCheckoutSession (M6 B5 — optional setupFutureUsage)",
         "retrievePaymentIntent (M6 B7)",
         "chargeOffSession (M6 B7 — POST /v1/payment_intents with off_session=true + confirm=true; idempotency-keyed)",
-        "detachPaymentMethod (M6 B9 — POST /v1/payment_methods/:id/detach)"
+        "detachPaymentMethod (M6 B9 — POST /v1/payment_methods/:id/detach)",
+      "retrieveSession + expireCheckoutSession (Sprint 4 C8, #405 — payment-link recovery and cancel-with-session-expiry; a non-`paid` booking left with a live session gets resurrected by webhook redelivery, so cancel MUST expire it first). Exercised via tests/unit/admin/bookings/cancel.test.js + payment-link.test.js."
       ],
       "audit_group": "B (signature subset) + M6 B5 + M6 B7 + M6 B9",
       "tests": [
@@ -116,11 +117,13 @@
     "worker/routes/bookings.js": {
       "tier": "critical",
       "covers": [
-        "POST /api/bookings/checkout — public Stripe Checkout Session creation; pricing pinned by Group A + setupFutureUsage='off_session' (M6 B5) authorizing future off-session damage charges (B7+)"
+        "POST /api/bookings/checkout — public Stripe Checkout Session creation; pricing pinned by Group A + setupFutureUsage='off_session' (M6 B5) authorizing future off-session damage charges (B7+). Response shape is `{ stripeUrl, bookingId }`.",
+        "POST /api/bookings/quote + POST /api/bookings/checkout sales-close gate (Sprint 4 C1, #404) — additive guard returning 409 when the event is past or its `sales_close_at` cutoff has passed"
       ],
       "audit_group": "(M6 B5 promoted from `uncovered`)",
       "tests": [
-        "tests/unit/bookings/checkout-setup-future-usage.test.js"
+        "tests/unit/bookings/checkout-setup-future-usage.test.js",
+        "tests/unit/bookings/sales-close-gate.test.js"
       ]
     },
     "worker/routes/webhooks.js": {
@@ -223,7 +226,9 @@
         "tests/unit/admin/bookings/reschedule.test.js",
         "tests/unit/admin/bookings/resend-waiver-confirmation.test.js",
         "tests/unit/admin/bookings/resend-review-invite.test.js",
-        "tests/unit/admin/bookings/record-payment.test.js"
+        "tests/unit/admin/bookings/record-payment.test.js",
+        "tests/unit/admin/bookings/cancel.test.js",
+        "tests/unit/admin/bookings/payment-link.test.js"
       ]
     },
     "worker/lib/capabilities.js": {
@@ -656,6 +661,31 @@
         "tests/unit/admin/fieldRentals/detail.test.js"
       ]
     },
+    "worker/routes/admin/fieldRentalRecurrences.js": {
+      "tier": "medium",
+      "covers": [
+        "POST /api/admin/field-rental-recurrences (create a series; consumes the field_rentals.recurrence_* caps seeded in migration 0049 and unread until Sprint 4)",
+        "POST /:id/pause + POST /:id/resume — resume bumps generated_through to YESTERDAY so the generation cron (which reads generated_through + 1) never retro-generates the paused gap",
+        "POST /:id/end — cancels only CANCELLABLE FUTURE instances; past/completed instances are left intact",
+        "Sprint 4 B4 (#409). Operator recipes: docs/runbooks/field-rental-recurrences.md"
+      ],
+      "audit_group": "(Sprint 4 B4 — recurrence API + UI)",
+      "tests": [
+        "tests/unit/admin/fieldRentalRecurrences/route.test.js"
+      ]
+    },
+    "worker/routes/admin/laborEntries.js": {
+      "tier": "medium",
+      "covers": [
+        "PUT /api/admin/labor-entries/:id (pre-approval edit) + POST /:id/reject (requires a reason) — Sprint 4 C9 (#406)",
+        "Tax-year lock is ENFORCED on every financial mutation (approve / reject / mark-paid / edit), not just at read time — the lock is set by the March-1 auto-lock cron (runTaxYearAutoLockSweep)",
+        "NOTE: pay_kind='w2_salary' is DEAD SQL in worker/lib/thresholds1099.js (labor_entries.pay_kind's CHECK from migration 0036 does not permit it — it is a persons.compensation_kind value), so salaried W-2 totals silently return 0. Deliberately parked pending a product decision; the real-schema guard CANNOT catch this class because it compiles fine."
+      ],
+      "audit_group": "(Sprint 4 C9 — labor approval completion)",
+      "tests": [
+        "tests/unit/admin/laborEntries/route.test.js"
+      ]
+    },
     "worker/routes/admin/fieldRentalDocuments.js": {
       "tier": "high",
       "covers": [
@@ -887,7 +917,7 @@
       "covers": ["POST /api/bookings/quote"],
       "audit_group": "(public-side quote — POST /checkout was promoted to gates in M6 B5)",
       "audit_tests_prescribed": [],
-      "status": "quote pricing covered indirectly via Group A; no dedicated quote-endpoint integration tests yet"
+      "status": "quote pricing covered indirectly via Group A; the sales-close gate on /quote IS pinned by tests/unit/bookings/sales-close-gate.test.js (Sprint 4 #404), but the quote endpoint still has no broader dedicated integration suite"
     },
     "worker/index.js": {
       "tier": "critical",

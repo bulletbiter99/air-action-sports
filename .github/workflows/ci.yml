@@ -150,8 +150,10 @@ jobs:
       - name: Install Chromium
         run: npx playwright install chromium
 
-      # Unlike the public `visual` job (which hits production), the admin suite
-      # serves the BUILT SPA locally — the config's webServer runs
+      # Both suites now serve the BUILT SPA locally and route-mock their APIs —
+      # the public suite was converted to that pattern on 2026-07-02 (#371), so
+      # the old "the public job hits production" contrast no longer holds. This
+      # admin suite serves the BUILT SPA locally — the config's webServer runs
       # `npm run build && npm run preview` — and route-mocks the admin API so the
       # shell authenticates as an owner with deterministic empty data. Like the
       # public job, this FAILS on the suite-introducing PR (M7 B9) until

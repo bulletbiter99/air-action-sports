@@ -1,3 +1,17 @@
+> ⛔ **SUPERSEDED — this describes the ORIGINAL 2026-04 static landing page, not this codebase.**
+>
+> Everything below is historical. The project is now a **React 19 + Vite SPA served from a single
+> Cloudflare Worker** (Hono router, D1, R2, Stripe Checkout on **live** keys, Resend), with a large
+> admin application, ~3,567 tests, and 80 D1 migrations. There is no single `index.html` you can
+> edit, and there very much is a build step.
+>
+> **Start here instead:** [`docs/next-session.md`](docs/next-session.md) for current state, then
+> [`CLAUDE.md`](CLAUDE.md) for the durable rules (including the do-not-touch list — this system
+> takes real money). [`HANDOFF.md`](HANDOFF.md) is the deeper reference archive.
+>
+> Kept in-repo only as the original design brief: the palette, tone, and section intent below still
+> describe the public site's visual language.
+
 # Air Action Sports — Landing Page
 
 ## Project Overview

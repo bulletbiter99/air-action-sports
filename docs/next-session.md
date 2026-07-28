@@ -203,9 +203,11 @@ Applied **0078** (`persons.legal_name` + `ein_ciphertext`) and **0079** (rewrite
 
 ### What's next
 
-~~Sprint 3~~ closed 2026-07-28. **Sprint 4 (contracts & polish)** in [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md) remains, as does the whole of [docs/growth-plan-2026-07.md](growth-plan-2026-07.md). Two items surfaced by that sprint are **still open** and belong in Sprint 4:
+> ⚠️ **Written at the Sprint-3 close; both items below have since been resolved or reclassified.** Sprint 4 closed the same day (#403–#411) and the audit is fully done — see the top of this file.
 
-- **The 1099 tax-identity editor.** 0078 adds the columns but there is still **no write path** — `PUT /api/admin/staff/:id`'s allow-list excludes them, so they stay NULL. Needs `PUT /:id/tax-identity` + staff-detail UI.
+~~Sprint 3~~ closed 2026-07-28. ~~**Sprint 4 (contracts & polish)**~~ also closed 2026-07-28; the whole of [docs/growth-plan-2026-07.md](growth-plan-2026-07.md) remains. Two items surfaced by that sprint were still open at the time of writing:
+
+- ~~**The 1099 tax-identity editor.** 0078 adds the columns but there is still **no write path**~~ — ✅ **SHIPPED in #407**: `PUT /api/admin/staff/:id/tax-identity` writes `legal_name` + an **encrypted** `ein_ciphertext`, with the staff-detail editor on top.
 - **`pay_kind = 'w2_salary'` is dead SQL** (`thresholds1099.js:154,209`). `labor_entries.pay_kind`'s CHECK (migration 0036) doesn't permit that value — it's a `persons.compensation_kind` value — so salaried W-2 totals silently return 0. **Needs a product decision**, and note the schema guard *cannot* catch this class (it compiles fine).
 
 ---
@@ -231,7 +233,7 @@ Applied **0078** (`persons.legal_name` + `ein_ciphertext`) and **0079** (rewrite
 ## 🗺️ NEW ROADMAPS — two research artifacts now in-repo (2026-07-24)
 
 1. **[docs/growth-plan-2026-07.md](growth-plan-2026-07.md)** — conversion + LLM/AI-discoverability upgrade plan (10-agent audit+research workflow; all 22 high-impact claims code-verified). Headlines: the site is invisible to non-JS AI crawlers (Event JSON-LD is review-gated = zero today, no `offers` node); abandoned checkouts are silently swept warm leads; content contradictions (FAQ says milsim 18+ vs 12+ live events, fabricated About/testimonials/hero stats); zero analytics; the marketing engine is idle. 6 phases: operator quick wins → truth/funnel sprint → machine-readable site → measurement → lifecycle revenue → bigger bets. **Execution NOT started** (the admin-audit sprints took priority for event day).
-2. **[docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md)** — full admin operator-journey audit (9-agent workflow; all 23 high-impact claims confirmed). **Sprints 1–3 are all COMPLETE** — Sprint 1 (event-day readiness) #377/#378/#381 plus the open-reads model #379; Sprint 2 closed 2026-07-25 (#383–#389); Sprint 3 closed 2026-07-28 (#393–#400). **Only Sprint 4 remains**: archive contract + the unenforced sales cutoff, recurrence UI, SUA seed, persona decision, stale-copy sweep.
+2. **[docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md)** — full admin operator-journey audit (9-agent workflow; all 23 high-impact claims confirmed). **Sprints 1–3 are all COMPLETE** — Sprint 1 (event-day readiness) #377/#378/#381 plus the open-reads model #379; Sprint 2 closed 2026-07-25 (#383–#389); Sprint 3 closed 2026-07-28 (#393–#400). ~~**Only Sprint 4 remains**~~ — **Sprint 4 also closed 2026-07-28 (#403–#411): the audit is FULLY DONE.** It shipped the archive contract + `sales_close_at` enforcement, recurrence API+UI, the SUA seed, the persona dropdown, and the stale-copy sweep.
 
 ---
 
@@ -310,10 +312,10 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 | `main` HEAD | re-pull for exact (PRs #403–#411 merged — admin-audit Sprint 4, the audit's close) |
 | Tests | **3567 / 304** all green |
 | Build | clean · Lint **0 errors** (`npx eslint src worker tests scripts` — plain `npm run lint` also walks the gitignored `static-backup/`, which CI never sees and which reports 24 pre-existing errors). **Reproduce CI exactly with `TZ=UTC npx vitest run`** — the runner is UTC and a naive-ISO fixture is ambient-TZ-dependent. |
-| Production | deployed + verified · version **`2ab3f7c4`** (2026-07-27T07:13:52Z) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day + reviews + open-reads admin + event-day hardening + Sprint 2 + **the full date_iso timezone fix** all live. The July 25-26 events have RUN and all events are currently `published=0`, so `/api/events` returns `[]` (correct archive behavior, not a regression). |
-| Migrations on remote | ✅ **0001–0079 ALL APPLIED** (0078 + 0079 applied 2026-07-27; verified `persons.legal_name`/`ein_ciphertext` exist and the dead `{{paymentLink}}` is gone from `additional_charge_notice`). |
+| Production | deployed + verified through **#411** (Workers Builds) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day + reviews + open-reads admin + event-day hardening + the full date_iso timezone fix + **all four admin-audit sprints** live. **Post-#404 archive contract:** archived (`past=1`) events now render on `/games` and their public detail pages **regardless of `published`** (prod verified serving 5 archived events) — and are **not bookable** (quote/checkout 409). A bare `/api/events` (no `include_past=1`) still filters to upcoming published events and can legitimately return `[]`. |
+| Migrations on remote | **0001–0079 applied.** ⚠️ **0080 (SUA placeholder seed) is in-repo but NOT applied** — until the operator applies it, agreement uploads 409 in prod. See operator-pending #1. |
 | Open PRs | 0 |
-| Open milestone | **None active, and nothing is blocking.** Admin-audit **Sprint 3 is CLOSED** (2026-07-28). Work menu: **Sprint 4** → **growth plan** (not started) → the kiosk decision → two agreed follow-ups from the timezone series (narrow conflict windows; the parked business-calendar skew). Operator activation: Resend plan upgrade, `MARKETING_POSTAL_ADDRESS`, `RESEND_WEBHOOK_SECRET` + webhook, `audit_log_fts` flag. |
+| Open milestone | **None active, and nothing is blocking.** The **admin workflow audit is FULLY CLOSED** — all four sprints (Sprint 4: 2026-07-28, PRs #403–#411). Work menu: **growth plan** (not started) → the kiosk repair-or-retire decision → two agreed follow-ups from the timezone series (narrow conflict windows; the parked business-calendar skew). Operator activation: **apply migration 0080** + replace the placeholder SUA with attorney text, Resend plan upgrade, `MARKETING_POSTAL_ADDRESS`, `RESEND_WEBHOOK_SECRET` + webhook, `audit_log_fts` flag. |
 | Reviews | **LIVE with real data** — 3 submitted, 1 operator-hidden → public aggregate **2 / 4.5★**. |
 
 ---
@@ -594,7 +596,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 3494 / 296
+TZ=UTC npm test -- --run | tail -3  # expect 3567 / 304 (TZ=UTC reproduces CI — see the Build row above)
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
@@ -607,7 +609,7 @@ curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 |---|---|
 | `docs/next-session.md` | THIS FILE — current state + work menu |
 | `docs/growth-plan-2026-07.md` | **conversion + LLM-discoverability roadmap** (6 phases; execution not started) |
-| `docs/admin-workflow-audit-2026-07.md` | **admin operator-journey audit** (Sprints 1–3 + open-reads DONE; **Sprint 4 remains**) |
+| `docs/admin-workflow-audit-2026-07.md` | **admin operator-journey audit** — **FULLY CLOSED 2026-07-28**, all four sprints (read as history; parked leftovers are named in its top banner) |
 | `worker/lib/capabilities.js` `requireReadAccess` | the open-reads model's greppable read-gate marker (#379) — reads open to any authed admin, loads caps for field-level masks |
 | `CLAUDE.md` | durable rules + per-milestone/session log (M1–M7 + post-M7 + M8 + **event-content session**) |
 | `HANDOFF.md` | full session-start onboarding (stack, schema, API surface) |

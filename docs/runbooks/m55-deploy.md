@@ -233,10 +233,13 @@ Run these as the operator after the milestone-to-main merge:
 
 ---
 
-## Known deferrals (not blocking close)
+## Known deferrals (not blocking close) — ✅ ALL FOUR HAVE SINCE SHIPPED
 
-- **AES decryption surface** for `customers.business_tax_id` (EIN) + `customers.business_billing_address` — column storage exists; `customers.read.business_fields` capability + bindings exist; AdminCustomerDetail.jsx renders stub messages. A post-M5.5 polish batch ships the decrypt+render+edit-modal surface.
-- **Admin POST /api/admin/customers** — public /contact creates customers; phone-intake / direct-admin-create gap remains. Queued for the same post-M5.5 polish batch.
-- **Monthly day_of_month recurrence pattern** — schema accepts it via `monthly_pattern.kind='day_of_month'` but the cron generator only handles `kind='nth_weekday'`. Add when an operator use case appears.
-- **/status route does not clear `lead_stale_at`** — revert from sent→draft has 7-day silence before re-alerting; acceptable but minor polish item.
+> Every deferral below was closed by the **post-M6 polish session (2026-05-27, PRs #202–#211)**.
+> Kept as the M5.5-close record; none is an open item.
+
+- ~~**AES decryption surface**~~ ✅ shipped in the post-M6 polish (D-1a, [#204](https://github.com/bulletbiter99/air-action-sports/pull/204)) — GET decrypts EIN + billing address, `PUT /:id/business` edits them. Note `hasCapability` is sync and needs `user.capabilities` preloaded via `listCapabilities` on routes that don't use the `requireCapability` middleware.
+- ~~**Admin POST /api/admin/customers**~~ ✅ shipped (D-1b, [#211](https://github.com/bulletbiter99/air-action-sports/pull/211)) — phone-intake create modal.
+- ~~**Monthly day_of_month recurrence pattern**~~ ✅ shipped (D-2, [#206](https://github.com/bulletbiter99/air-action-sports/pull/206), migration 0060) alongside the `(recurrence_id, recurrence_instance_index)` UNIQUE constraint. Series create/pause/resume/end got a real API + UI in Sprint 4 ([#409](https://github.com/bulletbiter99/air-action-sports/pull/409)) — see [field-rental-recurrences.md](field-rental-recurrences.md).
+- ~~**/status route does not clear `lead_stale_at`**~~ ✅ shipped (D-3, [#203](https://github.com/bulletbiter99/air-action-sports/pull/203)).
 - **CLAUDE.md + HANDOFF.md M5.5-close updates** — deferred to the post-merge docs PR (separate file count, doesn't affect deploy).

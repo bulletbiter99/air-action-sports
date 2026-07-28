@@ -3,8 +3,10 @@
 # Trigger: PR is labeled `capture-baselines` (no other labels trigger this).
 # What it does:
 #   1. Checks out the PR head branch
-#   2. Runs `npm run test:visual:update` — writes pixel-stable baselines
-#      under tests/visual/__snapshots__/ from inside the SAME CI runner
+#   2. Runs `npm run test:visual:update` — writes pixel-stable public
+#      baselines under tests/visual/public.spec.js-snapshots/ (the admin
+#      suite's live under tests/visual-admin/admin.spec.js-snapshots/)
+#      from inside the SAME CI runner
 #      that will compare future PRs (avoids local-vs-CI rendering drift)
 #   3. Commits the baselines back to the PR head as github-actions[bot]
 #   4. Removes the `capture-baselines` label so re-running needs an

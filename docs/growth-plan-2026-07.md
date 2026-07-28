@@ -117,7 +117,15 @@ mean win-back, early-access, and referral flows are mostly **configuration, not 
 ⚠️ `worker/index.js` (`rewriteEventOg`, request handler) is Critical DNT — all changes below are
 the established **additive** pattern (new functions, new branches; Group G gates re-run).
 
-1. **Un-gate + enrich Event JSON-LD**: emit for every published event regardless of reviews; add
+> ⚠️ **Two premises below shifted after Sprint 4 (#404, 2026-07-28).** Public event visibility is
+> no longer `published = 1` — the detail route now serves `(published = 1 OR past = 1)`
+> (`worker/routes/events.js:110`) so **archived events keep working public pages**, and
+> bookability moved to `/quote` + `/checkout` (which 409 on past events and on a passed
+> `sales_close_at`). So: any `WHERE published = 1` recipe here **silently drops the archive**,
+> and "emit for every published event" should be "for every publicly-served event". Availability
+> in `offers` must also reflect the cutoff, not just sold-vs-cap.
+
+1. **Un-gate + enrich Event JSON-LD**: emit for every **publicly-served** event (`published = 1 OR past = 1`) regardless of reviews; add
    `offers` (price, USD, availability from sold-vs-cap, `url: /booking?event=<slug>`, validFrom),
    `image`, `description`, real `location` Place with PostalAddress + geo (sites table has it);
    keep aggregateRating conditional. This single change makes price/date/availability/booking-URL
@@ -129,7 +137,7 @@ the established **additive** pattern (new functions, new branches; Group G gates
    `<title>`, description, og:*, + injecting `<link rel=canonical>`. Server-inject FAQPage JSON-LD
    on /faq (faq.js is static data the worker can import). Fix the client Helmet overwriting the
    per-event OG image after hydration.
-4. **Worker-served sitemap.xml** (static routes + `SELECT slug FROM events WHERE published=1`,
+4. **Worker-served sitemap.xml** (static routes + `SELECT slug FROM events WHERE published = 1 OR past = 1` — mirroring the public detail route's own predicate so archived events stay indexed,
    lastmod from updated_at) — kills the manual-drift class (already missing /games +
    /rules-of-engagement). **Soft-404 fix**: unknown event slugs + unknown routes return 404 status.
    Trailing-slash 301 normalization.

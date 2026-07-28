@@ -24,8 +24,9 @@ runbook is the deploy sequence + the operator activation steps.
 - **0069_automations** — automations + automation_sends
 - **0070_marketing_capabilities** — marketing.* caps + owner/marketing_manager bindings
 
-(Kept as a record. All 0001–0077 are applied; a `migrations apply` finds nothing new.
-Only the operator-activation items below remain.)
+(Kept as a record. These marketing migrations are applied. ⚠️ Do **not** read the old claim that
+"a `migrations apply` finds nothing new" as current — the repo is at **0080** and 0080 is **not**
+applied. Only the marketing operator-activation items below remain for *this* feature.)
 
 ## Operator activation (to make sends actually fire)
 

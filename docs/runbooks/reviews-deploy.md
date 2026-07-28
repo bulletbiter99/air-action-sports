@@ -52,7 +52,11 @@ curl -s https://airactionsport.com/ | grep -c 'application/ld+json'
 curl -s https://airactionsport.com/events/operation-last-light | grep -c 'application/ld+json'
 ```
 Do **not** rely on Home's client JSON-LD — it was intentionally removed (single source = the SSR
-injection). A `0` today is expected and correct (no reviews yet).
+injection). ~~A `0` today is expected and correct (no reviews yet).~~ ⚠️ **No longer** — real
+reviews arrived 2026-07-25/26, so the feature is **live, not dormant**: the home check now
+returns **1**, and a `0` would be a regression. Public aggregate is **2 / 4.5★** (3 submitted,
+1 operator-hidden). Note the per-event check above only returns 1 for an event that has at
+least one published review of its own.
 
 **Rich Results:** once a review exists, run the per-event URL through Google's
 [Rich Results Test](https://search.google.com/test/rich-results) to confirm the `Event` +

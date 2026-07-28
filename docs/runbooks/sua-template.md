@@ -9,7 +9,15 @@ managed with the SQL recipes below, run via `wrangler d1 execute --remote`.
 
 ## Current state
 
-Migration **0080** seeded **version 1** (`sua_seed_v1_placeholder`) — a
+⚠️ **Migration 0080 is IN-REPO but NOT YET APPLIED to remote D1** (verified against
+`d1_migrations`, which tops out at 0079). **Until the operator applies it, there is no
+active SUA and agreement uploads still 409 in production.** Apply with:
+
+```bash
+npx wrangler d1 migrations apply air-action-sports-db --remote
+```
+
+Once applied, migration **0080** seeds **version 1** (`sua_seed_v1_placeholder`) — a
 **PLACEHOLDER whose body opens with a red NOT-ATTORNEY-REVIEWED banner**. It
 exists so the agreement-upload flow works end-to-end; replace it with
 counsel-approved text before relying on it for a real rental.

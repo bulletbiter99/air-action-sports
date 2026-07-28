@@ -1,6 +1,21 @@
+############################################################
+  ⛔ SUPERSEDED — DO NOT WORK THIS CHECKLIST.
+  Historical artifact from the original 2026-04 static site.
+
+  The site went live long ago and is NOT hosted on GoDaddy —
+  it runs on a Cloudflare Worker at airactionsport.com, takes
+  real Stripe payments, and has run real events. The content
+  placeholders below were resolved or replaced years of
+  sessions ago; real content is edited in the admin app + D1,
+  not in files.
+
+  Current state: docs/next-session.md · Rules: CLAUDE.md
+############################################################
+
 ============================================================
   AIR ACTION SPORTS — PLACEHOLDER CHECKLIST
   Complete every item below before going live on GoDaddy
+  (HISTORICAL — see the banner above)
 ============================================================
 
 ---[ BUSINESS INFO ]----------------------------------------

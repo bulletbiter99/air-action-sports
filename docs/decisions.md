@@ -166,7 +166,7 @@ Sequencing:
 - Migration 0026 (or later, depending on B2's saved_views migration cadence): add nullable `users.persona TEXT` column with CHECK constraint enumerating valid values
 - Backfill: each existing user gets a default persona derived from their role (owner→owner, manager→generic_manager, staff→staff)
 - `personaLayouts.js` keys flip from role-keyed to persona-keyed; the dashboard reads `user.persona` instead of `user.role`
-- Admin UI: each user can change their own persona in profile settings; owners can set initial persona at user creation/invitation time
+- Admin UI: each user can change their own persona in profile settings; owners can set initial persona at user creation/invitation time — ⚠️ **this is not what shipped.** The write path landed 2026-07-28 (Sprint 4, [#410](https://github.com/bulletbiter99/air-action-sports/pull/410)) as an **owner-managed dropdown** in Settings → Login Accounts (`PUT /api/admin/users/:id`). The self-service "change your own persona in profile settings" variant was never built, and personas remained **unset/dormant** for ~3 months between the 0028 backfill and that dropdown.
 
 Rationale (rejecting Options 1 and 3):
 - Option 1 (map design-personas → existing roles): would force every Marketing-style user to share Owner widgets, losing the "lens" quality of persona-tailored UX.

@@ -92,4 +92,4 @@ than discovered later.
 - memory `reminder-cron-timezone-bug` — the `date_iso` family this was found
   alongside
 - [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md) —
-  Sprints 3-4 still open
+  fully closed 2026-07-28 (all four sprints); read as history
