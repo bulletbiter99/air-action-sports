@@ -71,6 +71,9 @@ export default function AdminStaffDetail() {
                         )}
                     </div>
                 </div>
+                {hasCapability?.('staff.archive') && (
+                    <ArchiveToggle person={p} onChanged={load} />
+                )}
             </header>
 
             <nav style={tabs}>
@@ -96,6 +99,52 @@ export default function AdminStaffDetail() {
                 {activeTab === 'certifications' && <CertificationsTab personId={p.id} canEdit={hasRole?.('manager')} />}
                 {activeTab === 'schedule' && <ScheduleTab personId={p.id} canEdit={hasRole?.('manager')} canMarkPaid={hasRole?.('owner')} />}
             </div>
+        </div>
+    );
+}
+
+// B7 (2026-07-27) — archive / unarchive a person.
+//
+// POST /:id/archive has existed since M5 with no UI caller. Its mirror
+// /:id/unarchive did NOT exist at all, so archiving was one-way — which is
+// tolerable for an endpoint nobody can reach and unacceptable for a button.
+// The unarchive route ships alongside this control.
+function ArchiveToggle({ person, onChanged }) {
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState(null);
+    const archived = !!person.archivedAt;
+
+    const run = async () => {
+        const verb = archived ? 'unarchive' : 'archive';
+        if (!archived && !window.confirm(
+            `Archive ${person.fullName || 'this person'}? They stay in the record with their `
+            + 'history intact, but drop off the active staff list. You can restore them here.',
+        )) return;
+
+        setBusy(true); setErr(null);
+        try {
+            const res = await fetch(`/api/admin/staff/${encodeURIComponent(person.id)}/${verb}`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(archived ? {} : { reason: 'manual' }),
+            });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) { setErr(j.error || `HTTP ${res.status}`); return; }
+            await onChanged?.();
+        } catch (e) {
+            setErr(String(e.message || e));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div style={{ textAlign: 'right' }}>
+            <button type="button" onClick={run} disabled={busy} style={cancelBtn}>
+                {busy ? 'Working…' : (archived ? 'Restore to active' : 'Archive')}
+            </button>
+            {err && <p style={{ color: 'var(--color-danger)', fontSize: 12, margin: '4px 0 0' }}>Error: {err}</p>}
         </div>
     );
 }
@@ -742,6 +791,32 @@ function CertificationsTab({ personId, canEdit }) {
     const [certs, setCerts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAdd, setShowAdd] = useState(false);
+    // B7 — AdminStaffCertEditor already supported 'edit' and 'renew', but
+    // nothing ever passed either: only 'add' was wired, so an existing
+    // certification could never be corrected, renewed or revoked from the UI.
+    const [editing, setEditing] = useState(null); // { cert, mode }
+    const [err, setErr] = useState(null);
+
+    const revoke = async (cert) => {
+        if (!window.confirm(
+            `Revoke "${cert.displayName}"? This marks it invalid rather than deleting it, `
+            + 'so the history stays on file.',
+        )) return;
+        setErr(null);
+        try {
+            const res = await fetch(`/api/admin/certifications/${encodeURIComponent(cert.id)}/revoke`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ reason: 'manual' }),
+            });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) { setErr(j.error || `HTTP ${res.status}`); return; }
+            await load();
+        } catch (e) {
+            setErr(String(e.message || e));
+        }
+    };
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -773,6 +848,8 @@ function CertificationsTab({ personId, canEdit }) {
                 />
             )}
 
+            {err && <p style={{ color: 'var(--color-danger)', fontSize: 12 }}>Error: {err}</p>}
+
             <div style={{ marginTop: 16 }}>
                 {loading && <p style={{ color: 'var(--olive-light)' }}>Loading…</p>}
                 {!loading && certs.length === 0 && <p style={{ color: 'var(--olive-light)', fontStyle: 'italic' }}>No certifications on file.</p>}
@@ -789,12 +866,28 @@ function CertificationsTab({ personId, canEdit }) {
                                     {cert.status === 'active' && isExpired && <span style={{ ...statusBase, marginLeft: 8, background: 'var(--color-danger-soft)', color: 'var(--color-danger)' }}>Expired</span>}
                                     {cert.status === 'active' && !isExpired && expiresSoon && <span style={{ ...statusBase, marginLeft: 8, background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>Expires soon</span>}
                                 </div>
+                                {canEdit && cert.status !== 'revoked' && (
+                                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                                        <button type="button" style={smallBtn} onClick={() => setEditing({ cert, mode: 'edit' })}>Edit</button>
+                                        <button type="button" style={smallBtn} onClick={() => setEditing({ cert, mode: 'renew' })}>Renew</button>
+                                        <button type="button" style={smallBtn} onClick={() => revoke(cert)}>Revoke</button>
+                                    </div>
+                                )}
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--tan-light)', marginTop: 4 }}>
                                 {cert.issuingAuthority || '—'}
                                 {cert.expiresAt && ` · expires ${new Date(cert.expiresAt).toLocaleDateString()}`}
                                 {cert.certificateNumber && ` · #${cert.certificateNumber}`}
                             </div>
+                            {editing?.cert?.id === cert.id && (
+                                <AdminStaffCertEditor
+                                    personId={personId}
+                                    mode={editing.mode}
+                                    initialCert={cert}
+                                    onSaved={() => { setEditing(null); load(); }}
+                                    onCancel={() => setEditing(null)}
+                                />
+                            )}
                         </div>
                     );
                 })}
@@ -1018,6 +1111,7 @@ const maskHint = { color: 'var(--olive-light)', fontSize: 10, fontStyle: 'italic
 const lbl = { fontSize: 12, color: 'var(--tan-light)', fontWeight: 700, marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1 };
 const input = { width: '100%', padding: '10px 14px', background: 'var(--dark)', border: '1px solid var(--color-border-strong)', color: 'var(--cream)', fontSize: 13, marginTop: 6, fontFamily: 'inherit', boxSizing: 'border-box' };
 const primaryBtn = { padding: '10px 20px', background: 'var(--orange)', color: 'white', border: 0, fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' };
+const smallBtn = { padding: '4px 10px', background: 'transparent', color: 'var(--tan)', border: '1px solid var(--color-border-strong)', fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
 const cancelBtn = { padding: '10px 20px', background: 'transparent', color: 'var(--tan)', border: '1px solid var(--color-border-strong)', fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' };
 const roleRow = { padding: '12px 0', borderBottom: '1px solid var(--color-border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' };
 const pill = { padding: '2px 8px', background: 'var(--color-accent-soft)', color: 'var(--orange)', fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 3 };
