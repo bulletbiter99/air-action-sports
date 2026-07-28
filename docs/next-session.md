@@ -1,24 +1,62 @@
-# Next-session entry point — admin-audit Sprint 2 (broken wiring) closed (2026-07-25)
+# Next-session entry point — date_iso timezone family CLOSED + DEPLOYED (2026-07-27)
 
-## 🔴 START HERE — reminder emails fire ~6 hours early (found live on event day)
+## ✅ Current state — everything is merged, applied, and live
 
-**`runReminderSweepWindow` (`worker/index.js:237-252`) mis-parses every timed event's start.** Its candidate filter is:
+`main` **`0e64078`** · **3359 / 287** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0079 ALL APPLIED** · production deployed (version `2ab3f7c4`, 2026-07-27T07:13:52Z) and verified.
 
-```sql
-AND (unixepoch(e.date_iso) * 1000) BETWEEN ? AND ?
-```
+**There is no blocking item.** The 🔴 that headed this file for two sessions — reminder emails firing ~6 hours early — is fixed, along with the entire bug family behind it.
 
-`events.date_iso` stores **local Mountain wall-clock with no timezone suffix** (`2026-07-25T08:30:00`), but SQLite's `unixepoch()` reads a naked ISO datetime as **UTC**. During MDT (UTC−6) every timed event looks 6 hours earlier than it is, so both reminder windows fire ~6–7 hours early.
+## 🎯 START HERE — pick from the work menu
 
-Verified: `unixepoch('2026-07-25T08:30:00')` = `1784968200` = 08:30 UTC = **2:30 AM MDT**, while Operation Last Light actually started **8:30 AM MDT**.
+No milestone is active. In rough priority order:
 
-**What it did on 2026-07-25:** 18 Last Light bookings got the *"T-MINUS 1 HOUR — BOOTS ON THE GROUND / kicks off in about an hour"* email at **1:15–1:30 AM MDT** — with `Check-in: 8:00 AM` printed in the same body. Their `reminder_1hr_sent_at` sentinels are now set and the window can't re-match, so they received **nothing** at the correct time. The 24h reminders are off by the same 6 hours (less visible — "tomorrow" survives it). The one remaining Fire Storm booking (`bk_Th57RDmqT0HUUD`) was suppressed by hand rather than let it fire 7 hours early — `scripts/suppress-firestorm-1hr-reminder.sql`, with a `booking.reminder_suppressed` audit row.
+1. **Admin workflow audit Sprints 3 & 4** — [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md). Sprint 1 (event-day readiness) and Sprint 2 (broken wiring) are closed. Sprint 3 is workflow completion (customer edit + manual tags, rental edit/reschedule modals, staff-doc/cert UI, incidents resolve, unpaid-status actions, marketing dormant-state banner + test-send). Sprint 4 is contracts & polish (archive contract + unenforced `sales_close_at`, recurrence UI, SUA seed, persona decision, stale-copy sweep).
+2. **The growth plan** — [docs/growth-plan-2026-07.md](growth-plan-2026-07.md). Execution still **not started**. Headline: the SPA serves an empty shell to non-JS AI crawlers, and the only JSON-LD is review-gated (it now fires, since real reviews exist).
+3. **Two follow-ups this series created** (both agreed, neither started):
+   - **Narrow event conflict windows** from whole-day to real start→end times, so an evening field rental after a morning event stops being a conflict at all. Right now the whole-day rule is correctly *enforced*, which means a site coordinator must escalate to an owner for that booking.
+   - **`docs/business-calendar-utc-skew.md`** — parked by operator decision. Every financial surface buckets on the UTC calendar, so "MTD" begins at 6 PM Mountain on the last day of the prior month.
 
-**Why it wasn't fixed on the spot:** `scheduled()` is Critical do-not-touch, it was the morning of the year's biggest event, and both events' reminders had already fired — a same-day deploy carried real risk for zero same-day benefit. Operator agreed to defer.
+## ⚠️ Operator-pending (unchanged, none blocking)
 
-**Fixing it:** the window comparison needs the event's real UTC instant. Options: interpret `date_iso` with an explicit `America/Denver` offset at query time (`unixepoch(e.date_iso || '-06:00')` is wrong across DST — Denver is −06:00 in MDT and −07:00 in MST), or normalise on write. **Prefer a real fix with DST handling plus a test that pins a timed event in both MST and MDT.** Note this is the same root cause class as the multi-day `date_iso` NaN bugs fixed in 2026-06-26 — timed `date_iso` values keep biting.
+1. **Resend plan upgrade** — now evidenced, not theoretical. The 2026-07-26 review-invite run logged `considered:23 sent:13 failed:10` with `alarm:false`; 10 sends were 429'd. Batch pacing (shipped in #392) mitigates it, but the plan limit is the root cause. Also still needed for Marketing send, along with `MARKETING_POSTAL_ADDRESS`.
+2. **`RESEND_WEBHOOK_SECRET` + the Resend dashboard webhook** → `https://airactionsport.com/api/webhooks/resend` (subscribe `email.bounced` + `email.complained`). Feeds bounce/complaint tracking *and* review-invite suppression.
+3. **`audit_log_fts` flag flip** — `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';` Until then audit search uses the LIKE fallback.
 
-⚠️ The schema guard added this session **cannot** catch this: the SQL compiles fine, it's semantically wrong.
+## ✅ DONE — the whole date_iso timezone family (2026-07-27, PRs #391 + #392)
+
+`events.date_iso` / `end_date_iso` store **naive America/Denver wall clock, no offset** (`2026-07-25T08:30:00`, always 19 chars — the admin `datetime-local` input plus a literal `:00`). SQLite `unixepoch()` and JS `Date.parse()` in a Worker both read a naked datetime as **UTC**, so anything deriving an instant from it was 6h (MDT) / 7h (MST) early.
+
+**`worker/lib/eventTime.js` is now the canonical resolver**, with a client mirror at `src/utils/eventTime.js` (dual-target tested — do NOT import `worker/` from `src/`). Use it for any new `date_iso` consumer:
+
+| Function | Use |
+|---|---|
+| `eventInstantMs(dateIso)` | naive Denver string → true epoch ms (null if malformed) |
+| `denverDateFor(ms)` | instant → the Denver calendar date; use instead of `date('now')` / `toISOString().slice(0,10)` |
+| `denverWallClockWindow(a, b)` | instant window → wall-clock bounds for `date_iso BETWEEN ? AND ?` |
+| `eventStartsWithin(iso, a, b)` | exact instant membership test |
+| `toDenverWallClock(ms)` | instant → the stored 19-char shape |
+
+**#391 — the reminder cron.** 18 Last Light customers got "T-MINUS 1 HOUR" at 1:20 AM on event day with `Check-in: 8:00 AM` in the same email, and the sentinel stamp then suppressed the real send. Two-stage filter now: wall-clock bounds in SQL (exact off a DST transition), exact instant re-check in JS.
+
+**#392 — the other ~30 sites**, in five commits: public countdown + `/games` "Invalid Date"; admin "today" (`/today/active` going blind from 6 PM Mountain, deferred revenue, site archive guard); review invites + the resend gate; the conflict engine; and the staffing/vendor/`sales_close_at` tail.
+
+### Four traps this cost real effort to establish — don't re-derive them
+
+1. **`unixepoch(x,'utc')` / `,'localtime'` is a NO-OP in D1 and fails SILENTLY.** SQLite's modifiers read the host process TZ; a Worker's host is UTC. Verified against production — bare, `'utc'` and `'localtime'` all return the identical integer in both January and July. It is the single most likely way to "fix" this and ship it still broken.
+2. **A hardcoded `-06:00` is wrong ~4 months a year.** The 6h skew was 6h only because July is MDT.
+3. **Widening a range guarded by a `LIMIT` is not a free safety margin.** An adversarial review caught a high-severity regression *introduced by the fix*: padding the window plus an `ORDER BY date_iso` front-loaded the `LIMIT` with already-closed rows whose sentinel was still NULL (reachable via send-failure rollback, big-event overflow, and admin reschedule), starving the rows actually due into a silent no-op sweep. The bounds are exact off-transition for this reason.
+4. **A naive-ISO string in a test fixture is ambient-TZ-dependent.** `Date.parse('2026-11-07T18:00:00')` resolves in the *runner's* zone — so it passes on a Mountain dev machine and fails on the UTC CI runner by exactly the offset. It caught out this very PR. Run `TZ=UTC npx vitest run` to reproduce CI.
+
+### Second failure mode, easy to miss
+
+Besides naive-string-as-instant, there is a **UTC-"today" vs Mountain-date** mode: a *correct* date-portion extract (`date(date_iso)`, `substr(...,1,10)`) compared against `date('now')` or `toISOString().slice(0,10)`. Both sides are dates, so it reads as safe — but it is wrong for the six-hour band 18:00–24:00 Mountain **every day**, self-correcting at local midnight so it presents as flaky rather than broken. Several files carried comments asserting it was fine.
+
+### Deliberately NOT fixed
+
+- **`eventDaySession.js:102`** — offset-wrong, but the 30h pad absorbs it for every real event shape and the kiosk is dead end-to-end (audit A1). Changing an auth window nobody exercises is more risk than the bug.
+- **`sales_close_at` enforcement** — the math is fixed; wiring it to checkout is a Critical DNT change needing its own conversation.
+- **The business-calendar skew** — see item 3 in the work menu.
+- **Skew that genuinely cancels** — span validations parsing BOTH endpoints naively (`events.js:282`, `AdminEvents.jsx:332`), and client `new Date(naive)` → `toLocaleDateString()`, which is an exact round-trip and correct in every timezone. Don't "fix" these.
 
 
 ## ✅ DONE — Sprint 2: broken-wiring fixes + a real-schema guard (2026-07-25, PRs #383–#389)
@@ -110,7 +148,7 @@ Applies **0078** (`persons.legal_name` + `ein_ciphertext`) and **0079** (rewrite
 
 **Event-weekend notes for the NEXT session (post-July-26):**
 - **Review invites fire the night of ~July 26** (18–48h after each event's end anchor). Check `/admin/bookings/:id` → "Review invite" row; manual (re)send button is live. ⚠️ `RESEND_WEBHOOK_SECRET` is still unset → suppression/bounce tracking inactive (operator-pending #2 below).
-- **First real reviews** will wake the dormant reviews feature (SSR aggregateRating appears once count ≥ 1; homepage Avg-Rating stat at ≥1; testimonial swap at ≥3 with comments). Run the SSR acceptance gate in the reviews section below.
+- **First real reviews** will wake the dormant reviews feature (SSR aggregateRating appears once count ≥ 1; homepage Avg-Rating stat at ≥1; testimonial swap at ≥3 with comments). Run the SSR acceptance gate in the reviews section below. — ✅ **THIS HAPPENED:** 3 reviews arrived 2026-07-25/26; the 1★ was operator-hidden 2026-07-27, so the public aggregate is **2 / 4.5★**.
 - **When the operator archives the July events**, the archive dead-end applies (audit finding C1: `/games` requires `published=1` but end-of-life actions unpublish; `sales_close_at` is unenforced — an "archived" published event stays bookable by deep link). Decide the archive contract before archiving.
 - The kiosk (`/event`) remains dead end-to-end (audit A1) — the admin path (Today → per-event Scan/Roster/New Booking) is the operational system and got hardened this session.
 
@@ -166,7 +204,7 @@ Shipped an **attendee-verified post-event reviews** feature so real customer rat
 | 6 public UI (`/review` form + `/reviews` + event/home display; removed fake 4.9★) | [#358](https://github.com/bulletbiter99/air-action-sports/pull/358) | ✅ merged + deployed |
 | 7 docs (this) + `reviews-deploy.md` runbook | — | ✅ |
 
-`main` HEAD **`4fbbf4a`** (batches 1–6 code landed at `69e6a74`; Batch 7 docs at `4fbbf4a`) · **3149 / 276** tests · migrations **0001–0077** applied. The feature is **dormant** in production (no reviews exist yet; the invite cron's launch cutoff = 2026-06-28 + the 18–48h window mean the first invites go out ~2026-07-25 after **Operation Last Light** ends — nothing emails or displays until then).
+`main` HEAD **`4fbbf4a`** (batches 1–6 code landed at `69e6a74`; Batch 7 docs at `4fbbf4a`) · **3149 / 276** tests · migrations **0001–0077** applied. The feature is **dormant** in production (no reviews exist yet; the invite cron's launch cutoff = 2026-06-28 + the 18–48h window mean the first invites go out ~2026-07-25 after **Operation Last Light** ends — nothing emails or displays until then). — ✅ **SUPERSEDED 2026-07-27:** it is no longer dormant. 23 invites went out (a day early — fixed in #392) and 3 reviews were submitted; one was hidden, so the public aggregate is **2 / 4.5★**.
 
 **⚠️ Operator-pending / next-session TODO:**
 1. ✅ **RESOLVED 2026-07-01 — CAN-SPAM classification = TRANSACTIONAL + deliverability suppression (option B).** The invite ships without a postal-address/unsubscribe footer (one-per-booking, promotion-free, tied to a completed transaction); the sweep (`worker/lib/reviewInvites.js`) now skips addresses with a recorded hard bounce / spam complaint via `email_events.suppressed_marketing` (best-effort; NOT gated on the `customers.email_marketing` preference). See `docs/runbooks/reviews-deploy.md`.
@@ -193,13 +231,14 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | `b6b26a1` + this docs sync (re-pull for exact; PRs #383–#389 merged, Sprint 2) |
-| Tests | **3236 / 284** all green |
-| Build | clean · Lint **0 errors** (`npx eslint src worker tests scripts` — plain `npm run lint` also walks the gitignored `static-backup/`, which CI never sees and which reports 24 pre-existing errors) |
-| Production | deployed · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day support + reviews + the open-reads admin access model + event-day hardening + **the Sprint 2 broken-wiring fixes** all deployed. **The July 25-26 events have now RUN** (`Operation Last Light` $60 day op + `Operation Fire Storm` $80 16-hr night op). |
-| Migrations on remote | ⚠️ **0001–0077 applied; `0078` + `0079` are IN-REPO BUT NOT APPLIED.** Run `npx wrangler d1 migrations apply air-action-sports-db --remote` — 0078 unbreaks the 1099 surface + its nightly cron, 0079 drops the dead payment link from the damage-charge email. |
-| Open PRs | 0 (all merged through #389 + this docs PR) |
-| Open milestone | **None active.** Standing work menus: **admin workflow audit** (Sprints 1–2 ✅ + open-reads ✅; **Sprints 3–4 remain**) + the **growth plan** (execution not started). 🔴 Ahead of both: the **reminder-cron timezone bug** at the top of this file. Reviews wake up with the first post-event submissions. Remaining operator activation: apply 0078/0079, Marketing send, Resend webhook, FTS flag. CI green. |
+| `main` HEAD | **`0e64078`** + this docs sync (re-pull for exact; PRs #391 + #392 merged — the date_iso timezone family) |
+| Tests | **3359 / 287** all green |
+| Build | clean · Lint **0 errors** (`npx eslint src worker tests scripts` — plain `npm run lint` also walks the gitignored `static-backup/`, which CI never sees and which reports 24 pre-existing errors). **Reproduce CI exactly with `TZ=UTC npx vitest run`** — the runner is UTC and a naive-ISO fixture is ambient-TZ-dependent. |
+| Production | deployed + verified · version **`2ab3f7c4`** (2026-07-27T07:13:52Z) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day + reviews + open-reads admin + event-day hardening + Sprint 2 + **the full date_iso timezone fix** all live. The July 25-26 events have RUN and all events are currently `published=0`, so `/api/events` returns `[]` (correct archive behavior, not a regression). |
+| Migrations on remote | ✅ **0001–0079 ALL APPLIED** (0078 + 0079 applied 2026-07-27; verified `persons.legal_name`/`ein_ciphertext` exist and the dead `{{paymentLink}}` is gone from `additional_charge_notice`). |
+| Open PRs | 0 |
+| Open milestone | **None active, and nothing is blocking.** Work menu: **admin workflow audit Sprints 3–4** → **growth plan** (not started) → two agreed follow-ups from the timezone series (narrow conflict windows; the parked business-calendar skew). Operator activation: Resend plan upgrade, `RESEND_WEBHOOK_SECRET` + webhook, `audit_log_fts` flag. |
+| Reviews | **LIVE with real data** — 3 submitted, 1 operator-hidden → public aggregate **2 / 4.5★**. |
 
 ---
 
