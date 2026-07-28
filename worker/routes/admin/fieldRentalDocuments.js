@@ -188,9 +188,11 @@ adminFieldRentalDocuments.post('/', requireCapability('field_rentals.documents.u
     } else if (kind === 'agreement') {
         liveSua = await fetchLiveSua(c.env);
         if (!liveSua) {
+            // Should not happen since migration 0080 seeds version 1 — this
+            // state means every template row was retired without a successor.
             return c.json({
-                error: 'No active site-use agreement template — Owner must create one at /admin/site-agreements first',
-                hint: 'SUA template management UI lands in a future batch.',
+                error: 'No active site-use agreement template. Every SUA version has been retired — '
+                    + 'seed a new live version per docs/runbooks/sua-template.md before uploading agreements.',
             }, 409);
         }
         const r = validateSuaSignerMetadata(form);
