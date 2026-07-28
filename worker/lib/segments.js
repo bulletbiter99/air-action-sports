@@ -77,7 +77,14 @@ export function validateFilterSpec(rawSpec) {
                 if (typeof t !== 'string' || !t.trim()) {
                     return { valid: false, error: `tags.${k} entries must be non-empty strings` };
                 }
-                out.tags[k].push(t.trim());
+                // Lowercased to match the write side. Tags are stored
+                // lowercase (customer_tags.tag is plain TEXT with no
+                // COLLATE NOCASE, so `=` and `IN` are byte comparisons), and
+                // this box is free text. Trimming alone means an operator who
+                // types "Reunion-2027" silently matches zero rows — and in the
+                // `none` bucket that FAILS OPEN, turning an exclusion they set
+                // to hold people back into a no-op that includes everyone.
+                out.tags[k].push(t.trim().toLowerCase());
             }
         }
     }

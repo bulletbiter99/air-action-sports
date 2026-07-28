@@ -37,7 +37,10 @@ export function validateTriggerConfig(type, config) {
     }
     if (type === 'tag_added') {
         if (typeof c.tag !== 'string' || !c.tag.trim()) return { valid: false, error: 'tag_added trigger requires a non-empty tag' };
-        return { valid: true, normalized: { tag: c.tag.trim() } };
+        // Lowercased to match the write side — tags are stored lowercase and
+        // the JOIN below compares with a byte-exact `=`, so a mixed-case
+        // trigger tag would silently never fire.
+        return { valid: true, normalized: { tag: c.tag.trim().toLowerCase() } };
     }
     return { valid: false, error: `unsupported trigger_type: ${type}` };
 }

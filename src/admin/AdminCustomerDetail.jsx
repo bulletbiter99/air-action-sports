@@ -56,13 +56,16 @@ function renderBillingAddressField(canSee, hasEncrypted, decrypted) {
 export default function AdminCustomerDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { hasRole } = useAdmin();
+    const { hasRole, hasCapability } = useAdmin();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState(null);
     const [mergeOpen, setMergeOpen] = useState(false);
     const [gdprOpen, setGdprOpen] = useState(false);
     const [businessEditOpen, setBusinessEditOpen] = useState(false);
+    const [contactEditOpen, setContactEditOpen] = useState(false);
+    const [notesEditOpen, setNotesEditOpen] = useState(false);
+    const [prefsEditOpen, setPrefsEditOpen] = useState(false);
 
     const reload = useCallback(async () => {
         if (!id) return;
@@ -115,6 +118,9 @@ export default function AdminCustomerDetail() {
     const archived = !!customer.archivedAt;
     const isBusiness = customer.clientType === 'business';
     const nowMs = Date.now();
+    // Server enforces too (requireCapability('customers.write')); this only
+    // decides whether the affordance is shown.
+    const canWrite = hasCapability('customers.write') && !archived;
 
     return (
         <div className="admin-customers admin-customers__detail">
@@ -131,7 +137,19 @@ export default function AdminCustomerDetail() {
             </header>
 
             <section className="admin-customers__card">
-                <h2>Contact</h2>
+                <header className="admin-customers__card-header">
+                    <h2>Contact</h2>
+                    {canWrite && (
+                        <button
+                            type="button"
+                            className="admin-customers__btn"
+                            aria-label="Edit contact"
+                            onClick={() => setContactEditOpen(true)}
+                        >
+                            Edit
+                        </button>
+                    )}
+                </header>
                 <dl className="admin-customers__dl">
                     <dt>Email</dt>
                     <dd>{customer.email || <em>—</em>}{customer.emailNormalized && customer.emailNormalized !== customer.email && (
@@ -204,7 +222,19 @@ export default function AdminCustomerDetail() {
             </section>
 
             <section className="admin-customers__card">
-                <h2>Comm preferences</h2>
+                <header className="admin-customers__card-header">
+                    <h2>Comm preferences</h2>
+                    {canWrite && (
+                        <button
+                            type="button"
+                            className="admin-customers__btn"
+                            aria-label="Edit comm preferences"
+                            onClick={() => setPrefsEditOpen(true)}
+                        >
+                            Edit
+                        </button>
+                    )}
+                </header>
                 <ul className="admin-customers__pref-list">
                     <li><strong>Email transactional:</strong> {customer.emailTransactional ? 'on' : 'off'}</li>
                     <li><strong>Email marketing:</strong> {customer.emailMarketing ? 'on' : 'off'}</li>
@@ -213,29 +243,58 @@ export default function AdminCustomerDetail() {
                 </ul>
             </section>
 
-            {customer.notes && (
-                <section className="admin-customers__card">
+            {/* Rendered unconditionally now. These two sections used to vanish
+                when empty, which would have put the Edit / + Add tag buttons
+                out of reach for exactly the customers that have neither. */}
+            <section className="admin-customers__card">
+                <header className="admin-customers__card-header">
                     <h2>Notes</h2>
-                    <p className="admin-customers__notes">{customer.notes}</p>
-                </section>
-            )}
+                    {canWrite && (
+                        <button
+                            type="button"
+                            className="admin-customers__btn"
+                            aria-label={customer.notes ? 'Edit notes' : 'Add notes'}
+                            onClick={() => setNotesEditOpen(true)}
+                        >
+                            {customer.notes ? 'Edit' : 'Add notes'}
+                        </button>
+                    )}
+                </header>
+                {customer.notes
+                    ? <p className="admin-customers__notes">{customer.notes}</p>
+                    : <p className="admin-customers__empty">No notes yet.</p>}
+            </section>
 
-            {tags && tags.length > 0 && (
-                <section className="admin-customers__card">
+            <section className="admin-customers__card">
+                <header className="admin-customers__card-header">
                     <h2>Tags</h2>
+                </header>
+                {tags && tags.length > 0 ? (
                     <div className="admin-customers__tags">
                         {tags.map((t) => (
                             <span
                                 key={`${t.tagType}:${t.tag}`}
                                 className={`admin-customers__tag admin-customers__tag--${t.tagType}`}
-                                title={t.tagType === 'system' ? 'System-computed' : 'Manual'}
+                                title={t.tagType === 'system'
+                                    ? 'System-computed from booking history — refreshed nightly'
+                                    : 'Added manually'}
                             >
                                 {t.tag}
+                                {canWrite && t.tagType === 'manual' && (
+                                    <TagRemoveButton
+                                        customerId={customer.id}
+                                        tag={t.tag}
+                                        onRemoved={reload}
+                                    />
+                                )}
                             </span>
                         ))}
                     </div>
-                </section>
-            )}
+                ) : (
+                    <p className="admin-customers__empty">No tags yet.</p>
+                )}
+                {canWrite && <TagAdder customerId={customer.id} onAdded={reload} />}
+            </section>
 
             <section className="admin-customers__card">
                 <header className="admin-customers__card-header">
@@ -393,6 +452,30 @@ export default function AdminCustomerDetail() {
                 />
             )}
 
+            {contactEditOpen && (
+                <ContactEditModal
+                    customer={customer}
+                    onClose={() => setContactEditOpen(false)}
+                    onSaved={() => { setContactEditOpen(false); reload(); }}
+                />
+            )}
+
+            {notesEditOpen && (
+                <NotesEditModal
+                    customer={customer}
+                    onClose={() => setNotesEditOpen(false)}
+                    onSaved={() => { setNotesEditOpen(false); reload(); }}
+                />
+            )}
+
+            {prefsEditOpen && (
+                <CommPrefsEditModal
+                    customer={customer}
+                    onClose={() => setPrefsEditOpen(false)}
+                    onSaved={() => { setPrefsEditOpen(false); reload(); }}
+                />
+            )}
+
             {businessEditOpen && (
                 <BusinessFieldsEditModal
                     customer={customer}
@@ -411,6 +494,355 @@ export default function AdminCustomerDetail() {
 // EIN client-side validated against XX-XXXXXXX before submit; address fields
 // are independently optional. Backend re-encrypts both EIN + billing address
 // before writing to D1.
+// C3 (2026-07-27) — shared PUT helper for the three edit modals below.
+// Returns null on success, or an error string to display.
+async function putCustomer(customerId, body) {
+    try {
+        const res = await fetch(`/api/admin/customers/${encodeURIComponent(customerId)}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) return json.error || `HTTP ${res.status}`;
+        return null;
+    } catch (e) {
+        return String(e.message || e);
+    }
+}
+
+function ContactEditModal({ customer, onClose, onSaved }) {
+    const [name, setName] = useState(customer.name || '');
+    const [phone, setPhone] = useState(customer.phone || '');
+    const [submitting, setSubmitting] = useState(false);
+    const [err, setErr] = useState(null);
+
+    async function submit(e) {
+        e.preventDefault();
+        setSubmitting(true);
+        setErr(null);
+        const failure = await putCustomer(customer.id, {
+            name: name.trim() || null,
+            phone: phone.trim() || null,
+        });
+        setSubmitting(false);
+        if (failure) { setErr(failure); return; }
+        onSaved?.();
+    }
+
+    return (
+        <div className="admin-customers__modal-backdrop" onClick={onClose}>
+            <div className="admin-customers__modal" onClick={(e) => e.stopPropagation()}>
+                <header className="admin-customers__modal-header">
+                    <h2>Edit contact</h2>
+                    <button type="button" className="admin-customers__modal-close" onClick={onClose} aria-label="Close">×</button>
+                </header>
+                <form onSubmit={submit}>
+                    <div className="admin-customers__modal-body">
+                        <label style={{ display: 'block', marginBottom: '0.85rem' }}>
+                            <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Name</span>
+                            <input
+                                className="admin-customers__merge-search"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="(not set)"
+                            />
+                        </label>
+                        <label style={{ display: 'block', marginBottom: '0.85rem' }}>
+                            <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Phone</span>
+                            <input
+                                className="admin-customers__merge-search"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                placeholder="(not set)"
+                            />
+                        </label>
+                        <p className="admin-customers__muted" style={{ fontSize: '0.85rem' }}>
+                            Email address can&rsquo;t be changed here — it is the identity key used to
+                            match bookings to this customer. Use merge if there are duplicates.
+                        </p>
+                        {err && <p className="admin-customers__error">Error: {err}</p>}
+                    </div>
+                    <footer className="admin-customers__modal-footer">
+                        <button type="button" className="admin-customers__btn" onClick={onClose}>Cancel</button>
+                        <button type="submit" className="admin-customers__btn admin-customers__btn--primary" disabled={submitting}>
+                            {submitting ? 'Saving…' : 'Save'}
+                        </button>
+                    </footer>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+function NotesEditModal({ customer, onClose, onSaved }) {
+    const [notes, setNotes] = useState(customer.notes || '');
+    const [submitting, setSubmitting] = useState(false);
+    const [err, setErr] = useState(null);
+
+    async function submit(e) {
+        e.preventDefault();
+        setSubmitting(true);
+        setErr(null);
+        const failure = await putCustomer(customer.id, { notes: notes.trim() || null });
+        setSubmitting(false);
+        if (failure) { setErr(failure); return; }
+        onSaved?.();
+    }
+
+    return (
+        <div className="admin-customers__modal-backdrop" onClick={onClose}>
+            <div className="admin-customers__modal" onClick={(e) => e.stopPropagation()}>
+                <header className="admin-customers__modal-header">
+                    <h2>{customer.notes ? 'Edit notes' : 'Add notes'}</h2>
+                    <button type="button" className="admin-customers__modal-close" onClick={onClose} aria-label="Close">×</button>
+                </header>
+                <form onSubmit={submit}>
+                    <div className="admin-customers__modal-body">
+                        <label style={{ display: 'block', marginBottom: '0.85rem' }}>
+                            <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>Notes</span>
+                            <textarea
+                                className="admin-customers__merge-search"
+                                rows={6}
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                placeholder="Anything the team should know about this customer."
+                            />
+                        </label>
+                        {err && <p className="admin-customers__error">Error: {err}</p>}
+                    </div>
+                    <footer className="admin-customers__modal-footer">
+                        <button type="button" className="admin-customers__btn" onClick={onClose}>Cancel</button>
+                        <button type="submit" className="admin-customers__btn admin-customers__btn--primary" disabled={submitting}>
+                            {submitting ? 'Saving…' : 'Save'}
+                        </button>
+                    </footer>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+// Consent is deliberately asymmetric — see the PUT handler. Opting out is a
+// plain toggle; opting back in overrides the customer's own unsubscribe, so it
+// demands a typed reason that lands in the audit log.
+function CommPrefsEditModal({ customer, onClose, onSaved }) {
+    const [emailTransactional, setEmailTransactional] = useState(!!customer.emailTransactional);
+    const [emailMarketing, setEmailMarketing] = useState(!!customer.emailMarketing);
+    const [smsTransactional, setSmsTransactional] = useState(!!customer.smsTransactional);
+    const [smsMarketing, setSmsMarketing] = useState(!!customer.smsMarketing);
+    const [reason, setReason] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [err, setErr] = useState(null);
+
+    const wasOptedIn = !!customer.emailMarketing;
+    const isOptingIn = !wasOptedIn && emailMarketing;
+    const isOptingOut = wasOptedIn && !emailMarketing;
+
+    async function submit(e) {
+        e.preventDefault();
+        if (isOptingIn && !reason.trim()) {
+            setErr('A reason is required to re-subscribe someone who opted out.');
+            return;
+        }
+        setSubmitting(true);
+        setErr(null);
+        const failure = await putCustomer(customer.id, {
+            emailTransactional, emailMarketing, smsTransactional, smsMarketing,
+            ...(isOptingIn ? { marketingOptInReason: reason.trim() } : {}),
+        });
+        setSubmitting(false);
+        if (failure) { setErr(failure); return; }
+        onSaved?.();
+    }
+
+    const row = (label, value, setValue, hint) => (
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.7rem' }}>
+            <input type="checkbox" checked={value} onChange={(e) => setValue(e.target.checked)} />
+            <span>
+                <span style={{ fontWeight: 600 }}>{label}</span>
+                {hint && <span className="admin-customers__muted" style={{ display: 'block', fontSize: '0.82rem' }}>{hint}</span>}
+            </span>
+        </label>
+    );
+
+    return (
+        <div className="admin-customers__modal-backdrop" onClick={onClose}>
+            <div className="admin-customers__modal" onClick={(e) => e.stopPropagation()}>
+                <header className="admin-customers__modal-header">
+                    <h2>Edit comm preferences</h2>
+                    <button type="button" className="admin-customers__modal-close" onClick={onClose} aria-label="Close">×</button>
+                </header>
+                <form onSubmit={submit}>
+                    <div className="admin-customers__modal-body">
+                        {row('Email transactional', emailTransactional, setEmailTransactional,
+                            'Booking confirmations, waivers, reminders. Sent regardless of marketing consent.')}
+                        {row('Email marketing', emailMarketing, setEmailMarketing,
+                            'Campaigns and automations. Untick to record an opt-out (e.g. asked over the phone).')}
+                        {row('SMS transactional', smsTransactional, setSmsTransactional)}
+                        {row('SMS marketing', smsMarketing, setSmsMarketing, 'No SMS sending exists yet — stored for future use.')}
+
+                        {isOptingOut && (
+                            <p className="admin-customers__muted" style={{ fontSize: '0.85rem' }}>
+                                This records the opt-out immediately. They&rsquo;ll be excluded from every
+                                campaign and automation.
+                            </p>
+                        )}
+
+                        {isOptingIn && (
+                            <div style={{ marginTop: '0.5rem' }}>
+                                <p style={{ fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                                    ⚠ This customer opted out. Re-subscribing overrides their own
+                                    decision, so the reason is recorded in the audit log.
+                                </p>
+                                <label style={{ display: 'block' }}>
+                                    <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>
+                                        Why are they being re-subscribed?
+                                    </span>
+                                    <input
+                                        className="admin-customers__merge-search"
+                                        value={reason}
+                                        onChange={(e) => setReason(e.target.value)}
+                                        placeholder="e.g. Called 7/27 and asked to rejoin the list"
+                                    />
+                                </label>
+                            </div>
+                        )}
+
+                        {err && <p className="admin-customers__error">Error: {err}</p>}
+                    </div>
+                    <footer className="admin-customers__modal-footer">
+                        <button type="button" className="admin-customers__btn" onClick={onClose}>Cancel</button>
+                        <button type="submit" className="admin-customers__btn admin-customers__btn--primary" disabled={submitting}>
+                            {submitting ? 'Saving…' : 'Save'}
+                        </button>
+                    </footer>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+// Inline tag composer. Tags are live marketing criteria the moment they exist
+// (segments + the tag_added automation trigger both match on the tag name), so
+// the hint says so rather than leaving the operator to discover it.
+function TagAdder({ customerId, onAdded }) {
+    const [open, setOpen] = useState(false);
+    const [tag, setTag] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [err, setErr] = useState(null);
+
+    async function submit(e) {
+        e.preventDefault();
+        const value = tag.trim();
+        if (!value) return;
+        setSubmitting(true);
+        setErr(null);
+        try {
+            const res = await fetch(`/api/admin/customers/${encodeURIComponent(customerId)}/tags`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tag: value }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) { setErr(json.error || `HTTP ${res.status}`); return; }
+            setTag('');
+            setOpen(false);
+            onAdded?.();
+        } catch (e2) {
+            setErr(String(e2.message || e2));
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    if (!open) {
+        return (
+            <button
+                type="button"
+                className="admin-customers__btn"
+                style={{ marginTop: '0.6rem' }}
+                onClick={() => setOpen(true)}
+            >
+                + Add tag
+            </button>
+        );
+    }
+
+    return (
+        <form onSubmit={submit} style={{ marginTop: '0.6rem' }}>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <input
+                    className="admin-customers__merge-search"
+                    style={{ flex: '1 1 14rem' }}
+                    value={tag}
+                    onChange={(e) => setTag(e.target.value)}
+                    placeholder="e.g. reunion-2027"
+                    aria-label="New tag"
+                    autoFocus
+                />
+                <button type="submit" className="admin-customers__btn admin-customers__btn--primary" disabled={submitting}>
+                    {submitting ? 'Adding…' : 'Add'}
+                </button>
+                <button
+                    type="button"
+                    className="admin-customers__btn"
+                    onClick={() => { setOpen(false); setTag(''); setErr(null); }}
+                >
+                    Cancel
+                </button>
+            </div>
+            <p className="admin-customers__muted" style={{ fontSize: '0.82rem', marginTop: '0.35rem' }}>
+                Lowercased automatically. Tags can be used as segment and automation criteria,
+                so adding one may make this customer a target for campaigns.
+            </p>
+            {err && <p className="admin-customers__error">Error: {err}</p>}
+        </form>
+    );
+}
+
+function TagRemoveButton({ customerId, tag, onRemoved }) {
+    const [busy, setBusy] = useState(false);
+
+    async function remove() {
+        setBusy(true);
+        try {
+            await fetch(
+                `/api/admin/customers/${encodeURIComponent(customerId)}/tags/${encodeURIComponent(tag)}`,
+                { method: 'DELETE', credentials: 'include' },
+            );
+            onRemoved?.();
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={remove}
+            disabled={busy}
+            aria-label={`Remove tag ${tag}`}
+            title={`Remove tag ${tag}`}
+            style={{
+                background: 'none',
+                border: 'none',
+                color: 'inherit',
+                cursor: 'pointer',
+                marginLeft: '0.35rem',
+                padding: 0,
+                fontSize: '0.95em',
+                lineHeight: 1,
+                opacity: busy ? 0.5 : 0.75,
+            }}
+        >
+            ×
+        </button>
+    );
+}
+
 function BusinessFieldsEditModal({ customer, onClose, onSaved }) {
     const initialAddress = customer.businessBillingAddress || {};
     const [clientType, setClientType] = useState(customer.clientType || 'individual');
