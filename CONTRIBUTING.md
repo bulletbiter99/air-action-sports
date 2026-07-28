@@ -63,7 +63,7 @@ Commit messages should be **descriptive enough that a future session can rebuild
 
 ## Pull request rules
 
-### M1-specific (active until milestone-1 closes)
+### Standing PR rules
 
 - **10-file cap per PR.** Hard rule. Includes generated files (e.g. `package-lock.json`).
 - **Plan-mode-first for non-trivial changes.** Write the plan, post it, wait for `proceed` before editing.
@@ -83,7 +83,6 @@ Commit messages should be **descriptive enough that a future session can rebuild
 
 | Command | What it runs | When to run |
 |---|---|---|
-| `npm test` | Vitest unit suite (216 tests as of m1-batch-7-ci) | Before every commit; CI runs this on every PR. |
 | `npm run test:watch` | Vitest in watch mode | Active development. |
 | `npm run test:coverage` | Vitest run + v8 coverage report (HTML in `coverage/`) | Before opening a PR; CI runs this and uploads the report as an artifact. |
 | `npm run test:e2e` | Playwright smoke suite (7 tests against a deployed Worker) | Operator-triggered after a deploy. **Not** part of `npm test`. **Not** in CI by default. |
@@ -104,9 +103,15 @@ E2E_TEST_EVENT_SLUG=ops-night npm run test:e2e                     # un-skips au
 
 ### Lint
 
-`npm run lint` is **currently broken**. ESLint 9 + plugins are declared in `package.json` but no `eslint.config.js` exists. See [docs/audit/08-pain-points.md](docs/audit/08-pain-points.md) #8. CI runs lint with `continue-on-error: true` so the gap stays visible in every PR run without blocking merges.
+Lint is a **blocking CI gate** (`eslint.config.js` landed in M3 batch 0; the workflow step is "Lint (blocking)" with no `continue-on-error`).
 
-Fix is a separate task — not part of M1.
+Reproduce CI exactly with:
+
+```bash
+npx eslint src worker tests scripts
+```
+
+Currently **0 errors / ~628 warnings**. Do NOT judge by plain `npm run lint` — that is `eslint .`, which also walks the gitignored `static-backup/` and reports ~24 pre-existing errors CI never sees.
 
 ---
 

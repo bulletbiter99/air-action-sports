@@ -291,6 +291,39 @@
         "tests/unit/auth/vendor-token.test.js"
       ]
     },
+    "worker/routes/admin/incidents.js": {
+      "tier": "high",
+      "covers": [
+        "Admin incidents (C6, 2026-07-28): GET / (list + open/serious summary, status/event/severity/type filters, requireReadAccess), POST / (file from the admin side — filed_by_user_id not filed_by_person_id; escalates on severity='serious' matching the kiosk rule), POST /:id/resolve (resolution note REQUIRED; 409 if already resolved), POST /:id/reopen (guarded so reopening an open incident is a no-op). Writes gated requireRole('owner','manager') — deliberately NOT the kiosk-scoped event_day.incident.* capabilities."
+      ],
+      "audit_group": "(2026-07-28 admin-audit Sprint 3, item C6)",
+      "tests": [
+        "tests/unit/admin/incidents-route.test.js",
+        "tests/unit/schema/workerSql.test.js"
+      ]
+    },
+    "worker/lib/campaigns.js": {
+      "tier": "high",
+      "covers": [
+        "Campaign status TRANSITIONS + canTransition + marketingReadiness (C4, 2026-07-28). `sending -> canceled` exists so a campaign stranded by an unconfigured send pipeline is recoverable; marketingReadiness reports the NAMES of missing env vars only, never values (the response reaches a browser)."
+      ],
+      "audit_group": "(2026-07-28 admin-audit Sprint 3, item C4)",
+      "tests": [
+        "tests/unit/admin/campaigns-dormant.test.js",
+        "tests/unit/lib/campaigns.test.js"
+      ]
+    },
+    "worker/routes/admin/campaigns.js": {
+      "tier": "high",
+      "covers": [
+        "POST /:id/send refuses an IMMEDIATE send while RESEND_API_KEY or MARKETING_POSTAL_ADDRESS is unset (that combination stranded campaigns in 'sending' permanently, since the drain sweep no-ops and DELETE accepts draft|canceled only). Scheduling stays allowed. GET / returns an additive `sending: {ready, missing}` readiness block."
+      ],
+      "audit_group": "(2026-07-28 admin-audit Sprint 3, item C4)",
+      "tests": [
+        "tests/unit/admin/campaigns-dormant.test.js",
+        "tests/unit/admin/campaigns-route.test.js"
+      ]
+    },
     "worker/routes/admin/customers.js": {
       "tier": "high",
       "covers": [
@@ -338,6 +371,7 @@
         "tests/unit/admin/staff/notes.test.js",
         "tests/unit/admin/staff/archive.test.js",
         "tests/unit/admin/staff/create.test.js",
+        "tests/unit/admin/staff/unarchive.test.js",
         "tests/unit/admin/staff/profile-edit.test.js",
         "tests/unit/admin/staff/access.test.js",
         "tests/unit/admin/staff/issues.test.js"

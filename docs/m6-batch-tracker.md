@@ -1,5 +1,9 @@
 # M6 batch tracker
 
+> ## ⚠️ SUPERSEDED — M6 batch tracker, frozen 2026-05-27.
+>
+> Not maintained since M6 closed. The "Live cutover blocker" section and the ⏳ live-verify cells below are **resolved** — the live-Stripe cutover completed **2026-06-03** and production takes real payments. Current state: [`docs/next-session.md`](next-session.md).
+
 Single-source-of-truth status board for Milestone 6 (Stripe live + damage charge Option A + vendor templates + email drafts). Updated after every PR merge + post-deploy browser-verify.
 
 Last updated: 2026-05-27 (M6 CLOSED — all 13 batches merged + deployed; operator-only live cutover items remain for live e2e verification only).
