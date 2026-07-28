@@ -84,6 +84,21 @@ export async function retrieveSession(sessionId, apiKey) {
 }
 
 /**
+ * Sprint 4 C8 — expire an open Checkout Session so its payment URL stops
+ * working. Used by the admin cancel-booking action: without this, a customer
+ * completing the emailed/shown link later would re-pay the cancelled booking
+ * (the webhook's idempotency guard only short-circuits on status='paid').
+ * Stripe 400s when the session is not 'open' (already complete/expired) —
+ * callers treat that as best-effort success. Never moves money; additive,
+ * the existing payment functions are untouched.
+ * @param {string} sessionId  cs_...
+ * @param {string} apiKey
+ */
+export async function expireCheckoutSession(sessionId, apiKey) {
+    return stripeFetch(`/checkout/sessions/${sessionId}/expire`, { apiKey });
+}
+
+/**
  * Retrieve a PaymentIntent — used by M6 B7's off-session damage-charge
  * flow to read the original PI's `customer` + `payment_method` so we
  * can re-charge the saved card without re-prompting the buyer.

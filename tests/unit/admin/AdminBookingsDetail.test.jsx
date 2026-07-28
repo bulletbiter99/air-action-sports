@@ -118,7 +118,7 @@ describe('AdminBookingsDetail', () => {
 
     it('opens the move-to-another-event modal and lists target events', async () => {
         installClientFetch([
-            { match: '/api/admin/events', body: { events: [{ id: 'evt_2', title: 'Volga Flank', ticketTypes: [{ id: 'tt_1', name: 'GA', priceCents: 4000 }] }] } },
+            { match: '/api/admin/events', body: { events: [{ id: 'evt_2', title: 'Volga Flank', published: true, past: false, ticketTypes: [{ id: 'tt_1', name: 'GA', priceCents: 4000 }] }] } },
             { match: '/api/admin/bookings', body: DETAIL },
         ]);
         renderDetail();
@@ -130,7 +130,7 @@ describe('AdminBookingsDetail', () => {
 
     it('reschedule price-diff reads the stored snake_case line items (paid amount is real, not $0)', async () => {
         installClientFetch([
-            { match: '/api/admin/events', body: { events: [{ id: 'evt_2', title: 'Volga Flank', ticketTypes: [{ id: 'tt_1', name: 'GA', priceCents: 5000 }] }] } },
+            { match: '/api/admin/events', body: { events: [{ id: 'evt_2', title: 'Volga Flank', published: true, past: false, ticketTypes: [{ id: 'tt_1', name: 'GA', priceCents: 5000 }] }] } },
             { match: '/api/admin/bookings', body: DETAIL },
         ]);
         renderDetail();
@@ -147,5 +147,60 @@ describe('AdminBookingsDetail', () => {
         const footnote = await screen.findByText(/They paid \$80\.00 for tickets/);
         expect(footnote.textContent).toContain('GA is $100.00');
         expect(footnote.textContent).toContain('+$20.00');
+    });
+
+    it('reschedule modal excludes unpublished and archived events (C8)', async () => {
+        installClientFetch([
+            {
+                match: '/api/admin/events',
+                body: {
+                    events: [
+                        { id: 'evt_2', title: 'Volga Flank', published: true, past: false, ticketTypes: [] },
+                        { id: 'evt_3', title: 'Draft Op', published: false, past: false, ticketTypes: [] },
+                        { id: 'evt_4', title: 'Archived Op', published: true, past: true, ticketTypes: [] },
+                    ],
+                },
+            },
+            { match: '/api/admin/bookings', body: DETAIL },
+        ]);
+        renderDetail();
+        await waitFor(() => expect(screen.getByRole('button', { name: '↪ Move to another event' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: '↪ Move to another event' }));
+        expect(await screen.findByRole('option', { name: 'Volga Flank' })).toBeInTheDocument();
+        expect(screen.queryByRole('option', { name: 'Draft Op' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('option', { name: 'Archived Op' })).not.toBeInTheDocument();
+    });
+
+    it('shows Cancel booking + Copy payment link for a pending card booking (C8)', async () => {
+        const pendingDetail = {
+            ...DETAIL,
+            booking: { ...DETAIL.booking, status: 'pending', paidAt: null, stripePaymentIntent: null },
+            attendees: [],
+            payment: { sessionStatus: 'open', url: 'https://checkout.stripe.com/c/pay/cs_x' },
+        };
+        installClientFetch([{ match: '/api/admin/bookings', body: pendingDetail }]);
+        renderDetail();
+        await waitFor(() => expect(screen.getByText('bk_1')).toBeInTheDocument());
+        expect(screen.getByRole('button', { name: 'Copy payment link' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: '✕ Cancel booking' })).toBeInTheDocument();
+
+        // Confirm modal opens (fireEvent per the A1 fixed-overlay lesson).
+        fireEvent.click(screen.getByRole('button', { name: '✕ Cancel booking' }));
+        expect(await screen.findByRole('heading', { name: 'Cancel this booking?' })).toBeInTheDocument();
+        expect(screen.getByText(/expires the Stripe payment link/)).toBeInTheDocument();
+    });
+
+    it('explains an expired session instead of offering a dead link (C8)', async () => {
+        const pendingDetail = {
+            ...DETAIL,
+            booking: { ...DETAIL.booking, status: 'pending', paidAt: null, stripePaymentIntent: null },
+            attendees: [],
+            payment: { sessionStatus: 'expired', url: null },
+        };
+        installClientFetch([{ match: '/api/admin/bookings', body: pendingDetail }]);
+        renderDetail();
+        await waitFor(() => expect(screen.getByText('bk_1')).toBeInTheDocument());
+        expect(screen.queryByRole('button', { name: 'Copy payment link' })).not.toBeInTheDocument();
+        expect(screen.getByText(/session has expired/)).toBeInTheDocument();
     });
 });
