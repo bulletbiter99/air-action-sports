@@ -230,7 +230,8 @@ describe('POST /api/admin/field-rental-documents — upload', () => {
         expect(res.status).toBe(409);
         const body = await res.json();
         expect(body.error).toMatch(/No active site-use agreement/);
-        expect(body.hint).toMatch(/SUA template management/);
+        // Sprint 4 B5: the hint field is gone — the error itself points at the runbook.
+        expect(body.error).toMatch(/docs\/runbooks\/sua-template\.md/);
     });
 
     it("kind='agreement' captures sua_body_sha256_snapshot when live SUA exists", async () => {
