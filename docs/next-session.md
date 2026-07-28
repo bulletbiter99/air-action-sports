@@ -1,10 +1,49 @@
-# Next-session entry point — Admin-audit SPRINT 3 CLOSED (2026-07-28)
+# Next-session entry point — Admin-audit SPRINT 4 CLOSED, the audit is DONE (2026-07-28)
 
 ## ✅ Current state
 
-`main` **`6f2a2c2`** (re-pull for exact) · **3494 / 296** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0079 ALL APPLIED** (Sprint 3 added none) · production deployed + verified.
+`main` (re-pull for exact HEAD) · **3567 / 304** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0080 in repo** (⚠️ **0080 needs the operator apply — see below**) · production auto-deploys on merge via Workers Builds.
 
-**Nothing is blocking.** Sprint 3 of the admin workflow audit is **complete** — all six items, plus two bugs found along the way.
+**Nothing is blocking.** The admin workflow audit is **fully closed** — all four sprints. Work menu is now: the **growth plan** (not started), the **kiosk decision**, and the two timezone follow-ups.
+
+## ✅ DONE — Admin-audit SPRINT 4 (2026-07-28, PRs #403–#411, migration 0080)
+
+Nine PRs (8 feature + this docs sync). The operator chose the **maximal** variant everywhere a question was asked: the full archive contract including the Critical-DNT checkout gates, SUA seed AND runbook, recurrence UI AND runbook, persona dropdown AND dormancy doc.
+
+| PR | What |
+|---|---|
+| [#403](https://github.com/bulletbiter99/air-action-sports/pull/403) | **Stale-copy sweep** — the public privacy policy named THREE processors the site doesn't use (Google Analytics, Formspree, Mailchimp → now Stripe/Resend/Cloudflare); AdminSegments batch jargon; FilterBar "(coming in M3+)" |
+| [#404](https://github.com/bulletbiter99/air-action-sports/pull/404) | **C1 archive contract** — archived (`past=1`) events visible on /games + detail regardless of `published` (they could NEVER appear before — every end-of-life action unpublishes); `/quote` + `/checkout` 409 on `past=1` OR a passed `sales_close_at` (Critical-DNT additive; Groups A/B byte-green); AdminEvents gets an "Online sales close" field (empty = no cutoff — the form sends explicitly so the server's start−2h default can't silently kill gate-time phone sales); EventDetail/Booking render honest closed states |
+| [#405](https://github.com/bulletbiter99/air-action-sports/pull/405) | **C8 pending-card lifecycle** — payment link recoverable from booking detail (retrieveSession); `POST /:id/cancel` for pending/abandoned that **expires the Stripe session first** (else webhook redelivery resurrects the booking — the 2026-06-03 lesson); reschedule target capacity check + past-target 409 + modal filters to bookable events |
+| [#406](https://github.com/bulletbiter99/air-action-sports/pull/406) | **C9 labor completion** — the PUT edit the file header always advertised (approval_required RECOMPUTED from the new amount), reject with required reason (rejected_at had no writer since 0036), tax-year lock enforced on approve/reject/mark-paid/edit per 0036's own comment |
+| [#407](https://github.com/bulletbiter99/air-action-sports/pull/407) | **1099 tax-identity editor** (Sprint 2 tail) — PUT /:id/tax-identity writes 0078's columns at last; EIN normalized + stored ENCRYPTED, plaintext in no bind/audit/response; staff detail exposes legalName + einOnFile only |
+| [#408](https://github.com/bulletbiter99/air-action-sports/pull/408) | **B5 SUA seed** — migration **0080** seeds a PLACEHOLDER site-use agreement (NOT-ATTORNEY-REVIEWED banner) so `kind=agreement` uploads stop 409ing at a phantom page; [docs/runbooks/sua-template.md](runbooks/sua-template.md) is the management story (immutable versions; body_sha256 = sha256(body) exactly, pinned by a real-schema data test) |
+| [#409](https://github.com/bulletbiter99/air-action-sports/pull/409) | **B4 recurrences** — `/api/admin/field-rental-recurrences` (create/pause/resume/end; the 0049 caps finally have a consumer) + series card on rental detail + [docs/runbooks/field-rental-recurrences.md](runbooks/field-rental-recurrences.md). **Resume never backfills the paused gap** (sentinel bumps to yesterday); **end cancels only future cancellable instances**, never paid ones |
+| [#410](https://github.com/bulletbiter99/air-action-sports/pull/410) | **Persona dropdown** — PUT /users/:id accepts `persona` (D08 enum); a "Login Accounts & Dashboard Personas" section on Settings — also the first login-accounts read surface since AdminUsers was decommissioned in M5 R17. `admin-settings` baseline recaptured |
+| [#411](https://github.com/bulletbiter99/air-action-sports/pull/411) | This docs sync |
+
+### ⚠️ NEW operator action — apply migration 0080
+
+```bash
+CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
+```
+
+Data-only (seeds the placeholder SUA), safe any time. Until applied, `kind=agreement` rental-document uploads keep 409ing in production. **Replace the placeholder with attorney-approved text** per [docs/runbooks/sua-template.md](runbooks/sua-template.md) before a real renter signs it.
+
+### Sprint 4 corrections + parked items
+
+- **The audit's stale-copy list was half done already**: "Coming in M5" tiles were removed in #254 and "(B7b)" fixed in #397. The live rot was the privacy policy naming **three** unused processors (not just Mailchimp).
+- **C8's "reschedule offers unpublished targets"**: the server already rejected unpublished targets (#284) — the modal *offering* them was the remaining half. Capacity was the real server gap.
+- **C9 was worse than written**: the route header advertised a PUT that never existed.
+- **Parked with reasons**: `w2_salary` CHECK-widening (dead SQL documented at both sites; needs an actual salaried person + a D1 table rebuild — 0 labor rows today); custom-dates recurrence creation (SQL recipe in the runbook); role/active editing for login accounts (API-only; persona is the one Settings write because it's a lens, not access).
+
+### Durable lessons (Sprint 4)
+
+1. **The mockD1 first-handler-wins trap fired again** in test authoring (a `beforeEach` person-bind silently beat an in-test null re-bind) — the fix is a per-test `bindPerson()` helper, pattern now pinned in `tax-identity.test.js` with the lesson cited inline.
+2. **A capability seeded with no consumer is a tripwire worth grepping for** — `field_rentals.recurrence_*` (0049) and the D08 persona column (0028) both sat unconsumed for months; both audits' "unreachable feature" findings started exactly there.
+3. **Enforcing a previously-phantom field changes the safe default.** `sales_close_at` defaulted to start−2h when nothing read it; with enforcement, that default would have silently killed day-of phone purchases at the gate. The admin form now sends the value explicitly (empty = null = no cutoff) so only operator-typed cutoffs enforce.
+4. **Cancel without killing the Stripe session is not cancel** — a webhook redelivery re-pays any non-`paid` booking, so the C8 cancel expires the Checkout session before flipping status (new additive `expireCheckoutSession` helper).
+5. **Resume-a-paused-series semantics need a decision**: the generation cron reads `generated_through + 1`, so naive resume retro-generates the paused gap (including past dates). Resume bumps the sentinel to yesterday; documented in the runbook + pinned by a test.
 
 ## ✅ DONE — Admin-audit SPRINT 3 (2026-07-28, PRs #393–#400)
 
@@ -45,18 +84,19 @@ Eight PRs. **No migrations** — every column these features needed already exis
 
 ## 🎯 START HERE — what's left
 
-1. **Admin workflow audit Sprint 4** — [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md). Contracts & polish: the **archive contract** (`/games` requires `published=1`, but every end-of-life action unpublishes) + the unenforced **`sales_close_at`** (a checkout change = Critical DNT protocol), recurrence UI, SUA template seed, C8/C9, the persona-system decision, and a stale-copy sweep (**"Mailchimp" in the public privacy policy should change before marketing activation**).
+1. ~~Admin workflow audit Sprint 4~~ — ✅ **CLOSED 2026-07-28** (see the section above). The whole audit is done.
 2. **The growth plan** — [docs/growth-plan-2026-07.md](growth-plan-2026-07.md). Execution still **not started**. Headline: the SPA serves an empty shell to non-JS AI crawlers, and the only JSON-LD is review-gated (it now fires, since real reviews exist).
 3. **The kiosk decision** (audit D4), now more pointed: `/event` is dead end-to-end and #400 gave incidents an admin-side filing path that no longer needs it. Repair the kiosk, or retire it and finish moving its surfaces admin-side.
 4. **Two follow-ups from the timezone series** (both agreed, neither started):
    - **Narrow event conflict windows** from whole-day to real start→end times, so an evening field rental after a morning event stops being a conflict at all. Right now the whole-day rule is correctly *enforced*, which means a site coordinator must escalate to an owner for that booking.
    - **`docs/business-calendar-utc-skew.md`** — parked by operator decision. Every financial surface buckets on the UTC calendar, so "MTD" begins at 6 PM Mountain on the last day of the prior month.
 
-## ⚠️ Operator-pending (unchanged, none blocking)
+## ⚠️ Operator-pending (none blocking)
 
-1. **Resend plan upgrade** — now evidenced, not theoretical. The 2026-07-26 review-invite run logged `considered:23 sent:13 failed:10` with `alarm:false`; 10 sends were 429'd. Batch pacing (shipped in #392) mitigates it, but the plan limit is the root cause. Also still needed for Marketing send, along with `MARKETING_POSTAL_ADDRESS`.
-2. **`RESEND_WEBHOOK_SECRET` + the Resend dashboard webhook** → `https://airactionsport.com/api/webhooks/resend` (subscribe `email.bounced` + `email.complained`). Feeds bounce/complaint tracking *and* review-invite suppression.
-3. **`audit_log_fts` flag flip** — `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';` Until then audit search uses the LIKE fallback.
+1. **NEW — apply migration 0080** (the SUA seed; see the Sprint 4 section above) and, before a real renter signs, replace the placeholder agreement with attorney-approved text per [docs/runbooks/sua-template.md](runbooks/sua-template.md).
+2. **Resend plan upgrade** — now evidenced, not theoretical. The 2026-07-26 review-invite run logged `considered:23 sent:13 failed:10` with `alarm:false`; 10 sends were 429'd. Batch pacing (shipped in #392) mitigates it, but the plan limit is the root cause. Also still needed for Marketing send, along with `MARKETING_POSTAL_ADDRESS`.
+3. **`RESEND_WEBHOOK_SECRET` + the Resend dashboard webhook** → `https://airactionsport.com/api/webhooks/resend` (subscribe `email.bounced` + `email.complained`). Feeds bounce/complaint tracking *and* review-invite suppression.
+4. **`audit_log_fts` flag flip** — `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';` Until then audit search uses the LIKE fallback.
 
 ## ✅ DONE — the whole date_iso timezone family (2026-07-27, PRs #391 + #392)
 
@@ -267,8 +307,8 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | **`caf9abc`** + this docs sync (re-pull for exact; PRs #393–#400 merged — admin-audit Sprint 3) |
-| Tests | **3494 / 296** all green |
+| `main` HEAD | re-pull for exact (PRs #403–#411 merged — admin-audit Sprint 4, the audit's close) |
+| Tests | **3567 / 304** all green |
 | Build | clean · Lint **0 errors** (`npx eslint src worker tests scripts` — plain `npm run lint` also walks the gitignored `static-backup/`, which CI never sees and which reports 24 pre-existing errors). **Reproduce CI exactly with `TZ=UTC npx vitest run`** — the runner is UTC and a naive-ISO fixture is ambient-TZ-dependent. |
 | Production | deployed + verified · version **`2ab3f7c4`** (2026-07-27T07:13:52Z) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day + reviews + open-reads admin + event-day hardening + Sprint 2 + **the full date_iso timezone fix** all live. The July 25-26 events have RUN and all events are currently `published=0`, so `/api/events` returns `[]` (correct archive behavior, not a regression). |
 | Migrations on remote | ✅ **0001–0079 ALL APPLIED** (0078 + 0079 applied 2026-07-27; verified `persons.legal_name`/`ein_ciphertext` exist and the dead `{{paymentLink}}` is gone from `additional_charge_notice`). |

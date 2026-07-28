@@ -1,6 +1,12 @@
 # Admin Workflow Audit — Do the Operator Journeys Work End-to-End? (2026-07-24)
 
-> ## ✅ STATUS 2026-07-28 — SPRINTS 1, 2 AND 3 ARE ALL COMPLETE. **Only Sprint 4 remains.**
+> ## ✅ STATUS 2026-07-28 (later the same day) — ALL FOUR SPRINTS ARE COMPLETE. **This audit is CLOSED.**
+>
+> Sprint 4 closed 2026-07-28 in PRs [#403](https://github.com/bulletbiter99/air-action-sports/pull/403)–[#411](https://github.com/bulletbiter99/air-action-sports/pull/411) (migration **0080**): the C1 archive contract (archived events visible on /games + detail, never bookable; `sales_close_at` ENFORCED at /quote+/checkout with an AdminEvents field), C8 pending-card lifecycle (payment-link recovery, cancel-with-Stripe-session-expiry, reschedule capacity), C9 labor completion (PUT edit + reject + tax-year-lock enforcement), the 1099 tax-identity editor (Sprint 2 tail), B5 SUA seed + runbook, B4 recurrence API + UI + runbook, the persona dropdown (+ a login-accounts surface on Settings), and the stale-copy sweep (headline: the public privacy policy named THREE processors the site doesn't use).
+>
+> **Parked with reasons:** the `w2_salary` CHECK-widening (documented at both dead-SQL sites; waits for an actual salaried person — 0 labor rows), custom-dates recurrence UI (SQL recipe in the runbook), and role/active editing for login accounts (API-only; persona is the one Settings write because it's a lens, not access).
+>
+> ## Previous status (2026-07-28 morning) — Sprints 1–3 complete
 >
 > Sprint 3 closed 2026-07-28 in PRs [#393](https://github.com/bulletbiter99/air-action-sports/pull/393)–[#400](https://github.com/bulletbiter99/air-action-sports/pull/400), **with no migrations**: C3 customer edit + the marketing-consent write path + manual tags, C7 unpaid/abandoned visibility + record-payment, C2 field-rental lead triage, C4 marketing dormant-state safety, B7 staff/cert/document actions, C6 admin incidents (file **and** resolve).
 >
@@ -149,7 +155,12 @@ exercisable until the marketing env vars land), B7 document role-tagging (a feat
 [docs/next-session.md](next-session.md): B7 claims an `/unarchive` endpoint that does not exist and
 cert edit/renew UI that was never wired; C2's `refunded` claim misreads which layer rejects it.
 
-**Sprint 4 — contracts & polish:** C1 archive contract + sales-cutoff decision (DNT conversation);
-B4 recurrence UI or runbook; B5 SUA seed; C8/C9; persona-system decision (dormant vs dropdown);
-stale-copy sweep ("Coming in M5", "(B7b)", batch-numbering in Segments, Mailchimp in the public
-privacy policy — that one should change before marketing activation).
+**Sprint 4 — contracts & polish:** ✅ **CLOSED 2026-07-28** (PRs #403–#411, migration 0080).
+C1 archive contract + sales_close_at enforcement (operator chose the FULL contract — the
+Critical-DNT checkout gates shipped additively, Groups A/B byte-green); B4 recurrence API + UI +
+runbook; B5 SUA placeholder seed + runbook (operator chose seed AND runbook); C8 pending-card
+lifecycle; C9 labor completion; 1099 tax-identity editor; persona dropdown (operator chose
+dormant-doc AND dropdown); stale-copy sweep. **One correction to this list:** the "Coming in M5"
+tiles were already removed (#254) and "(B7b)" already fixed (#397) before this sprint — the real
+stale copy was the privacy policy naming Google Analytics, Formspree AND Mailchimp (all unused),
+AdminSegments' batch numbering, and FilterBar's "(coming in M3+)".
