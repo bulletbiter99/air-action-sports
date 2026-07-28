@@ -3,7 +3,7 @@ import { requireAuth, requireRole } from '../../lib/auth.js';
 import { formatEvent, formatTicketType } from '../../lib/formatters.js';
 import { eventId as newEventId, ticketTypeId as newTicketTypeId, slugify } from '../../lib/ids.js';
 import { instantiateChecklists } from '../../lib/eventChecklists.js';
-import { detectEventConflicts, hasAnyConflict, dateIsoToDayWindow } from '../../lib/eventConflicts.js';
+import { detectEventConflicts, hasAnyConflict, eventOccupancyWindow } from '../../lib/eventConflicts.js';
 import { eventInstantMs } from '../../lib/eventTime.js';
 
 const adminEvents = new Hono();
@@ -502,18 +502,20 @@ adminEvents.post('/', requireRole('owner', 'manager'), async (c) => {
     const { patch, error } = parseEventBody(body, { partial: false });
     if (error) return c.json({ error }, 400);
 
-    // M5.5 B3 — Conflict detection on whole-day window when site_id + date_iso
-    // are provided. Operator override via body.acknowledgeConflicts: true.
+    // M5.5 B3 — Conflict detection when site_id + date_iso are provided. The
+    // window is the event's real start→end span when a timed end_date_iso is
+    // set, else the whole day (see eventOccupancyWindow).
+    // Operator override via body.acknowledgeConflicts: true.
     // Per requireRole gate above, only owner/manager reach this handler, and
     // both can acknowledge (operator's "owner + operations director" decision).
     let conflictsToAudit = null;
     if (patch.site_id && patch.date_iso) {
-        const dayWindow = dateIsoToDayWindow(patch.date_iso, patch.end_date_iso);
-        if (dayWindow) {
+        const occupancy = eventOccupancyWindow(patch.date_iso, patch.end_date_iso);
+        if (occupancy) {
             const conflicts = await detectEventConflicts(c.env, {
                 siteId: patch.site_id,
-                startsAt: dayWindow.startMs,
-                endsAt: dayWindow.endMs,
+                startsAt: occupancy.startMs,
+                endsAt: occupancy.endMs,
             });
             if (hasAnyConflict(conflicts)) {
                 if (!body.acknowledgeConflicts) {
@@ -689,12 +691,12 @@ adminEvents.put('/:id', requireRole('owner', 'manager'), async (c) => {
     const checkEndDateIso = patch.end_date_iso !== undefined ? patch.end_date_iso : existing.end_date_iso;
     const isScheduleChange = patch.site_id !== undefined || patch.date_iso !== undefined || patch.end_date_iso !== undefined;
     if (isScheduleChange && checkSiteId && checkDateIso) {
-        const dayWindow = dateIsoToDayWindow(checkDateIso, checkEndDateIso);
-        if (dayWindow) {
+        const occupancy = eventOccupancyWindow(checkDateIso, checkEndDateIso);
+        if (occupancy) {
             const conflicts = await detectEventConflicts(c.env, {
                 siteId: checkSiteId,
-                startsAt: dayWindow.startMs,
-                endsAt: dayWindow.endMs,
+                startsAt: occupancy.startMs,
+                endsAt: occupancy.endMs,
                 excludeEventId: id,
             });
             if (hasAnyConflict(conflicts)) {

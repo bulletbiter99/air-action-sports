@@ -106,14 +106,22 @@ describe('AdminEvents', () => {
         expect(await screen.findByRole('heading', { name: 'New event' })).toBeInTheDocument();
     });
 
-    it('exposes the multi-day end-date input + helper in the editor', async () => {
+    // The end-date helper documents THREE distinct outcomes now: a later day is
+    // multi-day, a SAME-day end narrows conflict detection without changing any
+    // public rendering, and blank holds the field all day. The same-day case is
+    // the opt-in for the narrowed scheduler window, so it has to be discoverable
+    // from the form — the old copy said only "leave blank for a single-day
+    // event", which read as though a same-day end were meaningless.
+    it('exposes the end-date input + explains all three end-time outcomes', async () => {
         mockList();
         renderWithAdmin(<AdminEvents />);
         await waitFor(() => expect(screen.getByRole('button', { name: '+ New Event' })).toBeInTheDocument());
         fireEvent.click(screen.getByRole('button', { name: '+ New Event' }));
         expect(await screen.findByRole('heading', { name: 'New event' })).toBeInTheDocument();
         expect(screen.getByText(/End date & time/)).toBeInTheDocument();
-        expect(screen.getByText(/Leave blank for a single-day event/)).toBeInTheDocument();
+        expect(screen.getByText(/makes this multi-day/)).toBeInTheDocument();
+        expect(screen.getByText(/stops being a conflict/)).toBeInTheDocument();
+        expect(screen.getByText(/holds the field all day/)).toBeInTheDocument();
     });
 
     it('offers the canon type options as a select in the editor', async () => {
