@@ -1,10 +1,31 @@
-# Next-session entry point — Admin-audit SPRINT 4 CLOSED, the audit is DONE (2026-07-28)
+# Next-session entry point — timezone follow-ups CLOSED, 0080 APPLIED (2026-07-28)
 
 ## ✅ Current state
 
-`main` (re-pull for exact HEAD) · **3567 / 304** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0080 in repo** (⚠️ **0080 needs the operator apply — see below**) · production auto-deploys on merge via Workers Builds.
+`main` (re-pull for exact HEAD) · **3611 / 304** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0080 ALL APPLIED to remote** · production auto-deploys on merge via Workers Builds.
 
-**Nothing is blocking.** The admin workflow audit is **fully closed** — all four sprints. Work menu is now: the **growth plan** (not started), the **kiosk decision**, and the two timezone follow-ups.
+**Nothing is blocking.** The admin workflow audit is fully closed (all four sprints), **both timezone follow-ups are done** (see the section below), and migration 0080 is applied. Work menu is now: the **growth plan** (not started) and the **kiosk decision**.
+
+## ✅ DONE — timezone follow-ups + 0080 apply (2026-07-28, third session — PRs #412–#416)
+
+The operator authorized the 0080 apply and asked to complete the two follow-ups from the `date_iso` timezone series. Both are **closed**:
+
+| PR | What |
+|---|---|
+| — | **Migration 0080 APPLIED to remote** (operator-authorized). Verified: `sua_seed_v1_placeholder` active, and `body_sha256` independently recomputed from the body **as stored in production** — it matches, so agreement-signature integrity holds. `kind=agreement` uploads no longer 409. The placeholder still needs attorney-approved text before a real renter signs ([runbooks/sua-template.md](runbooks/sua-template.md)). |
+| [#412](https://github.com/bulletbiter99/air-action-sports/pull/412) | **`main` was red — permanently, since 03:00 Mountain that morning.** The FOURTH clock-fixture rot (#291 → #393 → the Sprint-3 fix → this): `reviewInvites.test.js`'s send-path tests passed the real `Date.now()` while the candidate anchor was derived from the pinned `NOW`, so the anchor aged out of the 18-48h window at `NOW+48h` and nine tests failed with `considered: 0`. Not a daily flake — a rot with an expiry date. Every sweep invocation now pins `now: NOW`; the file-top comment names the rule. |
+| [#413](https://github.com/bulletbiter99/air-action-sports/pull/413) | **Follow-up 1 — event conflict windows narrowed to real start→end times.** New `eventOccupancyWindow` in `worker/lib/eventConflicts.js`: an event occupies its real span when `end_date_iso` carries a TIME component, else the whole Denver day (byte-identical to before). **Opt-in by design** — narrowing on absent data would guess occupancy, and a wrong guess is a silent double-booking. A **date-only** end must NOT narrow (`eventInstantMs` reads it as midnight → would drop the span's whole last day; pinned). No public rendering change: `isMultiDay` keys off a LATER calendar day, so a same-day end is invisible publicly. The admin form's end-date helper now names all three outcomes (later day / same day / blank). No migration. |
+| [#414](https://github.com/bulletbiter99/air-action-sports/pull/414) | **Follow-up 2, part 1 — period WINDOWS onto the Denver calendar.** `resolvePeriodWindow` (mtd/qtd/ytd), `parseCustomBounds` (the operator's date pickers), analytics `?period=mtd`. New business-calendar helpers in `worker/lib/eventTime.js` (worker-only; the src mirror deliberately untouched): `denverMonthKey`, `denverDayStartMs`, `denverAddDays`, `denverDayStartFor`, `denverWeekStartMs`, `denverMonthStartMs/QuarterStartMs/YearStartMs`. |
+| [#415](https://github.com/bulletbiter99/air-action-sports/pull/415) | Docs — un-parked `business-calendar-utc-skew.md` (since updated again at close: **CLOSED**). |
+| [#416](https://github.com/bulletbiter99/air-action-sports/pull/416) | **Follow-up 2, part 2 — the BUCKETS.** The nine `strftime('%Y-%m')` month buckets → raw fetch + pure `rollupByDenverMonth` (compute helpers byte-untouched); the scorecard re-anchored to DENVER Mondays (the `CAST(/604800000)` week index cannot express variable-length DST weeks); the cash-flow horizon + its budget day-walk (a fixed-ms walk takes EIGHT steps through the 25h fall-back week — double-allocates a day; pinned). |
+
+**Measured before changing the basis (read-only vs production): ZERO figures move.** All 83 payments keep their buckets; the nearest payment to a reattribution band is 6.17h clear. A property of the current dataset, not of the change.
+
+**Durable from this session:**
+1. **The clock-fixture rule, fourth occurrence:** a relative window asserted against a fixed date always has an expiry. If a file pins `NOW`, every time-dependent invocation must use `NOW` — mixing in `Date.now()` re-arms the bomb.
+2. **`Number(null) === 0`** (M5.5 lesson #7) struck again in fresh authoring — `rollupByDenverMonth` filed NULL timestamps into `1969-12` until the nullish-check moved before `Number()`. The test caught it.
+3. **Never cross a calendar boundary by adding fixed ms** — DST days are 23/25h, DST weeks 6d23h/7d1h. Calendar-step on Denver date parts (`denverAddDays`), then resolve back. Three distinct pinned failure shapes: duplicated Monday, 8-step week walk, off-by-an-hour custom-range end.
+4. The remaining adjacent item (deliberately out of scope): **daily** sales-series buckets still bucket on UTC days — noted in `business-calendar-utc-skew.md`.
 
 ## ✅ DONE — Admin-audit SPRINT 4 (2026-07-28, PRs #403–#411, migration 0080)
 
@@ -22,13 +43,9 @@ Nine PRs (8 feature + this docs sync). The operator chose the **maximal** varian
 | [#410](https://github.com/bulletbiter99/air-action-sports/pull/410) | **Persona dropdown** — PUT /users/:id accepts `persona` (D08 enum); a "Login Accounts & Dashboard Personas" section on Settings — also the first login-accounts read surface since AdminUsers was decommissioned in M5 R17. `admin-settings` baseline recaptured |
 | [#411](https://github.com/bulletbiter99/air-action-sports/pull/411) | This docs sync |
 
-### ⚠️ NEW operator action — apply migration 0080
+### ~~⚠️ NEW operator action — apply migration 0080~~ — ✅ APPLIED 2026-07-28 (later session, operator-authorized)
 
-```bash
-CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler d1 migrations apply air-action-sports-db --remote
-```
-
-Data-only (seeds the placeholder SUA), safe any time. Until applied, `kind=agreement` rental-document uploads keep 409ing in production. **Replace the placeholder with attorney-approved text** per [docs/runbooks/sua-template.md](runbooks/sua-template.md) before a real renter signs it.
+Applied + verified same day: the seeded row is active and `body_sha256` was independently recomputed from the body as stored in production (match — signature integrity holds). Agreement uploads no longer 409. What survives of this item: **replace the placeholder with attorney-approved text** per [docs/runbooks/sua-template.md](runbooks/sua-template.md) before a real renter signs it.
 
 ### Sprint 4 corrections + parked items
 
@@ -84,16 +101,13 @@ Eight PRs. **No migrations** — every column these features needed already exis
 
 ## 🎯 START HERE — what's left
 
-1. ~~Admin workflow audit Sprint 4~~ — ✅ **CLOSED 2026-07-28** (see the section above). The whole audit is done.
-2. **The growth plan** — [docs/growth-plan-2026-07.md](growth-plan-2026-07.md). Execution still **not started**. Headline: the SPA serves an empty shell to non-JS AI crawlers, and the only JSON-LD is review-gated (it now fires, since real reviews exist).
-3. **The kiosk decision** (audit D4), now more pointed: `/event` is dead end-to-end and #400 gave incidents an admin-side filing path that no longer needs it. Repair the kiosk, or retire it and finish moving its surfaces admin-side.
-4. **Two follow-ups from the timezone series** (both agreed, neither started):
-   - **Narrow event conflict windows** from whole-day to real start→end times, so an evening field rental after a morning event stops being a conflict at all. Right now the whole-day rule is correctly *enforced*, which means a site coordinator must escalate to an owner for that booking.
-   - **`docs/business-calendar-utc-skew.md`** — parked by operator decision. Every financial surface buckets on the UTC calendar, so "MTD" begins at 6 PM Mountain on the last day of the prior month.
+1. **The growth plan** — [docs/growth-plan-2026-07.md](growth-plan-2026-07.md). Execution still **not started**. Headline: the SPA serves an empty shell to non-JS AI crawlers, and the only JSON-LD is review-gated (it now fires, since real reviews exist).
+2. **The kiosk decision** (audit D4), now more pointed: `/event` is dead end-to-end and #400 gave incidents an admin-side filing path that no longer needs it. Repair the kiosk, or retire it and finish moving its surfaces admin-side.
+3. ~~Two follow-ups from the timezone series~~ — ✅ **BOTH CLOSED 2026-07-28** (#413 conflict-window narrowing; #414+#416 the business calendar — see the session section above).
 
 ## ⚠️ Operator-pending (none blocking)
 
-1. **NEW — apply migration 0080** (the SUA seed; see the Sprint 4 section above) and, before a real renter signs, replace the placeholder agreement with attorney-approved text per [docs/runbooks/sua-template.md](runbooks/sua-template.md).
+1. **SUA attorney review** — migration 0080 is applied and the agreement flow works, but the seeded agreement is a placeholder with a NOT-ATTORNEY-REVIEWED banner. Replace it with counsel-approved text per [docs/runbooks/sua-template.md](runbooks/sua-template.md) **before a real renter signs** (retire v1 + insert v2 — versions are immutable; never UPDATE a live row's body).
 2. **Resend plan upgrade** — now evidenced, not theoretical. The 2026-07-26 review-invite run logged `considered:23 sent:13 failed:10` with `alarm:false`; 10 sends were 429'd. Batch pacing (shipped in #392) mitigates it, but the plan limit is the root cause. Also still needed for Marketing send, along with `MARKETING_POSTAL_ADDRESS`.
 3. **`RESEND_WEBHOOK_SECRET` + the Resend dashboard webhook** → `https://airactionsport.com/api/webhooks/resend` (subscribe `email.bounced` + `email.complained`). Feeds bounce/complaint tracking *and* review-invite suppression.
 4. **`audit_log_fts` flag flip** — `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';` Until then audit search uses the LIKE fallback.
@@ -112,6 +126,8 @@ Eight PRs. **No migrations** — every column these features needed already exis
 | `eventStartsWithin(iso, a, b)` | exact instant membership test |
 | `toDenverWallClock(ms)` | instant → the stored 19-char shape |
 
+*(Since 2026-07-28 the same file also carries the BUSINESS-CALENDAR helpers — `denverMonthKey`, `denverDayStartMs`, `denverAddDays`, `denverDayStartFor`, `denverWeekStartMs`, `denverMonthStartMs`/`QuarterStartMs`/`YearStartMs` — used by every financial window + bucket. Worker-only; not mirrored to `src/utils`.)*
+
 **#391 — the reminder cron.** 18 Last Light customers got "T-MINUS 1 HOUR" at 1:20 AM on event day with `Check-in: 8:00 AM` in the same email, and the sentinel stamp then suppressed the real send. Two-stage filter now: wall-clock bounds in SQL (exact off a DST transition), exact instant re-check in JS.
 
 **#392 — the other ~30 sites**, in five commits: public countdown + `/games` "Invalid Date"; admin "today" (`/today/active` going blind from 6 PM Mountain, deferred revenue, site archive guard); review invites + the resend gate; the conflict engine; and the staffing/vendor/`sales_close_at` tail.
@@ -129,9 +145,9 @@ Besides naive-string-as-instant, there is a **UTC-"today" vs Mountain-date** mod
 
 ### Deliberately NOT fixed
 
-- **`eventDaySession.js:102`** — offset-wrong, but the 30h pad absorbs it for every real event shape and the kiosk is dead end-to-end (audit A1). Changing an auth window nobody exercises is more risk than the bug.
-- **`sales_close_at` enforcement** — the math is fixed; wiring it to checkout is a Critical DNT change needing its own conversation.
-- **The business-calendar skew** — see item 3 in the work menu.
+- **`eventDaySession.js:102`** — offset-wrong, but the 30h pad absorbs it for every real event shape and the kiosk is dead end-to-end (audit A1). Changing an auth window nobody exercises is more risk than the bug. *(Still true.)*
+- **`sales_close_at` enforcement** — the math is fixed; wiring it to checkout is a Critical DNT change needing its own conversation. → *since ENFORCED in Sprint 4 #404 (the C1 archive contract).*
+- **The business-calendar skew** — parked at the time. → *since CLOSED 2026-07-28 (#414 + #416; see the top of this file).*
 - **Skew that genuinely cancels** — span validations parsing BOTH endpoints naively (`events.js:282`, `AdminEvents.jsx:332`), and client `new Date(naive)` → `toLocaleDateString()`, which is an exact round-trip and correct in every timezone. Don't "fix" these.
 
 
@@ -309,13 +325,13 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | re-pull for exact (PRs #403–#411 merged — admin-audit Sprint 4, the audit's close) |
-| Tests | **3567 / 304** all green |
+| `main` HEAD | re-pull for exact (merged through **#416** — the timezone follow-ups close) |
+| Tests | **3611 / 304** all green |
 | Build | clean · Lint **0 errors** (`npx eslint src worker tests scripts` — plain `npm run lint` also walks the gitignored `static-backup/`, which CI never sees and which reports 24 pre-existing errors). **Reproduce CI exactly with `TZ=UTC npx vitest run`** — the runner is UTC and a naive-ISO fixture is ambient-TZ-dependent. |
-| Production | deployed + verified through **#411** (Workers Builds) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day + reviews + open-reads admin + event-day hardening + the full date_iso timezone fix + **all four admin-audit sprints** live. **Post-#404 archive contract:** archived (`past=1`) events now render on `/games` and their public detail pages **regardless of `published`** (prod verified serving 5 archived events) — and are **not bookable** (quote/checkout 409). A bare `/api/events` (no `include_past=1`) still filters to upcoming published events and can legitimately return `[]`. |
-| Migrations on remote | **0001–0079 applied.** ⚠️ **0080 (SUA placeholder seed) is in-repo but NOT applied** — until the operator applies it, agreement uploads 409 in prod. See operator-pending #1. |
+| Production | deployed + verified through **#416** (Workers Builds) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day + reviews + open-reads admin + event-day hardening + the full date_iso timezone fix + **all four admin-audit sprints** + **the timezone follow-ups (conflict narrowing + the Denver business calendar)** live. **Post-#404 archive contract:** archived (`past=1`) events now render on `/games` and their public detail pages **regardless of `published`** (prod verified serving 5 archived events) — and are **not bookable** (quote/checkout 409). A bare `/api/events` (no `include_past=1`) still filters to upcoming published events and can legitimately return `[]`. |
+| Migrations on remote | **0001–0080 ALL applied** (0080 applied 2026-07-28; seeded SUA verified incl. an independent `body_sha256` recompute — agreement uploads work; the placeholder text still needs attorney review). |
 | Open PRs | 0 |
-| Open milestone | **None active, and nothing is blocking.** The **admin workflow audit is FULLY CLOSED** — all four sprints (Sprint 4: 2026-07-28, PRs #403–#411). Work menu: **growth plan** (not started) → the kiosk repair-or-retire decision → two agreed follow-ups from the timezone series (narrow conflict windows; the parked business-calendar skew). Operator activation: **apply migration 0080** + replace the placeholder SUA with attorney text, Resend plan upgrade, `MARKETING_POSTAL_ADDRESS`, `RESEND_WEBHOOK_SECRET` + webhook, `audit_log_fts` flag. |
+| Open milestone | **None active, and nothing is blocking.** The **admin workflow audit is FULLY CLOSED** — all four sprints (Sprint 4: 2026-07-28, PRs #403–#411). **Both timezone follow-ups CLOSED 2026-07-28 (#412–#416).** Work menu: **growth plan** (not started) → the kiosk repair-or-retire decision. Operator activation: replace the placeholder SUA with attorney text, Resend plan upgrade, `MARKETING_POSTAL_ADDRESS`, `RESEND_WEBHOOK_SECRET` + webhook, `audit_log_fts` flag. |
 | Reviews | **LIVE with real data** — 3 submitted, 1 operator-hidden → public aggregate **2 / 4.5★**. |
 
 ---
@@ -596,7 +612,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-TZ=UTC npm test -- --run | tail -3  # expect 3567 / 304 (TZ=UTC reproduces CI — see the Build row above)
+TZ=UTC npm test -- --run | tail -3  # expect 3611 / 304 (TZ=UTC reproduces CI — see the Build row above)
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```

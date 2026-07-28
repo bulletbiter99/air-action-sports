@@ -1,7 +1,19 @@
 # The reporting calendar is UTC, not the Denver business calendar
 
-**Status: UN-PARKED 2026-07-28 by operator decision. PART 1 SHIPPED (#414);
-part 2 — the month/week BUCKETS — remains.**
+**Status: ✅ CLOSED 2026-07-28 — both parts shipped.** Part 1 (#414) moved the
+period windows (mtd/qtd/ytd, the custom date pickers, analytics `?period=mtd`);
+part 2 (#416) moved the buckets (the nine monthly charts via
+`rollupByDenverMonth`, the scorecard's Denver-Monday weeks, the cash-flow
+horizon + its budget day-walk). Every financial surface now windows AND buckets
+on the Denver calendar. The rest of this doc is the history + the decisions,
+kept because the "why JS not SQL" reasoning and the DST traps stay load-bearing
+for any future consumer.
+
+**One adjacent item deliberately NOT converted** (out of the parked scope): the
+**daily** sales-series buckets (`date(paid_at/1000,'unixepoch')` in
+analytics.js + the revenue-trends daily rows) still bucket on UTC days. Same
+6-7h family, smaller stakes (a chart column, not a reconciled month). Convert
+with `denverDateFor(ms)` per row if it ever matters.
 
 Originally parked 2026-07-27 as a *policy* question about which calendar the
 books run on rather than a bug, because fixing it moves numbers the operator has
@@ -46,15 +58,9 @@ mirror is deliberately untouched): `denverMonthKey`, `denverDayStartMs`,
 Rolling windows (`last_30d` / `last_90d`) are durations, not calendar
 boundaries — deliberately unchanged.
 
-## ⏳ Part 2 — REMAINING: the buckets
+## ✅ Part 2 — SHIPPED in #416 (2026-07-28): the buckets
 
-**Current state is deliberately mixed**: windows are Denver, buckets are still
-UTC. That is strictly better than before (the window fix already excludes the
-previous month's evening), but it is not complete — a row inside a Denver window
-can still land in the wrong month column, for the 6-7h band before each UTC
-month rollover.
-
-Still on the UTC calendar:
+What was still on the UTC calendar when part 2 started (all converted):
 
 | Location | What |
 |---|---|
@@ -74,11 +80,15 @@ the host process TZ — which in a Worker is UTC, so it is a **silent no-op**
 **1-hour** version of the same bug at every winter month boundary, which is the
 hardcoded `-06:00` mistake `eventTime.js` exists to refuse.
 
-### Chosen approach (operator-confirmed 2026-07-28): bucket in JS
+### Chosen approach (operator-confirmed 2026-07-28, shipped in #416): bucket in JS
 
-Return raw rows and aggregate in JS keyed on `denverMonthKey(ms)`. Exact across
-DST, nothing clever to get wrong. Performance is a non-issue at AAS volume — the
-widest of these queries reads 83 bookings / 79 customers lifetime.
+Raw rows aggregated in JS: the nine month buckets go through the pure
+`rollupByDenverMonth(rows, tsField, spec, keyFields?)` in `worker/lib/reports.js`
+(reproduces the old `{month, ...sums}` shape, so the compute helpers stayed
+byte-untouched); the scorecard buckets by boundary scan over 13 Denver-Monday
+windows; the cash-flow lib walks budget days as Denver calendar dates. Exact
+across DST, nothing clever to get wrong. Performance is a non-issue at AAS
+volume — the widest of these queries reads 83 bookings / 79 customers lifetime.
 
 The rejected alternative was a DST-aware SQL `CASE` built from transition
 instants passed as binds. Also exact and it keeps aggregation server-side, but it
@@ -87,17 +97,19 @@ means interpolated SQL, and the real-schema guard
 would silently drop those statements from the guard. Worth revisiting only if
 row counts ever make JS aggregation untenable.
 
-### Watch out for
+### Traps that were confirmed real during part 2 (all pinned by tests)
 
-- **The scorecard's week grid cannot use fixed `604800000` steps** once anchored
-  to Denver Mondays: a DST week is 6d23h or 7d1h, so fixed stepping duplicates or
-  skips a week. Use `denverAddDays(monday, 7)` — pinned by an existing test that
-  builds 13 Mondays across fall-back and asserts they stay distinct.
-- **`denverMonthKey` is strict** and returns `null` on a non-finite input rather
-  than defaulting to now, so a NULL timestamp is excluded rather than filed into
-  the current month. Callers must handle `null`.
-- The nine queries already interpolate `${evt}`, so they are **already** outside
-  the real-schema guard — converting them costs no coverage there.
+- **A week grid cannot use fixed `604800000` steps** once anchored to Denver
+  Mondays: a DST week is 6d23h or 7d1h, so fixed stepping duplicates or skips a
+  week. `denverAddDays(monday, 7)` — pinned by the 13-distinct-Mondays test.
+- **A fixed `dayMs += 86400000` walk takes EIGHT steps through the 25-hour
+  fall-back week** and allocates a day of budget twice — why the cash-flow lib
+  walks calendar dates. Pinned by the exactly-$70-across-that-week test.
+- **`Number(null) === 0`** (the M5.5 lesson-#7 quirk) bit `rollupByDenverMonth`
+  in authoring: a NULL timestamp coerced to epoch-0 and bucketed into 1969-12.
+  Nullish-check before `Number()`; a NULL row is filed NOWHERE.
+- **`denverMonthKey` is strict** and returns `null` rather than defaulting to
+  now, so a guessed bucket key can never happen. Callers must handle `null`.
 
 ---
 
