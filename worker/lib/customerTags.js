@@ -21,6 +21,13 @@
 // Sweep schedule: 03:00 UTC nightly (per wrangler.toml triggers.crons).
 // The 15-minute reminder cron runs separately and does not touch tags.
 
+// The four names this module owns. Exported because the PRIMARY KEY on
+// customer_tags is (customer_id, tag) — tag_type is NOT in the key — so a
+// MANUAL tag sharing one of these names collides with the system row the
+// sweep wants to insert. Any manual-tag write path must reject these names,
+// and must do so against this constant rather than its own copy.
+export const SYSTEM_TAG_NAMES = ['vip', 'frequent', 'lapsed', 'new'];
+
 // Tunable thresholds — kept as named constants so the test file can
 // reference the same values.
 export const TAG_THRESHOLDS = {
@@ -103,6 +110,21 @@ export async function runCustomerTagsSweep(env, opts = {}) {
     // per (customer, tag). db.batch wraps the whole thing in an atomic
     // operation so a partial failure leaves customer_tags in either the
     // pre-sweep state or the fully-refreshed state — never half-applied.
+    //
+    // The INSERT is OR IGNORE because that atomicity cuts both ways: the
+    // PRIMARY KEY is (customer_id, tag) with tag_type OUTSIDE the key, so a
+    // manual tag named 'vip' on a customer who also earns the system 'vip'
+    // would raise a constraint error that rolls back the WHOLE batch — and
+    // worker/index.js only .catch()es it to console.error, so system tags
+    // would silently stop refreshing for every customer, indefinitely.
+    //
+    // Worse, it arms itself on a delay: the system tags are conditional, so a
+    // manual 'vip' on a $40 customer collides with nothing until their
+    // lifetime value crosses $500, and a manual 'lapsed' is inert until day
+    // 181. OR IGNORE makes the manual row win for that one pair and leaves
+    // the rest of the sweep intact. The manual-tag write path also rejects
+    // these names up front (SYSTEM_TAG_NAMES); this is the second line of
+    // defence, covering rows written directly via SQL.
     const statements = [
         env.DB.prepare(`DELETE FROM customer_tags WHERE tag_type = 'system'`),
     ];
@@ -113,7 +135,7 @@ export async function runCustomerTagsSweep(env, opts = {}) {
         for (const tag of tags) {
             statements.push(
                 env.DB.prepare(
-                    `INSERT INTO customer_tags (customer_id, tag, tag_type, created_at, created_by)
+                    `INSERT OR IGNORE INTO customer_tags (customer_id, tag, tag_type, created_at, created_by)
                      VALUES (?, ?, 'system', ?, NULL)`,
                 ).bind(c.id, tag, now),
             );

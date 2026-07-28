@@ -69,6 +69,24 @@ export function getSchemaDb() {
     return db;
 }
 
+/**
+ * A WRITABLE in-memory database with every migration applied.
+ *
+ * Deliberately uncached, unlike getSchemaDb(): use this when a test needs to
+ * exercise real constraint behaviour — PRIMARY KEY conflicts, CHECK
+ * violations, ON CONFLICT clauses — rather than just compile a statement.
+ * Each caller gets an isolated instance it may write to freely.
+ *
+ * Prefer getSchemaDb() for pure compile checks; it is ~100ms cheaper.
+ */
+export function freshSchemaDb() {
+    const db = new Database(':memory:');
+    for (const file of migrationFiles()) {
+        db.exec(readFileSync(join(MIGRATIONS_DIR, file), 'utf8'));
+    }
+    return db;
+}
+
 /** Column names for a table, in declaration order. */
 export function columnsOf(table) {
     return getSchemaDb().prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name);

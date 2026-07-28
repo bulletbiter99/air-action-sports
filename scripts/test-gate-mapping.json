@@ -307,7 +307,8 @@
       "covers": ["computeSystemTags", "runCustomerTagsSweep"],
       "audit_group": "(M3 B10 nightly tag refresh)",
       "tests": [
-        "tests/unit/lib/customer-tags.test.js"
+        "tests/unit/lib/customer-tags.test.js",
+        "tests/unit/schema/customerTagsCollision.test.js"
       ]
     },
     "worker/routes/admin/staff.js": {

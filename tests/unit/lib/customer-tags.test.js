@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import {
     computeSystemTags,
     runCustomerTagsSweep,
+    SYSTEM_TAG_NAMES,
     TAG_THRESHOLDS,
 } from '../../../worker/lib/customerTags.js';
 import { createMockD1 } from '../../helpers/mockD1.js';
@@ -162,7 +163,7 @@ describe('runCustomerTagsSweep', () => {
 
         // 3 inserts: vip, frequent, new — all for cus_a
         const inserts = writes.filter(
-            (w) => w.kind === 'run' && /INSERT INTO customer_tags/.test(w.sql),
+            (w) => w.kind === 'run' && /INSERT OR IGNORE INTO customer_tags/.test(w.sql),
         );
         expect(inserts).toHaveLength(3);
         for (const w of inserts) {
@@ -181,8 +182,58 @@ describe('runCustomerTagsSweep', () => {
         expect(result.tagsInserted).toBe(0);
 
         const inserts = db.__writes().filter(
-            (w) => w.kind === 'run' && /INSERT INTO customer_tags/.test(w.sql),
+            (w) => w.kind === 'run' && /INSERT OR IGNORE INTO customer_tags/.test(w.sql),
         );
         expect(inserts).toHaveLength(0);
+    });
+
+    // The PRIMARY KEY on customer_tags is (customer_id, tag) — tag_type is NOT
+    // in the key — so a manual tag sharing a system name collides with the row
+    // this sweep wants to insert. Because the whole thing runs in one atomic
+    // db.batch() and worker/index.js only .catch()es to console.error, a bare
+    // INSERT would silently freeze system-tag refresh for EVERY customer.
+    // OR IGNORE is what keeps one bad row from taking down the sweep.
+    it('inserts with OR IGNORE so a manual tag sharing a system name cannot abort the batch', async () => {
+        const db = createMockD1();
+        db.__on(/FROM customers\s+WHERE archived_at IS NULL/, {
+            results: [{
+                id: 'cus_a',
+                lifetime_value_cents: 100000,   // → vip
+                total_bookings: 0,
+                first_booking_at: null,
+                last_booking_at: null,
+            }],
+        }, 'all');
+
+        await runCustomerTagsSweep({ DB: db }, { now: NOW });
+
+        const inserts = db.__writes().filter(
+            (w) => w.kind === 'run' && /INTO customer_tags/.test(w.sql),
+        );
+        expect(inserts).toHaveLength(1);
+        // A bare `INSERT INTO` here is the bug — assert the conflict clause
+        // explicitly rather than only matching the table name.
+        expect(inserts[0].sql).toMatch(/INSERT OR IGNORE INTO customer_tags/);
+        expect(inserts[0].sql).not.toMatch(/INSERT\s+INTO customer_tags/);
+    });
+});
+
+describe('SYSTEM_TAG_NAMES', () => {
+    // The manual-tag write path rejects these names. If computeSystemTags ever
+    // learns a fifth tag and this list isn't updated, that new name becomes
+    // manually writable and re-arms the collision above — so pin the two
+    // together rather than trusting the constant to be maintained by hand.
+    it('covers every tag computeSystemTags can emit', () => {
+        const emitted = new Set([
+            ...computeSystemTags({ lifetime_value_cents: 100000 }, NOW),
+            ...computeSystemTags({ total_bookings: 6 }, NOW),
+            ...computeSystemTags({ total_bookings: 1, last_booking_at: NOW - 200 * DAY_MS }, NOW),
+            ...computeSystemTags({ first_booking_at: NOW - 1 * DAY_MS }, NOW),
+        ]);
+        expect([...emitted].sort()).toEqual([...SYSTEM_TAG_NAMES].sort());
+    });
+
+    it('is lowercase, so a case-normalized manual tag cannot evade the reserved-name check', () => {
+        for (const t of SYSTEM_TAG_NAMES) expect(t).toBe(t.toLowerCase());
     });
 });
