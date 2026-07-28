@@ -69,15 +69,14 @@ export default function Privacy() {
         </p>
 
         <h2>Third-Party Services</h2>
-        {/* PLACEHOLDER: Update this list based on which services you integrate */}
         <p>
-          We may use the following third-party services that process data on our
+          We use the following third-party services that process data on our
           behalf:
         </p>
         <ul>
-          <li>Google Analytics &mdash; website usage statistics</li>
-          <li>Formspree &mdash; form submission handling</li>
-          <li>Mailchimp &mdash; newsletter delivery</li>
+          <li>Stripe &mdash; payment processing</li>
+          <li>Resend &mdash; transactional and marketing email delivery</li>
+          <li>Cloudflare &mdash; website hosting and infrastructure</li>
         </ul>
 
         <h2>Data Retention</h2>

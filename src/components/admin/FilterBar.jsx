@@ -253,9 +253,9 @@ function FilterPicker({ availableFilters, query, onQueryChange, onPickEnum }) {
                             <span
                                 className="aas-filterbar__picker-todo"
                                 data-filter-type={filterDef.type}
-                                title={`Filter type "${filterDef.type}" not yet implemented (M3+).`}
+                                title={`Filter type "${filterDef.type}" is not supported.`}
                             >
-                                {filterDef.label} <em>(coming in M3+)</em>
+                                {filterDef.label} <em>(unavailable)</em>
                             </span>
                         )}
                     </li>

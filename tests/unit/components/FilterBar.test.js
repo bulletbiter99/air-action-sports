@@ -133,7 +133,7 @@ describe('filterAvailableFilters', () => {
     });
 
     it('exposes non-enum types in the picker (typeahead/date/bool/range get a TODO indicator at render time)', () => {
-        // The component renders non-enum types as a "(coming in M3+)" placeholder
+        // The component renders non-enum types as an "(unavailable)" placeholder
         // (see FilterBar.jsx FilterPicker). The pure helper just lists them as
         // available; the component is what shows the TODO.
         const all = filterAvailableFilters('', SCHEMA, {});
