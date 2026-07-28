@@ -52,6 +52,9 @@ export function adaptEvent(apiEvent) {
         site: apiEvent.site || '',
         month: monthKey,
         past: !!apiEvent.past,
+        // Sales cutoff (epoch ms or null) — the detail page uses it to swap the
+        // Book Now CTA for a "sales closed" state; /quote + /checkout enforce it.
+        salesCloseAt: apiEvent.salesCloseAt ?? null,
         featured: !!apiEvent.featured,
         gameModes: apiEvent.gameModes || [],
         rentals,

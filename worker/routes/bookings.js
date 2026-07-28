@@ -35,6 +35,21 @@ async function loadEventAndTypes(db, eventId) {
     };
 }
 
+// Sprint 4 C1 — the archive/bookability contract. An event that has ended
+// (past=1) or whose sales cutoff has passed (sales_close_at, epoch ms) must
+// not accept new quotes or checkouts, even while it stays published for the
+// public archive. Returns a customer-facing reason string, or null when sales
+// are open. Additive guard — the pricing/booking flow below is untouched.
+function salesClosedError(event, nowMs) {
+    if (event.past) {
+        return 'This event has ended — ticket sales are closed.';
+    }
+    if (event.salesCloseAt != null && nowMs >= event.salesCloseAt) {
+        return 'Online ticket sales for this event have closed.';
+    }
+    return null;
+}
+
 async function checkTicketInventory(db, eventId, ticketSelections) {
     // Count paid + recent-pending bookings' ticket counts per ticket type.
     const holdCutoff = Date.now() - PENDING_HOLD_MS;
@@ -112,6 +127,10 @@ bookings.post('/quote', rateLimit('RL_QUOTE'), async (c) => {
 
     const ctx = await loadEventAndTypes(c.env.DB, body.eventId);
     if (!ctx) return c.json({ error: 'Event not found' }, 404);
+
+    // Sales-closed gate (Sprint 4 C1) — 409 before any pricing work.
+    const quoteClosed = salesClosedError(ctx.event, Date.now());
+    if (quoteClosed) return c.json({ error: quoteClosed, salesClosed: true }, 409);
 
     const ticketSelections = Array.isArray(body.ticketSelections) ? body.ticketSelections : [];
     const addonSelections = Array.isArray(body.addonSelections) ? body.addonSelections : [];
@@ -210,6 +229,10 @@ bookings.post('/checkout', rateLimit('RL_CHECKOUT'), async (c) => {
 
     const ctx = await loadEventAndTypes(c.env.DB, body.eventId);
     if (!ctx) return c.json({ error: 'Event not found' }, 404);
+
+    // Sales-closed gate (Sprint 4 C1) — 409 before any booking row exists.
+    const checkoutClosed = salesClosedError(ctx.event, Date.now());
+    if (checkoutClosed) return c.json({ error: checkoutClosed, salesClosed: true }, 409);
 
     // Derive ticket selections from attendees (group by ticket type)
     const ticketSelectionMap = new Map();

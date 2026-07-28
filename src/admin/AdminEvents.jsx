@@ -245,12 +245,25 @@ export default function AdminEvents() {
   );
 }
 
+// epoch ms → the YYYY-MM-DDTHH:mm shape input[type=datetime-local] expects, in
+// the BROWSER'S LOCAL zone. Format and parse must agree: the input's onChange
+// stores via `new Date(value).getTime()` (parses as local), so the display must
+// also format local — `toISOString().slice(0,16)` (UTC) would shift the shown
+// time by the offset and every touch of the field would move the real instant
+// (the #397 field-rental wizard bug).
+function msToDateTimeLocal(ms) {
+  const t = new Date(ms);
+  if (Number.isNaN(t.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
+}
+
 function EventEditor({ eventId, onClose, onSaved }) {
   const isNew = !eventId;
   const { hasRole } = useAdmin();
   const [loading, setLoading] = useState(!isNew);
   const [form, setForm] = useState({
-    title: '', slug: '', dateIso: '', endDateIso: '',
+    title: '', slug: '', dateIso: '', endDateIso: '', salesCloseAt: '',
     displayDate: '', displayDay: '', displayMonth: '',
     location: '', site: '', siteId: '', type: 'airsoft',
     timeRange: '', checkIn: '', firstGame: '', endTime: '',
@@ -292,6 +305,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
         setForm({
           title: event.title || '', slug: event.slug || '',
           dateIso: event.dateIso || '', endDateIso: event.endDateIso || '',
+          salesCloseAt: event.salesCloseAt != null ? msToDateTimeLocal(event.salesCloseAt) : '',
           displayDate: event.displayDate || '', displayDay: event.displayDay || '', displayMonth: event.displayMonth || '',
           location: event.location || '', site: event.site || '', siteId: event.siteId || '', type: event.type || 'airsoft',
           timeRange: event.timeRange || '', checkIn: event.checkIn || '', firstGame: event.firstGame || '', endTime: event.endTime || '',
@@ -345,7 +359,15 @@ function EventEditor({ eventId, onClose, onSaved }) {
       // details_json payload; the server (normalizeEventDetails) sanitizes +
       // strips empties. Always sent — but loaded from event.details on edit, so
       // an event with existing content round-trips it (no accidental wipe).
-      const base = { ...form, details: formStateToDetailsPayload(form.details) };
+      // salesCloseAt: the form holds a datetime-local string; the API takes
+      // epoch ms or null. Always sent explicitly — empty field = null = "never
+      // auto-close" (bypasses the server's start−2h default so a UI-created
+      // event only gets a cutoff the operator actually typed).
+      const base = {
+        ...form,
+        salesCloseAt: form.salesCloseAt ? new Date(form.salesCloseAt).getTime() : null,
+        details: formStateToDetailsPayload(form.details),
+      };
       const body = options.acknowledge
         ? { ...base, acknowledgeConflicts: true }
         : base;
@@ -499,6 +521,21 @@ function EventEditor({ eventId, onClose, onSaved }) {
             <Field label="Multi-day?">
               <div style={{ fontSize: 12, color: 'var(--tan-light)', lineHeight: 1.4, paddingTop: 6 }}>
                 Leave blank for a single-day event. When set, the public page shows a date range, the check-in window covers every day, and the timeline can be grouped by day (prefix a schedule line with the day number, e.g. &quot;1 | 7:00 AM | Check-in&quot;).
+              </div>
+            </Field>
+          </div>
+          <div style={twoCol}>
+            <Field label="Online sales close (optional)">
+              <input
+                type="datetime-local"
+                value={form.salesCloseAt}
+                onChange={(e) => updateField('salesCloseAt', e.target.value)}
+                style={input}
+              />
+            </Field>
+            <Field label="Sales cutoff">
+              <div style={{ fontSize: 12, color: 'var(--tan-light)', lineHeight: 1.4, paddingTop: 6 }}>
+                Customers can&apos;t start new online checkouts after this time. Leave blank for no automatic cutoff — sales stay open until the event is archived. Admin manual bookings are never blocked.
               </div>
             </Field>
           </div>
