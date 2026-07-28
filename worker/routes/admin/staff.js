@@ -463,6 +463,41 @@ adminStaff.post('/:id/archive', requireCapability('staff.archive'), async (c) =>
 });
 
 // ────────────────────────────────────────────────────────────────────
+// POST /api/admin/staff/:id/unarchive — restore a soft-archived person
+//
+// The mirror of /archive, which shipped without one. That was survivable
+// while nothing in the UI could archive; putting an Archive button on the
+// staff page (B7) makes a misclick unrecoverable without it.
+//
+// Status returns to 'active' rather than whatever it was before — persons
+// has no column recording the pre-archive status, and 'active' is the only
+// honest default for someone you have just chosen to restore.
+// ────────────────────────────────────────────────────────────────────
+adminStaff.post('/:id/unarchive', requireCapability('staff.archive'), async (c) => {
+    const id = c.req.param('id');
+    const now = Date.now();
+    const result = await c.env.DB.prepare(
+        `UPDATE persons SET archived_at = NULL, archived_reason = NULL, status = 'active', updated_at = ?
+          WHERE id = ? AND archived_at IS NOT NULL`
+    ).bind(now, id).run();
+
+    if (!result?.meta?.changes) {
+        return c.json({ error: 'Not found or not archived' }, 404);
+    }
+
+    const user = c.get('user');
+    await writeAudit(c.env, {
+        userId: user.id,
+        action: 'staff.unarchived',
+        targetType: 'person',
+        targetId: id,
+        meta: {},
+    });
+
+    return c.json({ ok: true });
+});
+
+// ────────────────────────────────────────────────────────────────────
 // POST /api/admin/staff/:id/invite — mint magic link + send invite
 // ────────────────────────────────────────────────────────────────────
 adminStaff.post('/:id/invite', requireCapability('staff.invite'), async (c) => {

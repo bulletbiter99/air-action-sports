@@ -24,6 +24,9 @@ export default function AdminStaffLibrary() {
     const [loading, setLoading] = useState(false);
     const [kindFilter, setKindFilter] = useState('');
     const [includeRetired, setIncludeRetired] = useState(false);
+    // B7 — POST /staff-documents/:id/retire has existed since M5 with no UI
+    // caller; the editor literally told operators "Manager+ can attach via API".
+    const [err, setErr] = useState(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -40,6 +43,24 @@ export default function AdminStaffLibrary() {
 
     useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
 
+    const retire = async (doc) => {
+        if (!window.confirm(
+            `Retire "${doc.title}"? It stops being required of staff but stays on file, `
+            + 'along with every acknowledgement already recorded against it.',
+        )) return;
+        setErr(null);
+        try {
+            const res = await fetch(`/api/admin/staff-documents/${encodeURIComponent(doc.id)}/retire`, {
+                method: 'POST', credentials: 'include',
+            });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) { setErr(j.error || `HTTP ${res.status}`); return; }
+            await load();
+        } catch (e) {
+            setErr(String(e.message || e));
+        }
+    };
+
     if (!isAuthenticated) return null;
 
     return (
@@ -53,6 +74,7 @@ export default function AdminStaffLibrary() {
                 )}
             />
 
+            {err && <p style={{ color: 'var(--color-danger)', fontSize: 12 }}>Error: {err}</p>}
             <div style={filterRow}>
                 <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} style={select}>
                     {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
@@ -72,11 +94,12 @@ export default function AdminStaffLibrary() {
                             <th style={th}>Version</th>
                             <th style={th}>Slug</th>
                             <th style={th}>Status</th>
+                            <th style={th}></th>
                         </tr>
                     </thead>
                     <tbody>
-                        {loading && <tr><td colSpan={5} style={loadingCell}>Loading…</td></tr>}
-                        {!loading && docs.length === 0 && <tr><td colSpan={5} style={emptyCell}>No documents in library yet.</td></tr>}
+                        {loading && <tr><td colSpan={6} style={loadingCell}>Loading…</td></tr>}
+                        {!loading && docs.length === 0 && <tr><td colSpan={6} style={emptyCell}>No documents in library yet.</td></tr>}
                         {!loading && docs.map((d) => (
                             <tr key={d.id} style={tr}>
                                 <td style={td}><span style={kindPill}>{d.kind.toUpperCase()}</span></td>
@@ -84,6 +107,11 @@ export default function AdminStaffLibrary() {
                                 <td style={td}>{d.version}</td>
                                 <td style={td}><code style={codeText}>{d.slug}</code></td>
                                 <td style={td}>{d.retiredAt ? <span style={retiredPill}>Retired</span> : <span style={livePill}>Live</span>}</td>
+                                <td style={td}>
+                                    {hasRole?.('manager') && !d.retiredAt && (
+                                        <button type="button" style={rowBtn} onClick={() => retire(d)}>Retire</button>
+                                    )}
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -109,4 +137,5 @@ const kindPill = { padding: '2px 8px', background: 'var(--color-accent-soft)', c
 const titleLink = { color: 'var(--cream)', textDecoration: 'none', fontWeight: 600 };
 const codeText = { fontFamily: 'ui-monospace, monospace', fontSize: 11, color: 'var(--tan-light)' };
 const livePill = { padding: '2px 8px', background: 'var(--color-success-soft)', color: 'var(--color-success)', fontSize: 9, fontWeight: 700, borderRadius: 3 };
+const rowBtn = { padding: '3px 10px', background: 'transparent', color: 'var(--tan)', border: '1px solid var(--color-border-strong)', fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' };
 const retiredPill = { padding: '2px 8px', background: 'var(--color-bg-sunken)', color: 'var(--color-text-subtle)', fontSize: 9, fontWeight: 700, borderRadius: 3 };
