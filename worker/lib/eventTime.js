@@ -249,3 +249,117 @@ export function eventStartsWithin(dateIso, startMs, endMs) {
     if (t == null) return false;
     return t >= startMs && t <= endMs;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * THE BUSINESS CALENDAR
+ *
+ * Everything above answers "what instant is this stored wall-clock string?".
+ * Everything below answers the different question "which month/quarter/week
+ * does this real instant belong to, for a business that operates in Denver?".
+ *
+ * Reporting used to bucket and window on the UTC calendar. That was internally
+ * consistent — UTC bounds applied to UTC buckets, so every figure reconciled
+ * against every other — but it meant the books kept time in the wrong city:
+ * "MTD" began at 6:00 PM Mountain on the last day of the previous month, and a
+ * booking paid at 7:00 PM Mountain on the 31st landed in the NEXT month.
+ *
+ * ── WHY THIS CANNOT BE DONE IN SQL ──────────────────────────────────────
+ * D1's SQLite has no timezone database, and its `'localtime'` modifier reads the
+ * HOST process TZ, which in a Worker is UTC — so it is a silent no-op (verified
+ * against production). Shifting timestamps by one bound offset before bucketing
+ * would leave a 1-HOUR version of the same bug at every winter month boundary,
+ * which is the hardcoded `-06:00` mistake this module exists to refuse. So the
+ * bucket key is computed HERE, in JS, per row.
+ *
+ * ── THE SHARED TRICK ────────────────────────────────────────────────────
+ * Every helper below is: resolve the instant to Denver date PARTS, do plain
+ * calendar arithmetic on those parts with Date.UTC (exact — UTC has no DST),
+ * then resolve the resulting Denver date back to a real instant. Never add a
+ * fixed number of milliseconds to cross a day/week/month boundary: a DST day is
+ * 23 or 25 hours long and a DST week is 6d23h or 7d1h, so fixed-span arithmetic
+ * drifts across a transition and can duplicate or skip a bucket.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The Denver month ('YYYY-MM') a real instant belongs to — the bucket key for
+ * every per-month chart, cohort and revenue roll-up.
+ *
+ * Replaces SQL `strftime('%Y-%m', col/1000, 'unixepoch')`, which buckets on UTC.
+ */
+export function denverMonthKey(ms) {
+    // STRICT about the argument, deliberately: denverDateFor defaults to
+    // Date.now(), so delegating the default would make denverMonthKey(NULL
+    // paid_at) return the CURRENT month and silently file unpaid rows into it.
+    // A bucket key must be derivable or absent, never guessed.
+    if (!Number.isFinite(ms)) return null;
+    const date = denverDateFor(ms);
+    return date === null ? null : date.slice(0, 7);
+}
+
+/**
+ * A date-only 'YYYY-MM-DD' → the instant Denver midnight begins on that date.
+ *
+ * This is what an operator's date picker means: "from the 1st" means from
+ * midnight Mountain, not midnight UTC (which is 6-7h earlier, i.e. the previous
+ * evening). `eventInstantMs` already reads a date-only value as Denver midnight;
+ * this alias exists so the intent is legible at a reporting call site rather
+ * than looking like an events-table helper used out of context.
+ */
+export function denverDayStartMs(dateIso) {
+    return eventInstantMs(dateIso);
+}
+
+/**
+ * Denver date of `ms`, shifted by `days` CALENDAR days, at Denver midnight.
+ *
+ * Calendar arithmetic, not `ms + days * 86400000` — see the DST note above.
+ */
+export function denverAddDays(ms, days = 0) {
+    if (!Number.isFinite(ms)) return null;
+    const p = partsAt(ms);
+    const shifted = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day) + days));
+    return denverWallClockToUtcMs(
+        shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate(),
+    );
+}
+
+/** Midnight Denver on the day containing `ms`. */
+export function denverDayStartFor(ms) {
+    return denverAddDays(ms, 0);
+}
+
+/**
+ * Midnight Denver on the MONDAY of the week containing `ms`.
+ *
+ * Monday-anchored to match the Owner scorecard's ISO-week grid. The weekday is
+ * derived from the Denver date parts via UTC arithmetic, so it is the Denver
+ * weekday — not the UTC one, which differs for six hours every evening.
+ */
+export function denverWeekStartMs(ms) {
+    if (!Number.isFinite(ms)) return null;
+    const p = partsAt(ms);
+    const dow = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day))).getUTCDay();
+    return denverAddDays(ms, -((dow + 6) % 7)); // getUTCDay 0=Sun..6=Sat → Mon=0
+}
+
+/** Midnight Denver on the 1st of the month containing `ms`. */
+export function denverMonthStartMs(ms) {
+    if (!Number.isFinite(ms)) return null;
+    const p = partsAt(ms);
+    return denverWallClockToUtcMs(Number(p.year), Number(p.month), 1);
+}
+
+/** Midnight Denver on the 1st day of the calendar quarter containing `ms`. */
+export function denverQuarterStartMs(ms) {
+    if (!Number.isFinite(ms)) return null;
+    const p = partsAt(ms);
+    const firstMonth = Math.floor((Number(p.month) - 1) / 3) * 3 + 1;
+    return denverWallClockToUtcMs(Number(p.year), firstMonth, 1);
+}
+
+/** Midnight Denver on 1 January of the year containing `ms`. */
+export function denverYearStartMs(ms) {
+    if (!Number.isFinite(ms)) return null;
+    const p = partsAt(ms);
+    return denverWallClockToUtcMs(Number(p.year), 1, 1);
+}

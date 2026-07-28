@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
-import { denverDateFor } from '../../lib/eventTime.js';
+import { denverDateFor, denverMonthStartMs } from '../../lib/eventTime.js';
 
 const adminAnalytics = new Hono();
 adminAnalytics.use('*', requireAuth);
@@ -24,10 +24,10 @@ adminAnalytics.get('/overview', async (c) => {
         return c.json({ error: "period must be 'lifetime' or 'mtd'" }, 400);
     }
 
-    // Compute MTD start (1st of current UTC month at midnight, in ms).
-    const monthStartMs = period === 'mtd'
-        ? Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
-        : null;
+    // MTD start = midnight Denver on the 1st. On the UTC calendar this began at
+    // 6 PM Mountain on the last day of the PREVIOUS month, so an evening sale on
+    // the 31st was already counted toward the new month.
+    const monthStartMs = period === 'mtd' ? denverMonthStartMs(Date.now()) : null;
 
     const whereClauses = [];
     const binds = [];
