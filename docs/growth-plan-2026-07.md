@@ -1,5 +1,7 @@
 # Growth Plan — Conversion + LLM/AI Discoverability Upgrade (2026-07-24)
 
+> **Note (2026-07-28):** execution has **not started**, so the plan stands — but one premise has moved. It argues JSON-LD is "gated on reviews existing, which is zero today"; real reviews arrived 2026-07-25/26, so the home `LocalBusiness` block now emits with a genuine aggregateRating. The per-event `Event` schema argument is unaffected. Any "before July 25" deadlines in the phases are moot.
+
 > **STATUS (updated 2026-07-25):** research complete; **execution NOT started** (the admin-audit event-day sprint took priority — the July 25-26 events ran the weekend this was written). Post-event sequencing note: Phase 0's operator items (Resend webhook, Cloudflare AI-bot settings check, Stripe wallet toggles, Google Business Profile, listings) are all still open and now MORE timely — the first real reviews arrive ~July 26-27, making Phase 2's un-gating of the Event/LocalBusiness JSON-LD (currently review-gated) immediately valuable once executed.
 
 Produced by a 10-agent audit/research workflow: 5 codebase auditors (funnel, SEO/LLM surface,

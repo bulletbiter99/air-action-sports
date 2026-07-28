@@ -4,11 +4,53 @@ Closes audit open questions and operator-decision-pending placeholders as they'r
 
 ---
 
+## 2026-07-28 — D17: Open-reads admin access model (partially supersedes D10)
+
+**Source:** Operator request during the 2026-07-24 event-day session; shipped as [#379](https://github.com/bulletbiter99/air-action-sports/pull/379) across 52 files.
+
+**Resolution:** Every admin page is **readable by any authenticated admin** via `requireReadAccess` (`worker/lib/capabilities.js`). Writes keep their capability/role gates, and field-level sensitive reads — PII masks, sensitive notes, EIN decrypt, compensation — are preserved byte-identically. Deliberately still gated: `GET /users/invitations` (a raw invite token is a live credential), bulk exports, and compensation-class reads.
+
+**Partially supersedes D10.** D10 described SIDEBAR entries carrying `capability` fields filtered by `getVisibleItems`. Since #379 **no entry carries a `capability` field** — the field and `userHasCapabilityStub` remain only for forward-compat, as `sidebarConfig.js`'s own header says. D10's *outcome* (Rentals/Roster/Scan are standing nav) still holds; its mechanism does not.
+
+**Why it matters:** `requireReadAccess` must keep eagerly loading `user.capabilities` — the field-level masks depend on that load. Without it `hasCapability` falls back to the 5-cap legacy map and silently denies real holders.
+
+**Status:** ✓ resolved — shipped 2026-07-24, [#379](https://github.com/bulletbiter99/air-action-sports/pull/379).
+
+---
+
+## 2026-07-28 — D16: Bookkeeper keeps `customers.write.business_fields` WITHOUT `customers.write`
+
+**Source:** Raised to the operator during admin-audit Sprint 3 while adding `PUT /api/admin/customers/:id` ([#395](https://github.com/bulletbiter99/air-action-sports/pull/395)).
+
+**Resolution:** Leave the seeded bindings as they are. The bookkeeper preset can edit a customer's EIN and billing address but is 403'd from editing their name, phone, notes or comm preferences. The new endpoint is gated on `customers.write` as seeded.
+
+**Why this is written down:** it reads like a seeding bug, and the obvious "fix" is to grant `customers.write`. It is deliberate — changing a role's capability set is a permissions decision, not a side effect of adding an endpoint. It is a one-line SQL binding if it ever turns out to matter.
+
+**Status:** ✓ resolved — operator decision 2026-07-28.
+
+---
+
+## 2026-07-28 — D15: Marketing consent is ASYMMETRIC — opt-out is free, opt-in is ceremonial
+
+**Source:** Operator decision during admin-audit Sprint 3, item C3 ([#395](https://github.com/bulletbiter99/air-action-sports/pull/395)). Driver: production was **79 of 79 customers `email_marketing = 1`** — nobody had ever opted out, because the only writers were the customer's own emailed unsubscribe link and the bounce/complaint webhook. A customer phoning in to be removed could not be honoured.
+
+**Resolution:**
+- **1 → 0 (opt-out)** is a plain toggle. No reason required. It is pure compliance upside.
+- **0 → 1 (opt-in)** requires a typed `marketingOptInReason`, recorded in a dedicated `customer.marketing_consent_changed` audit row alongside the general update row.
+- **0 → 1 is REFUSED outright (409)** when the address has a recorded hard bounce or spam complaint (`email_events.suppressed_marketing`). Nothing in `worker/` ever clears that flag, and the campaign recipient query filters on `email_marketing` alone — so without the check, an admin opt-in would quietly return a known complainer to the send list.
+- Merge treats consent as a **floor**: if any merged duplicate had opted out, the surviving row is opted out.
+
+**Why the asymmetry:** opting back in overrides a decision the *customer* made, and `email_marketing = 0` is the **only persisted trace** that an unsubscribe ever happened — the unsubscribe token is a stateless HMAC with no DB row. A future session will be tempted to "simplify" this into a symmetric toggle; that would destroy evidence.
+
+**Status:** ✓ resolved — shipped 2026-07-28, [#395](https://github.com/bulletbiter99/air-action-sports/pull/395).
+
+---
+
 ## 2026-05-27 — D14: M6 sandbox-mode dev pattern — develop + ship past the live-cutover gate
 
 **Source:** Operator direction during M6 multi-batch session 2026-05-26/27 — "complete everything except what's needed in a live scenario."
 
-**Resolution:** All M6 batches that touch Stripe payment flow (B5 setup_future_usage, B6 dispute consumer, B7 off-session charge, B9 PM detach) shipped to production while production was still running on Stripe **sandbox** keys. Live verification of each (real saved PM, real dispute, real $1 e2e) is deferred to operator-completed cutover items 1–5 in `docs/m6-operator-cutover-checklist.md`.
+**Resolution:** All M6 batches that touch Stripe payment flow (B5 setup_future_usage, B6 dispute consumer, B7 off-session charge, B9 PM detach) shipped to production while production was still running on Stripe **sandbox** keys. Live verification of each (real saved PM, real dispute, real $1 e2e) was deferred to operator-completed cutover items 1–5 in `docs/m6-operator-cutover-checklist.md`. ✅ **The cutover completed 2026-06-03** — production has taken real payments since; that checklist is history.
 
 This pattern works because:
 - Stripe sandbox and live APIs are byte-equivalent for the request shapes M6 uses; the difference is what's behind the keys.

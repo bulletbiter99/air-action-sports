@@ -1,5 +1,11 @@
 # Security Audit — 2026-04-21
 
+> ## ⚠️ HISTORICAL — pre-launch audit, 2026-04-21. Do not act on the verdict below.
+>
+> **The "🔴 NO-GO as-is" call and the "Block Stripe live until done" checklist are both resolved.** Every Critical/High item in the minimum remediation set shipped during M1–M2 — per-route CORS allowlist (`worker/index.js`), `escapeHtml` in `templates.js`, `worker/lib/rateLimit.js`, `withSecurityHeaders`, the Stripe `Idempotency-Key`, `magicBytes.js`, `bodyGuard.js` — and the **live-Stripe cutover completed 2026-06-03**. Production has taken real payments since.
+>
+> The severity calls here are ~3 months and many sessions old, and the codebase has grown a great deal (open-reads access model, 40+ admin routers, live payments). **Re-audit before trusting any judgement in this file.** A fresh security review is worth proposing as its own work item.
+
 **Target:** Air Action Sports booking system
 **Scope:** Full codebase (`worker/`, `src/`, `migrations/`, `scripts/`, git history) + live deploy at https://air-action-sports.bulletbiter99.workers.dev
 **Stack:** Cloudflare Workers + D1 + Stripe + Resend + R2, Hono router

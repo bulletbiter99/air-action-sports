@@ -1,10 +1,14 @@
 # Post-M5.5 next-session prompt
 
+> ## ⚠️ SUPERSEDED — historical post-M5.5 handoff (2026-05-12).
+>
+> **Current state lives in [`docs/next-session.md`](next-session.md).** The "Fork A / Fork B" work menu below is **fully shipped** — every Fork A polish item landed (AES decrypt surface, admin POST customers, `day_of_month` recurrence, `lead_stale_at` clearing, the recurrence UNIQUE constraint, `?event=` deep-link parsing) and Fork B (M6) closed 2026-05-27. The resume checklist's test counts and "STOP and investigate" gate are years-stale — a healthy repo will not match them. Kept for the implementation trail.
+
 **Status:** M5.5 (Field Rentals) is **CLOSED + DEPLOYED 2026-05-12**. Through the rest of the same day, **11 follow-up PRs** shipped on top: the post-M5.5 staff-wiring fix (PR #165–#166), the per-tab build-out of `/admin/staff/:id` (P1 #167, P3 #168, P2 #169, P4 #170), three Access-tab UX/security follow-ups (#171, #172, capability gating), two public-side fixes (home hero #173, event slug normalize #174), and one new feature (email-bound batch promo codes with migration 0054 — PR #175). **Production Worker version `6b680a02-966b-4056-af5b-3e7d2fce9c1f`** at session close. **All 8 staff detail tabs are at 100%.**
 
 The Fork-A polish backlog is unchanged (none of those items were touched this session). Fork B (M6 Stripe live) also unchanged.
 
-The fresh session should read this file first, then read [HANDOFF.md](../HANDOFF.md) §NEW SESSION + the closed-M5.5 + post-M5.5-fix + Continued-post-M5.5-work sections in [CLAUDE.md](../CLAUDE.md) for full context.
+~~The fresh session should read this file first~~ (superseded — read `docs/next-session.md`), then read [HANDOFF.md](../HANDOFF.md) §NEW SESSION + the closed-M5.5 + post-M5.5-fix + Continued-post-M5.5-work sections in [CLAUDE.md](../CLAUDE.md) for full context.
 
 ---
 

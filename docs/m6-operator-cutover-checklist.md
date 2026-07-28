@@ -1,5 +1,9 @@
 # M6 operator cutover checklist
 
+> ## ✅ COMPLETE — the cutover finished 2026-06-03.
+>
+> Every item below is done and production takes real money. The `☐` boxes and "✗ blocks" gate table are **historical** — a mid-file jump lands on them and reads as a live gate, which is why this banner exists. See the 2026-06-03 session section in `CLAUDE.md` for how it actually went (production was silently still in TEST mode despite an earlier "done" record).
+
 This file lists the **operator-only** items that gate M6 progress. Claude Code cannot perform any of these — they require Stripe dashboard access, Cloudflare DNS access, secret material, or real financial transactions.
 
 Treat this file as a worksheet — fill in outcomes as you complete each item; paste any unexpected results into the PR or `docs/m6-discovery/spot-check-log.md`.

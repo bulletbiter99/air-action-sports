@@ -2,7 +2,7 @@
 
 ## ✅ Current state
 
-`main` **`caf9abc`** · **3494 / 296** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0079 ALL APPLIED** (Sprint 3 added none) · production deployed + verified.
+`main` **`6f2a2c2`** (re-pull for exact) · **3494 / 296** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0079 ALL APPLIED** (Sprint 3 added none) · production deployed + verified.
 
 **Nothing is blocking.** Sprint 3 of the admin workflow audit is **complete** — all six items, plus two bugs found along the way.
 
@@ -97,7 +97,7 @@ Besides naive-string-as-instant, there is a **UTC-"today" vs Mountain-date** mod
 
 ## ✅ DONE — Sprint 2: broken-wiring fixes + a real-schema guard (2026-07-25, PRs #383–#389)
 
-**7 PRs merged.** `main` **`b6b26a1`** · tests **3198 → 3236 / 284** · lint 0 errors · build clean · **migrations 0078 + 0079 ship in-repo and are OPERATOR-PENDING** (see below).
+**7 PRs merged.** `main` **`b6b26a1`** · tests **3198 → 3236 / 284** · lint 0 errors · build clean · migrations 0078 + 0079 shipped in-repo that session and were **applied 2026-07-27** (they read as OPERATOR-PENDING below because that section is preserved as written).
 
 All six Sprint 2 items from [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md) were re-verified against current `main` first (the audit was written at `def6848`, before #379 landed 52 files) — **all six confirmed**, with three material corrections, plus production row counts that reframed two of them.
 
@@ -140,13 +140,13 @@ Allowlist (each needs a written reason; the suite asserts allowlisted statements
 
 `booking_charges` = **0** and `event_day_sessions` = **0** — the kiosk has never opened a session, so no damage charge has ever existed and the 404 link never reached a customer. `labor_entries` = **0** — the 1099 report renders empty even when fixed. `events` with `site_id` = **2 of 5** (3 active sites).
 
-### ⚠️ OPERATOR-PENDING — apply the two new migrations
+### ✅ DONE 2026-07-27 — the two migrations below were applied (kept for the verification recipe)
 
 ```bash
 npx wrangler d1 migrations apply air-action-sports-db --remote
 ```
 
-Applies **0078** (`persons.legal_name` + `ein_ciphertext`) and **0079** (rewrites the `additional_charge_notice` template to drop the dead `{{paymentLink}}`). Then:
+Applied **0078** (`persons.legal_name` + `ein_ciphertext`) and **0079** (rewrites the `additional_charge_notice` template to drop the dead `{{paymentLink}}`) — both confirmed on remote. The post-apply checks, for reference:
 
 1. `GET /api/admin/1099-thresholds` → **200** with an empty `recipients` array (was 500).
 2. Next 03:00 UTC `cron.swept` audit row no longer carries `meta_json.taxYearAutoLock.error`.
@@ -163,7 +163,7 @@ Applies **0078** (`persons.legal_name` + `ein_ciphertext`) and **0079** (rewrite
 
 ### What's next
 
-**Sprint 3 (workflow completion)** and **Sprint 4 (contracts & polish)** in [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md) remain, as does the whole of [docs/growth-plan-2026-07.md](growth-plan-2026-07.md). Two items surfaced by this sprint that belong in Sprint 3:
+~~Sprint 3~~ closed 2026-07-28. **Sprint 4 (contracts & polish)** in [docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md) remains, as does the whole of [docs/growth-plan-2026-07.md](growth-plan-2026-07.md). Two items surfaced by that sprint are **still open** and belong in Sprint 4:
 
 - **The 1099 tax-identity editor.** 0078 adds the columns but there is still **no write path** — `PUT /api/admin/staff/:id`'s allow-list excludes them, so they stay NULL. Needs `PUT /:id/tax-identity` + staff-detail UI.
 - **`pay_kind = 'w2_salary'` is dead SQL** (`thresholds1099.js:154,209`). `labor_entries.pay_kind`'s CHECK (migration 0036) doesn't permit that value — it's a `persons.compensation_kind` value — so salaried W-2 totals silently return 0. **Needs a product decision**, and note the schema guard *cannot* catch this class (it compiles fine).
@@ -191,7 +191,7 @@ Applies **0078** (`persons.legal_name` + `ein_ciphertext`) and **0079** (rewrite
 ## 🗺️ NEW ROADMAPS — two research artifacts now in-repo (2026-07-24)
 
 1. **[docs/growth-plan-2026-07.md](growth-plan-2026-07.md)** — conversion + LLM/AI-discoverability upgrade plan (10-agent audit+research workflow; all 22 high-impact claims code-verified). Headlines: the site is invisible to non-JS AI crawlers (Event JSON-LD is review-gated = zero today, no `offers` node); abandoned checkouts are silently swept warm leads; content contradictions (FAQ says milsim 18+ vs 12+ live events, fabricated About/testimonials/hero stats); zero analytics; the marketing engine is idle. 6 phases: operator quick wins → truth/funnel sprint → machine-readable site → measurement → lifecycle revenue → bigger bets. **Execution NOT started** (the admin-audit sprints took priority for event day).
-2. **[docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md)** — full admin operator-journey audit (9-agent workflow; all 23 high-impact claims confirmed). **Sprint 1 (event-day readiness) is COMPLETE** (#377/#378/#381) and the open-reads model (#379) shipped separately. Remaining: Sprint 2 (broken wiring: CronHealth field mismatch, event-duplicate drops custom questions/focal points, site_id dropdown → conflict detection reachable, 1099 `persons.legal_name/ein` missing-columns migration, damage-charge pay-link 404, command palette caps — palette part FIXED by #379), Sprint 3 (workflow completion: customer edit + manual tags, rental edit/reschedule modals, staff-doc/cert UI, incidents resolve, unpaid-status actions, marketing dormant-state banner + test-send), Sprint 4 (archive contract + sales cutoff, recurrence UI, SUA seed, persona decision, stale-copy sweep).
+2. **[docs/admin-workflow-audit-2026-07.md](admin-workflow-audit-2026-07.md)** — full admin operator-journey audit (9-agent workflow; all 23 high-impact claims confirmed). **Sprints 1–3 are all COMPLETE** — Sprint 1 (event-day readiness) #377/#378/#381 plus the open-reads model #379; Sprint 2 closed 2026-07-25 (#383–#389); Sprint 3 closed 2026-07-28 (#393–#400). **Only Sprint 4 remains**: archive contract + the unenforced sales cutoff, recurrence UI, SUA seed, persona decision, stale-copy sweep.
 
 ---
 
@@ -246,7 +246,7 @@ Shipped an **attendee-verified post-event reviews** feature so real customer rat
 1. ✅ **RESOLVED 2026-07-01 — CAN-SPAM classification = TRANSACTIONAL + deliverability suppression (option B).** The invite ships without a postal-address/unsubscribe footer (one-per-booking, promotion-free, tied to a completed transaction); the sweep (`worker/lib/reviewInvites.js`) now skips addresses with a recorded hard bounce / spam complaint via `email_events.suppressed_marketing` (best-effort; NOT gated on the `customers.email_marketing` preference). See `docs/runbooks/reviews-deploy.md`.
 2. ✅ **RESOLVED 2026-07-02 — home baseline recapture is moot.** The public visual suite no longer tests LIVE prod: it was converted to a route-mocked local-serve harness ([#371](https://github.com/bulletbiter99/air-action-sports/pull/371)), so `home.png` renders deterministic fixtures and prod's hero-stat count can't drift it. The baseline was recaptured with the new harness on that PR. See the 2026-07-02 section above + `docs/runbooks/visual-regression.md`.
 
-**SSR acceptance gate (post-deploy, once reviews exist):** `curl -s https://airactionsport.com/ | grep -c application/ld+json` should show the injected `LocalBusiness` block (it returns `0` today — correct, no reviews yet); the rich-result surface is the per-event `Event` aggregate at `/events/<slug>` (run it through Google's Rich Results Test after the first review). Don't rely on Home's client JSON-LD — it was removed in Batch 6 (single source = the SSR injection).
+**SSR acceptance gate (post-deploy, once reviews exist):** `curl -s https://airactionsport.com/ | grep -c application/ld+json` should show the injected `LocalBusiness` block. It returns **1** now that real reviews exist — a `0` would be a regression (it returned 0 while the feature was dormant); the rich-result surface is the per-event `Event` aggregate at `/events/<slug>` (run it through Google's Rich Results Test after the first review). Don't rely on Home's client JSON-LD — it was removed in Batch 6 (single source = the SSR injection).
 
 ---
 
@@ -507,7 +507,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 
 > **⚠️ SUPERSEDED — do not read this section as current.** The live operator-pending list is in the
 > **Sprint 2 section at the top of this file** and in the *Current state at a glance* table. Since this
-> section was written, migrations **0078 + 0079** were added and are **NOT yet applied**, which is now
+> section was written, migrations **0078 + 0079** were added — they were **applied 2026-07-27**, resolving what was then
 > the highest-priority operator action. Everything below is kept for the history of how the earlier
 > items were resolved.
 
@@ -554,7 +554,7 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout main && git pull origin main
 npm install
-npm test -- --run | tail -3        # expect 3236 / 284
+npm test -- --run | tail -3        # expect 3494 / 296
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
@@ -567,7 +567,7 @@ curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 |---|---|
 | `docs/next-session.md` | THIS FILE — current state + work menu |
 | `docs/growth-plan-2026-07.md` | **conversion + LLM-discoverability roadmap** (6 phases; execution not started) |
-| `docs/admin-workflow-audit-2026-07.md` | **admin operator-journey audit** (Sprint 1 + open-reads DONE; Sprints 2–4 remain) |
+| `docs/admin-workflow-audit-2026-07.md` | **admin operator-journey audit** (Sprints 1–3 + open-reads DONE; **Sprint 4 remains**) |
 | `worker/lib/capabilities.js` `requireReadAccess` | the open-reads model's greppable read-gate marker (#379) — reads open to any authed admin, loads caps for field-level masks |
 | `CLAUDE.md` | durable rules + per-milestone/session log (M1–M7 + post-M7 + M8 + **event-content session**) |
 | `HANDOFF.md` | full session-start onboarding (stack, schema, API surface) |
