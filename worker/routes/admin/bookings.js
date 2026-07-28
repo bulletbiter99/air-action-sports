@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { requireAuth, requireRole } from '../../lib/auth.js';
 import { formatBooking, formatEvent, safeJson } from '../../lib/formatters.js';
-import { issueRefund, createCheckoutSession, retrievePaymentIntent, detachPaymentMethod } from '../../lib/stripe.js';
+import { issueRefund, createCheckoutSession, retrievePaymentIntent, detachPaymentMethod, retrieveSession, expireCheckoutSession } from '../../lib/stripe.js';
 import { bookingId, attendeeId, qrToken, reviewToken } from '../../lib/ids.js';
 import { sendBookingConfirmation, sendWaiverRequest, sendRefundRecordedExternal, sendWaiverConfirmation, sendReviewInvite } from '../../lib/emailSender.js';
 import { findExistingValidWaiver } from '../../lib/waiverLookup.js';
@@ -423,6 +423,25 @@ adminBookings.get('/:id', async (c) => {
         }
     } catch { /* reviews table missing (pre-0077 fixture) — treat as none */ }
 
+    // Sprint 4 C8 — pending-card payment-link recovery. The Stripe Checkout
+    // URL used to be shown exactly once (on the create screen) and was
+    // unrecoverable afterwards. Retrieve the session so the operator can
+    // re-copy the link; Checkout sessions expire ~24h after creation, so
+    // url is null unless the session is still 'open'. Best-effort — a Stripe
+    // hiccup must not break the booking detail page.
+    let payment = null;
+    if (row.status === 'pending' && row.payment_method === 'card' && row.stripe_session_id) {
+        try {
+            const session = await retrieveSession(row.stripe_session_id, c.env.STRIPE_SECRET_KEY);
+            payment = {
+                sessionStatus: session?.status || null, // 'open' | 'complete' | 'expired'
+                url: session?.status === 'open' ? (session.url || null) : null,
+            };
+        } catch {
+            payment = { sessionStatus: 'unavailable', url: null };
+        }
+    }
+
     // M4 B3a — PII masking per D05. Caller with bookings.read.pii sees
     // full email/phone (and an audit row 'customer_pii.unmasked' is written
     // per call). Caller without the capability sees masked values; no
@@ -469,8 +488,68 @@ adminBookings.get('/:id', async (c) => {
             eventEnded: eventHasEnded(eventRow),
         },
         review,
+        payment,
         viewerCanSeePII: canSeePII,
     });
+});
+
+// POST /api/admin/bookings/:id/cancel — cancel a never-completed booking.
+//
+// Sprint 4 C8. Scope is deliberately narrow: 'pending' and 'abandoned' only.
+// Those rows have no attendee records and never incremented ticket_types.sold
+// (the webhook does both on payment), so cancelling is a pure status flip
+// with zero inventory side effects. Everything else has a better tool and a
+// pointed 409: paid/comp → refund flows; unpaid → record-payment or an
+// external refund (an unpaid row is provisioned — cancelling it needs
+// inventory decisions this endpoint refuses to make silently).
+//
+// The Stripe Checkout session is EXPIRED first (best-effort): a webhook
+// redelivery re-pays any non-'paid' booking, so leaving the session open
+// would let the customer complete the old link and resurrect the booking.
+adminBookings.post('/:id/cancel', requireRole('owner', 'manager'), async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+
+    const booking = await c.env.DB.prepare(`SELECT * FROM bookings WHERE id = ?`).bind(id).first();
+    if (!booking) return c.json({ error: 'Not found' }, 404);
+
+    if (!['pending', 'abandoned'].includes(booking.status)) {
+        const hint = ['paid', 'comp'].includes(booking.status)
+            ? 'Use the refund actions instead.'
+            : booking.status === 'unpaid'
+                ? 'Use "Record payment received" to collect, or an external refund to write it off.'
+                : 'Nothing to cancel.';
+        return c.json({ error: `Cannot cancel a ${booking.status} booking. ${hint}` }, 409);
+    }
+
+    // Kill the payment link before flipping status — if Stripe is unreachable
+    // we still cancel (the session self-expires within 24h; the audit row
+    // records that the expire didn't confirm).
+    let sessionExpired = false;
+    if (booking.stripe_session_id) {
+        try {
+            await expireCheckoutSession(booking.stripe_session_id, c.env.STRIPE_SECRET_KEY);
+            sessionExpired = true;
+        } catch {
+            // Already complete/expired, or Stripe unreachable — best-effort.
+        }
+    }
+
+    const now = Date.now();
+    await c.env.DB.prepare(
+        `UPDATE bookings SET status = 'cancelled', cancelled_at = ? WHERE id = ?`
+    ).bind(now, id).run();
+
+    await c.env.DB.prepare(
+        `INSERT INTO audit_log (user_id, action, target_type, target_id, meta_json, created_at)
+         VALUES (?, 'booking.cancelled', 'booking', ?, ?, ?)`
+    ).bind(user.id, id, JSON.stringify({
+        prior_status: booking.status,
+        stripe_session_id: booking.stripe_session_id || null,
+        session_expired: sessionExpired,
+    }), now).run();
+
+    return c.json({ ok: true, status: 'cancelled', sessionExpired });
 });
 
 // POST /api/admin/bookings/manual
@@ -1423,9 +1502,12 @@ adminBookings.post('/:id/reschedule', requireRole('owner', 'manager'), async (c)
     const targetEvent = await c.env.DB.prepare(`SELECT * FROM events WHERE id = ?`).bind(targetEventId).first();
     if (!targetEvent) return c.json({ error: 'Target event not found' }, 404);
     if (!targetEvent.published) return c.json({ error: 'Target event is not published' }, 409);
+    // C1 contract: past=1 means archived-and-never-bookable — that includes
+    // being a reschedule target (the modal filters these out; this is the backstop).
+    if (targetEvent.past) return c.json({ error: 'Target event has ended (archived)' }, 409);
 
     const targetType = await c.env.DB.prepare(
-        `SELECT id, event_id, name, price_cents, active FROM ticket_types WHERE id = ?`
+        `SELECT id, event_id, name, price_cents, active, capacity, sold FROM ticket_types WHERE id = ?`
     ).bind(targetTicketTypeId).first();
     if (!targetType || targetType.event_id !== targetEventId) {
         return c.json({ error: 'Target ticket type does not belong to the target event' }, 400);
@@ -1461,6 +1543,16 @@ adminBookings.post('/:id/reschedule', requireRole('owner', 'manager'), async (c)
 
     // Informational only — positive = target costs more than what they paid.
     const priceDifferenceCents = (targetType.price_cents * totalTicketQty) - paidTicketCents;
+
+    // Sprint 4 C8 — capacity on the TARGET type. The public checkout enforces
+    // capacity; reschedule previously claimed inventory unconditionally, so a
+    // move could oversell a full ticket type. NULL capacity = uncapped.
+    if (targetType.capacity != null && (targetType.sold || 0) + totalTicketQty > targetType.capacity) {
+        const remaining = Math.max(0, targetType.capacity - (targetType.sold || 0));
+        return c.json({
+            error: `Target ticket type is too full — ${remaining} spot${remaining === 1 ? '' : 's'} left, this booking needs ${totalTicketQty}`,
+        }, 409);
+    }
 
     await c.env.DB.prepare(
         `UPDATE bookings SET event_id = ?, line_items_json = ?, reminder_sent_at = NULL, reminder_1hr_sent_at = NULL WHERE id = ?`

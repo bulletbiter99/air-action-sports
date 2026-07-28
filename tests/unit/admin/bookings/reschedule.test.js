@@ -29,8 +29,9 @@ function bindFixture(env, { booking = {}, targetEvent = {}, targetType = {}, att
     env.DB.__on(/SELECT \* FROM events WHERE id = \?/, {
         id: 'foxtrot', title: 'Foxtrot: Jungle Warfare', published: 1, ...targetEvent,
     }, 'first');
-    env.DB.__on(/SELECT id, event_id, name, price_cents, active FROM ticket_types WHERE id = \?/, {
-        id: 'tt_foxtrot', event_id: 'foxtrot', name: 'General Admission', price_cents: 2500, active: 1, ...targetType,
+    env.DB.__on(/SELECT id, event_id, name, price_cents, active, capacity, sold FROM ticket_types WHERE id = \?/, {
+        id: 'tt_foxtrot', event_id: 'foxtrot', name: 'General Admission', price_cents: 2500, active: 1,
+        capacity: null, sold: 0, ...targetType,
     }, 'first');
     env.DB.__on(/SELECT id, checked_in_at FROM attendees WHERE booking_id = \?/,
         { results: attendees || [{ id: 'at_1', checked_in_at: null }] }, 'all');
@@ -132,6 +133,34 @@ describe('POST /api/admin/bookings/:id/reschedule — guards', () => {
         const { cookieHeader } = await createAdminSession(env, { id: 'u', role: 'manager' });
         bindFixture(env, { targetEvent: { published: 0 } });
         expect((await post(env, cookieHeader, 'bk_1', GOOD)).status).toBe(409);
+    });
+
+    it('409 when the target event is archived (past=1) — C1 contract backstop', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u', role: 'manager' });
+        bindFixture(env, { targetEvent: { past: 1 } });
+        const res = await post(env, cookieHeader, 'bk_1', GOOD);
+        expect(res.status).toBe(409);
+        expect((await res.json()).error).toMatch(/archived/i);
+    });
+
+    it('409 when the target ticket type is too full (Sprint 4 C8 capacity check)', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u', role: 'manager' });
+        bindFixture(env, { targetType: { capacity: 10, sold: 10 } });
+        const res = await post(env, cookieHeader, 'bk_1', GOOD);
+        expect(res.status).toBe(409);
+        expect((await res.json()).error).toMatch(/too full/i);
+        // Nothing was mutated.
+        const writes = env.DB.__writes();
+        expect(writes.some((w) => /UPDATE bookings SET event_id/.test(w.sql))).toBe(false);
+    });
+
+    it('allows the move when the target type has exactly enough room', async () => {
+        const env = createMockEnv();
+        const { cookieHeader } = await createAdminSession(env, { id: 'u', role: 'manager' });
+        bindFixture(env, { targetType: { capacity: 10, sold: 9 } });
+        expect((await post(env, cookieHeader, 'bk_1', GOOD)).status).toBe(200);
     });
 
     it('400 when the ticket type belongs to a different event', async () => {

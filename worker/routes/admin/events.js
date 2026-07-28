@@ -329,6 +329,10 @@ adminEvents.get('/', async (c) => {
     return c.json({
         events: eventRows.map((row) => ({
             ...formatEvent(row),
+            // Additive (Sprint 4 C8): the detail endpoint already exposes
+            // published; the list needs it so pickers (e.g. the reschedule
+            // modal) can filter to genuinely bookable targets.
+            published: !!row.published,
             ticketTypes: typesByEvent[row.id] || [],
             paidBookings: row.paid_bookings || 0,
             attendeesCount: row.attendees_count || 0,

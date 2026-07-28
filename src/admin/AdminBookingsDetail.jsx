@@ -59,6 +59,10 @@ export default function AdminBookingsDetail() {
     const [resendingReview, setResendingReview] = useState(false);
     // Move-to-another-event modal
     const [rescheduleOpen, setRescheduleOpen] = useState(false);
+    // C8 — cancel-pending-booking confirm + busy state, and payment-link copy feedback
+    const [cancelOpen, setCancelOpen] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
+    const [linkCopied, setLinkCopied] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -90,6 +94,40 @@ export default function AdminBookingsDetail() {
     const flashMsg = (kind, text, ms = 4000) => {
         setActionMsg({ kind, text });
         setTimeout(() => setActionMsg(null), ms);
+    };
+
+    // C8 — cancel a pending/abandoned booking (expires its Stripe session).
+    const submitCancel = async () => {
+        setCancelling(true);
+        try {
+            const res = await fetch(`/api/admin/bookings/${encodeURIComponent(id)}/cancel`, {
+                method: 'POST', credentials: 'include',
+            });
+            const j = await res.json().catch(() => ({}));
+            if (res.ok) {
+                setCancelOpen(false);
+                await load();
+                flashMsg('ok', j.sessionExpired
+                    ? 'Booking cancelled — the payment link no longer works'
+                    : 'Booking cancelled');
+            } else {
+                flashMsg('err', j.error || 'Cancel failed');
+            }
+        } catch (e) {
+            flashMsg('err', e?.message || 'Network error');
+        } finally {
+            setCancelling(false);
+        }
+    };
+
+    const copyPaymentLink = async () => {
+        try {
+            await navigator.clipboard.writeText(data?.payment?.url || '');
+            setLinkCopied(true);
+            setTimeout(() => setLinkCopied(false), 2500);
+        } catch {
+            flashMsg('err', 'Could not copy — select the link text manually');
+        }
     };
 
     const resendConfirmation = async () => {
@@ -209,7 +247,7 @@ export default function AdminBookingsDetail() {
 
     if (!data) return null;
 
-    const { booking, event, attendees, customer, activityLog, viewerCanSeePII } = data;
+    const { booking, event, attendees, customer, activityLog, viewerCanSeePII, payment } = data;
     const canManagerActions = hasRole?.('manager');
     const canOwnerActions = hasRole?.('owner');
     // Stripe-refund eligibility mirrors the legacy modal's gate:
@@ -235,6 +273,11 @@ export default function AdminBookingsDetail() {
     const canDetachPM = canOwnerActions && stripeIntent && !isExternalIntent;
     // Reschedule: a paid/comp booking that hasn't been refunded can move events.
     const canReschedule = ['paid', 'comp'].includes(booking.status) && !booking.refundedAt;
+    // C8 — cancel a never-completed booking. pending/abandoned only: those
+    // rows have no attendees and never touched inventory, so the server treats
+    // cancel as a pure status flip (+ Stripe session expiry). unpaid is
+    // deliberately excluded — it's provisioned; use record-payment or refunds.
+    const canCancel = canManagerActions && ['pending', 'abandoned'].includes(booking.status);
     // Review invite (2026-07): sendable for a paid/comp booking once the event
     // has ended and no review was submitted.
     //
@@ -303,6 +346,33 @@ export default function AdminBookingsDetail() {
                                 )}
                             </>
                         } />
+                        {payment && (
+                            <Row label="Payment link" value={
+                                payment.url ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={copyPaymentLink}
+                                            className="abd-action-btn"
+                                            style={{ marginRight: 8 }}
+                                        >
+                                            {linkCopied ? '✓ Copied' : 'Copy payment link'}
+                                        </button>
+                                        <span style={{ fontSize: 12, color: 'var(--tan-light)' }}>
+                                            Stripe Checkout is still open — re-send this to the customer.
+                                        </span>
+                                    </>
+                                ) : (
+                                    <span style={{ fontSize: 12, color: 'var(--tan-light)' }}>
+                                        {payment.sessionStatus === 'expired'
+                                            ? 'The Stripe Checkout session has expired — cancel this booking and create a new one to collect payment.'
+                                            : payment.sessionStatus === 'complete'
+                                                ? 'Stripe reports this session complete — payment confirmation may still be in flight.'
+                                                : 'Payment link unavailable (could not reach Stripe).'}
+                                    </span>
+                                )
+                            } />
+                        )}
                         <Row label="Created" value={dateFmt(booking.createdAt)} />
                         {booking.paidAt && <Row label="Paid at" value={dateFmt(booking.paidAt)} />}
                         {booking.refundedAt && (
@@ -469,8 +539,17 @@ export default function AdminBookingsDetail() {
                                         ↪ Move to another event
                                     </button>
                                 )}
+                                {canCancel && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setCancelOpen(true)}
+                                        className="abd-action-btn abd-action-btn--danger"
+                                    >
+                                        ✕ Cancel booking
+                                    </button>
+                                )}
                                 {!canRefundStripe && !canRefundExternal && !canResend && !canDetachPM
-                                    && !canReschedule && !canRecordPayment && (
+                                    && !canReschedule && !canRecordPayment && !canCancel && (
                                     <p className="abd-empty">No actions available for this booking&apos;s status.</p>
                                 )}
                             </div>
@@ -574,6 +653,41 @@ export default function AdminBookingsDetail() {
                 />
             )}
 
+            {/* C8 — cancel-pending-booking confirm modal */}
+            {cancelOpen && (
+                <div className="abd-modal-backdrop" onClick={() => !cancelling && setCancelOpen(false)}>
+                    <div className="abd-modal" onClick={(e) => e.stopPropagation()}>
+                        <h2>Cancel this booking?</h2>
+                        <p>
+                            The booking is <strong>{booking.status}</strong> — no payment was collected and no
+                            tickets were issued. Cancelling also <strong>expires the Stripe payment link</strong>,
+                            so the customer can no longer complete the old checkout.
+                        </p>
+                        <p className="abd-modal-footnote">
+                            No customer email is sent. To collect payment later, create a fresh booking instead.
+                        </p>
+                        <div className="abd-modal-actions">
+                            <button
+                                type="button"
+                                onClick={() => setCancelOpen(false)}
+                                disabled={cancelling}
+                                className="abd-action-btn"
+                            >
+                                Keep booking
+                            </button>
+                            <button
+                                type="button"
+                                onClick={submitCancel}
+                                disabled={cancelling}
+                                className="abd-action-btn abd-action-btn--danger"
+                            >
+                                {cancelling ? 'Cancelling…' : 'Cancel booking'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {detachPmOpen && (
                 <div className="abd-modal-backdrop" onClick={() => !detaching && setDetachPmOpen(false)}>
                     <div className="abd-modal" onClick={(e) => e.stopPropagation()}>
@@ -628,7 +742,15 @@ function RescheduleModal({ booking, currentEventId, onClose, onSuccess }) {
         let alive = true;
         fetch('/api/admin/events', { credentials: 'include', cache: 'no-store' })
             .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-            .then((j) => { if (alive) setEvents((j.events || []).filter((e) => e.id !== currentEventId)); })
+            // Only offer genuinely bookable targets (Sprint 4 C8): the server
+            // 409s unpublished/past targets, so listing them here just walked
+            // the operator into confusing errors.
+            .then((j) => {
+                if (alive) {
+                    setEvents((j.events || []).filter((e) =>
+                        e.id !== currentEventId && e.published && !e.past));
+                }
+            })
             .catch((e) => { if (alive) setLoadErr(e?.message || 'Failed to load events'); });
         return () => { alive = false; };
     }, [currentEventId]);
