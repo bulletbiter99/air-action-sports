@@ -38,24 +38,33 @@ const DAY = 86400000;
 // Fixed reference instant: 2026-05-15T12:00:00Z (May = UTC month index 4, Q2).
 const NOW = Date.UTC(2026, 4, 15, 12, 0, 0);
 
+// Calendar periods start at midnight DENVER — AAS's business calendar. On the
+// UTC calendar "MTD" began at 6 PM Mountain on the last day of the previous
+// month, so an evening sale on the 31st was already booked to the new month.
+//
+// The MDT/MST asymmetry below is the anti-regression guard: the May month and
+// quarter boundaries are 6h off UTC, but the JANUARY year boundary is 7h. A
+// hardcoded '-06:00' passes the first two assertions and fails the third.
 describe('resolvePeriodWindow', () => {
-    it('mtd starts at the 1st of the current UTC month', () => {
+    it('mtd starts at midnight Denver on the 1st (06:00Z in MDT)', () => {
         const w = resolvePeriodWindow('mtd', NOW);
-        expect(w.startMs).toBe(Date.UTC(2026, 4, 1));
+        expect(w.startMs).toBe(Date.parse('2026-05-01T06:00:00Z'));
+        expect(w.startMs - Date.UTC(2026, 4, 1)).toBe(6 * 3600000);
         expect(w.endMs).toBe(NOW);
         expect(w.period).toBe('mtd');
         expect(w.label).toBe('Month to date');
     });
 
-    it('qtd starts at the 1st of the current quarter (Q2 → April)', () => {
+    it('qtd starts at midnight Denver on the 1st of the quarter (Q2 → April)', () => {
         const w = resolvePeriodWindow('qtd', NOW);
-        expect(w.startMs).toBe(Date.UTC(2026, 3, 1));
+        expect(w.startMs).toBe(Date.parse('2026-04-01T06:00:00Z'));
         expect(w.endMs).toBe(NOW);
     });
 
-    it('ytd starts at Jan 1 of the current UTC year', () => {
+    it('ytd starts at midnight Denver on Jan 1 — 07:00Z, because January is MST', () => {
         const w = resolvePeriodWindow('ytd', NOW);
-        expect(w.startMs).toBe(Date.UTC(2026, 0, 1));
+        expect(w.startMs).toBe(Date.parse('2026-01-01T07:00:00Z'));
+        expect(w.startMs - Date.UTC(2026, 0, 1)).toBe(7 * 3600000);
     });
 
     it('last_30d / last_90d are rolling windows ending now', () => {

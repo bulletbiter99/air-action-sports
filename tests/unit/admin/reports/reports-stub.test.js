@@ -364,3 +364,56 @@ describe('All 16 endpoints mounted', () => {
         }
     });
 });
+
+// The operator's custom from/to date pickers resolve on the DENVER calendar.
+//
+// These dates are Mountain days as far as the operator is concerned. Read as UTC
+// midnight they began 6-7h early, so "1st to the 31st" silently swept in the
+// evening of the previous month and cut off the evening of the 31st itself.
+//
+// parseCustomBounds is module-private, so this exercises it through the route
+// and reads the bound window back off the JSON response. Before this change
+// there was NO server-side coverage of custom bounds at all — the only "custom"
+// tests were for the client-side query-string builder.
+describe('custom date range resolves on the Denver calendar', () => {
+    async function windowFor(qs) {
+        bindCapabilities(env.DB, 'u_owner', ['reports.read', 'reports.read.owner']);
+        const res = await worker.fetch(req(`/api/admin/reports/owner/revenue-trends${qs}`), env, {});
+        expect(res.status).toBe(200);
+        return (await res.json()).window;
+    }
+
+    it('starts at midnight Denver on the from-date (06:00Z in MDT)', async () => {
+        const w = await windowFor('?period=custom&from=2026-07-01&to=2026-07-31');
+        expect(w.startMs).toBe(Date.parse('2026-07-01T06:00:00Z'));
+        expect(w.period).toBe('custom');
+    });
+
+    it('ends at midnight Denver AFTER the to-date, so the end day is inclusive', async () => {
+        const w = await windowFor('?period=custom&from=2026-07-01&to=2026-07-31');
+        expect(w.endMs).toBe(Date.parse('2026-08-01T06:00:00Z'));
+        // A 7 PM Mountain sale on the 31st is INSIDE the range. Under UTC bounds
+        // it fell past the end and vanished from the operator's own date range.
+        expect(Date.parse('2026-08-01T01:00:00Z')).toBeLessThan(w.endMs);
+    });
+
+    it('uses the 7h MST offset in winter, not a hardcoded 6h', async () => {
+        const w = await windowFor('?period=custom&from=2026-01-01&to=2026-01-31');
+        expect(w.startMs).toBe(Date.parse('2026-01-01T07:00:00Z'));
+        expect(w.endMs).toBe(Date.parse('2026-02-01T07:00:00Z'));
+    });
+
+    // A range whose end lands on a DST transition day: advancing the end by a
+    // fixed 86400000 would land an hour inside or short of the next midnight.
+    it('advances the end by a CALENDAR day across a DST transition', async () => {
+        const w = await windowFor('?period=custom&from=2026-10-25&to=2026-11-01');
+        // 1 Nov is the 25-hour fall-back day, so 2 Nov midnight is MST (07:00Z).
+        expect(w.endMs).toBe(Date.parse('2026-11-02T07:00:00Z'));
+        expect(w.endMs - Date.parse('2026-11-01T06:00:00Z')).toBe(25 * 60 * 60 * 1000);
+    });
+
+    it('falls back to last_30d when either bound is missing or unparseable', async () => {
+        expect((await windowFor('?period=custom&from=2026-07-01')).period).toBe('last_30d');
+        expect((await windowFor('?period=custom&from=nope&to=2026-07-31')).period).toBe('last_30d');
+    });
+});

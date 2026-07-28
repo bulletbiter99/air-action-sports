@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import worker from '../../../worker/index.js';
 import { createMockEnv } from '../../helpers/mockEnv.js';
 import { createAdminSession } from '../../helpers/adminSession.js';
+import { denverMonthStartMs } from '../../../worker/lib/eventTime.js';
 
 function makeReq(path, init = {}) {
     return new Request(`https://airactionsport.com${path}`, init);
@@ -85,9 +86,9 @@ describe('GET /api/admin/analytics/overview — ?period filter', () => {
         expect(res.status).toBe(200);
         expect(capturedByStatusSql).toMatch(/paid_at >= \?/);
         expect(capturedByStatusBinds).toHaveLength(1);
-        // The bind should be a UTC month-start ms value (1st of current month, midnight UTC)
-        const monthStart = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1);
-        expect(capturedByStatusBinds[0]).toBe(monthStart);
+        // Midnight DENVER on the 1st, not midnight UTC — the UTC boundary fell
+        // 6-7h earlier, i.e. on the evening of the previous month.
+        expect(capturedByStatusBinds[0]).toBe(denverMonthStartMs(Date.now()));
     });
 
     it('?period=mtd also scopes the attendee join via b.paid_at filter', async () => {
@@ -144,8 +145,7 @@ describe('GET /api/admin/analytics/overview — ?period filter', () => {
         // event_id + month_start
         expect(capturedBinds).toHaveLength(2);
         expect(capturedBinds[0]).toBe('evt_1');
-        const monthStart = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1);
-        expect(capturedBinds[1]).toBe(monthStart);
+        expect(capturedBinds[1]).toBe(denverMonthStartMs(Date.now()));
     });
 
     it('returns the same response shape regardless of period', async () => {

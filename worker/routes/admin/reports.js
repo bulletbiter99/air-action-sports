@@ -44,6 +44,7 @@ import {
     computeRecurrenceRetention,
     toCsv,
 } from '../../lib/reports.js';
+import { denverDayStartMs, denverAddDays } from '../../lib/eventTime.js';
 
 const adminReports = new Hono();
 adminReports.use('*', requireAuth);
@@ -67,16 +68,25 @@ function reportParams(c) {
     return { period, eventId, comparison, format, window };
 }
 
-// Convert ISO date-only strings (YYYY-MM-DD) into a UTC [startMs, endMs) window.
-// `from` is 00:00:00Z; `to` advances one day so the selected end day is inclusive.
+// Convert ISO date-only strings (YYYY-MM-DD) into a [startMs, endMs) window on
+// the DENVER calendar. `from` is midnight Mountain; `to` advances one CALENDAR
+// day so the selected end day is inclusive.
+//
+// These are dates an operator picked meaning Mountain days. Read as UTC midnight
+// they began 6-7h early — so "1st to the 31st" silently included the evening of
+// the previous month and excluded the evening of the 31st itself.
+//
+// The end advances by a calendar day rather than +86400000: a DST day is 23 or
+// 25 hours, so a fixed day would land inside or short of the intended midnight.
+//
 // Returns null when either is missing or unparseable (resolvePeriodWindow then
 // validates start < end and falls back to last_30d if not).
 function parseCustomBounds(from, to) {
     if (!from || !to) return null;
-    const startMs = Date.parse(`${from}T00:00:00Z`);
-    const toMs = Date.parse(`${to}T00:00:00Z`);
+    const startMs = denverDayStartMs(from);
+    const toMs = denverDayStartMs(to);
     if (!Number.isFinite(startMs) || !Number.isFinite(toMs)) return null;
-    return { startMs, endMs: toMs + 86400000 };
+    return { startMs, endMs: denverAddDays(toMs, 1) };
 }
 
 // CSV export is gated on the reports.export capability (in addition to the

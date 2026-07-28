@@ -17,6 +17,14 @@ import {
     toDenverWallClock,
     denverWallClockWindow,
     eventStartsWithin,
+    denverMonthKey,
+    denverDayStartMs,
+    denverAddDays,
+    denverDayStartFor,
+    denverWeekStartMs,
+    denverMonthStartMs,
+    denverQuarterStartMs,
+    denverYearStartMs,
 } from '../../../worker/lib/eventTime.js';
 
 const H = 60 * 60 * 1000;
@@ -331,5 +339,156 @@ describe('SQL pre-filter never excludes a true match', () => {
         expect(eventStartsWithin(gap, now + 45 * MIN, now + 75 * MIN)).toBe(true);
         const w = denverWallClockWindow(now + 45 * MIN, now + 75 * MIN);
         expect(gap >= w.lo && gap <= w.hi).toBe(false);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE BUSINESS CALENDAR
+//
+// Reporting bucketed and windowed on the UTC calendar, so "MTD" began at 6 PM
+// Mountain on the last day of the previous month and a booking paid at 7 PM
+// Mountain on the 31st landed in the next month's revenue. These helpers move
+// that onto the Denver calendar.
+//
+// Every assertion below pins BOTH DST regimes, because the failure this guards
+// against is a fixed offset that looks right for half the year.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('denverMonthKey', () => {
+    it('buckets a late-evening Mountain payment into the month it was actually made', () => {
+        // 2026-08-01T01:00Z is 2026-07-31 19:00 Mountain — July's money.
+        expect(denverMonthKey(Date.parse('2026-08-01T01:00:00Z'))).toBe('2026-07');
+        // The UTC calendar called this August. That was the bug.
+        expect(new Date('2026-08-01T01:00:00Z').toISOString().slice(0, 7)).toBe('2026-08');
+    });
+
+    it('handles the MST side of the year (7h, not 6h)', () => {
+        // 2026-01-01T06:30Z is 2025-12-31 23:30 MST — December's money.
+        expect(denverMonthKey(Date.parse('2026-01-01T06:30:00Z'))).toBe('2025-12');
+        // ...and half an hour later it really is January in Denver too.
+        expect(denverMonthKey(Date.parse('2026-01-01T07:30:00Z'))).toBe('2026-01');
+    });
+
+    it('agrees with UTC in the middle of a day', () => {
+        expect(denverMonthKey(Date.parse('2026-07-15T18:00:00Z'))).toBe('2026-07');
+    });
+
+    it('returns null on a non-finite input rather than throwing', () => {
+        expect(denverMonthKey(NaN)).toBeNull();
+        expect(denverMonthKey(undefined)).toBeNull();
+    });
+});
+
+describe('denverDayStartMs', () => {
+    it('reads a date-picker value as Denver midnight, not UTC midnight', () => {
+        expect(denverDayStartMs('2026-07-01')).toBe(Date.parse('2026-07-01T06:00:00Z')); // MDT
+        expect(denverDayStartMs('2026-01-01')).toBe(Date.parse('2026-01-01T07:00:00Z')); // MST
+    });
+
+    it('returns null on junk', () => {
+        expect(denverDayStartMs('nope')).toBeNull();
+        expect(denverDayStartMs(null)).toBeNull();
+    });
+});
+
+describe('denverAddDays / denverDayStartFor', () => {
+    it('anchors to midnight Denver on the day containing the instant', () => {
+        expect(denverDayStartFor(Date.parse('2026-07-15T18:30:00Z'))).toBe(Date.parse('2026-07-15T06:00:00Z'));
+        // 01:00Z on the 16th is still the 15th in Denver.
+        expect(denverDayStartFor(Date.parse('2026-07-16T01:00:00Z'))).toBe(Date.parse('2026-07-15T06:00:00Z'));
+    });
+
+    // A fixed +86400000 would drift an hour across a transition; calendar
+    // arithmetic cannot.
+    // Spring forward is ON 2026-03-08, so that DAY is the 23-hour one; 3/7 is a
+    // normal 24h MST day. Measuring the wrong side of the transition is an easy
+    // off-by-one, so both neighbours are pinned too.
+    it('crosses spring forward as a 23-hour day', () => {
+        const mar8 = denverDayStartMs('2026-03-08');
+        expect(denverAddDays(mar8, 1) - mar8).toBe(23 * H);
+        const mar7 = denverDayStartMs('2026-03-07');
+        expect(mar8 - mar7).toBe(24 * H);
+    });
+
+    // Fall back is ON 2026-11-01 → that day is 25 hours.
+    it('crosses fall back as a 25-hour day', () => {
+        const nov1 = denverDayStartMs('2026-11-01');
+        expect(denverAddDays(nov1, 1) - nov1).toBe(25 * H);
+        expect(nov1 - denverAddDays(nov1, -1)).toBe(24 * H);
+    });
+
+    it('walks backwards across a month boundary', () => {
+        expect(denverAddDays(denverDayStartMs('2026-08-02'), -3)).toBe(denverDayStartMs('2026-07-30'));
+    });
+});
+
+describe('denverWeekStartMs', () => {
+    it('anchors to Monday midnight Denver', () => {
+        // 2026-07-15 is a Wednesday.
+        expect(denverWeekStartMs(denverDayStartMs('2026-07-15'))).toBe(denverDayStartMs('2026-07-13'));
+        // A Monday is its own week start.
+        expect(denverWeekStartMs(denverDayStartMs('2026-07-13'))).toBe(denverDayStartMs('2026-07-13'));
+        // Sunday belongs to the week that began the PREVIOUS Monday.
+        expect(denverWeekStartMs(denverDayStartMs('2026-07-19'))).toBe(denverDayStartMs('2026-07-13'));
+    });
+
+    it('uses the DENVER weekday, not the UTC one', () => {
+        // Sunday 2026-07-19 20:00 Mountain is already Monday in UTC. The UTC
+        // weekday would start a new week here; the Denver weekday must not.
+        const sundayEvening = Date.parse('2026-07-20T02:00:00Z');
+        expect(new Date(sundayEvening).getUTCDay()).toBe(1);           // Monday in UTC
+        expect(denverWeekStartMs(sundayEvening)).toBe(denverDayStartMs('2026-07-13'));
+    });
+
+    // 13 consecutive Mondays built by calendar arithmetic must stay 13 DISTINCT
+    // Mondays across a DST transition. Stepping by a fixed 7*86400000 and
+    // re-anchoring would produce a duplicate week at fall back.
+    it('produces 13 distinct Mondays across a fall-back transition', () => {
+        let monday = denverWeekStartMs(denverDayStartMs('2026-09-07'));
+        const starts = [];
+        for (let i = 0; i < 13; i++) {
+            starts.push(monday);
+            monday = denverAddDays(monday, 7);
+        }
+        expect(new Set(starts).size).toBe(13);
+        // Every entry is a Monday at Denver midnight.
+        for (const s of starts) expect(denverWeekStartMs(s)).toBe(s);
+        // Exactly one of those weeks absorbs the extra fall-back hour.
+        const spans = starts.slice(1).map((s, i) => s - starts[i]);
+        expect(spans.filter((x) => x === 7 * 24 * H).length).toBe(11);
+        expect(spans.filter((x) => x === 7 * 24 * H + H).length).toBe(1);
+    });
+});
+
+describe('denverMonthStartMs / denverQuarterStartMs / denverYearStartMs', () => {
+    it('month start is Denver midnight on the 1st', () => {
+        expect(denverMonthStartMs(Date.parse('2026-07-28T15:00:00Z'))).toBe(denverDayStartMs('2026-07-01'));
+    });
+
+    it('a late-evening Mountain instant still belongs to the month it looks like', () => {
+        // 2026-08-01T01:00Z = 31 July 19:00 Mountain -> JULY's month start.
+        expect(denverMonthStartMs(Date.parse('2026-08-01T01:00:00Z'))).toBe(denverDayStartMs('2026-07-01'));
+    });
+
+    it('quarter start is the 1st of Jan/Apr/Jul/Oct', () => {
+        expect(denverQuarterStartMs(Date.parse('2026-07-28T15:00:00Z'))).toBe(denverDayStartMs('2026-07-01'));
+        expect(denverQuarterStartMs(Date.parse('2026-05-15T15:00:00Z'))).toBe(denverDayStartMs('2026-04-01'));
+        expect(denverQuarterStartMs(Date.parse('2026-02-15T15:00:00Z'))).toBe(denverDayStartMs('2026-01-01'));
+        expect(denverQuarterStartMs(Date.parse('2026-11-15T15:00:00Z'))).toBe(denverDayStartMs('2026-10-01'));
+    });
+
+    it('year start is 1 Jan Denver midnight — MST, so 07:00Z', () => {
+        expect(denverYearStartMs(Date.parse('2026-07-28T15:00:00Z'))).toBe(Date.parse('2026-01-01T07:00:00Z'));
+    });
+
+    it('the band before a Denver new year still belongs to the old year', () => {
+        // 2026-01-01T03:00Z = 2025-12-31 20:00 MST.
+        expect(denverYearStartMs(Date.parse('2026-01-01T03:00:00Z'))).toBe(Date.parse('2025-01-01T07:00:00Z'));
+    });
+
+    it('all three return null on a non-finite input', () => {
+        for (const fn of [denverMonthStartMs, denverQuarterStartMs, denverYearStartMs]) {
+            expect(fn(NaN)).toBeNull();
+        }
     });
 });

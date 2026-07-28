@@ -13,6 +13,16 @@
 //   - Customer-aggregating reports filter customer_id != '__needs_backfill__'.
 //   - Daily bucketing via date(paid_at/1000,'unixepoch'); series grouping uses
 //     events.site (the series-branding column — events.series does NOT exist).
+//
+// Still pure — eventTime.js is itself pure (Intl + Date.UTC, no D1 and no env).
+// It is imported for the DENVER business calendar: AAS operates on Mountain
+// time, so calendar period boundaries must not be UTC midnight.
+
+import {
+    denverMonthStartMs,
+    denverQuarterStartMs,
+    denverYearStartMs,
+} from './eventTime.js';
 
 const DAY_MS = 86400000;
 
@@ -41,9 +51,6 @@ export const SUPPORTED_PERIODS = ['mtd', 'qtd', 'ytd', 'last_30d', 'last_90d', '
  */
 export function resolvePeriodWindow(period, nowMs, customBounds) {
     const now = Number.isFinite(nowMs) ? nowMs : Date.now();
-    const d = new Date(now);
-    const y = d.getUTCFullYear();
-    const m = d.getUTCMonth();
 
     // Custom range (Batch 11a): a valid [startMs, endMs) from the caller wins.
     // Must be finite with start < end; otherwise fall through to last_30d.
@@ -62,14 +69,19 @@ export function resolvePeriodWindow(period, nowMs, customBounds) {
     let startMs;
     let resolved = period;
     switch (period) {
+        // Calendar periods start at midnight DENVER, not midnight UTC. On the
+        // UTC calendar "month to date" began at 6 PM Mountain on the last day of
+        // the previous month (7 PM in MST), so evening sales on the 31st were
+        // already booked to the new month. Rolling windows (last_30d/90d) are
+        // durations, not calendar boundaries, so they are unaffected.
         case 'mtd':
-            startMs = Date.UTC(y, m, 1);
+            startMs = denverMonthStartMs(now);
             break;
         case 'qtd':
-            startMs = Date.UTC(y, Math.floor(m / 3) * 3, 1);
+            startMs = denverQuarterStartMs(now);
             break;
         case 'ytd':
-            startMs = Date.UTC(y, 0, 1);
+            startMs = denverYearStartMs(now);
             break;
         case 'last_30d':
             startMs = now - 30 * DAY_MS;
