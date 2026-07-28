@@ -1,5 +1,12 @@
 # M6 deploy runbook
 
+> ⚠️ **Historical record — one claim below is now DANGEROUSLY false.** This doc says production
+> runs against Stripe **sandbox** keys and lists the live cutover as pending items 1–5. **That
+> ended 2026-06-03: production takes real card payments.** Never run a "test" checkout, a "$1
+> e2e", or a `stripe trigger` against production. The sandbox-era verification steps below
+> (B5/B6/B7 "sandbox booking", "Live verification: pending operator cutover") are preserved as
+> the M6 close record, not as instructions. See CLAUDE.md § "2026-06-03 session".
+
 Operator reference for the M6 milestone deploy sequence. Every batch was a separate PR → merge → auto-deploy via Workers Builds; this doc captures the order, the migrations applied, and the post-deploy verification steps.
 
 **Milestone:** M6 — Stripe live flow + damage charge Option A + vendor templates + email drafts
@@ -127,7 +134,12 @@ See [`docs/runbooks/m6-rollback.md`](m6-rollback.md). Short version:
 4. Verify DMARC + SPF + DKIM DNS records
 5. `$1` live e2e test
 
-Until items 1–5 complete, production runs B5+B6+B7+B9 code against Stripe **sandbox** keys. All payment-flow behavior works sandbox-side; live verification is the final gate.
+~~Until items 1–5 complete, production runs B5+B6+B7+B9 code against Stripe **sandbox** keys. All payment-flow behavior works sandbox-side; live verification is the final gate.~~
+
+⛔ **No longer true.** Items 1–5 were completed and production was cut over to **live** Stripe on
+**2026-06-03** (it had been silently still in TEST mode despite an earlier "done" record — see
+CLAUDE.md § "2026-06-03 session"). Production charges real cards. Treat every sandbox-flavored
+verification step in this runbook as historical.
 
 ---
 

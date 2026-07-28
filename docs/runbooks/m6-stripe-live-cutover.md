@@ -1,8 +1,37 @@
 # M6 — Stripe Sandbox → Live Cutover Runbook
 
-**Status:** drafted in M6 Batch 0. **Execute before Batch 5 merges to main.**
+> ## ⛔ SUPERSEDED — DO NOT EXECUTE. HISTORICAL RECORD ONLY.
+>
+> **The cutover is DONE. Production has taken real card payments since 2026-06-03.**
+>
+> Do **not** run the steps below. They swap live Stripe secrets on a production Worker that
+> is already correctly configured, and Step 4 calls for a "$1 live e2e test" — against
+> production that is a **real charge on a real card**. Never run a "test" checkout against
+> this system; see the 2026-06-03 session section in CLAUDE.md for how a real e2e was done
+> once, deliberately, and refunded.
+>
+> **Two specific traps if anyone reads on:**
+> 1. This runbook says `STRIPE_WEBHOOK_SIGNING_SECRET` (Step 2 and the Path-A rollback). The
+>    code reads **`STRIPE_WEBHOOK_SECRET`** (`worker/routes/webhooks.js:16`). Setting the name
+>    below would leave signature verification reading an unset var — every webhook 400s and
+>    paid bookings never confirm.
+> 2. Its premise ("the operator moved back to sandbox for development") has been false since
+>    2026-06-03.
+>
+> **What actually happened:** the cutover was recorded "DONE 2026-06-02" but was **not** —
+> production was silently still in Stripe TEST mode (every session `cs_test_`) until it was
+> really cut over and verified on **2026-06-03**. The diagnosis signal worth keeping: the
+> `bookings.stripe_session_id` prefix (`cs_test_` vs `cs_live_`) is the source of truth for
+> which mode a booking used — `wrangler secret list` shows only names, never values, so it
+> cannot tell you. Full record: CLAUDE.md § "2026-06-03 session" + memory
+> `stripe-live-cutover-fixed-2026-06-03`.
+>
+> Kept in-repo because the *sequencing* lesson is durable: set the webhook secret **before**
+> the API key, so there is never a window where real cards charge but bookings can't confirm.
 
-**Context:** The operator previously cut over to live during the M5.5 cycle (proven successful), then moved back to sandbox for development work. Re-cutover is required before Batch 5 modifies `worker/routes/bookings.js` to add `setup_future_usage: 'off_session'` — that change must be validated against live Stripe end-to-end before merging.
+**Status:** ⛔ superseded 2026-06-03 (executed; see banner). Originally drafted in M6 Batch 0 as "execute before Batch 5 merges to main."
+
+**Context (historical):** The operator previously cut over to live during the M5.5 cycle (proven successful), then moved back to sandbox for development work. Re-cutover was required before Batch 5 modified `worker/routes/bookings.js` to add `setup_future_usage: 'off_session'` — that change had to be validated against live Stripe end-to-end before merging.
 
 This runbook lives in the repo as the durable cutover playbook. Operator-only execution; Claude Code never runs `wrangler secret put` for Stripe keys or any other live-key operation.
 
