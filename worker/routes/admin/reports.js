@@ -21,6 +21,7 @@ import { requireCapability, hasCapability, requireReadAccess } from '../../lib/c
 import {
     resolvePeriodWindow,
     priorWindow,
+    rollupByDenverMonth,
     computeRevenueTrends,
     computeRefundRate,
     computeAovTrend,
@@ -44,7 +45,7 @@ import {
     computeRecurrenceRetention,
     toCsv,
 } from '../../lib/reports.js';
-import { denverDayStartMs, denverAddDays } from '../../lib/eventTime.js';
+import { denverDayStartMs, denverAddDays, denverWeekStartMs, denverDateFor } from '../../lib/eventTime.js';
 
 const adminReports = new Hono();
 adminReports.use('*', requireAuth);
@@ -193,14 +194,17 @@ adminReports.get('/owner/refund-rate',
 
         const evt = eventId ? ' AND event_id = ?' : '';
         const mb = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
-        const monthly = await c.env.DB.prepare(
-            `SELECT strftime('%Y-%m', paid_at/1000, 'unixepoch') AS month,
-                    COUNT(CASE WHEN status IN ('paid','refunded') THEN 1 END) AS charged,
-                    COUNT(CASE WHEN refunded_at IS NOT NULL OR refund_external = 1 THEN 1 END) AS refunded
+        // Raw rows, bucketed in JS on the DENVER month (rollupByDenverMonth —
+        // strftime can only produce UTC months, and this table is tiny).
+        const raw = await c.env.DB.prepare(
+            `SELECT paid_at, status, refunded_at, refund_external
              FROM bookings
-             WHERE paid_at >= ? AND paid_at < ?${evt}
-             GROUP BY month ORDER BY month ASC`
+             WHERE paid_at >= ? AND paid_at < ?${evt}`
         ).bind(...mb).all();
+        const monthlyRows = rollupByDenverMonth(raw.results || [], 'paid_at', {
+            charged: (r) => (r.status === 'paid' || r.status === 'refunded' ? 1 : 0),
+            refunded: (r) => (r.refunded_at != null || r.refund_external === 1 ? 1 : 0),
+        });
 
         let priorCharged = null;
         let priorRefunded = null;
@@ -216,7 +220,7 @@ adminReports.get('/owner/refund-rate',
             priorRefunded = row?.refunded ?? 0;
         }
 
-        const payload = computeRefundRate({ monthlyRows: monthly.results || [], priorCharged, priorRefunded });
+        const payload = computeRefundRate({ monthlyRows, priorCharged, priorRefunded });
         if (format === 'csv') {
             return csvResponse('refund-rate',
                 ['Month', 'Charged', 'Refunded', 'Refund Rate %'],
@@ -258,14 +262,16 @@ adminReports.get('/owner/aov-trend',
 
         const evt = eventId ? ' AND event_id = ?' : '';
         const mb = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
-        const monthly = await c.env.DB.prepare(
-            `SELECT strftime('%Y-%m', paid_at/1000, 'unixepoch') AS month,
-                    COALESCE(SUM(total_cents),0) AS sum_cents,
-                    COUNT(*) AS n
+        // Denver-month bucketing in JS — see rollupByDenverMonth.
+        const raw = await c.env.DB.prepare(
+            `SELECT paid_at, total_cents
              FROM bookings
-             WHERE status = 'paid' AND paid_at >= ? AND paid_at < ?${evt}
-             GROUP BY month ORDER BY month ASC`
+             WHERE status = 'paid' AND paid_at >= ? AND paid_at < ?${evt}`
         ).bind(...mb).all();
+        const monthlyRows = rollupByDenverMonth(raw.results || [], 'paid_at', {
+            sum_cents: (r) => r.total_cents ?? 0,
+            n: () => 1,
+        });
 
         let priorSumCents = null;
         let priorCount = null;
@@ -280,7 +286,7 @@ adminReports.get('/owner/aov-trend',
             priorCount = row?.n ?? 0;
         }
 
-        const payload = computeAovTrend({ monthlyRows: monthly.results || [], priorSumCents, priorCount });
+        const payload = computeAovTrend({ monthlyRows, priorSumCents, priorCount });
         if (format === 'csv') {
             return csvResponse('aov-trend', ['Month', 'Bookings', 'AOV'],
                 payload.series.map((r) => [r.month, r.bookings, dollars(r.avgCents)]));
@@ -350,79 +356,84 @@ adminReports.get('/owner/scorecard',
         const { format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
 
-        const DAY = 86400000;
-        const WEEK = 7 * DAY;
         const now = Date.now();
-        const nd = new Date(now);
-        const daysSinceMonday = (nd.getUTCDay() + 6) % 7; // getUTCDay: 0=Sun..6=Sat → Mon=0
-        const mondayUtc = Date.UTC(nd.getUTCFullYear(), nd.getUTCMonth(), nd.getUTCDate()) - daysSinceMonday * DAY;
-        const windowStartMs = mondayUtc - 12 * WEEK;      // oldest of 13 weeks
-        const windowEndMs = mondayUtc + WEEK;             // end of the current (in-progress) week
+        // 14 week boundaries = 13 Monday-anchored DENVER weeks, current week
+        // last. Built by CALENDAR stepping (denverAddDays), not a fixed
+        // 604800000: a DST week is 6d23h or 7d1h, so fixed stepping drifts an
+        // hour across a transition and a boundary stops being midnight — which
+        // both misfiles evening rows and breaks the CAST-division week index.
+        // That is also why the SQL GROUP BY wk is gone: integer division by a
+        // constant cannot express variable-length weeks.
+        const mondayDenver = denverWeekStartMs(now);
+        const boundaries = [];
+        for (let i = 0; i <= 13; i++) boundaries.push(denverAddDays(mondayDenver, 7 * (i - 12)));
+        const windowStartMs = boundaries[0];
+        const windowEndMs = boundaries[13];
 
         const weeks = [];
         for (let i = 0; i < 13; i++) {
-            const startMs = windowStartMs + i * WEEK;
             weeks.push({
                 index: i,
-                startMs,
-                endMs: startMs + WEEK,
-                startIso: new Date(startMs).toISOString().slice(0, 10),
+                startMs: boundaries[i],
+                endMs: boundaries[i + 1],
+                // Denver midnight is 06:00/07:00Z, so the ISO date portion is
+                // the same calendar date — but derive it explicitly.
+                startIso: denverDateFor(boundaries[i]),
                 isCurrent: i === 12,
                 isPartial: i === 12,
             });
         }
 
-        // Three grouped queries; each row's wk = integer week offset from window
-        // start (0..12). status IN ('paid','comp') powers cash/earned/paid-count;
-        // field-rental receipts + the refund charged/refunded counts are separate.
-        // Comps are recorded as $0 (worker/routes/admin/bookings.js), so including
-        // 'comp' in the cash/earned SUMs is a no-op (kept for parity with the
+        // Raw rows, bucketed into the 13 Denver weeks in JS. One bookings fetch
+        // feeds BOTH metric families: cash/earned/paid-count read only the
+        // paid/comp rows, charged/refunded read every charged row. Comps are
+        // recorded as $0 (worker/routes/admin/bookings.js), so including 'comp'
+        // in the cash/earned sums is a no-op (kept for parity with the
         // income-card basis); paid_count + the volume floor count only 'paid'.
-        const [bk, fr, rf] = await Promise.all([
+        //
+        // refund_rate = refunded / ever-charged, where charged counts every
+        // booking that was ever charged (status IN ('paid','refunded')). This
+        // is the standard "share of charged money refunded" basis and is
+        // DELIBERATELY different from analytics.js's paid-only denominator
+        // (refundedCount/paidCount) — the scorecard's is the more defensible one.
+        const [bk, fr] = await Promise.all([
             c.env.DB.prepare(
-                `SELECT CAST((paid_at - ?) / 604800000 AS INTEGER) AS wk,
-                        COALESCE(SUM(total_cents),0) AS cash_cents,
-                        COALESCE(SUM(total_cents - COALESCE(tax_cents,0) - COALESCE(fee_cents,0)),0) AS earned_cents,
-                        SUM(CASE WHEN status='paid' THEN 1 ELSE 0 END) AS paid_count
+                `SELECT paid_at, status, total_cents, tax_cents, fee_cents, refunded_at, refund_external
                  FROM bookings
-                 WHERE status IN ('paid','comp') AND paid_at >= ? AND paid_at < ?
-                 GROUP BY wk`
-            ).bind(windowStartMs, windowStartMs, windowEndMs).all(),
+                 WHERE paid_at >= ? AND paid_at < ?`
+            ).bind(windowStartMs, windowEndMs).all(),
             c.env.DB.prepare(
-                `SELECT CAST((received_at - ?) / 604800000 AS INTEGER) AS wk,
-                        COALESCE(SUM(amount_cents),0) AS fr_cents
+                `SELECT received_at, amount_cents
                  FROM field_rental_payments
-                 WHERE status='received' AND received_at >= ? AND received_at < ?
-                 GROUP BY wk`
-            ).bind(windowStartMs, windowStartMs, windowEndMs).all(),
-            // refund_rate = refunded / ever-charged, where charged counts every
-            // booking that was ever charged (status IN ('paid','refunded')). This
-            // is the standard "share of charged money refunded" basis and is
-            // DELIBERATELY different from analytics.js's paid-only denominator
-            // (refundedCount/paidCount) — the scorecard's is the more defensible one.
-            c.env.DB.prepare(
-                `SELECT CAST((paid_at - ?) / 604800000 AS INTEGER) AS wk,
-                        COUNT(CASE WHEN status IN ('paid','refunded') THEN 1 END) AS charged,
-                        COUNT(CASE WHEN refunded_at IS NOT NULL OR refund_external = 1 THEN 1 END) AS refunded
-                 FROM bookings
-                 WHERE paid_at >= ? AND paid_at < ?
-                 GROUP BY wk`
-            ).bind(windowStartMs, windowStartMs, windowEndMs).all(),
+                 WHERE status='received' AND received_at >= ? AND received_at < ?`
+            ).bind(windowStartMs, windowEndMs).all(),
         ]);
+
+        // Week index by boundary scan — 13 windows, tiny row counts; the
+        // boundaries are exact Denver midnights so no division shortcut needed.
+        const weekIndexOf = (ts) => {
+            if (!Number.isFinite(ts) || ts < windowStartMs || ts >= windowEndMs) return -1;
+            let i = 0;
+            while (i < 12 && ts >= boundaries[i + 1]) i++;
+            return i;
+        };
 
         const slot = () => Array(13).fill(0);
         const cash = slot(), earned = slot(), paidCount = slot(), frCash = slot(), charged = slot(), refunded = slot();
         for (const r of (bk.results || [])) {
-            const i = Number(r.wk);
-            if (i >= 0 && i < 13) { cash[i] = Number(r.cash_cents) || 0; earned[i] = Number(r.earned_cents) || 0; paidCount[i] = Number(r.paid_count) || 0; }
+            const i = weekIndexOf(Number(r.paid_at));
+            if (i < 0) continue;
+            if (r.status === 'paid' || r.status === 'comp') {
+                cash[i] += Number(r.total_cents) || 0;
+                earned[i] += (Number(r.total_cents) || 0) - (Number(r.tax_cents) || 0) - (Number(r.fee_cents) || 0);
+                if (r.status === 'paid') paidCount[i] += 1;
+            }
+            if (r.status === 'paid' || r.status === 'refunded') charged[i] += 1;
+            if (r.refunded_at != null || r.refund_external === 1) refunded[i] += 1;
         }
         for (const r of (fr.results || [])) {
-            const i = Number(r.wk);
-            if (i >= 0 && i < 13) frCash[i] = Number(r.fr_cents) || 0;
-        }
-        for (const r of (rf.results || [])) {
-            const i = Number(r.wk);
-            if (i >= 0 && i < 13) { charged[i] = Number(r.charged) || 0; refunded[i] = Number(r.refunded) || 0; }
+            const i = weekIndexOf(Number(r.received_at));
+            if (i >= 0) frCash[i] += Number(r.amount_cents) || 0;
         }
 
         // Derived (no extra round-trip): AOV = earned ÷ paid count; refund rate.
@@ -465,30 +476,32 @@ adminReports.get('/bookkeeper/payouts',
 
         const evt = eventId ? ' AND event_id = ?' : '';
         const bBinds = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
+        // Denver-month bucketing in JS — see rollupByDenverMonth.
         const booking = await c.env.DB.prepare(
-            `SELECT strftime('%Y-%m', paid_at/1000,'unixepoch') AS month,
-                    SUM(CASE WHEN status IN ('paid','refunded') THEN total_cents ELSE 0 END) AS gross_cents,
-                    SUM(CASE WHEN status = 'refunded' THEN total_cents ELSE 0 END) AS refund_cents
+            `SELECT paid_at, status, total_cents
              FROM bookings
-             WHERE paid_at >= ? AND paid_at < ?${evt}
-             GROUP BY month ORDER BY month ASC`
+             WHERE paid_at >= ? AND paid_at < ?${evt}`
         ).bind(...bBinds).all();
+        const bookingRows = rollupByDenverMonth(booking.results || [], 'paid_at', {
+            gross_cents: (r) => (r.status === 'paid' || r.status === 'refunded' ? (r.total_cents ?? 0) : 0),
+            refund_cents: (r) => (r.status === 'refunded' ? (r.total_cents ?? 0) : 0),
+        });
 
         // Field rentals aren't event-scoped — skip the FR query when an event
         // filter is set (and flag it in the response).
         let frRows = [];
         if (!eventId) {
             const fr = await c.env.DB.prepare(
-                `SELECT strftime('%Y-%m', received_at/1000,'unixepoch') AS month,
-                        COALESCE(SUM(amount_cents),0) AS fr_gross_cents
+                `SELECT received_at, amount_cents
                  FROM field_rental_payments
-                 WHERE status = 'received' AND received_at >= ? AND received_at < ?
-                 GROUP BY month ORDER BY month ASC`
+                 WHERE status = 'received' AND received_at >= ? AND received_at < ?`
             ).bind(window.startMs, window.endMs).all();
-            frRows = fr.results || [];
+            frRows = rollupByDenverMonth(fr.results || [], 'received_at', {
+                fr_gross_cents: (r) => r.amount_cents ?? 0,
+            });
         }
 
-        const payload = computePayoutsSummary({ bookingRows: booking.results || [], frRows });
+        const payload = computePayoutsSummary({ bookingRows, frRows });
         if (format === 'csv') {
             return csvResponse('payouts-summary',
                 ['Month', 'Stripe Gross', 'Field Rental Gross', 'Refunds', 'Net'],
@@ -512,16 +525,18 @@ adminReports.get('/bookkeeper/tax-fee-summary',
 
         const evt = eventId ? ' AND event_id = ?' : '';
         const mb = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
-        const monthly = await c.env.DB.prepare(
-            `SELECT strftime('%Y-%m', paid_at/1000,'unixepoch') AS month,
-                    COALESCE(SUM(tax_cents),0) AS tax_cents,
-                    COALESCE(SUM(fee_cents),0) AS fee_cents
+        // Denver-month bucketing in JS — see rollupByDenverMonth.
+        const raw = await c.env.DB.prepare(
+            `SELECT paid_at, tax_cents, fee_cents
              FROM bookings
-             WHERE status IN ('paid','comp') AND paid_at >= ? AND paid_at < ?${evt}
-             GROUP BY month ORDER BY month ASC`
+             WHERE status IN ('paid','comp') AND paid_at >= ? AND paid_at < ?${evt}`
         ).bind(...mb).all();
+        const monthlyRows = rollupByDenverMonth(raw.results || [], 'paid_at', {
+            tax_cents: (r) => r.tax_cents ?? 0,
+            fee_cents: (r) => r.fee_cents ?? 0,
+        });
 
-        const payload = computeTaxFeeSummary({ monthlyRows: monthly.results || [] });
+        const payload = computeTaxFeeSummary({ monthlyRows });
         if (format === 'csv') {
             return csvResponse('tax-fee-summary',
                 ['Month', 'Tax', 'Fees', 'Total'],
@@ -629,34 +644,39 @@ adminReports.get('/bookkeeper/stripe-fees',
 
         const evt = eventId ? ' AND event_id = ?' : '';
         const binds = eventId ? [window.startMs, window.endMs, eventId] : [window.startMs, window.endMs];
+        // Denver-month bucketing in JS — see rollupByDenverMonth. The NULL
+        // conditionals mirror the old SQL exactly: SUM ignores NULL, so an
+        // uncaptured fee contributes 0 while still counting toward paid_count.
         const [monthly, refunded] = await Promise.all([
             c.env.DB.prepare(
-                `SELECT strftime('%Y-%m', paid_at/1000,'unixepoch') AS month,
-                        COALESCE(SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN total_cents ELSE 0 END),0) AS gross_cents,
-                        COALESCE(SUM(stripe_fee_cents),0) AS fee_cents,
-                        COALESCE(SUM(stripe_net_cents),0) AS net_cents,
-                        COALESCE(SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN tax_cents ELSE 0 END),0) AS tax_cents,
-                        COUNT(*) AS paid_count,
-                        SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN 1 ELSE 0 END) AS captured_count
+                `SELECT paid_at, total_cents, tax_cents, stripe_fee_cents, stripe_net_cents
                  FROM bookings
-                 WHERE status = 'paid' AND paid_at >= ? AND paid_at < ?${evt}
-                 GROUP BY month ORDER BY month ASC`
+                 WHERE status = 'paid' AND paid_at >= ? AND paid_at < ?${evt}`
             ).bind(...binds).all(),
-            // Refunded bookings: Stripe keeps the original fee (unrecoverable). Sum
-            // the captured fee per month (windowed by paid_at, same cohort as gross);
-            // SUM ignores NULL so only reconciled refunds contribute money.
+            // Refunded bookings: Stripe keeps the original fee (unrecoverable).
+            // Windowed by paid_at, same cohort as gross; only reconciled refunds
+            // (fee captured) contribute money.
             c.env.DB.prepare(
-                `SELECT strftime('%Y-%m', paid_at/1000,'unixepoch') AS month,
-                        COALESCE(SUM(stripe_fee_cents),0) AS refunded_fee_cents,
-                        COUNT(*) AS refunded_count,
-                        SUM(CASE WHEN stripe_fee_cents IS NOT NULL THEN 1 ELSE 0 END) AS refunded_captured
+                `SELECT paid_at, stripe_fee_cents
                  FROM bookings
-                 WHERE status = 'refunded' AND paid_at >= ? AND paid_at < ?${evt}
-                 GROUP BY month ORDER BY month ASC`
+                 WHERE status = 'refunded' AND paid_at >= ? AND paid_at < ?${evt}`
             ).bind(...binds).all(),
         ]);
+        const monthlyRows = rollupByDenverMonth(monthly.results || [], 'paid_at', {
+            gross_cents: (r) => (r.stripe_fee_cents != null ? (r.total_cents ?? 0) : 0),
+            fee_cents: (r) => r.stripe_fee_cents ?? 0,
+            net_cents: (r) => r.stripe_net_cents ?? 0,
+            tax_cents: (r) => (r.stripe_fee_cents != null ? (r.tax_cents ?? 0) : 0),
+            paid_count: () => 1,
+            captured_count: (r) => (r.stripe_fee_cents != null ? 1 : 0),
+        });
+        const refundRows = rollupByDenverMonth(refunded.results || [], 'paid_at', {
+            refunded_fee_cents: (r) => r.stripe_fee_cents ?? 0,
+            refunded_count: () => 1,
+            refunded_captured: (r) => (r.stripe_fee_cents != null ? 1 : 0),
+        });
 
-        const payload = computeStripeFees({ monthlyRows: monthly.results || [], refundRows: refunded.results || [] });
+        const payload = computeStripeFees({ monthlyRows, refundRows });
         if (format === 'csv') {
             return csvResponse('stripe-fees',
                 ['Month', 'Gross', 'Stripe Fees', 'Net Deposited', 'Sales Tax', 'Kept', 'Refund Fees Lost'],
@@ -820,16 +840,18 @@ adminReports.get('/marketing/customer-cohorts',
     async (c) => {
         const { format } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+        // Denver-month bucketing in JS — see rollupByDenverMonth.
         const res = await c.env.DB.prepare(
-            `SELECT strftime('%Y-%m', first_booking_at/1000,'unixepoch') AS month,
-                    COUNT(*) AS new_count,
-                    SUM(CASE WHEN total_bookings >= 2 THEN 1 ELSE 0 END) AS repeat_count
+            `SELECT first_booking_at, total_bookings
              FROM customers
              WHERE first_booking_at IS NOT NULL AND merged_into IS NULL AND archived_at IS NULL
-               AND id != '__needs_backfill__'
-             GROUP BY month ORDER BY month ASC`
+               AND id != '__needs_backfill__'`
         ).all();
-        const payload = computeCustomerCohorts({ monthlyRows: res.results || [] });
+        const monthlyRows = rollupByDenverMonth(res.results || [], 'first_booking_at', {
+            new_count: () => 1,
+            repeat_count: (r) => (Number(r.total_bookings) >= 2 ? 1 : 0),
+        });
+        const payload = computeCustomerCohorts({ monthlyRows });
         if (format === 'csv') {
             return csvResponse('customer-cohorts',
                 ['Acquisition Month', 'New Customers', 'Repeat', 'Repeat %'],
@@ -874,19 +896,19 @@ adminReports.get('/site-coordinator/field-rental-revenue',
     async (c) => {
         const { format, window } = reportParams(c);
         if (format === 'csv' && !csvAllowed(c)) return csvForbidden(c);
+        // Denver-month bucketing in JS — see rollupByDenverMonth (keyed by site).
         const res = await c.env.DB.prepare(
-            `SELECT s.name AS site,
-                    strftime('%Y-%m', fr.scheduled_starts_at/1000,'unixepoch') AS month,
-                    COUNT(*) AS rentals,
-                    COALESCE(SUM(fr.total_cents),0) AS revenue_cents
+            `SELECT s.name AS site, fr.scheduled_starts_at, fr.total_cents
              FROM field_rentals fr
              JOIN sites s ON s.id = fr.site_id
              WHERE fr.status IN ('paid','completed')
-               AND fr.scheduled_starts_at >= ? AND fr.scheduled_starts_at < ?
-             GROUP BY s.name, month
-             ORDER BY s.name ASC, month ASC`
+               AND fr.scheduled_starts_at >= ? AND fr.scheduled_starts_at < ?`
         ).bind(window.startMs, window.endMs).all();
-        const payload = computeFieldRentalRevenue({ rows: res.results || [] });
+        const rows = rollupByDenverMonth(res.results || [], 'scheduled_starts_at', {
+            rentals: () => 1,
+            revenue_cents: (r) => r.total_cents ?? 0,
+        }, ['site']);
+        const payload = computeFieldRentalRevenue({ rows });
         if (format === 'csv') {
             return csvResponse('field-rental-revenue',
                 ['Site', 'Month', 'Rentals', 'Revenue'],

@@ -9,6 +9,7 @@ import { Hono } from 'hono';
 import { requireAuth } from '../../lib/auth.js';
 import { requireCapability, requireReadAccess } from '../../lib/capabilities.js';
 import { computeCashFlowForecast } from '../../lib/cashFlow.js';
+import { denverDayStartFor, denverAddDays, denverMonthKey } from '../../lib/eventTime.js';
 
 const DAY_MS = 86400000;
 const WEEK_MS = 7 * DAY_MS;
@@ -28,14 +29,18 @@ adminCashFlow.get('/', requireReadAccess, async (c) => {
     const hasOverride = overrideRaw != null && overrideRaw !== '' && Number.isFinite(Number(overrideRaw));
 
     const now = Date.now();
-    const nd = new Date(now);
-    const todayStart = Date.UTC(nd.getUTCFullYear(), nd.getUTCMonth(), nd.getUTCDate());
+    // Horizon anchored to midnight DENVER today, stepped by CALENDAR weeks
+    // (denverAddDays, not a fixed 7*86400000 — a DST week is 6d23h or 7d1h, so
+    // fixed stepping drifts the boundaries off midnight across a transition).
+    const todayStart = denverDayStartFor(now);
     const weeks = [];
     for (let i = 0; i < HORIZON_WEEKS; i++) {
-        const startMs = todayStart + i * WEEK_MS;
-        weeks.push({ startMs, endMs: startMs + WEEK_MS });
+        weeks.push({
+            startMs: denverAddDays(todayStart, 7 * i),
+            endMs: denverAddDays(todayStart, 7 * (i + 1)),
+        });
     }
-    const horizonEnd = todayStart + HORIZON_WEEKS * WEEK_MS;
+    const horizonEnd = weeks[HORIZON_WEEKS - 1].endMs;
 
     // Projected weekly booking revenue — explicit override, else the trailing
     // 8-week earned-revenue average (income-card basis: total − tax − fee).
@@ -56,9 +61,9 @@ adminCashFlow.get('/', requireReadAccess, async (c) => {
          WHERE status = 'pending' AND due_at IS NOT NULL AND due_at >= ? AND due_at < ?`
     ).bind(todayStart, horizonEnd).all();
 
-    // Budgeted monthly spend for the months the horizon spans.
-    const startMonth = new Date(todayStart).toISOString().slice(0, 7);
-    const endMonth = new Date(horizonEnd).toISOString().slice(0, 7);
+    // Budgeted monthly spend for the DENVER months the horizon spans.
+    const startMonth = denverMonthKey(todayStart);
+    const endMonth = denverMonthKey(horizonEnd);
     const budgetRes = await c.env.DB.prepare(
         `SELECT period, COALESCE(SUM(budgeted_cents),0) AS monthly_cents
          FROM budgets WHERE period >= ? AND period <= ? GROUP BY period`
