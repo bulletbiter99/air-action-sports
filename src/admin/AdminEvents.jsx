@@ -510,7 +510,7 @@ function EventEditor({ eventId, onClose, onSaved }) {
             </Field>
           </div>
           <div style={twoCol}>
-            <Field label="End date & time (multi-day — optional)">
+            <Field label="End date & time (optional)">
               <input
                 type="datetime-local"
                 value={(form.endDateIso || '').slice(0, 16)}
@@ -518,9 +518,13 @@ function EventEditor({ eventId, onClose, onSaved }) {
                 style={input}
               />
             </Field>
-            <Field label="Multi-day?">
+            <Field label="What the end time does">
               <div style={{ fontSize: 12, color: 'var(--tan-light)', lineHeight: 1.4, paddingTop: 6 }}>
-                Leave blank for a single-day event. When set, the public page shows a date range, the check-in window covers every day, and the timeline can be grouped by day (prefix a schedule line with the day number, e.g. &quot;1 | 7:00 AM | Check-in&quot;).
+                <strong>A LATER day</strong> makes this multi-day: the public page shows a date range, the check-in window covers every day, and the timeline can be grouped by day (prefix a schedule line with the day number, e.g. &quot;1 | 7:00 AM | Check-in&quot;).
+                <br /><br />
+                <strong>The SAME day</strong> changes nothing publicly, but tells the scheduler the event only occupies the field until then — so a later field rental that day stops being a conflict. Include teardown in the time.
+                <br /><br />
+                <strong>Blank</strong> means the event holds the field all day for scheduling.
               </div>
             </Field>
           </div>

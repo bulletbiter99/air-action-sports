@@ -4,10 +4,13 @@
 // interval semantics: a record ending at time T does NOT conflict
 // with a record starting at time T.
 //
-// AAS events are treated as whole-day windows from their `date_iso`
-// (00:00 to 24:00 DENVER local on that day). This matches the operational
-// reality that an AAS event occupies its site for the full day — see B3
-// plan-mode decision 2026-05-11.
+// AAS events occupy either their REAL start→end instants (when the operator
+// has set a timed `end_date_iso`) or, failing that, whole-day windows from
+// their `date_iso` (00:00 to 24:00 DENVER local). The whole-day rule was the
+// original B3 plan-mode decision (2026-05-11); it is a safe over-approximation
+// that turned out to be costly in practice, because it is ENFORCED — an evening
+// field rental on the day of a morning event was a hard conflict needing an
+// owner override. See `eventOccupancyWindow` for the opt-in narrowing rule.
 //
 // That day used to be pinned to UTC midnight, which was 6h (MDT) / 7h (MST)
 // early relative to the real Mountain day. The subtlety that hid it: for
@@ -90,6 +93,62 @@ export function dateIsoToDayWindow(dateIso, endDateIso = null) {
     return { startMs, endMs };
 }
 
+// 'YYYY-MM-DD' followed by a TIME component. Deliberately anchored on the
+// separator + HH:MM — a date-only value must NOT match. See the shrink hazard
+// documented on eventOccupancyWindow.
+const HAS_TIME_COMPONENT_RE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+
+/**
+ * An event's REAL occupancy window, [startMs, endMs).
+ *
+ * The original B3 rule (2026-05-11) was that an AAS event occupies its site for
+ * the whole day. That is a safe over-approximation, but it is enforced, so a
+ * 6-11 PM field rental on the day of a 7 AM-2 PM event was a hard conflict that
+ * only an owner could override. This narrows the window to the times the event
+ * actually runs — WHEN the operator has said what those times are.
+ *
+ * ── WHEN THIS NARROWS ───────────────────────────────────────────────────
+ * Only when `end_date_iso` carries an explicit TIME component. That is the
+ * operator stating an end instant, and it is the opt-in: an event with no end
+ * set keeps the whole-day window it has today, byte-for-byte. Narrowing on
+ * absent data would mean guessing occupancy, and a wrong guess here is a silent
+ * double-booking — no 409, no banner.
+ *
+ * ── WHY A DATE-ONLY END MUST NOT NARROW ─────────────────────────────────
+ * `eventInstantMs` reads a date-only value as MIDNIGHT. So narrowing on
+ * end_date_iso='2026-06-21' would end the window at 00:00 on the 21st — i.e.
+ * silently drop the entire last day of the span, the opposite of what the
+ * operator meant by "through the 21st". The admin form always emits a timed
+ * value (datetime-local + ':00'), but parseEventBody does not enforce it, so
+ * the guard is real rather than theoretical.
+ *
+ * ── SETUP / TEARDOWN ────────────────────────────────────────────────────
+ * No implicit buffer is added. The end time the operator types IS the window
+ * they want enforced, so teardown should be included in it. An implicit buffer
+ * would be a second invisible rule to reason about.
+ *
+ * NOTE the public `isMultiDay` flag keys off end_date_iso being a LATER
+ * CALENDAR DAY (src/hooks/useEvents.js), not merely present — so setting a
+ * SAME-DAY end time to narrow conflicts changes no public rendering.
+ *
+ * @returns {{startMs:number, endMs:number, basis:'instants'|'whole-day'}|null}
+ * Exported for tests.
+ */
+export function eventOccupancyWindow(dateIso, endDateIso = null) {
+    if (endDateIso && typeof endDateIso === 'string'
+        && HAS_TIME_COMPONENT_RE.test(endDateIso.trim())) {
+        const startMs = eventInstantMs(dateIso);
+        const endMs = eventInstantMs(endDateIso);
+        // endMs > startMs guards a malformed or inverted span; falling through
+        // to the whole-day window is the safe direction (wider, not narrower).
+        if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
+            return { startMs, endMs, basis: 'instants' };
+        }
+    }
+    const day = dateIsoToDayWindow(dateIso, endDateIso);
+    return day ? { startMs: day.startMs, endMs: day.endMs, basis: 'whole-day' } : null;
+}
+
 /**
  * Half-open interval overlap test: [aStart, aEnd) vs [bStart, bEnd).
  * Adjacent windows (a.end === b.start) do NOT overlap.
@@ -166,12 +225,15 @@ export async function detectEventConflicts(env, options) {
               .bind(siteId, endDateIsoExclusive, startDateIso)
               .all()).results || [];
 
-    // Verify each candidate event's actual day-span window overlaps the request.
+    // Verify each candidate's REAL occupancy window overlaps the request. The
+    // day-portion SQL above stays a valid pre-filter precisely because an
+    // occupancy window is always a SUBSET of the day span it sits in — so it
+    // still over-selects and this exact test does the narrowing.
     const events = [];
     for (const row of eventsRows) {
-        const dayWindow = dateIsoToDayWindow(row.date_iso, row.end_date_iso);
-        if (!dayWindow) continue; // skip events with malformed date_iso
-        if (intervalsOverlap(dayWindow.startMs, dayWindow.endMs, startsAt, endsAt)) {
+        const window = eventOccupancyWindow(row.date_iso, row.end_date_iso);
+        if (!window) continue; // skip events with malformed date_iso
+        if (intervalsOverlap(window.startMs, window.endMs, startsAt, endsAt)) {
             events.push(row);
         }
     }

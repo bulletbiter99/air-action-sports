@@ -6,6 +6,7 @@ import { createMockD1 } from '../../helpers/mockD1.js';
 import {
     detectEventConflicts,
     dateIsoToDayWindow,
+    eventOccupancyWindow,
     intervalsOverlap,
     hasAnyConflict,
 } from '../../../worker/lib/eventConflicts.js';
@@ -64,6 +65,64 @@ describe('dateIsoToDayWindow', () => {
         expect(dateIsoToDayWindow('2026-06-20', '2026-06-19').endMs).toBe(denverMs('2026-06-21T00:00:00'));
         expect(dateIsoToDayWindow('2026-06-20', 'not-a-date').endMs).toBe(denverMs('2026-06-21T00:00:00'));
         expect(dateIsoToDayWindow('2026-06-20', null).endMs).toBe(denverMs('2026-06-21T00:00:00'));
+    });
+});
+
+// Narrowing an event's occupancy from the whole day to its real start→end
+// times. The whole-day rule was a safe over-approximation, but it is ENFORCED,
+// so an evening field rental on the day of a morning event was a hard conflict
+// only an owner could override. Narrowing is OPT-IN: it happens only when the
+// operator has stated an end instant.
+describe('eventOccupancyWindow', () => {
+    it('narrows to the real span when end_date_iso carries a time', () => {
+        const w = eventOccupancyWindow('2026-07-25T07:00:00', '2026-07-25T14:00:00');
+        expect(w.basis).toBe('instants');
+        expect(w.startMs).toBe(denverMs('2026-07-25T07:00:00'));
+        expect(w.endMs).toBe(denverMs('2026-07-25T14:00:00'));
+    });
+
+    it('keeps the whole-day window when no end is set (the opt-in guarantee)', () => {
+        const w = eventOccupancyWindow('2026-07-25T07:00:00');
+        expect(w.basis).toBe('whole-day');
+        expect(w.startMs).toBe(denverMs('2026-07-25T00:00:00'));
+        expect(w.endMs).toBe(denverMs('2026-07-26T00:00:00'));
+    });
+
+    // THE SHRINK HAZARD: eventInstantMs reads a date-only value as MIDNIGHT, so
+    // narrowing on '2026-07-26' would end the window at 00:00 on the 26th and
+    // silently drop the whole last day of the span.
+    it('does NOT narrow on a date-only end — it would drop the last day', () => {
+        const w = eventOccupancyWindow('2026-07-25T19:45:00', '2026-07-26');
+        expect(w.basis).toBe('whole-day');
+        expect(w.endMs).toBe(denverMs('2026-07-27T00:00:00'));
+    });
+
+    it('falls back to whole-day on an inverted or malformed end', () => {
+        expect(eventOccupancyWindow('2026-07-25T14:00:00', '2026-07-25T07:00:00').basis).toBe('whole-day');
+        expect(eventOccupancyWindow('2026-07-25T14:00:00', '2026-07-25T14:00:00').basis).toBe('whole-day');
+        expect(eventOccupancyWindow('2026-07-25T07:00:00', 'not-a-date').basis).toBe('whole-day');
+        expect(eventOccupancyWindow('2026-07-25T07:00:00', '2026-02-30T10:00:00').basis).toBe('whole-day');
+    });
+
+    it('returns null for an unusable start', () => {
+        expect(eventOccupancyWindow(null)).toBeNull();
+        expect(eventOccupancyWindow('not-a-date')).toBeNull();
+    });
+
+    // Operation Fire Storm's real shape: Sat 7:45 PM → Sun 12:00 PM.
+    it('narrows a genuine multi-day span to its real instants', () => {
+        const w = eventOccupancyWindow('2026-07-25T19:45:00', '2026-07-26T12:00:00');
+        expect(w.basis).toBe('instants');
+        expect(w.startMs).toBe(denverMs('2026-07-25T19:45:00'));
+        expect(w.endMs).toBe(denverMs('2026-07-26T12:00:00'));
+        // The whole-day window would have run to midnight AFTER the 26th.
+        expect(w.endMs).toBeLessThan(denverMs('2026-07-27T00:00:00'));
+    });
+
+    it('is DST-correct across spring forward (a 23-hour day)', () => {
+        const w = eventOccupancyWindow('2026-03-08T00:00:00', '2026-03-09T00:00:00');
+        expect(w.basis).toBe('instants');
+        expect(w.endMs - w.startMs).toBe(23 * 3600000);
     });
 });
 
@@ -467,5 +526,88 @@ describe('event window is a DENVER day, not a UTC day', () => {
     it('a well-formed but nonexistent end date falls back to single-day', () => {
         const w = dateIsoToDayWindow('2026-07-25', '2026-02-30');
         expect(w.endMs).toBe(denverMs('2026-07-26T00:00:00'));
+    });
+});
+
+// End-to-end through detectEventConflicts: the scenario that motivated the
+// narrowing. A morning event and an evening field rental on the same field, the
+// same day. Under the whole-day rule the rental was a hard conflict and a site
+// coordinator had to escalate to an owner to book it.
+//
+// Note mockD1 is a SHAPE mock — it ignores binds — so the events row is always
+// returned as a candidate and it is the JS occupancy check that decides. That
+// is exactly the layer under test.
+describe('detectEventConflicts — occupancy narrowing (evening rental after a morning event)', () => {
+    function setup(db, eventRows) {
+        db.__on(/SELECT id, title, date_iso, end_date_iso, location FROM events/, () => ({
+            results: eventRows, meta: { rows_read: eventRows.length },
+        }), 'all');
+        db.__on(/FROM site_blackouts/, { results: [] }, 'all');
+        db.__on(/FROM field_rentals/, { results: [] }, 'all');
+    }
+
+    // The 6-11 PM rental the operator wants to be able to book.
+    const rental = {
+        siteId: 'site_g',
+        startsAt: denverMs('2026-07-25T18:00:00'),
+        endsAt: denverMs('2026-07-25T23:00:00'),
+    };
+
+    it('a 7 AM-2 PM event with a timed end no longer conflicts', async () => {
+        const db = createMockD1();
+        setup(db, [{
+            id: 'ev_morning', title: 'Foxtrot', location: 'Ghost Town',
+            date_iso: '2026-07-25T07:00:00', end_date_iso: '2026-07-25T14:00:00',
+        }]);
+        const result = await detectEventConflicts(envWith(db), rental);
+        expect(result.events).toEqual([]);
+        expect(hasAnyConflict(result)).toBe(false);
+    });
+
+    it('the SAME event without an end still conflicts — narrowing is opt-in', async () => {
+        const db = createMockD1();
+        setup(db, [{
+            id: 'ev_morning', title: 'Foxtrot', location: 'Ghost Town',
+            date_iso: '2026-07-25T07:00:00', end_date_iso: null,
+        }]);
+        const result = await detectEventConflicts(envWith(db), rental);
+        expect(result.events).toHaveLength(1);
+        expect(result.events[0].id).toBe('ev_morning');
+    });
+
+    it('an event that genuinely overlaps the rental still conflicts', async () => {
+        const db = createMockD1();
+        setup(db, [{
+            id: 'ev_evening', title: 'Night Op', location: 'Ghost Town',
+            date_iso: '2026-07-25T19:45:00', end_date_iso: '2026-07-26T12:00:00',
+        }]);
+        const result = await detectEventConflicts(envWith(db), rental);
+        expect(result.events).toHaveLength(1);
+    });
+
+    // Half-open semantics survive narrowing: a rental starting exactly when the
+    // event ends is not a conflict.
+    it('a rental starting exactly at the event end does not conflict', async () => {
+        const db = createMockD1();
+        setup(db, [{
+            id: 'ev_morning', title: 'Foxtrot', location: 'Ghost Town',
+            date_iso: '2026-07-25T07:00:00', end_date_iso: '2026-07-25T14:00:00',
+        }]);
+        const result = await detectEventConflicts(envWith(db), {
+            siteId: 'site_g',
+            startsAt: denverMs('2026-07-25T14:00:00'),
+            endsAt: denverMs('2026-07-25T18:00:00'),
+        });
+        expect(result.events).toEqual([]);
+    });
+
+    // The day-portion SQL pre-filter must still be built from the request's
+    // DAY span, or a narrowed request would stop nominating same-day candidates.
+    it('still pre-filters on Denver date portions', async () => {
+        const db = createMockD1();
+        setup(db, []);
+        await detectEventConflicts(envWith(db), rental);
+        const q = db.__writes().find((w) => /FROM events/.test(w.sql));
+        expect(q.args).toContain('2026-07-25');
     });
 });
