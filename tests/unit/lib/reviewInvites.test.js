@@ -15,10 +15,18 @@ import {
 import { reviewId, reviewToken } from '../../../worker/lib/ids.js';
 import { toDenverWallClock, eventInstantMs } from '../../../worker/lib/eventTime.js';
 
-// The sweep is PINNED to a fixed instant. It now re-checks each candidate's real
-// end anchor in JS (the SQL wall-clock range can only over-select), so a fixture
-// needs an anchor that genuinely sits in the 18-48h post-event window — and a
-// hardcoded date would rot the moment the calendar walked past it.
+// The sweep is PINNED to a fixed instant. It re-checks each candidate's real end
+// anchor in JS (the SQL wall-clock range can only over-select), so a fixture
+// needs an anchor that genuinely sits in the 18-48h post-event window.
+//
+// ⚠ ALWAYS pass `now: NOW` to runReviewInviteSweep — never `Date.now()`. NOW and
+// ANCHOR_MS are locked together, so the anchor sits inside the window forever;
+// mixing a real clock against this fixed anchor makes the file rot on a
+// specific DATE rather than fail loudly. It already happened once: the original
+// Batch-2 tests passed `Date.now()`, and at 2026-07-28T09:00Z the anchor aged
+// past the 48h bound and nine tests went red on main with no code change.
+// (Same family as #291's sales-series time bomb and #393's clock-flaky fixture:
+// a relative window asserted against a fixed date always has an expiry.)
 const NOW = Date.parse('2026-07-27T09:00:00Z');            // 03:00 MDT, the cron hour
 const ANCHOR_MS = NOW - 24 * 3600000;                       // squarely inside 18-48h
 const ANCHOR_ISO = toDenverWallClock(ANCHOR_MS);            // naive Denver, as stored
@@ -60,7 +68,7 @@ describe('review id generators', () => {
 describe('runReviewInviteSweep — windowing', () => {
     it('queries the COALESCE(end_date_iso,date_iso) anchor with an 18-48h window past the default cutoff', async () => {
         const env = createMockEnv();
-        const now = Date.now();
+        const now = NOW;
         await runReviewInviteSweep(env, { now });
         const select = env.DB.__writes().find((w) => SELECT.test(w.sql));
         expect(select).toBeDefined();
@@ -83,7 +91,7 @@ describe('runReviewInviteSweep — windowing', () => {
 
     it('honors REVIEW_LAUNCH_CUTOFF_MS from env as the forward-only fence', async () => {
         const env = createMockEnv({ REVIEW_LAUNCH_CUTOFF_MS: 1700000000000 });
-        await runReviewInviteSweep(env, { now: Date.now() });
+        await runReviewInviteSweep(env, { now: NOW });
         const select = env.DB.__writes().find((w) => SELECT.test(w.sql));
         expect(select.args[2]).toBe(toDenverWallClock(1700000000000));
     });
@@ -91,7 +99,7 @@ describe('runReviewInviteSweep — windowing', () => {
     it('falls back to the default cutoff when the env value is missing / non-numeric / 0', async () => {
         for (const bad of [undefined, '', 'nope', 0, -5]) {
             const env = createMockEnv(bad === undefined ? {} : { REVIEW_LAUNCH_CUTOFF_MS: bad });
-            await runReviewInviteSweep(env, { now: Date.now() });
+            await runReviewInviteSweep(env, { now: NOW });
             const select = env.DB.__writes().find((w) => SELECT.test(w.sql));
             expect(select.args[2]).toBe(toDenverWallClock(DEFAULT_LAUNCH_CUTOFF_MS));
         }
@@ -99,7 +107,7 @@ describe('runReviewInviteSweep — windowing', () => {
 
     it('returns a zero summary when nothing matches', async () => {
         const env = createMockEnv();
-        const out = await runReviewInviteSweep(env, { now: Date.now() });
+        const out = await runReviewInviteSweep(env, { now: NOW });
         expect(out).toMatchObject({ considered: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, alarm: false });
     });
 });
@@ -112,7 +120,7 @@ describe('runReviewInviteSweep — large-batch soft alarm (no abort)', () => {
         env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
         const sender = vi.fn().mockResolvedValue({ id: 'ok' });
 
-        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+        const out = await runReviewInviteSweep(env, { now: NOW, sender });
 
         // A popular event with >threshold bookings must NOT stall — everyone gets invited.
         expect(out.alarm).toBe(true);
@@ -134,7 +142,7 @@ describe('runReviewInviteSweep — deliverability suppression (CAN-SPAM option B
         env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
         const sender = vi.fn().mockResolvedValue({ id: 'ok' });
 
-        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+        const out = await runReviewInviteSweep(env, { now: NOW, sender });
 
         expect(out).toMatchObject({ considered: 2, sent: 1, suppressed: 1, failed: 0 });
         // Only the clean address was sent to.
@@ -157,7 +165,7 @@ describe('runReviewInviteSweep — deliverability suppression (CAN-SPAM option B
         env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
         const sender = vi.fn().mockResolvedValue({ id: 'ok' });
 
-        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+        const out = await runReviewInviteSweep(env, { now: NOW, sender });
 
         expect(out).toMatchObject({ considered: 1, sent: 1, suppressed: 0, failed: 0 });
         expect(sender).toHaveBeenCalledTimes(1);
@@ -171,7 +179,7 @@ describe('runReviewInviteSweep — claim / send / rollback', () => {
         env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
         const sender = vi.fn().mockResolvedValue({ id: 'email_1' });
 
-        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+        const out = await runReviewInviteSweep(env, { now: NOW, sender });
 
         expect(out).toMatchObject({ considered: 1, sent: 1, failed: 0, skipped: 0, deferred: 0 });
         const claim = env.DB.__writes().find((w) => CLAIM.test(w.sql));
@@ -195,7 +203,7 @@ describe('runReviewInviteSweep — claim / send / rollback', () => {
         env.DB.__on(CLAIM, { meta: { changes: 0 } }, 'run');
         const sender = vi.fn().mockResolvedValue({});
 
-        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+        const out = await runReviewInviteSweep(env, { now: NOW, sender });
 
         expect(out).toMatchObject({ considered: 1, sent: 0, skipped: 1, deferred: 0 });
         expect(sender).not.toHaveBeenCalled();
@@ -208,7 +216,7 @@ describe('runReviewInviteSweep — claim / send / rollback', () => {
         env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
         const sender = vi.fn().mockResolvedValue({ skipped: 'template_missing' });
 
-        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+        const out = await runReviewInviteSweep(env, { now: NOW, sender });
 
         expect(out).toMatchObject({ considered: 1, sent: 0, deferred: 1 });
         // Rolled back so a later run retries once the template is live.
@@ -225,7 +233,7 @@ describe('runReviewInviteSweep — claim / send / rollback', () => {
         env.DB.__on(CLAIM, { meta: { changes: 1 } }, 'run');
         const sender = vi.fn().mockRejectedValue(new Error('resend 500'));
 
-        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+        const out = await runReviewInviteSweep(env, { now: NOW, sender });
 
         expect(out).toMatchObject({ considered: 1, sent: 0, failed: 1 });
         const rollback = env.DB.__writes().find((w) => ROLLBACK.test(w.sql));
@@ -241,7 +249,7 @@ describe('runReviewInviteSweep — claim / send / rollback', () => {
         env.DB.__on(/INSERT INTO audit_log/, () => { throw new Error('audit down'); }, 'run');
         const sender = vi.fn().mockResolvedValue({ id: 'ok' });
 
-        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+        const out = await runReviewInviteSweep(env, { now: NOW, sender });
 
         // The email went out → counts as sent; the sentinel must NOT be rolled back.
         expect(out).toMatchObject({ considered: 1, sent: 1, failed: 0 });
@@ -255,14 +263,14 @@ describe('runReviewInviteSweep — claim / send / rollback', () => {
         const sender = vi.fn()
             .mockResolvedValueOnce({ id: 'ok' })
             .mockRejectedValueOnce(new Error('boom'));
-        const out = await runReviewInviteSweep(env, { now: Date.now(), sender });
+        const out = await runReviewInviteSweep(env, { now: NOW, sender });
         expect(out).toMatchObject({ considered: 2, sent: 1, failed: 1 });
     });
 
     it('returns a guarded failure (no throw) when the candidate SELECT errors', async () => {
         const env = createMockEnv();
         env.DB.__on(SELECT, () => { throw new Error('d1 down'); }, 'all');
-        const out = await runReviewInviteSweep(env, { now: Date.now() });
+        const out = await runReviewInviteSweep(env, { now: NOW });
         expect(out).toMatchObject({ considered: 0, sent: 0, failed: 0 });
         expect(out.error).toMatch(/d1 down/);
     });
