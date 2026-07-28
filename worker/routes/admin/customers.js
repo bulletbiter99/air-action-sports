@@ -29,6 +29,7 @@ import { recomputeCustomerDenormalizedFields } from '../../lib/customers.js';
 import { encrypt, decryptSafely } from '../../lib/personEncryption.js';
 import { customerId } from '../../lib/ids.js';
 import { SYSTEM_TAG_NAMES } from '../../lib/customerTags.js';
+import { normalizeEmail } from '../../lib/customerEmail.js';
 
 const adminCustomers = new Hono();
 
@@ -469,7 +470,7 @@ adminCustomers.put('/:id', requireCapability('customers.write'), async (c) => {
     if (!body) return c.json({ error: 'Invalid body' }, 400);
 
     const row = await c.env.DB.prepare(
-        'SELECT id, archived_at, email_marketing FROM customers WHERE id = ?',
+        'SELECT id, archived_at, email, email_marketing FROM customers WHERE id = ?',
     ).bind(id).first();
     if (!row) return c.json({ error: 'Customer not found' }, 404);
     if (row.archived_at) return c.json({ error: 'Cannot edit archived customer' }, 409);
@@ -523,6 +524,33 @@ adminCustomers.put('/:id', requireCapability('customers.write'), async (c) => {
             }, 400);
         }
         consentReason = reason;
+
+        // A spam complaint or hard bounce is NOT the same thing as an
+        // unsubscribe, and clearing email_marketing does not clear it —
+        // nothing in worker/ ever clears email_events.suppressed_marketing.
+        // The campaign recipient query filters on email_marketing alone, so
+        // without this check an admin re-opt-in would put a known complainer
+        // back into the send list. That is a deliverability and legal hazard
+        // an operator cannot see from the customer page, so refuse it here.
+        // Matched on BOTH keys deliberately. email_events.customer_id is the
+        // direct link but is NULL when the webhook could not resolve a
+        // customer; recipient_normalized is written with normalizeEmail (which
+        // strips Gmail dots and plus-aliases) and so does NOT equal
+        // customers.email_normalized, which is a bare toLowerCase.
+        const normalized = normalizeEmail(row.email);
+        const suppressed = await c.env.DB.prepare(
+            `SELECT 1 AS hit FROM email_events
+              WHERE suppressed_marketing = 1
+                AND (customer_id = ? OR (? IS NOT NULL AND recipient_normalized = ?))
+              LIMIT 1`,
+        ).bind(id, normalized, normalized).first().catch(() => null);
+        if (suppressed) {
+            return c.json({
+                error: 'This address previously hard-bounced or filed a spam complaint, so it is '
+                    + 'suppressed for marketing. Re-subscribing would send to a known complainer. '
+                    + 'Have the customer re-subscribe themselves via the newsletter form.',
+            }, 409);
+        }
     }
 
     if (Object.keys(updates).length === 0) {
@@ -584,10 +612,12 @@ adminCustomers.post('/:id/tags', requireCapability('customers.write'), async (c)
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: 'Invalid body' }, 400);
 
-    // Lowercase on write. System tags are lowercase, and both the segment
-    // builder and the automation trigger compare with a plain `=` after only
-    // trimming — so an operator who types "VIP" would otherwise create a tag
-    // that matches nothing, and would also slip past the reserved-name check.
+    // Lowercase on write, and the readers lowercase to match (see
+    // segments.js validateFilterSpec + automations.js validateTriggerConfig).
+    // Both sides are required: TAG_PATTERN is lowercase-only and runs AFTER
+    // this, so without the normalization a mixed-case tag is simply rejected —
+    // and, more importantly, "VIP" would evade the reserved-name check below
+    // and become the row that collides with the nightly sweep.
     const tag = body.tag ? String(body.tag).trim().toLowerCase() : '';
     if (!tag) return c.json({ error: 'tag is required' }, 400);
     if (!TAG_PATTERN.test(tag)) {
@@ -640,7 +670,10 @@ adminCustomers.post('/:id/tags', requireCapability('customers.write'), async (c)
 adminCustomers.delete('/:id/tags/:tag', requireCapability('customers.write'), async (c) => {
     const user = c.get('user');
     const id = c.req.param('id');
-    const tag = decodeURIComponent(c.req.param('tag') || '').trim().toLowerCase();
+    // Hono already percent-decodes path params, so decoding again here would
+    // be a double-decode — and an unguarded decodeURIComponent throws URIError
+    // on a lone '%', turning a malformed URL into an unhandled 500.
+    const tag = String(c.req.param('tag') || '').trim().toLowerCase();
     if (!tag) return c.json({ error: 'tag is required' }, 400);
 
     const existing = await c.env.DB.prepare(
@@ -761,6 +794,32 @@ adminCustomers.post('/merge', requireRole('owner', 'manager'), async (c) => {
             targetId: dup.id,
             meta: { merged_into: primaryId },
         });
+    }
+
+    // Consent is a floor, not an average: if ANY row being merged had opted
+    // out, the surviving row is opted out. These are all the same human, and
+    // the alternative silently resurrects a withdrawn consent — now reachable,
+    // because the merge above also carries the duplicate's tags onto the
+    // primary, which is exactly what a tag-targeted campaign sends to.
+    const optedOut = await c.env.DB.prepare(
+        `SELECT 1 AS hit FROM customers
+          WHERE id IN (${duplicates.map(() => '?').join(',')}) AND email_marketing = 0
+          LIMIT 1`,
+    ).bind(...duplicates.map((d) => d.id)).first();
+    if (optedOut) {
+        const res = await c.env.DB.prepare(
+            `UPDATE customers SET email_marketing = 0, updated_at = ?
+              WHERE id = ? AND email_marketing = 1`,
+        ).bind(now, primaryId).run();
+        if (res?.meta?.changes) {
+            await writeAudit(c.env, {
+                userId: user.id,
+                action: 'customer.marketing_consent_changed',
+                targetType: 'customer',
+                targetId: primaryId,
+                meta: { from: 1, to: 0, via: 'merge', reason: 'a merged duplicate had opted out' },
+            });
+        }
     }
 
     // Recompute the primary's denormalized fields now that bookings have
