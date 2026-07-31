@@ -46,6 +46,7 @@ import publicFeedback from './routes/feedback.js';
 import publicInquiry from './routes/inquiry.js';
 import publicReviews from './routes/reviews.js';
 import { getOrgReviewAggregate, getEventReviewBundle, serializeJsonLd, buildOrgJsonLd, buildEventJsonLd } from './lib/reviewAggregates.js';
+import { metaForPath } from './lib/staticMeta.js';
 import { buildSitemapXml, fetchSitemapEvents } from './lib/sitemap.js';
 import unsubscribe from './routes/unsubscribe.js';
 import newsletter from './routes/newsletter.js';
@@ -699,6 +700,54 @@ async function rewriteEventOg(request, env, slug) {
     return rewriter.transform(origin);
 }
 
+// Attach per-route <title>/description/OG/Twitter rewrites to an HTMLRewriter.
+//
+// Mutates the tags already present in index.html rather than appending new ones
+// — the same approach rewriteEventOg uses, and the reason server meta does not
+// end up duplicated once react-helmet hydrates on the client.
+//
+// html:false on the title makes the content literal text, so a title containing
+// '<' cannot inject markup.
+function applyMetaRewrites(rewriter, meta, canonicalUrl) {
+    return rewriter
+        .on('title', {
+            element(el) { el.setInnerContent(meta.title, { html: false }); },
+        })
+        .on('meta[name="description"]', {
+            element(el) { el.setAttribute('content', meta.description); },
+        })
+        .on('meta[property="og:title"]', {
+            element(el) { el.setAttribute('content', meta.title); },
+        })
+        .on('meta[property="og:description"]', {
+            element(el) { el.setAttribute('content', meta.description); },
+        })
+        .on('meta[property="og:url"]', {
+            element(el) { el.setAttribute('content', canonicalUrl); },
+        })
+        .on('meta[name="twitter:title"]', {
+            element(el) { el.setAttribute('content', meta.title); },
+        })
+        .on('meta[name="twitter:description"]', {
+            element(el) { el.setAttribute('content', meta.description); },
+        });
+}
+
+// Static public pages (/about, /faq, /safety, …): serve their real title and
+// description in the raw HTML. The SPA sets these via react-helmet, which social
+// scrapers and non-JS crawlers never run, so before this every one of these
+// pages unfurled as the shell's generic "Air Action Sports" card.
+//
+// og:image is intentionally left at the shell default — these pages have no
+// per-page artwork, and the site-wide og-image is the correct fallback.
+async function rewriteStaticMeta(request, env, meta, pathname) {
+    const origin = env.ASSETS ? await env.ASSETS.fetch(request) : null;
+    if (!origin) return origin;
+    const siteUrl = env.SITE_URL || 'https://airactionsport.com';
+    const canonicalUrl = pathname === '/' ? siteUrl : `${siteUrl}${pathname}`;
+    return applyMetaRewrites(new HTMLRewriter(), meta, canonicalUrl).transform(origin);
+}
+
 // Home page (0077, Batch 4): inject a real Organization/LocalBusiness JSON-LD
 // into the raw HTML so AI/search crawlers (which don't run JS) see the business
 // identity and, when reviews exist, a genuine site-wide rating.
@@ -711,13 +760,21 @@ async function rewriteEventOg(request, env, slug) {
 // #421 fixed on the Event node. aggregateRating stays conditional: buildOrgJsonLd
 // omits it when aggregate is null, so we still never publish an empty or zero
 // rating.
+// The home page also gets its real title/description here rather than through
+// rewriteStaticMeta, so that one ASSETS.fetch covers both the meta and the
+// JSON-LD instead of fetching the shell twice.
 async function rewriteHomeJsonLd(request, env) {
     const origin = env.ASSETS ? await env.ASSETS.fetch(request) : null;
     if (!origin) return origin;
     const aggregate = await getOrgReviewAggregate(env);
     const siteUrl = env.SITE_URL || 'https://airactionsport.com';
     const jsonLd = serializeJsonLd(buildOrgJsonLd({ siteUrl, aggregate }));
-    return new HTMLRewriter()
+
+    let rewriter = new HTMLRewriter();
+    const meta = metaForPath('/');
+    if (meta) rewriter = applyMetaRewrites(rewriter, meta, siteUrl);
+
+    return rewriter
         .on('head', {
             element(el) { el.append(`<script type="application/ld+json">${jsonLd}</script>`, { html: true }); },
         })
@@ -801,6 +858,15 @@ async function handleRequest(request, env, ctx) {
     if (url.pathname === '/review') {
         try { return await noindexAsset(request, env); }
         catch (err) { console.error('review noindex failed', err); /* fall through */ }
+    }
+    // Static public pages. Placed AFTER the event and home branches so it can
+    // never shadow their richer rewrites, and after /review so the tokenized
+    // noindex page keeps its header. metaForPath returns null for anything not
+    // explicitly listed, so unknown paths fall through to the shell untouched.
+    const staticMeta = metaForPath(url.pathname);
+    if (staticMeta) {
+        try { return await rewriteStaticMeta(request, env, staticMeta, url.pathname); }
+        catch (err) { console.error('static meta rewrite failed', err); /* fall through */ }
     }
     if (url.pathname === '/sitemap.xml') {
         // Falls through to the static public/sitemap.xml on any failure, so a
