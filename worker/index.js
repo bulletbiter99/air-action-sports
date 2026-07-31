@@ -46,6 +46,7 @@ import publicFeedback from './routes/feedback.js';
 import publicInquiry from './routes/inquiry.js';
 import publicReviews from './routes/reviews.js';
 import { getOrgReviewAggregate, getEventReviewBundle, serializeJsonLd, buildOrgJsonLd, buildEventJsonLd } from './lib/reviewAggregates.js';
+import { buildSitemapXml, fetchSitemapEvents } from './lib/sitemap.js';
 import unsubscribe from './routes/unsubscribe.js';
 import newsletter from './routes/newsletter.js';
 import vendorPublic from './routes/vendor.js';
@@ -720,6 +721,29 @@ async function rewriteHomeJsonLd(request, env) {
 // The /review page carries a per-booking bearer token in its query string —
 // serve X-Robots-Tag: noindex as an HTTP header (a client <meta> is invisible
 // to non-JS crawlers) so tokenized URLs are never indexed/cached.
+// sitemap.xml generated from D1 so it cannot drift. Replaces the hand-edited
+// public/sitemap.xml, which carried an "add each on publish" instruction with
+// no remove step and had already lost /games and /rules-of-engagement while
+// listing two concluded events as top-priority pages.
+//
+// Never throws: fetchSitemapEvents swallows DB errors and returns [], so the
+// worst case is a sitemap of static routes only. A crawler getting a partial
+// sitemap is a far better failure than a 500.
+async function serveSitemap(request, env) {
+    const siteUrl = env.SITE_URL || 'https://airactionsport.com';
+    const events = await fetchSitemapEvents(env);
+    const xml = buildSitemapXml({ siteUrl, events });
+    return new Response(xml, {
+        status: 200,
+        headers: {
+            'Content-Type': 'application/xml; charset=utf-8',
+            // Short cache: an event publish should surface to crawlers quickly,
+            // but this need not be recomputed for every bot hit.
+            'Cache-Control': 'public, max-age=3600',
+        },
+    });
+}
+
 async function noindexAsset(request, env) {
     const res = env.ASSETS ? await env.ASSETS.fetch(request) : null;
     if (!res) return res;
@@ -771,6 +795,12 @@ async function handleRequest(request, env, ctx) {
     if (url.pathname === '/review') {
         try { return await noindexAsset(request, env); }
         catch (err) { console.error('review noindex failed', err); /* fall through */ }
+    }
+    if (url.pathname === '/sitemap.xml') {
+        // Falls through to the static public/sitemap.xml on any failure, so a
+        // bug here degrades to the previous behaviour rather than to nothing.
+        try { return await serveSitemap(request, env); }
+        catch (err) { console.error('sitemap generation failed', err); /* fall through */ }
     }
     return env.ASSETS.fetch(request);
 }
