@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { cancellationPolicy } from '../data/policies';
 import '../styles/pages/booking.css';
 
 const fmt = (cents) => `$${(cents / 100).toFixed(2)}`;
@@ -826,7 +827,7 @@ function StepReview({
           {submitting ? 'Redirecting to Stripe…' : `▶ Pay ${fmt(totals.totalCents)}`}
         </button>
         <p className="summary-note" style={{ marginTop: '0.85rem' }}>
-          Plans change? Cancel 48h+ before game day for full event credit.{' '}
+          Plans change? {cancellationPolicy.short}{' '}
           <Link to="/faq" style={{ color: 'var(--orange)' }}>Cancellation policy</Link>
         </p>
       </div>
