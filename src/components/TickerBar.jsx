@@ -33,8 +33,11 @@ export default function TickerBar() {
         </>
       ) : (
         <>
+          {/* This branch renders precisely BECAUSE there are no upcoming
+              events, so "See Upcoming Events" pointed at a page whose upcoming
+              section is empty. /games has real content. */}
           Stay sharp &mdash; new operations announced regularly.
-          {' '}<Link to="/events">See Upcoming Events &rarr;</Link>
+          {' '}<Link to="/games">See Past Operations &rarr;</Link>
         </>
       )}
     </div>

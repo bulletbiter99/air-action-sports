@@ -269,7 +269,18 @@ export default function Booking() {
         <div className="section-label">&#9632; Book Your Battle</div>
         <h1 className="section-title">No events on the books.</h1>
         <div className="divider"></div>
-        <p className="section-sub">We're planning the next drop. Check back soon or <Link to="/contact" style={{ color: 'var(--orange)' }}>drop us a line</Link> to get notified.</p>
+        {/* This is where EVERY "Book Now" CTA on the site lands whenever
+            nothing is on sale — the nav, the hero, the floating pill, the
+            per-site buttons. Offering only /contact made the whole funnel
+            terminate in a form. /games is real content and the strongest
+            argument for coming to the next one. */}
+        <p className="section-sub">
+          We&rsquo;re planning the next drop. See{' '}
+          <Link to="/games" style={{ color: 'var(--orange)' }}>past operations</Link>{' '}
+          for what they look like, or{' '}
+          <Link to="/contact" style={{ color: 'var(--orange)' }}>drop us a line</Link>{' '}
+          to hear about the next date first.
+        </p>
       </div>
     );
   }
