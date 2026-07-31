@@ -138,9 +138,22 @@ export default function Events() {
         </div>
 
         {/* Empty State */}
-        {!loading && filteredEvents.length === 0 && (
+        {/* Two DIFFERENT empty states. Conflating them told visitors "No events
+            match your filters" when no filter was applied and the real answer
+            was that nothing is scheduled — which reads as a broken filter, and
+            sits directly under a header promising events "fill up fast". */}
+        {!loading && filteredEvents.length === 0 && upcomingEvents.length > 0 && (
           <div className="empty-state" style={{ display: 'block' }}>
             No events match your filters. Try adjusting your search or check back soon.
+          </div>
+        )}
+        {!loading && upcomingEvents.length === 0 && (
+          <div className="empty-state" style={{ display: 'block' }}>
+            No operations are on the schedule right now — the next one is in planning.{' '}
+            {pastEvents.length > 0 && (
+              <>Browse <Link to="/games">past operations</Link> to see what they look like, or{' '}</>
+            )}
+            <Link to="/contact">get in touch</Link> to hear about the next date first.
           </div>
         )}
 
