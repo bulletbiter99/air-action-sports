@@ -8,7 +8,6 @@ import { useEvents } from '../hooks/useEvents';
 import { useSites } from '../hooks/useSites';
 import { useTestimonials } from '../hooks/useTestimonials';
 import { spotsSignal } from '../utils/eventSlots';
-import { locations } from '../data/locations';
 import '../styles/pages/home.css';
 
 const MONTH_NAME = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -36,11 +35,9 @@ export default function Home() {
   } = useTestimonials({ limit: 3 });
   const upcomingEvents = events.slice(0, 2);
   const featuredEvent = events[0] || null;
-  // The home location previews reuse the same /images/* photos as the DB sites,
-  // so apply each site's admin-set focal point (matched by photo URL) instead of
-  // a hardcoded center — keeps the home crop consistent with /locations.
-  const focalForPhoto = (photo) =>
-    (sites || []).find((s) => s.photoUrl === photo)?.photoPosition || 'center';
+  // focalForPhoto is gone: the location cards now read photoUrl + photoPosition
+  // straight off each site, so there is no longer a hardcoded photo path to
+  // match a site back to.
 
   return (
     <>
@@ -263,28 +260,43 @@ export default function Home() {
           <h2 className="section-title">Multiple Theatres of War.</h2>
           <div className="divider"></div>
           <p className="section-sub">Every site is a different mission. Explore our growing network of battle-ready properties.</p>
+          {/* Driven by the sites API, same source as /locations. It previously
+              read a hardcoded src/data/locations.js, which had drifted three
+              ways at once on the live site: a 4th site (The Chem Plant) was
+              invisible here while appearing on /locations; Foxtrot showed
+              "Coming Soon" after being flipped to open in D1; and the card
+              named it "Foxtrot Fields" against the database's "Foxtrot".
+              A hardcoded mirror of operator-editable data will always drift —
+              the fix is to stop mirroring it. */}
           <div className="locations-grid">
-            {locations.map((loc) => (
-              <div className="loc-card" key={loc.id}>
+            {sites.map((site) => (
+              <div className="loc-card" key={site.id}>
                 <div className="loc-photo">
                   <div
-                    className={`loc-photo-placeholder ${loc.photoClass || ''}`}
-                    style={{ backgroundPosition: focalForPhoto(loc.photo) }}
+                    className="loc-photo-placeholder"
+                    style={{
+                      backgroundImage: site.photoUrl ? `url("${site.photoUrl}")` : undefined,
+                      backgroundSize: 'cover',
+                      backgroundPosition: site.photoPosition || 'center',
+                    }}
                   ></div>
-                  <div className="loc-photo-label">&#9632; {loc.cardLabel}</div>
+                  {/* Was `loc.cardLabel` — a field that does not exist in the
+                      data, so every card rendered a bare "■" with nothing
+                      after it. Live on all three cards until now. */}
+                  <div className="loc-photo-label">&#9632; {site.name}</div>
                 </div>
                 <div className="loc-body">
                   <div className="loc-top">
                     <div>
-                      <div className="loc-name">{loc.name}</div>
-                      <div className="loc-address">{loc.cardAddress || loc.address}</div>
+                      <div className="loc-name">{site.name}</div>
+                      <div className="loc-address">{site.locationBlurb}</div>
                     </div>
-                    <span className={`loc-badge ${loc.badge === 'open' ? 'open' : ''}`}>
-                      {loc.badge === 'open' ? 'Open' : 'Coming Soon'}
+                    <span className={`loc-badge ${site.badge === 'open' ? 'open' : ''}`}>
+                      {site.badge === 'open' ? 'Open' : 'Coming Soon'}
                     </span>
                   </div>
                   <div className="loc-features">
-                    {(loc.cardFeatures || loc.features).map((f, i) => (
+                    {(site.features || []).map((f, i) => (
                       <div className="loc-feature" key={i}>{f}</div>
                     ))}
                   </div>
@@ -314,16 +326,21 @@ export default function Home() {
                 <div className="gallery-tag">&#9632; Ghost Town &mdash; Rural Neighborhood</div>
               </div>
             </Link>
-            <Link to="/locations#trench-warfare" className="gallery-item gallery-item--link" aria-label="View Echo Urban details">
+            {/* Names match the sites table. These tiles said "Echo Urban" and
+                "Foxtrot Fields" while the anchors they scroll to are headed
+                "Trench Warfare" and "Foxtrot" — so clicking one landed on a
+                heading that did not match the tile, which reads as a broken
+                anchor rather than a naming inconsistency. */}
+            <Link to="/locations#trench-warfare" className="gallery-item gallery-item--link" aria-label="View Trench Warfare details">
               <div className="gallery-photo g2"></div>
               <div className="gallery-overlay">
-                <div className="gallery-tag">&#9632; Echo Urban &mdash; CQB</div>
+                <div className="gallery-tag">&#9632; Trench Warfare &mdash; CQB</div>
               </div>
             </Link>
-            <Link to="/locations#foxtrot" className="gallery-item gallery-item--link" aria-label="View Foxtrot Fields details">
+            <Link to="/locations#foxtrot" className="gallery-item gallery-item--link" aria-label="View Foxtrot details">
               <div className="gallery-photo g3"></div>
               <div className="gallery-overlay">
-                <div className="gallery-tag">&#9632; Foxtrot Fields</div>
+                <div className="gallery-tag">&#9632; Foxtrot</div>
               </div>
             </Link>
             <div className="gallery-item">
