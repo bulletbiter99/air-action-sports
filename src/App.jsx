@@ -94,6 +94,7 @@ const PortalHome = lazy(() => import('./portal/PortalHome'));
 const PortalDocument = lazy(() => import('./portal/PortalDocument'));
 const PortalAccount = lazy(() => import('./portal/PortalAccount'));
 const PortalConsume = lazy(() => import('./portal/PortalConsume'));
+const PortalSignedOut = lazy(() => import('./portal/PortalSignedOut'));
 
 // Event-day mode (M5 Batches 12-15)
 const EventDayLayout = lazy(() => import('./event-day/EventDayLayout'));
@@ -158,7 +159,11 @@ export default function App() {
             <Route path="documents" element={<PortalDocument />} />
             <Route path="documents/:id" element={<PortalDocument />} />
             <Route path="account" element={<PortalAccount />} />
-            <Route path="auth/signed-out" element={<PortalConsume />} />
+            {/* NOT PortalConsume — that reads ?token= and renders "Invalid
+                link" when there isn't one, so a successful sign-out reported an
+                error. The magic-link handler is the top-level
+                portal/auth/consume route above. */}
+            <Route path="auth/signed-out" element={<PortalSignedOut />} />
           </Route>
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />

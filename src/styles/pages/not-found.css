@@ -56,9 +56,30 @@
 .btn-home:hover {
   background: var(--orange-dark);
 }
+/* The URL that failed. Kept on screen deliberately — every unmatched path in
+   this app returns HTTP 200 with the SPA shell, so this is the only place a
+   broken link is ever visible to anyone. Wraps rather than overflows so a long
+   URL stays readable on a phone. */
+.error-path {
+  margin-top: 1.25rem;
+  font-size: 13px;
+  color: var(--tan-light);
+  word-break: break-all;
+  max-width: 90vw;
+}
+.error-path code {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(200, 184, 154, 0.18);
+  padding: 6px 10px;
+  border-radius: 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
 .countdown-redirect {
   margin-top: 2rem;
   font-size: 12px;
   color: var(--olive-light);
   letter-spacing: 1px;
+}
+.countdown-redirect a {
+  color: var(--orange);
 }
