@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import { formatMoney } from '../utils/money.js';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
@@ -65,6 +65,7 @@ const FILTER_SCHEMA = [
 export default function AdminEvents() {
   const { isAuthenticated, loading, hasRole } = useAdmin();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [events, setEvents] = useState([]);
   const [filters, setFilters] = useState({ status: '', q: '' });
@@ -76,6 +77,16 @@ export default function AdminEvents() {
     if (loading) return;
     if (!isAuthenticated) navigate('/admin/login');
   }, [loading, isAuthenticated, navigate]);
+
+  // /admin/events?id=<eventId> opens that event's editor. There is no
+  // /admin/events/:id detail page, so the editor IS the event view, and this is
+  // where links like AdminStaffDetail's incident event titles point. Depending
+  // on the id STRING (not the searchParams object) means closing the editor does
+  // not immediately reopen it.
+  const deepLinkEventId = searchParams.get('id');
+  useEffect(() => {
+    if (deepLinkEventId) setEditingId(deepLinkEventId);
+  }, [deepLinkEventId]);
 
   const load = useCallback(async () => {
     setLoadingList(true);
