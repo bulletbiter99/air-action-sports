@@ -1,5 +1,16 @@
 # Growth Plan — Conversion + LLM/AI Discoverability Upgrade (2026-07-24)
 
+> ## ⚠️ READ THIS FIRST (updated 2026-07-31) — execution STARTED; parts of this document are stale
+>
+> An 11-agent re-verification against `main` on 2026-07-31 found several premises had moved. **`docs/next-session.md` supersedes this file where they disagree** — that section lists the 28 corrected batches, what shipped, and six corrections you should not re-derive. Highlights:
+>
+> - **The AI-crawler premise is not a code problem.** GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot are **403'd at the Cloudflare edge**, and Cloudflare injects a managed `robots.txt` disallowing them. No change in this repo can fix that; `public/robots.txt` is not the file being served for those directives. Everything in Phase 2 is real for Google/Bing/social scrapers and invisible to AI assistants until the dashboard toggle flips.
+> - **Already shipped** (2026-07-31, PRs #418–#425): the archived-event OG/JSON-LD fix, Event JSON-LD un-gated for events without reviews, the missing `og-image.jpg`, a D1-generated sitemap, fabricated testimonials deleted, the false 50% cancellation credit removed, honest empty states, and home site cards driven by the sites API.
+> - **`WHERE published = 1` recipes in Phase 2 are wrong** — use `published = 1 OR past = 1`, mirroring `worker/routes/events.js`. Archived events are permanently public since #404.
+> - **Do NOT change `eventStatus` for past events** (no valid schema.org value exists) and **do NOT "fix" the JSON-LD `startDate` timezone** (it is a recorded decision, not the `date_iso` bug).
+> - **This plan omits all-in pricing**, which its own research names as an FTC Junk Fees Rule requirement for live-event tickets. Treat that as a missing batch.
+> - **There are currently zero bookable events**, so the six funnel batches have no revenue effect until one is published.
+
 > **Note (2026-07-28):** execution has **not started**, so the plan stands — but one premise has moved. It argues JSON-LD is "gated on reviews existing, which is zero today"; real reviews arrived 2026-07-25/26, so the home `LocalBusiness` block now emits with a genuine aggregateRating. The per-event `Event` schema argument is unaffected. Any "before July 25" deadlines in the phases are moot.
 
 > **STATUS (updated 2026-07-25):** research complete; **execution NOT started** (the admin-audit event-day sprint took priority — the July 25-26 events ran the weekend this was written). Post-event sequencing note: Phase 0's operator items (Resend webhook, Cloudflare AI-bot settings check, Stripe wallet toggles, Google Business Profile, listings) are all still open and now MORE timely — the first real reviews arrive ~July 26-27, making Phase 2's un-gating of the Event/LocalBusiness JSON-LD (currently review-gated) immediately valuable once executed.

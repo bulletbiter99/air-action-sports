@@ -1,10 +1,93 @@
-# Next-session entry point — timezone follow-ups CLOSED, 0080 APPLIED (2026-07-28)
+# Next-session entry point — growth plan STARTED (2026-07-31)
 
 ## ✅ Current state
 
-`main` (re-pull for exact HEAD) · **3611 / 304** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0080 ALL APPLIED to remote** · production auto-deploys on merge via Workers Builds.
+`main` (re-pull for exact HEAD) · **3631 / 307** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0080 ALL APPLIED to remote — this session added NONE** · production auto-deploys on merge via Workers Builds.
 
-**Nothing is blocking.** The admin workflow audit is fully closed (all four sprints), **both timezone follow-ups are done** (see the section below), and migration 0080 is applied. Work menu is now: the **growth plan** (not started) and the **kiosk decision**.
+**Nothing is blocking.** The 2026-07-31 session executed the first slice of the growth plan (8 PRs, #418–#425) plus a full dead-link sweep. Everything shipped is verified live in production, not merely merged.
+
+**Read the 2026-07-31 section immediately below before picking up the growth plan** — the plan document itself is now partly stale, and this session's re-verification is what supersedes it.
+
+## 🚩 THE ONE THING THAT GATES EVERYTHING ELSE
+
+**AI crawlers are blocked at the Cloudflare edge.** Measured live 2026-07-31:
+
+```
+GPTBot/1.2      403      Googlebot/2.1         200
+OAI-SearchBot   403      bingbot/2.0           200
+ClaudeBot/1.0   403      facebookexternalhit   200
+PerplexityBot   403      (regular browser)     200
+```
+
+Cloudflare also **injects a managed robots.txt** ahead of `public/robots.txt` that says `Disallow: /` for ClaudeBot, GPTBot, Google-Extended, CCBot, Bytespider, Amazonbot, Applebot-Extended and meta-externalagent, plus `Content-Signal: ai-train=no`.
+
+**Editing `public/robots.txt` CANNOT fix this** — the managed block is prepended at the edge and is not in the repo. The fix is Cloudflare dashboard → Security → Bots → AI Scrapers & Crawlers. **The operator decided (2026-07-31) to allow search/reference while keeping `ai-train=no`, but has not yet confirmed the toggle was flipped.** Re-verify with the curl block above before assuming.
+
+Until it flips, every structured-data improvement below is real for Google/Bing/social scrapers and **invisible to the AI assistants the growth plan was mostly aimed at**. This likely also explains the long-standing mystery of `/api/events` never loading from GitHub-runner CI.
+
+## ✅ DONE — growth plan, first slice + dead-link sweep (2026-07-31, PRs #418–#425)
+
+Two multi-agent workflows ran first: an 11-agent re-verification of `docs/growth-plan-2026-07.md` against current `main` (the plan was written at `def6848`, ~40 PRs earlier), and a 12-agent dead-link sweep (504 link targets checked). Both produced adversarial critiques that **changed what shipped** — see the lessons at the bottom.
+
+| PR | What | Verified live |
+|---|---|---|
+| [#418](https://github.com/bulletbiter99/air-action-sports/pull/418) | **`rewriteEventOg` predicate aligned to the #404 contract.** It still filtered `AND published = 1` while the public route had moved to `published = 1 OR past = 1`, so with all 5 events archived, EVERY event page served the generic homepage shell to crawlers and social scrapers — no title, no OG image, no JSON-LD | ✅ real titles + OG + the 4.7★ aggregateRating |
+| [#419](https://github.com/bulletbiter99/air-action-sports/pull/419) | **Removed a 50% cancellation credit the business does not honor.** `faq.js` promised it; the booking page implied the opposite. Operator confirmed: nothing is recoverable inside 48h. Now one shared constant in `src/data/policies.js` | ✅ `/faq` |
+| [#420](https://github.com/bulletbiter99/air-action-sports/pull/420) | **Fabricated testimonials deleted site-wide.** `SocialProof` was never wired to `useReviews`, so `/locations` and every event page rendered invented quotes — including one praising "Echo Urban", a site that has never existed — at a hardcoded 5 stars, while 3 real reviews went unused | ✅ `/locations` |
+| [#421](https://github.com/bulletbiter99/air-action-sports/pull/421) | **Event JSON-LD emitted for every event, not just reviewed ones.** The node was gated on the event having reviews, so an event emitted no structured data until somebody reviewed it | ✅ Fire Storm now emits a full Event node |
+| [#422](https://github.com/bulletbiter99/air-action-sports/pull/422) | **`og-image.jpg` created** (referenced 18×, did not exist — every social share of every page had no preview) **+ sitemap generated from D1** | ✅ `image/jpeg`; sitemap 15→20 URLs, all 5 events with real `lastmod` |
+| [#423](https://github.com/bulletbiter99/air-action-sports/pull/423) | **Orphaned surfaces given a door** — `AdminEventStaffing` was never routed while two cron sweeps emailed staff about it; the kiosk had no entry point | — |
+| [#424](https://github.com/bulletbiter99/air-action-sports/pull/424) | **Empty states stopped pointing at nothing** — `/events` blamed the user's filters when nothing was scheduled; the floating Book pill advertised a dead end on every page | ✅ against live zero-event state |
+| [#425](https://github.com/bulletbiter99/air-action-sports/pull/425) | **Home site cards driven by the sites API** — the hardcoded mirror had drifted 4 ways | ✅ 4 cards, correct badges |
+
+### ⚠️ Production changed underneath this session
+
+The operator edited D1 mid-session, and a handoff written from earlier reads would have been wrong on both counts:
+
+- **A 4th site was added** — "The Chem Plant" (`site_1qwerWhCEME3`, `coming-soon`, public). The homepage did not show it until #425.
+- **Foxtrot was flipped to `badge='open'`.** The homepage still said "Coming Soon" until #425.
+
+**Always re-read `/api/sites` and `/api/events` live rather than trusting any doc, including this one.**
+
+### What the dead-link sweep actually found
+
+504 targets checked, 37 findings, **12 refuted as false positives by the adversarial pass**. The headline is that **all 76 unique literal internal link targets in `src/` resolve** — sidebar config, vendor portal, CSS backgrounds, all 12 event image URLs, all 11 R2 uploads are clean. The real problems were elsewhere, and **four systemic causes matter more than the individual links**:
+
+1. **Soft-404s.** The worker serves the SPA shell at HTTP 200 for every unmatched path — so a dead link, a missing image, and a working page are byte-indistinguishable to any status check, monitor, crawler or CI job. `/images/foxtrot.jpg` returns `200 text/html`. **Nothing can 404, so nothing can be detected.** Not yet fixed.
+2. **The 404 page destroys its own evidence** — `NotFound.jsx` auto-redirects to `/` after 10s, so a user cannot read or screenshot the URL that failed. Not yet fixed.
+3. **No link checking in CI.** There is a real-schema guard compiling every SQL literal, but nothing asserts a route exists. Partially addressed: `tests/unit/admin/noOrphanedPages.test.js` now catches unrouted admin pages.
+4. **Hand-maintained SEO config.** Fixed for the sitemap (#422); the pattern may recur elsewhere.
+
+**Still open from the sweep** (none shipped): the portal sign-out lands on an error page after a *successful* logout; `Ticket.jsx` prints a waiver URL with the token truncated to 8 chars; 8 admin deep-links silently drop their query params (root cause: `src/hooks/useFilterState.js` — written to make URLs the source of truth — has **zero importers**); three CSV export buttons navigate via `window.location.href` and dead-end; `/gallery` and `/event/walkup` have no inbound link.
+
+### Growth-plan status — what is and is not done
+
+The re-verification produced **28 batches**. Shipped this session: the archive/OG fix, JSON-LD un-gate, og-image, sitemap, and parts of the content-truth pass. **NOT started:**
+
+- **Phase 1 content truth (most of it).** `faq.js` is still largely fabricated: it promises **gear hire at all sites** (production has `rental_items = 0`), says **"all three of our sites"** (there are now 4), states **350/500 FPS** against the ROE's canonical 350/450/450/550, sets **milsim at 18+** when both July ops sold to 12+, and is written in British English throughout. The About page invents three staff members under its own `PLACEHOLDER` comment and claims 1,000 players against a real 91. Home's hero still claims **"5+ Battle Sites / 2k+ Players Deployed / 50+ Events Run"** against 4 sites / 91 attendees / 5 events.
+- **Phase 2 remainder** — `offers` node, structured `PostalAddress`, LocalBusiness enrichment (it currently emits only name/description/url/rating — no address, telephone, logo, `sameAs`), per-route meta map, real 404 status, llms.txt, IndexNow.
+- **Phase 3 measurement** — zero analytics exist. `siteConfig.ga4Id` is a dead `G-XXXXXXXXXX` placeholder nothing reads. There is **no CSP**, so a beacon is unblocked (the `withSecurityHeaders` comment deferring CSP pending "the Peek widget" is stale — Peek is gone from `index.html`).
+- **Phase 4 lifecycle** — all of it. Note the marketing engine no-ops without `MARKETING_POSTAL_ADDRESS`.
+- **A missing batch the plan dropped: all-in pricing.** Ticket prices display bare with mandatory tax + fees appearing only at the summary line. The plan's own research flags this as an **FTC Junk Fees Rule requirement for live-event tickets**. Worth treating as compliance, not conversion.
+
+### Corrections to the plan — do NOT re-derive these
+
+1. **`eventStatus` must stay `EventScheduled` for past events.** `schema.org/EventStatusType` has exactly five members and none mean "completed". A batch proposed changing it; that would emit an unrecognized enum. Signal pastness via `startDate`/`offers.availability`.
+2. **Do NOT "fix" the JSON-LD `startDate` timezone.** The naive-local datetime is a *recorded decision* (`reviewAggregates.js`) — a wrong DST offset is worse than none. It resembles the `date_iso` bug family but is not one.
+3. **Do NOT pass a raw D1 row to `salesClosedError`.** It reads `event.salesCloseAt` (camelCase); a raw row has `sales_close_at`, so the cutoff check would silently pass for everything.
+4. **Migration-then-code ordering is not optional here.** Merging auto-deploys via Workers Builds while the operator applies migrations manually, so a PR containing both ships code that reads columns which do not exist yet. Split into two PRs.
+5. **A `KNOWN_ROUTES` allow-list for real 404s is a maintenance landmine** — every future public page would silently become uncrawlable. Derive from the route table instead.
+6. The plan's claim that reviews are zero is stale; and **`{{waiverLink}}` is NOT broken** — a critique claimed it, but the template uses `waiver_link`, which has three real producers. Verified.
+
+### Durable lessons
+
+1. **A test can pass vacuously and look green.** `FloatingBookPill.test.jsx` first used `response:` where `tests/helpers/mockClientFetch.js` expects **`body:`**. The mock returned `undefined`, the events list was always `[]`, and both *assert-absence* tests **passed with the component absent for entirely the wrong reason** — only the *assert-presence* tests failed and exposed it. Every guard shipped this session was then **proven by mutation** (break the code, watch the test fail, restore).
+2. **`useEvents` caches per key at MODULE level.** Without `clearEventsCache()` in `beforeEach`, the first test's fixture satisfies every later test in the file.
+3. **A test whose regex still matches after a contract change is worse than a failing one.** #418 changed a SQL predicate that `rewriteEventOg.test.js` asserted with `/published\s*=\s*1/` — which matches `(published = 1 OR past = 1)` perfectly well, so it would have rubber-stamped the change while its stated intent became false. Assert the full shape.
+4. **The gate map can be incomplete.** `tests/unit/worker/reviewJsonLd.test.js` pins `worker/index.js` behavior and was **not registered** for it — following the map literally would have missed it, the same failure mode as the Group H backfill in #391. Both it and `sitemap.test.js` are now registered.
+5. **`git add -A` stages `marketing/`**, which is deliberately never committed. Stage by explicit path.
+6. **The `admin-taxes-fees-populated` baseline is secretly a homepage capture** (known mislabel) — a Home change shifts it while `admin-events` does not. Useful signal, still worth fixing someday.
+7. **Deleting a fabrication beats correcting it.** Both `testimonials.js` and `locations.js` were deleted rather than fixed: a hardcoded mirror of operator-editable data regenerates the drift, and a curated fallback array is a fabrication with a delay fuse — one moderation hide re-renders invented content in place of real content.
 
 ## ✅ DONE — timezone follow-ups + 0080 apply (2026-07-28, third session — PRs #412–#416)
 
@@ -101,16 +184,31 @@ Eight PRs. **No migrations** — every column these features needed already exis
 
 ## 🎯 START HERE — what's left
 
-1. **The growth plan** — [docs/growth-plan-2026-07.md](growth-plan-2026-07.md). Execution still **not started**. Headline: the SPA serves an empty shell to non-JS AI crawlers, and the only JSON-LD is review-gated (it now fires, since real reviews exist).
-2. **The kiosk decision** (audit D4), now more pointed: `/event` is dead end-to-end and #400 gave incidents an admin-side filing path that no longer needs it. Repair the kiosk, or retire it and finish moving its surfaces admin-side.
-3. ~~Two follow-ups from the timezone series~~ — ✅ **BOTH CLOSED 2026-07-28** (#413 conflict-window narrowing; #414+#416 the business calendar — see the session section above).
+Ordered by value. The 2026-07-31 section above has the detail behind each.
 
-## ⚠️ Operator-pending (none blocking)
+1. **The content-truth pass (Phase 1).** The highest-value remaining code work, and it is now *urgent* rather than cosmetic: #418/#421 made event pages and structured data crawler-visible, so the fabricated copy in `faq.js` and `About.jsx` is exactly what search engines and (once unblocked) AI assistants will quote. Shipping machine-readable markup over false copy amplifies the falsehood. **Most of it needs no new facts** — deleting an invented claim requires nothing; only *replacing* it does. Start with the deletions.
+2. **Phase 2 remainder** — the `offers` node, `PostalAddress`, and LocalBusiness enrichment. That node currently carries only name/description/url/rating: **no address, telephone, logo or `sameAs`**, which for a local business is the single biggest structured-data gap. Google also treats `image` as required for rich-result eligibility, and it is never emitted — so the genuine 4.7★ rating probably cannot render as a snippet today.
+3. **All-in pricing** — a batch the growth plan dropped without comment. The FTC Junk Fees Rule applies to live-event tickets, so treat it as compliance.
+4. **Phase 3 measurement.** Nothing can be evaluated without it, and there is no CSP blocking a beacon. Cheap and unblocked apart from the operator creating the Cloudflare Web Analytics site.
+5. **The remaining dead links** — portal sign-out error, truncated ticket waiver URL, 8 param-dropping admin deep-links, 3 dead-end CSV buttons. Plus the two systemic ones: **real 404 statuses** (derive from the route table, NOT an allow-list — see correction #5 above) and the 404 page's 10-second self-erasing redirect.
+6. **The kiosk decision** (audit D4). It now has an entry point (#423) but is still documented as dead end-to-end and has never had a session. An entry point made it reachable and testable; it did not certify it. Repair or retire.
+7. **Phase 4 lifecycle** — blocked in practice on `MARKETING_POSTAL_ADDRESS`; the transactional abandoned-booking recovery is the one piece that is not.
 
-1. **SUA attorney review** — migration 0080 is applied and the agreement flow works, but the seeded agreement is a placeholder with a NOT-ATTORNEY-REVIEWED banner. Replace it with counsel-approved text per [docs/runbooks/sua-template.md](runbooks/sua-template.md) **before a real renter signs** (retire v1 + insert v2 — versions are immutable; never UPDATE a live row's body).
-2. **Resend plan upgrade** — now evidenced, not theoretical. The 2026-07-26 review-invite run logged `considered:23 sent:13 failed:10` with `alarm:false`; 10 sends were 429'd. Batch pacing (shipped in #392) mitigates it, but the plan limit is the root cause. Also still needed for Marketing send, along with `MARKETING_POSTAL_ADDRESS`.
-3. **`RESEND_WEBHOOK_SECRET` + the Resend dashboard webhook** → `https://airactionsport.com/api/webhooks/resend` (subscribe `email.bounced` + `email.complained`). Feeds bounce/complaint tracking *and* review-invite suppression.
-4. **`audit_log_fts` flag flip** — `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';` Until then audit search uses the LIKE fallback.
+## ⚠️ Operator-pending
+
+### New, from the 2026-07-31 session
+
+0. **⭐ Flip the Cloudflare AI-crawler setting** — see the gate section at the top. Decided but unconfirmed; this is the highest-leverage item on the list and no code can substitute for it.
+1. **Replace `public/images/og-image.jpg` with a purpose-made 1200×630.** The file now exists (it did not before, while being referenced 18×), but it is `gallery-ghost-town-1.jpg` at 1777×1209 / 1.47:1, so platforms centre-crop ~139px off top and bottom. Dropping a proper 1.91:1 image at the same path needs **no code change**.
+2. **Apply `scripts/rename-echo-urban-blurb.sql`.** The sites row still reads `location_blurb = 'CQB Site — Echo Urban Warehouse'`, so "Echo Urban" — a venue that has never existed — still renders as the card subtitle on `/` and `/locations`. It is the last place that name survives. Script has before/after verification and a rollback.
+3. **Decide whether to publish an event.** All 5 are `published=0, past=1`, so `/api/events` returns `[]` and nothing is bookable. Six of the growth plan's 28 batches improve a checkout path that currently 409s for every event — their revenue contribution is exactly zero until something is on sale. The empty states now degrade honestly (#424), so this is a business decision, not a bug.
+
+### Carried forward (unchanged by this session)
+
+4. **SUA attorney review** — migration 0080 is applied and the agreement flow works, but the seeded agreement is a placeholder with a NOT-ATTORNEY-REVIEWED banner. Replace it with counsel-approved text per [docs/runbooks/sua-template.md](runbooks/sua-template.md) **before a real renter signs** (retire v1 + insert v2 — versions are immutable; never UPDATE a live row's body).
+5. **Resend plan upgrade** — now evidenced, not theoretical. The 2026-07-26 review-invite run logged `considered:23 sent:13 failed:10` with `alarm:false`; 10 sends were 429'd. Batch pacing (shipped in #392) mitigates it, but the plan limit is the root cause. Also still needed for Marketing send, along with `MARKETING_POSTAL_ADDRESS`.
+6. **`RESEND_WEBHOOK_SECRET` + the Resend dashboard webhook** → `https://airactionsport.com/api/webhooks/resend` (subscribe `email.bounced` + `email.complained`). Feeds bounce/complaint tracking *and* review-invite suppression.
+7. **`audit_log_fts` flag flip** — `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';` Until then audit search uses the LIKE fallback.
 
 ## ✅ DONE — the whole date_iso timezone family (2026-07-27, PRs #391 + #392)
 
