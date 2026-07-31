@@ -2,7 +2,7 @@
 
 ## 🚨 START HERE — there is unmerged work
 
-**`content-truth-and-chunk-recovery` is pushed, **8 commits** ahead of `main`, NOT merged, and NO PR has been opened.** Do **not** `git checkout main` — you would silently abandon all of it.
+**`content-truth-and-chunk-recovery` is pushed, ahead of `main`, NOT merged, and NO PR has been opened. (Exact count: `git log --oneline origin/main..HEAD` — do not trust a number written here, since every docs commit changes it.)** Do **not** `git checkout main` — you would silently abandon all of it.
 
 ```bash
 git checkout content-truth-and-chunk-recovery
@@ -457,7 +457,7 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | **`414c556`** (merged through **#426**). ⚠️ Newer work sits **unmerged** on `content-truth-and-chunk-recovery` (8 commits, no PR yet) — see the header. |
+| `main` HEAD | **`414c556`** (merged through **#426**). ⚠️ Newer work sits **unmerged** on `content-truth-and-chunk-recovery` (no PR yet) — see the header. |
 | Tests | **3689 / 313** all green on the branch (`main` alone is 3631 / 307) |
 | Build | clean · Lint **0 errors** (`npx eslint src worker tests scripts` — plain `npm run lint` also walks the gitignored `static-backup/`, which CI never sees and which reports 24 pre-existing errors). **Reproduce CI exactly with `TZ=UTC npx vitest run`** — the runner is UTC and a naive-ISO fixture is ambient-TZ-dependent. |
 | Production | deployed + verified through **#426** (Workers Builds) · **nothing from `content-truth-and-chunk-recovery` is live yet** · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day + reviews + open-reads admin + event-day hardening + the full date_iso timezone fix + **all four admin-audit sprints** + **the timezone follow-ups (conflict narrowing + the Denver business calendar)** live. **Post-#404 archive contract:** archived (`past=1`) events now render on `/games` and their public detail pages **regardless of `published`** (prod verified serving 5 archived events) — and are **not bookable** (quote/checkout 409). A bare `/api/events` (no `include_past=1`) still filters to upcoming published events and can legitimately return `[]`. |
@@ -743,7 +743,8 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 ```bash
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
 git checkout content-truth-and-chunk-recovery && git pull origin content-truth-and-chunk-recovery
-# ⚠️ 8 commits ahead of main, NOT merged, NO PR yet. Do NOT check out main — you would lose them.
+# ⚠️ Ahead of main, NOT merged, NO PR yet. Do NOT check out main — you would lose the work.
+# Exact commit list: git log --oneline origin/main..HEAD
 npm install
 TZ=UTC npm test -- --run | tail -3  # expect 3689 / 313 on the branch (3631 / 307 on main). TZ=UTC reproduces CI.
 npm run build 2>&1 | tail -3        # expect clean
