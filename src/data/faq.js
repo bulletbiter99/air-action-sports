@@ -1,3 +1,5 @@
+import { cancellationPolicy } from './policies';
+
 export const faqCategories = [
   {
     title: 'Before You Book',
@@ -99,11 +101,11 @@ export const faqCategories = [
     items: [
       {
         question: 'How do I cancel or reschedule?',
-        answer: 'Contact us at least 48 hours before your event for a full credit towards a future booking. Cancellations made with less than 48 hours notice will receive 50% credit.',
+        answer: cancellationPolicy.faqCancel,
       },
       {
         question: 'Do you offer refunds?',
-        answer: 'We do not offer cash refunds, but we provide full event credit for cancellations made with 48 or more hours notice. Credits can be used for any future event.',
+        answer: cancellationPolicy.faqRefund,
       },
       {
         question: 'Can I book for a large group?',
