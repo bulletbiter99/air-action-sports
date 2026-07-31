@@ -289,7 +289,6 @@ export default function Contact() {
 
             <div className="info-item">
               <div className="info-label">Email</div>
-              {/* PLACEHOLDER: Update with real email */}
               <div className="info-value">
                 <a href={`mailto:${siteConfig.email}`}>{siteConfig.email}</a>
               </div>
