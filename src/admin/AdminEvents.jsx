@@ -217,6 +217,16 @@ export default function AdminEvents() {
                     </div>
                     <div role="cell" aria-colindex={8} style={td}>
                       <button onClick={() => setEditingId(e.id)} style={subtleBtn}>Edit</button>
+                      {/* The only inbound link to /admin/events/:id/staffing. That
+                          page shipped in M5 R9 and was never routed OR linked, so
+                          the staffing cron sweeps have been emailing staff about
+                          assignments no admin could open. */}
+                      <button
+                        onClick={() => navigate(`/admin/events/${e.id}/staffing`)}
+                        style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}
+                      >
+                        Staffing
+                      </button>
                       {hasRole('manager') && (
                         <button onClick={() => duplicate(e.id, e.title)} disabled={duplicating === e.id} style={{ ...subtleBtn, marginLeft: 'var(--space-4)' }}>
                           {duplicating === e.id ? '…' : 'Duplicate'}
