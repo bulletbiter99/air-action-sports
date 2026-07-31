@@ -36,7 +36,7 @@ describe('worker/index.js rewriteEventOg (Group G #68-#69)', () => {
         rewriter.restore();
     });
 
-    describe('G68 — injects per-event meta when event is published', () => {
+    describe('G68 — injects per-event meta when event is publicly visible', () => {
         const eventRow = {
             title: 'Operation Nightfall',
             display_date: '9 May 2026',
@@ -50,7 +50,7 @@ describe('worker/index.js rewriteEventOg (Group G #68-#69)', () => {
             env.DB.__on(/SELECT title, display_date, location/, eventRow, 'first');
         });
 
-        it('looks up event by id-or-slug and only when published=1', async () => {
+        it('looks up event by id-or-slug across the public visibility contract', async () => {
             const req = new Request('https://airactionsport.com/events/operation-nightfall');
             await workerEntry.fetch(req, env, ctx);
 
@@ -59,10 +59,34 @@ describe('worker/index.js rewriteEventOg (Group G #68-#69)', () => {
             expect(lookup).toBeDefined();
             // Both binds are the slug — id and slug columns checked
             expect(lookup.args).toEqual(['operation-nightfall', 'operation-nightfall']);
-            // The published filter is hard-coded
-            expect(lookup.sql).toMatch(/published\s*=\s*1/);
+            // Visibility predicate mirrors the public detail route
+            // (worker/routes/events.js) EXACTLY: upcoming events are published,
+            // archived ones are past=1 with published flipped to 0. A bare
+            // `published = 1` here (the pre-#404 shape) silently suppressed OG
+            // meta and Event JSON-LD for every archived event — assert the full
+            // disjunction, not just a substring, so that regression cannot
+            // pass this test again.
+            expect(lookup.sql).toMatch(/\(\s*published\s*=\s*1\s+OR\s+past\s*=\s*1\s*\)/);
             // LIMIT 1 — keep the per-request lookup cheap (audit DNT note)
             expect(lookup.sql).toMatch(/LIMIT 1/);
+        });
+
+        it('enriches an ARCHIVED event (published=0, past=1) — the #404 contract', async () => {
+            // The row the DB returns is already the post-predicate result, so the
+            // meaningful assertion is that an archived row still drives a full
+            // rewrite rather than falling through to the bare shell. Paired with
+            // the SQL assertion above, this pins both halves: the query admits
+            // archived events, and an admitted archived row is enriched.
+            env.DB.__reset();
+            env.DB.__on(/SELECT title/, { ...eventRow, published: 0, past: 1 }, 'first');
+            rewriter.calls.length = 0;
+
+            const req = new Request('https://airactionsport.com/events/operation-nightfall');
+            await workerEntry.fetch(req, env, ctx);
+
+            const titleCall = rewriter.calls.find((c) => c.selector === 'title');
+            expect(titleCall).toBeDefined();
+            expect(rewriter.calls.some((c) => c.selector === 'meta[property="og:image"]')).toBe(true);
         });
 
         it('registers HTMLRewriter handlers for all 10 SEO selectors', async () => {
