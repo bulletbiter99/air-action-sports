@@ -8,22 +8,21 @@ const galleryItems = [
   { category: 'delta', label: 'Ghost Town \u2014 Overview', img: '/images/gallery-ghost-town-1.jpg', bg: '#3a4232', wide: true },
   { category: 'delta', label: 'Ghost Town \u2014 Mine Structures', img: '/images/gallery-ghost-town-2.jpg', bg: '#2c3127', wide: false },
   { category: 'delta', label: 'Ghost Town \u2014 Streets', img: '/images/gallery-ghost-town-3.jpg', bg: '#2e3229', wide: false },
-  { category: 'foxtrot', label: 'Foxtrot Fields \u2014 The Cross', img: '/images/gallery-foxtrot-1.jpg', bg: '#353a30', wide: false },
-  { category: 'foxtrot', label: 'Foxtrot Fields \u2014 Woodland', img: '/images/gallery-foxtrot-2.jpg', bg: '#3a4232', wide: true },
-  { category: 'echo', label: 'Echo Urban \u2014 CQB Corridor', bg: '#2e3229', wide: false },
-  { category: 'echo', label: 'Echo Urban \u2014 Multi-Floor', bg: '#353a30', wide: false },
+  { category: 'foxtrot', label: 'Foxtrot \u2014 The Cross', img: '/images/gallery-foxtrot-1.jpg', bg: '#353a30', wide: false },
+  { category: 'foxtrot', label: 'Foxtrot \u2014 Woodland', img: '/images/gallery-foxtrot-2.jpg', bg: '#3a4232', wide: true },
   { category: 'events', label: 'Operation Nightfall \u2014 Squad Advance', bg: '#1a1c18', wide: true },
   { category: 'action', label: 'Game Day \u2014 Tactical Movement', bg: '#3a4232', wide: false },
   { category: 'action', label: 'Game Day \u2014 Gear Check', bg: '#353a30', wide: false },
-  { category: 'echo', label: 'Echo Urban \u2014 Low Light', bg: '#2e3229', wide: false },
   { category: 'action', label: 'Game Day \u2014 Victory', bg: '#353a30', wide: false },
 ];
 
+// Site names mirror the sites table. The three "Echo Urban" tiles removed here
+// named a venue that has never existed, and carried no image either \u2014 they were
+// imageless placeholders advertising a fabricated CQB warehouse.
 const tabs = [
   { filter: 'all', label: 'All' },
   { filter: 'delta', label: 'Ghost Town' },
-  { filter: 'echo', label: 'Echo Urban' },
-  { filter: 'foxtrot', label: 'Foxtrot Fields' },
+  { filter: 'foxtrot', label: 'Foxtrot' },
   { filter: 'events', label: 'Events' },
   { filter: 'action', label: 'Action Shots' },
 ];

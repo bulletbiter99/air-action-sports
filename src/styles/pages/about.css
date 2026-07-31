@@ -10,6 +10,12 @@
 .about-hero .section-title {
   font-size: clamp(32px, 6vw, 52px);
 }
+/* .section-sub is max-width:520px with no auto margin, so inside the centered
+   hero the text centres but the block sits flush left. Matches .guide-hero and
+   .pricing-hero, which already carry this. */
+.about-hero .section-sub {
+  margin: 0 auto;
+}
 .origin-section {
   padding: 4rem 0;
 }

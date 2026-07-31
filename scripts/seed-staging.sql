@@ -47,7 +47,7 @@ INSERT OR IGNORE INTO events (
     (
         'ev_seed_past_b', 'Operation Watchdog (seed)', 'operation-watchdog-seed',
         'Past event — seed fixture B (had custom questions)',
-        '2026-04-22T08:00:00-06:00', 'Apr 22, 2026', 'Echo Urban', 'echo-urban',
+        '2026-04-22T08:00:00-06:00', 'Apr 22, 2026', 'Trench Warfare', 'trench-warfare',
         'milsim', '8 AM - 4 PM', '6:30 AM', '8:00 AM', '4:00 PM',
         8500, 80, '[]', '["objective","tdm"]',
         '[{"id":"q_team","label":"Team name","type":"text","required":false}]',
@@ -80,7 +80,7 @@ INSERT OR IGNORE INTO events (
     (
         'ev_seed_future_complex', 'Operation Cascade (seed)', 'operation-cascade-seed',
         'Future event — complex (multi-tier + add-ons + custom questions)',
-        '2026-07-19T08:00:00-06:00', 'Jul 19, 2026', 'Echo Urban', 'echo-urban',
+        '2026-07-19T08:00:00-06:00', 'Jul 19, 2026', 'Trench Warfare', 'trench-warfare',
         'milsim', '8 AM - 6 PM', '6:30 AM', '8:00 AM', '6:00 PM',
         9000, 150, '[{"sku":"rental_rifle_premium","name":"Premium Rifle","price_cents":5000,"type":"rental"},{"sku":"bbs_5k","name":"5,000 BBs","price_cents":2000,"type":"consumable","max_per_order":3}]',
         '["objective","tdm","ctf","koth"]',

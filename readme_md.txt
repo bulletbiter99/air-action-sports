@@ -33,7 +33,7 @@ air-action-sports/
 └── images/
     ├── YOUR-HERO-IMAGE.jpg       ← Hero section full-bleed background
     ├── YOUR-SITE-1-IMAGE.jpg     ← Delta Base location card photo
-    ├── trench-warfare.jpg        ← Trench Warfare (Echo Urban) location card photo
+    ├── trench-warfare.jpg        ← Trench Warfare location card photo
     ├── YOUR-SITE-3-IMAGE.jpg     ← Foxtrot Fields location card photo
     ├── YOUR-GALLERY-1.jpg        ← Gallery mosaic photo 1 (wide)
     ├── YOUR-GALLERY-2.jpg        ← Gallery mosaic photo 2

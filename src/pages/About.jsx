@@ -3,62 +3,37 @@ import SEO from '../components/SEO';
 import { siteConfig } from '../data/siteConfig';
 import '../styles/pages/about.css';
 
+// Safety copy mirrors /rules-of-engagement, which is the authoritative source.
+// If the ROE changes, change it here too — or better, link rather than restate.
+const safetyItems = [
+  {
+    icon: '\u{1F6E1}',
+    title: 'Trained Marshals',
+    desc: 'Every event has fully trained marshals on the field at all times. They enforce the rules, manage game flow, and keep everyone safe.',
+  },
+  {
+    icon: '⚠',
+    title: 'FPS Limits',
+    desc: 'Strict chronograph testing on entry, measured with 0.20g BBs. 350 FPS for rifles, 450 for DMR and LMG, 550 for bolt-action snipers — each with its own minimum engagement distance.',
+  },
+  {
+    icon: '\u{1F9F1}',
+    title: 'Mandatory Protection',
+    desc: 'ANSI Z87.1+ full-seal eye protection is required at all times in any active game zone. Players under 18 also wear a full-face mask; players 18 and over wear a mask, lower-face shield, or mouth guard.',
+  },
+  {
+    icon: '\u{1F4D6}',
+    title: 'Safety Briefings',
+    desc: 'Comprehensive safety briefing before every game. All players must attend regardless of experience level.',
+  },
+];
+
 export default function About() {
-  const team = [
-    {
-      name: 'Alex Morgan',
-      callsign: 'GHOST',
-      role: 'Founder & Lead Marshal',
-    },
-    {
-      name: 'Jordan Hayes',
-      callsign: 'VIPER',
-      role: 'Operations Manager',
-    },
-    {
-      name: 'Sam Chen',
-      callsign: 'HAWK',
-      role: 'Site Manager & Safety Lead',
-    },
-  ];
-
-  const timeline = [
-    { year: '2024', text: 'Founded Air Action Sports with our first woodland site' },
-    { year: '2024', text: 'Hosted first public event \u2014 16 players turned up' },
-    { year: '2025', text: 'Opened Echo Urban \u2014 our first indoor CQB site' },
-    { year: '2025', text: 'Passed 1,000 total players deployed' },
-    { year: '2026', text: 'Foxtrot Fields announced \u2014 our largest site yet' },
-    { year: '2026', text: 'Growing the community every week' },
-  ];
-
-  const safetyItems = [
-    {
-      icon: '\u{1F6E1}',
-      title: 'Trained Marshals',
-      desc: 'Every event has fully trained marshals on the field at all times. They enforce the rules, manage game flow, and keep everyone safe.',
-    },
-    {
-      icon: '\u26A0',
-      title: 'FPS Limits',
-      desc: 'Strict chronograph testing on entry. 350 FPS for AEGs, 500 for bolt-action with mandatory minimum engagement distances.',
-    },
-    {
-      icon: '\u{1F9F1}',
-      title: 'Mandatory Protection',
-      desc: 'Full face masks required at all times in the game zone. No exceptions. Your safety comes first.',
-    },
-    {
-      icon: '\u{1F4D6}',
-      title: 'Safety Briefings',
-      desc: 'Comprehensive safety briefing before every game. All players must attend regardless of experience level.',
-    },
-  ];
-
   return (
     <>
       <SEO
         title="About Us | Air Action Sports"
-        description="Meet the team behind Air Action Sports. Born in the field, built for the community. Learn our story, mission, and commitment to safety."
+        description="The story behind Air Action Sports. Born in the field, built for the community — our mission, our sites, and our commitment to player safety."
         canonical="https://airactionsport.com/about"
         ogImage="https://airactionsport.com/images/og-image.jpg"
       />
@@ -69,8 +44,7 @@ export default function About() {
         <h1 className="section-title">Born in the Field.</h1>
         <div className="divider"></div>
         <p className="section-sub">
-          We're not a corporate events company. We're airsoft players who built
-          something for the community.
+          We're airsoft players who built something for the community.
         </p>
       </section>
 
@@ -79,7 +53,6 @@ export default function About() {
         <div className="page-content">
           <div className="origin-grid">
             <div className="origin-text">
-              {/* PLACEHOLDER: Update with real brand story */}
               <p>
                 Air Action Sports started in 2024 with a group of friends, two
                 acres of woodland, and a box of rental guns. We wanted airsoft
@@ -112,44 +85,6 @@ export default function About() {
         </div>
       </section>
 
-      {/* The Team */}
-      <section className="page-content">
-        <div className="section-label">&#9632; The Team</div>
-        <h2 className="section-title">Meet the Operators.</h2>
-        <div className="divider"></div>
-        {/* PLACEHOLDER: Replace with real team members */}
-        <div className="team-grid">
-          {team.map((member) => (
-            <div className="team-card" key={member.callsign}>
-              <div className="team-photo"></div>
-              <div className="team-info">
-                <div className="team-name">{member.name}</div>
-                <div className="team-callsign">
-                  Callsign: {member.callsign}
-                </div>
-                <div className="team-role">{member.role}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Timeline */}
-      <section className="page-content">
-        <div className="section-label">&#9632; Our Story</div>
-        <h2 className="section-title">Mission Log.</h2>
-        <div className="divider"></div>
-        {/* PLACEHOLDER: Update with real milestones */}
-        <div className="timeline">
-          {timeline.map((item, i) => (
-            <div className="timeline-item" key={i}>
-              <div className="timeline-year">{item.year}</div>
-              <div className="timeline-text">{item.text}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* Safety Section */}
       <section style={{ background: 'var(--mid)', padding: '4rem 0' }}>
         <div className="page-content">
@@ -165,11 +100,29 @@ export default function About() {
               </div>
             ))}
           </div>
+          <p style={{ marginTop: '2rem', fontSize: 15, color: 'var(--olive-light)' }}>
+            Full weapon classes, engagement distances, hit calling, and conduct
+            are covered in the{' '}
+            <Link
+              to="/rules-of-engagement"
+              style={{ color: 'var(--orange)', textDecoration: 'underline', fontWeight: 700 }}
+            >
+              Rules of Engagement
+            </Link>
+            {' '}and the{' '}
+            <Link
+              to="/safety"
+              style={{ color: 'var(--orange)', textDecoration: 'underline', fontWeight: 700 }}
+            >
+              safety briefing
+            </Link>
+            .
+          </p>
           <div className="badges-row">
             <div className="badge-item">Fully Insured</div>
             <div className="badge-item">Safety Certified</div>
             <div className="badge-item">First Aid Trained</div>
-            <div className="badge-item">All Ages Welcome</div>
+            <div className="badge-item">Ages 12+ Welcome</div>
           </div>
         </div>
       </section>

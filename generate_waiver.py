@@ -666,10 +666,15 @@ add_body(
 add_table(
     headers=["Site #", "Site Name", "Description", "GPS Coordinates", "Status"],
     rows=[
-        ["01", "Delta Base",      "Woodland Site",              "[INSERT COORDINATES]", "Active"],
-        ["02", "Trench Warfare",  "CQB \u2014 Echo Urban Warehouse", "[INSERT COORDINATES]", "Active"],
-        ["03", "Foxtrot Fields",  "Open Field Site",            "[INSERT COORDINATES]", "Coming Soon"],
-        ["[04]", "[Future Site]", "[Description]",              "[INSERT COORDINATES]", "[Status]"],
+        # Mirrors the `sites` table (name / location_blurb / badge). Re-check it
+        # against `SELECT site_number, name, badge, location_blurb FROM sites`
+        # before generating a new waiver version \u2014 this schedule drifted badly
+        # once already, naming a "Delta Base" and an "Echo Urban Warehouse" that
+        # have never existed, in a document customers sign.
+        ["01", "Ghost Town",      "Rural Neighborhood \u2014 19 Buildings",   "[INSERT COORDINATES]", "Active"],
+        ["02", "Trench Warfare",  "CQB Site \u2014 Trenches",                 "[INSERT COORDINATES]", "Coming Soon"],
+        ["03", "Foxtrot",         "Open Field Site \u2014 25 Acres",          "[INSERT COORDINATES]", "Active"],
+        ["04", "The Chem Plant",  "Abandoned Chemical Production Plant",       "[INSERT COORDINATES]", "Coming Soon"],
     ],
     col_widths=[0.6, 1.4, 1.8, 1.8, 1.0]
 )

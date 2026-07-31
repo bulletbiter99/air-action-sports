@@ -22,6 +22,32 @@ const DEFAULT_RULES = [
   'Completed waiver required (emailed after booking)',
 ];
 
+// Fallback terrain copy, keyed on the site named in event.location, for events
+// that set no details.terrain of their own.
+//
+// Returns null for a site we have no copy for. That matters: the previous shape
+// was a ternary chain ending in an unconditional Foxtrot description, so a
+// Trench Warfare or Chem Plant event was captioned as a "25-acre open field
+// site". Saying nothing is strictly better than confidently describing the
+// wrong venue — and a hardcoded mirror of operator-editable site data will
+// drift again, so prefer setting details.terrain per event.
+const TERRAIN_BY_SITE = [
+  {
+    match: 'Ghost Town',
+    copy: 'Ghost Town features 19 buildings across a rural neighborhood setting with bunker systems and fortified objectives. The site offers varied engagement zones suited to both long-range and close-quarters play.',
+  },
+  {
+    match: 'Foxtrot',
+    copy: 'Foxtrot is a 25-acre open field site with varied terrain zones and purpose-built staging areas.',
+  },
+];
+
+export function terrainForLocation(location) {
+  if (!location) return null;
+  const hit = TERRAIN_BY_SITE.find((s) => location.includes(s.match));
+  return hit ? hit.copy : null;
+}
+
 // Colorize partner names within a rentals heading (e.g. "MilSim City" in the
 // partner's brand green). Splits the heading on each partner name and wraps the
 // matches in a colored span; returns the plain string when no partners are set.
@@ -94,6 +120,8 @@ export default function EventDetail() {
   const dateDisplay = (event.isMultiDay && event.displayDate) ? event.displayDate : dateFull;
 
   const spots = spotsSignal(event.slots?.taken, event.slots?.total);
+
+  const terrainCopy = event.details?.terrain || terrainForLocation(event.location);
 
   // Sales-closed contract (Sprint 4 C1): archived events (past=1) and events
   // whose sales cutoff has passed stay viewable but lose the booking CTA.
@@ -289,7 +317,13 @@ export default function EventDetail() {
                 <li>Safety briefing and equipment check</li>
                 <li>Trained marshals on field</li>
                 <li>Free parking</li>
-                <li>Rental gear available (see below)</li>
+                {/* Only claim rentals when this event actually lists them —
+                    hire is not available at every site, and the "see below"
+                    pointed at a Rental Packages table that renders only when
+                    event.rentals is set. */}
+                {event.rentals && event.rentals.length > 0 && (
+                  <li>Rental gear available (see below)</li>
+                )}
               </ul>
             </div>
 
@@ -455,18 +489,18 @@ export default function EventDetail() {
               </div>
             )}
 
-            {/* Terrain */}
-            <div className="detail-section">
-              <h2>Terrain</h2>
-              <p>
-                {event.details?.terrain
-                  || (event.location.includes('Ghost Town')
-                  ? 'Ghost Town features 19 buildings across a rural neighborhood setting with bunker systems and fortified objectives. The site offers varied engagement zones suited to both long-range and close-quarters play.'
-                  : event.location.includes('Echo Urban')
-                  ? 'Echo Urban is an indoor warehouse facility featuring multiple floors, narrow corridors, and purpose-built rooms for close-quarters combat training.'
-                  : 'Foxtrot Fields is a 25-acre open field site with varied terrain zones and purpose-built staging areas.')}
-              </p>
-            </div>
+            {/* Terrain — omitted entirely when we have nothing true to say.
+                The old final `else` described EVERY unrecognised location as
+                Foxtrot, so a Trench Warfare or Chem Plant event would have been
+                captioned "25-acre open field site". Each site is now matched
+                explicitly and an unknown one renders nothing rather than a
+                confident description of somewhere else. */}
+            {terrainCopy && (
+              <div className="detail-section">
+                <h2>Terrain</h2>
+                <p>{terrainCopy}</p>
+              </div>
+            )}
 
             {/* Player Reviews — verified attendee reviews for THIS event
                 (useReviews; adaptEvent/formatEvent untouched). Omitted at 0. */}
@@ -559,7 +593,7 @@ export default function EventDetail() {
               </div>
               <div className="info-card-item">
                 <span className="info-card-label">FPS Limit</span>
-                <span className="info-card-value">{event.details?.fpsLabel || '350 / 500'}</span>
+                <span className="info-card-value">{event.details?.fpsLabel || '350 – 550'}</span>
               </div>
               {reviewCount > 0 && (
                 <div className="info-card-item">

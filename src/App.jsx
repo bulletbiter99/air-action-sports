@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import ScrollToTop from './components/ScrollToTop';
+import RouteFallback from './components/RouteFallback';
 
 // Lazy-load page components
 const Home = lazy(() => import('./pages/Home'));
@@ -110,7 +111,7 @@ export default function App() {
   return (
     <>
       <ScrollToTop />
-      <Suspense fallback={null}>
+      <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<Home />} />

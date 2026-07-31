@@ -45,7 +45,7 @@ INSERT INTO sites (
   created_at, updated_at
 ) VALUES (
   'site_trenchwarfare01', 'trench-warfare', 'Trench Warfare', 1, 2, 1,
-  '/images/trench-warfare.jpg', NULL, 'coming-soon', '02', 'CQB Site — Echo Urban Warehouse',
+  '/images/trench-warfare.jpg', NULL, 'coming-soon', '02', 'Trenches for Days!',
   '["Indoor close-quarters layout","Multi-floor action zones","Low-light scenario capability","Climate-controlled environment","Sound system for immersive ops","Locker room facilities"]',
   '["CQB Skirmish","Milsim","Private Hire","Corporate Events"]',
   30, 30,

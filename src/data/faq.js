@@ -6,11 +6,11 @@ export const faqCategories = [
     items: [
       {
         question: 'What age do I need to be to play?',
-        answer: 'Minimum age is 12 with parent or guardian consent. Under 16s must have an adult present on site at all times. You must be 18 or over to participate in milsim events.',
+        answer: 'Minimum age is 12. Players aged 12 to 17 need a parent or legal guardian to sign the waiver, and must be accompanied on site by a trusted adult with a vehicle available in case of early pickup. There is no separate age limit for milsim events.',
       },
       {
         question: 'Do I need my own gear?',
-        answer: "No, gear hire is available at all of our sites. Hire packages include a replica weapon, full face protection, and a tactical vest. You're welcome to bring your own kit if you prefer.",
+        answer: "Not necessarily — gear hire is available at selected events, and we're adding more rental stock. Hire packages include a replica weapon, full face protection, and a tactical vest. Check the event page or contact us to confirm hire before you book. You're welcome to bring your own gear if you prefer.",
       },
       {
         question: 'Can I come as a complete beginner?',
@@ -39,7 +39,7 @@ export const faqCategories = [
     items: [
       {
         question: 'What should I wear?',
-        answer: 'Wear long sleeves, sturdy boots, and dark or neutral colours. No shorts allowed on the field. We provide full face protection as part of all hire packages.',
+        answer: 'Wear long sleeves, sturdy boots, and dark or neutral colors. No shorts allowed on the field. Face protection is included with every hire package.',
       },
       {
         question: 'What time should I arrive?',
@@ -51,7 +51,7 @@ export const faqCategories = [
       },
       {
         question: 'Are there toilets and refreshments on site?',
-        answer: 'Portable toilets are available at all sites. Some locations have refreshment stands, but we recommend bringing your own water and snacks to stay fuelled throughout the day.',
+        answer: 'Portable toilets are available at all sites. Some locations have refreshment stands, but we recommend bringing your own water and snacks to stay fueled throughout the day.',
       },
       {
         question: 'Can I bring my own BBs?',
@@ -72,11 +72,11 @@ export const faqCategories = [
     items: [
       {
         question: 'Is airsoft safe?',
-        answer: 'Yes, airsoft is safe when played with proper protection. Full face masks are mandatory at all times on the field. We enforce strict FPS limits and have fully trained marshals supervising every game.',
+        answer: 'Yes, airsoft is safe when played with proper protection. ANSI Z87.1+ rated full-seal eye protection is required at all times in any active game zone — prescription glasses alone do not meet this requirement. Players under 18 must also wear a full-face mask covering mouth and teeth; players 18 and over must wear a mask, lower-face shield, or mouth guard. We enforce strict FPS limits and have fully trained marshals supervising every game.',
       },
       {
         question: 'What protective gear is provided?',
-        answer: 'All hire packages include a full face mask and eye protection. We strongly recommend wearing gloves as well, which can be purchased or hired on site.',
+        answer: 'Hire packages include a full face mask and eye protection. We strongly recommend wearing gloves as well. If you are bringing your own protection, it must be ANSI Z87.1+ rated full-seal eye protection.',
       },
       {
         question: 'Are there marshals on the field?',
@@ -84,7 +84,7 @@ export const faqCategories = [
       },
       {
         question: 'What is your FPS limit?',
-        answer: 'Our limit is 350 FPS for AEGs and 500 FPS for bolt-action snipers, which must observe a minimum engagement distance. All weapons are chrono tested on entry before any game begins.',
+        answer: 'Limits are set by weapon class, measured with 0.20g BBs: Rifle 350 FPS (full auto, no minimum engagement distance), DMR 450 FPS (semi-auto only, 50 ft MED), LMG 450 FPS (full auto at 20 RPS max, 50 ft MED), and Sniper 550 FPS (bolt-action only, 100 ft MED). All weapons are chrono tested on entry before any game begins.',
       },
       {
         question: 'Are real firearms allowed on site?',
@@ -109,7 +109,7 @@ export const faqCategories = [
       },
       {
         question: 'Can I book for a large group?',
-        answer: 'Yes, groups of 10 or more receive priority booking and can request custom game modes tailored to your group. Get in touch with your requirements and we\'ll sort you out.',
+        answer: 'Yes, groups of 10 or more receive priority booking and can request custom game modes tailored to your group. Get in touch with your requirements and we\'ll put a package together.',
       },
       {
         question: 'Do you offer gift vouchers?',
@@ -130,11 +130,11 @@ export const faqCategories = [
     items: [
       {
         question: 'Can I book a whole site for a private event?',
-        answer: 'Yes, all three of our sites are available for exclusive private hire. You\'ll have the entire venue to yourselves with dedicated staff on hand.',
+        answer: 'Yes, our sites are available for exclusive private hire. You\'ll have the entire venue to yourselves with dedicated staff on hand. Get in touch and we\'ll confirm which site best suits your group and date.',
       },
       {
         question: "What's included in private hire?",
-        answer: 'Private hire includes exclusive site access, dedicated marshals, custom game modes designed for your group, and gear hire for all players.',
+        answer: 'Private hire includes exclusive site access, dedicated marshals, and custom game modes designed for your group. Gear hire can be arranged where it is available at your chosen site — just ask when you get in touch.',
       },
       {
         question: 'Do you do corporate events?',
