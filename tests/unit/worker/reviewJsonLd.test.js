@@ -1,6 +1,22 @@
-// Batch 4 — server-injected review JSON-LD (home Organization + per-event Event).
+// Batch 4 — server-injected JSON-LD (home Organization + per-event Event).
 // Verifies the Worker appends a <script type="application/ld+json"> into <head>
-// ONLY when published reviews exist, and that review text is </script>-escaped.
+// and that review text is </script>-escaped.
+//
+// CONTRACT CHANGE (2026-07-31): the per-event Event node is now emitted for
+// EVERY event, not only events that already had reviews. The original
+// review-only gate was a conservatism from when this shipped as part of the
+// reviews feature — its purpose was carrying aggregateRating, so emitting
+// nothing without one kept review-less pages byte-identical. The side effect
+// was that an event emitted no structured data until somebody reviewed it,
+// which is the opposite of when discovery matters. Confirmed in production:
+// Operation Fire Storm served a correct title and og:image with zero ld+json.
+//
+// What remains gated is the RATING, which is the gate that actually matters:
+// never emit an empty or zero aggregateRating, so the marked-up rating always
+// equals the visible one (Google's review-snippet policy).
+//
+// The HOME Organization node is deliberately still review-gated here and is
+// unchanged by that decision.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import workerEntry from '../../../worker/index.js';
@@ -81,11 +97,25 @@ describe('per-event Event JSON-LD injection (Batch 4)', () => {
         expect(content).not.toContain('<img');
     });
 
-    it('does NOT add a head handler for an event with no reviews (byte-identical)', async () => {
+    it('STILL emits the Event node for an event with no reviews, minus the rating', async () => {
         env.DB.__on(EVENT_ROW, eventRow, 'first');
         env.DB.__on(EVENT_AGG, { average: null, count: 0 }, 'first');
         await workerEntry.fetch(new Request('https://airactionsport.com/events/operation-last-light'), env, ctx);
-        expect(rewriter.calls.map((c) => c.selector)).not.toContain('head');
-        expect(rewriter.calls).toHaveLength(10);   // exactly the 10 meta rewrites
+
+        // The node is emitted — an unreviewed event still has a name, a date and
+        // a venue, and that is precisely what a crawler needs before the first
+        // review ever arrives.
+        expect(rewriter.calls.map((c) => c.selector)).toContain('head');
+        expect(rewriter.calls.filter((c) => c.selector !== 'head')).toHaveLength(10);
+
+        const content = headContent(rewriter);
+        expect(content).toContain('"@type":"Event"');
+        expect(content).toContain('"name":"Operation Last Light"');
+        expect(content).toContain('"startDate":"2026-07-25T09:00:00"');
+        // But NO rating, and no empty rating scaffold either — an aggregateRating
+        // of 0 or a bare AggregateRating with no value would misrepresent the
+        // event and violate the review-snippet policy.
+        expect(content).not.toContain('aggregateRating');
+        expect(content).not.toContain('"@type":"Review"');
     });
 });

@@ -441,6 +441,7 @@
       "tests": [
         "tests/unit/worker/serveUpload.test.js",
         "tests/unit/worker/rewriteEventOg.test.js",
+        "tests/unit/worker/reviewJsonLd.test.js",
         "tests/unit/worker/scheduled.test.js",
         "tests/unit/cron/reminder-24hr-sweep.test.js",
         "tests/unit/cron/reminder-1hr-sweep.test.js",

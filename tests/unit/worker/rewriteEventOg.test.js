@@ -94,7 +94,9 @@ describe('worker/index.js rewriteEventOg (Group G #68-#69)', () => {
             await workerEntry.fetch(req, env, ctx);
 
             const selectors = rewriter.calls.map((c) => c.selector);
-            expect(selectors).toEqual([
+            // The 10 SEO selectors, still exact and still in order — this is what
+            // the test is for, and none of them may be dropped or reordered.
+            expect(selectors.slice(0, 10)).toEqual([
                 'title',
                 'meta[name="description"]',
                 'meta[property="og:title"]',
@@ -106,6 +108,11 @@ describe('worker/index.js rewriteEventOg (Group G #68-#69)', () => {
                 'meta[name="twitter:description"]',
                 'meta[name="twitter:image"]',
             ]);
+            // 'head' is now registered unconditionally for the Event JSON-LD.
+            // It used to appear only when the event had reviews, which is why
+            // this assertion was previously an exact 10-element match. Asserting
+            // the full list keeps it closed — a stray 12th handler still fails.
+            expect(selectors).toEqual([...selectors.slice(0, 10), 'head']);
         });
 
         it('title element gets the event title + display date, html:false (XSS-safe)', async () => {
@@ -195,6 +202,77 @@ describe('worker/index.js rewriteEventOg (Group G #68-#69)', () => {
             // Synthesizes "<title> airsoft event at <location-prefix> on <display_date>. Book your slot now."
             expect(desc[0].value).toMatch(/^Operation Nightfall airsoft event at Ghost Town on 9 May 2026/);
             expect(desc[0].value).toContain('Book your slot now');
+        });
+    });
+
+    // The Event JSON-LD BUILDER is unit-tested in tests/unit/lib/reviewAggregates.test.js.
+    // What was never covered is the WIRING here — whether the injection happens
+    // at all — which is exactly where the review-gate defect lived: the node was
+    // emitted only for events that already had reviews, so an event emitted no
+    // structured data until someone reviewed it. Verified in production before
+    // the fix (Operation Fire Storm: correct title, correct og:image, zero
+    // ld+json). These pin the contract in both directions.
+    describe('Event JSON-LD injection', () => {
+        const eventRow = {
+            id: 'evt_1',
+            title: 'Operation Nightfall',
+            display_date: '9 May 2026',
+            location: 'Ghost Town — rural neighborhood',
+            short_description: 'Several hours of nonstop airsoft action.',
+            cover_image_url: null,
+            og_image_url: null,
+            date_iso: '2026-05-09T08:30:00',
+            end_date_iso: null,
+        };
+
+        const injectedJsonLd = () => {
+            const appended = rewriter.invokeHandler('head');
+            if (!appended || !appended.length) return null;
+            const html = appended[0].content;
+            const m = html.match(/<script type="application\/ld\+json">([\s\S]*)<\/script>/);
+            return m ? JSON.parse(m[1].replace(/\\u003c/g, '<').replace(/\\u003e/g, '>').replace(/\\u0026/g, '&')) : null;
+        };
+
+        it('emits an Event node for an event with NO reviews (the un-gate)', async () => {
+            env.DB.__on(/SELECT title, display_date, location/, eventRow, 'first');
+            // No handler registered for the reviews aggregate → getEventReviewBundle
+            // catches and returns null, i.e. the review-less path.
+
+            const req = new Request('https://airactionsport.com/events/operation-nightfall');
+            await workerEntry.fetch(req, env, ctx);
+
+            const ld = injectedJsonLd();
+            expect(ld).not.toBeNull();
+            expect(ld['@type']).toBe('Event');
+            expect(ld.name).toBe('Operation Nightfall');
+            expect(ld.startDate).toBe('2026-05-09T08:30:00');
+            expect(ld.url).toContain('/events/operation-nightfall');
+            // The RATING stays gated — never emit an empty or zero rating, so the
+            // marked-up rating always equals the visible one.
+            expect(ld.aggregateRating).toBeUndefined();
+            expect(ld.review).toBeUndefined();
+        });
+
+        it('includes aggregateRating when the event HAS published reviews', async () => {
+            env.DB.__on(/SELECT title, display_date, location/, eventRow, 'first');
+            env.DB.__on(/AVG\(rating\)/, { average: 4.7, count: 3 }, 'first');
+            env.DB.__on(/SELECT rating, title, comment/, {
+                results: [{ rating: 5, title: 'Great op', comment: 'Superb.', author_name: 'Trevor S.', created_at: 1_785_265_375_716 }],
+            }, 'all');
+
+            const req = new Request('https://airactionsport.com/events/operation-nightfall');
+            await workerEntry.fetch(req, env, ctx);
+
+            const ld = injectedJsonLd();
+            expect(ld.aggregateRating).toEqual({
+                '@type': 'AggregateRating',
+                ratingValue: '4.7',
+                reviewCount: '3',
+                bestRating: '5',
+                worstRating: '1',
+            });
+            expect(ld.review).toHaveLength(1);
+            expect(ld.review[0].author.name).toBe('Trevor S.');
         });
     });
 

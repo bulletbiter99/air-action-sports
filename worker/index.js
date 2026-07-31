@@ -668,21 +668,32 @@ async function rewriteEventOg(request, env, slug) {
             element(el) { el.setAttribute('content', image); },
         });
 
-    // Attendee-verified reviews (0077, Batch 4): when this event has published
-    // reviews, append a real Event JSON-LD (aggregateRating + review[]) into
-    // <head> so search/AI crawlers see genuine ratings. Additive — the meta
-    // rewrites above are untouched. Omitted entirely when there are no reviews
-    // (getEventReviewBundle → null), so review-less event pages are byte-identical.
-    // serializeJsonLd escapes </script> etc. — the only XSS guard on auto-published
-    // review text injected into HTML.
+    // Event JSON-LD into <head> so search/AI crawlers (which don't run JS) see
+    // the event's name, date, venue and organizer as structured data.
+    //
+    // Originally this was emitted ONLY when the event had published reviews,
+    // because the node shipped as part of the reviews feature (0077, Batch 4)
+    // and its purpose then was carrying aggregateRating. The side effect was
+    // that an event nobody had reviewed yet — i.e. every event before its first
+    // review, which is exactly when discovery matters most — emitted no
+    // structured data at all. Verified in production: Operation Fire Storm had a
+    // correct title and OG image and zero JSON-LD, purely for want of a review.
+    //
+    // The node is now always emitted. The RATING stays conditional inside
+    // buildEventJsonLd (`if (bundle?.aggregate)`), which is the gate that
+    // actually matters: never emit an empty or zero aggregateRating, so the
+    // marked-up rating always equals the visible one (Google's review-snippet
+    // policy). getEventReviewBundle returns null for a review-less event and
+    // the builder simply omits aggregateRating/review.
+    //
+    // serializeJsonLd escapes </script> etc. — the only XSS guard on
+    // auto-published review text injected into HTML.
     const reviewBundle = await getEventReviewBundle(env, row.id);
-    if (reviewBundle) {
-        const eventJsonLd = buildEventJsonLd({ siteUrl, slug, event: row, bundle: reviewBundle });
-        const jsonLd = serializeJsonLd(eventJsonLd);
-        rewriter.on('head', {
-            element(el) { el.append(`<script type="application/ld+json">${jsonLd}</script>`, { html: true }); },
-        });
-    }
+    const eventJsonLd = buildEventJsonLd({ siteUrl, slug, event: row, bundle: reviewBundle });
+    const jsonLd = serializeJsonLd(eventJsonLd);
+    rewriter.on('head', {
+        element(el) { el.append(`<script type="application/ld+json">${jsonLd}</script>`, { html: true }); },
+    });
 
     return rewriter.transform(origin);
 }
