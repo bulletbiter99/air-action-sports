@@ -2,7 +2,7 @@
 >
 > Everything below is historical. The project is now a **React 19 + Vite SPA served from a single
 > Cloudflare Worker** (Hono router, D1, R2, Stripe Checkout on **live** keys, Resend), with a large
-> admin application, ~3,567 tests, and 80 D1 migrations. There is no single `index.html` you can
+> admin application, ~3,700 tests, and 80 D1 migrations. There is no single `index.html` you can
 > edit, and there very much is a build step.
 >
 > **Start here instead:** [`docs/next-session.md`](docs/next-session.md) for current state, then

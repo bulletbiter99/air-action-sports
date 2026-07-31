@@ -93,6 +93,17 @@
         "tests/unit/reviews/feeds.test.js"
       ]
     },
+    "worker/lib/staticMeta.js": {
+      "tier": "high",
+      "covers": [
+        "STATIC_PAGE_META route table (14 static public routes)",
+        "metaForPath — exact match, one trailing slash, null for anything unlisted",
+        "drift guard: the map is compared against each page's literal <SEO> props"
+      ],
+      "tests": [
+        "tests/unit/worker/staticMeta.test.js"
+      ]
+    },
     "worker/lib/reviewAggregates.js": {
       "tier": "high",
       "covers": [

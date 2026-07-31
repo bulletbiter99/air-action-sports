@@ -2,7 +2,11 @@
 -- Ghost Town + Foxtrot already exist → UPDATE. Trench Warfare is new → INSERT
 -- (marketing-only, coming-soon; no operational field-rental use).
 --
--- features_json mirrors the static src/data/locations.js `fullFeatures` exactly
+-- features_json was seeded to mirror the then-static src/data/locations.js `fullFeatures`.
+-- WARNING: that file was DELETED in #420 — /locations now renders purely from /api/sites,
+-- so this table is the source of truth, not a mirror. Also: game_types_json below still
+-- says "Private Hire"; scripts/rename-private-hire-to-rental.sql renames it in D1, so
+-- re-running this seed afterwards would silently revert that.
 -- (what /locations renders today) so the data-driven page is byte-identical
 -- after B4 rewires it — keeping the public visual-regression baseline green.
 -- photo_position is NULL (center) on seed; an operator (or a later step) sets a

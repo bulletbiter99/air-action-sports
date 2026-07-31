@@ -111,7 +111,7 @@ Reproduce CI exactly with:
 npx eslint src worker tests scripts
 ```
 
-Currently **0 errors / ~628 warnings**. Do NOT judge by plain `npm run lint` — that is `eslint .`, which also walks the gitignored `static-backup/` and reports ~24 pre-existing errors CI never sees.
+Currently **0 errors**. The warning count drifts every milestone (they are almost all `react-refresh/only-export-components` false positives for internal helper components) — do not gate on it. Do NOT judge by plain `npm run lint` — that is `eslint .`, which also walks the gitignored `static-backup/` and reports ~24 pre-existing errors CI never sees.
 
 ---
 

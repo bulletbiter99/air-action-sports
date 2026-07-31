@@ -1,12 +1,44 @@
-# Next-session entry point — growth plan STARTED (2026-07-31)
+# Next-session entry point — content truth + chunk recovery (2026-08-01)
 
-## ✅ Current state
+## 🚨 START HERE — there is unmerged work
 
-`main` (re-pull for exact HEAD) · **3631 / 307** tests · lint 0 errors · build clean · **0 open PRs** · migrations **0001–0080 ALL APPLIED to remote — this session added NONE** · production auto-deploys on merge via Workers Builds.
+**`content-truth-and-chunk-recovery` is pushed, 7 commits ahead of `main`, NOT merged, and NO PR has been opened.** Do **not** `git checkout main` — you would silently abandon all of it.
 
-**Nothing is blocking.** The 2026-07-31 session executed the first slice of the growth plan (8 PRs, #418–#425) plus a full dead-link sweep. Everything shipped is verified live in production, not merely merged.
+```bash
+git checkout content-truth-and-chunk-recovery
+git pull origin content-truth-and-chunk-recovery
+```
 
-**Read the 2026-07-31 section immediately below before picking up the growth plan** — the plan document itself is now partly stale, and this session's re-verification is what supersedes it.
+`main` @ **`414c556`** (merged through #426) · branch **3689 / 313** tests · lint 0 errors · build clean · migrations **0001–0080 ALL applied — this session added NONE** · production auto-deploys **on merge to main**, so **nothing on this branch is live yet**.
+
+**Before merging:** add the **`capture-baselines`** label — 2 event-detail visual baselines legitimately shift (FPS card `350 / 500` → `350 – 550`, and the terrain string "Foxtrot Fields" → "Foxtrot"). CI stays red until the bot recaptures; then push a follow-up commit to clear GitHub's anti-recursion block.
+**After deploying:** run `scripts/rename-private-hire-to-rental.sql` (3 D1 rows) to finish the US-English conversion.
+
+## ✅ DONE — content truth, blank-page recovery, US English, SEO, defect sweep (2026-08-01)
+
+Seven commits on the open branch. Full narrative in CLAUDE.md's 2026-08-01 section.
+
+| Commit | What |
+|---|---|
+| `08730ec` | **Content truth + THE BLANK-PAGE FIX.** Corrected against the operator-authored ROE: full face masks are **not** required for everyone (ANSI Z87.1+ eye protection always; under-18 full-face mask; 18+ mask/lower-face shield/mouth guard), FPS is **350/450/450/550** not "350 AEG / 500 bolt-action", minimum age 12 with **no** 18+ milsim rule, gear rental **not** at all sites. "Echo Urban" purged from every rendering surface. About page: fabricated team + inaccurate Mission Log deleted, corporate-events disclaimer removed, hero centred. **New `ChunkErrorBoundary` + `RouteFallback`** fix pages going black on navigation. |
+| `2b1087f` | **British → US English**, 67 lines / 17 files, including the `hire` → `rental` family. Adds `scripts/rename-private-hire-to-rental.sql` (**not yet run**). |
+| `f92d054` | Deleted dead `src/data/pricing.js` + `src/components/PricingCard.jsx` (unimported, fabricated prices, offered a product the FAQ bans). Removed stale PLACEHOLDER comments. |
+| `3fb217f` | **LocalBusiness JSON-LD enriched** (telephone/email/image/logo/sameAs/areaServed/hours) and **un-gated from reviews**. Deliberately emits **no address**. |
+| `3888e0e` | **Per-route server meta** for 14 static routes (`worker/lib/staticMeta.js`) + a drift-guard test reading the real page files. |
+| `62c6d0a` | Portal sign-out no longer reports an error; printed ticket prints the **full** waiver token; the 404 page **no longer auto-redirects** and shows the failed URL. |
+| `ee7ccfc` | Admin dashboard **deep-links arrive applied** (`AdminBookings`/`AdminFeedback` adopt `useFilterState`, previously zero importers; `AdminEvents` parses `?id=`). |
+
+### ⭐ The blank-page bug — root cause, since it will recur in this shape
+
+Every route is `React.lazy`; the site re-hashes chunk filenames on every deploy; **the worker returns HTTP 200 with `text/html` for a missing asset** (verified: `/assets/About-DEADBEEF.js` → `200 text/html`); and there was **no error boundary anywhere in the codebase**. A tab open across a deploy requests a chunk that no longer exists, gets HTML, tries to parse it as an ES module, and React unmounts the whole tree. `<Suspense fallback={null}>` was a second, independent source of the same black screen. Both fixed. See memory `stale-chunk-blank-page`.
+
+### Corrections to earlier docs — do NOT re-derive
+
+1. **The Echo Urban D1 blurb is already fixed.** All 4 sites verified clean; `scripts/rename-echo-urban-blurb.sql` was run and **deleted**. Any doc listing it as operator-pending is stale.
+2. **The "3 dead-end CSV export buttons" was a FALSE POSITIVE** — all four export endpoints send `Content-Disposition: attachment`.
+3. **"8 admin deep-links" was really 3 pages.** `AdminFieldRentals`, `AdminRoster` and `AdminScan` already parsed theirs.
+4. **`portal/auth/consume` EXISTS** (top-level route in `App.jsx`). Portal invites are not broken by a missing route — but production still shows **2 invites, 0 ever consumed**, and that is unexplained.
+5. **Reviews are live**: 3 published, **4.7★**. Any doc calling the feature "dormant" is stale.
 
 ## 🚩 THE ONE THING THAT GATES EVERYTHING ELSE
 
@@ -58,7 +90,7 @@ The operator edited D1 mid-session, and a handoff written from earlier reads wou
 3. **No link checking in CI.** There is a real-schema guard compiling every SQL literal, but nothing asserts a route exists. Partially addressed: `tests/unit/admin/noOrphanedPages.test.js` now catches unrouted admin pages.
 4. **Hand-maintained SEO config.** Fixed for the sitemap (#422); the pattern may recur elsewhere.
 
-**Still open from the sweep** (none shipped): the portal sign-out lands on an error page after a *successful* logout; `Ticket.jsx` prints a waiver URL with the token truncated to 8 chars; 8 admin deep-links silently drop their query params (root cause: `src/hooks/useFilterState.js` — written to make URLs the source of truth — has **zero importers**); three CSV export buttons navigate via `window.location.href` and dead-end; `/gallery` and `/event/walkup` have no inbound link.
+**Still open from the sweep** — ✅ **mostly CLOSED 2026-08-01** (see the top section). Fixed: the portal sign-out error, the truncated `Ticket.jsx` waiver URL, the param-dropping admin deep-links (3 pages, not 8 links — `useFilterState` now has real importers), and the 404 page's self-erasing redirect. **Refuted:** the three CSV export buttons do NOT dead-end (`Content-Disposition: attachment`). **Genuinely still open:** `/gallery` and `/event/walkup` have no inbound link, and **soft-404s** — every unmatched path returns HTTP 200 with the SPA shell, which is the systemic root cause behind both the dead-link invisibility and the blank-page bug.
 
 ### Growth-plan status — what is and is not done
 
@@ -186,13 +218,15 @@ Eight PRs. **No migrations** — every column these features needed already exis
 
 Ordered by value. The 2026-07-31 section above has the detail behind each.
 
-1. **The content-truth pass (Phase 1).** The highest-value remaining code work, and it is now *urgent* rather than cosmetic: #418/#421 made event pages and structured data crawler-visible, so the fabricated copy in `faq.js` and `About.jsx` is exactly what search engines and (once unblocked) AI assistants will quote. Shipping machine-readable markup over false copy amplifies the falsehood. **Most of it needs no new facts** — deleting an invented claim requires nothing; only *replacing* it does. Start with the deletions.
-2. **Phase 2 remainder** — the `offers` node, `PostalAddress`, and LocalBusiness enrichment. That node currently carries only name/description/url/rating: **no address, telephone, logo or `sameAs`**, which for a local business is the single biggest structured-data gap. Google also treats `image` as required for rich-result eligibility, and it is never emitted — so the genuine 4.7★ rating probably cannot render as a snippet today.
-3. **All-in pricing** — a batch the growth plan dropped without comment. The FTC Junk Fees Rule applies to live-event tickets, so treat it as compliance.
+0. **Merge the open branch first.** Nothing below should start before `content-truth-and-chunk-recovery` is PR'd and merged — see the header for the `capture-baselines` step and the post-deploy SQL.
+1. ✅ **Phase 1 content truth — largely DONE 2026-08-01.** `faq.js` and `About.jsx` are corrected against the ROE, the fabricated team and Mission Log are gone, and the site is in US English. **Still open:** the 4 new FAQ entries the growth plan proposed (weather, "does it hurt", coming solo, fitness).
+2. **Phase 2 remainder — `offers`, real 404 status, llms.txt, IndexNow.** ✅ LocalBusiness enrichment and the per-route meta map are DONE. ⚠️ A structured `PostalAddress` is now a **deliberate non-goal**, not a gap: the business is multi-site with no storefront and the FAQ says addresses go out only in the booking confirmation — a test pins its absence. **`offers` needs a Critical-DNT edit** to `rewriteEventOg` (it needs ticket prices + `sales_close_at`) and is worth ~nothing until an event is bookable.
+3. **All-in pricing** — ⏸️ **DEFERRED by operator decision** until an event is live. A $60 ticket charges **$66.20** (the processing fee compounds on tax). The booking summary already itemizes it; only the advertised card/pricing figure is bare. Numbers + trigger in memory `all-in-pricing-deferred`.
 4. **Phase 3 measurement.** Nothing can be evaluated without it, and there is no CSP blocking a beacon. Cheap and unblocked apart from the operator creating the Cloudflare Web Analytics site.
-5. **The remaining dead links** — portal sign-out error, truncated ticket waiver URL, 8 param-dropping admin deep-links, 3 dead-end CSV buttons. Plus the two systemic ones: **real 404 statuses** (derive from the route table, NOT an allow-list — see correction #5 above) and the 404 page's 10-second self-erasing redirect.
-6. **The kiosk decision** (audit D4). It now has an entry point (#423) but is still documented as dead end-to-end and has never had a session. An entry point made it reachable and testable; it did not certify it. Repair or retire.
-7. **Phase 4 lifecycle** — blocked in practice on `MARKETING_POSTAL_ADDRESS`; the transactional abandoned-booking recovery is the one piece that is not.
+5. **The systemic dead-link causes.** The individual defects are fixed (see the top section). What remains is **real 404 statuses** — derive from the route table, NOT an allow-list (see correction #5 in the 2026-07-31 section). This is also the root cause behind the blank-page bug, so fixing it makes a whole class of failure detectable instead of silent. Plus: `/gallery` and `/event/walkup` still have no inbound link.
+6. **The kiosk decision** (audit D4). It now has an entry point (#423) but is still documented as dead end-to-end and has never had a session. Related open thread: **2 portal invites, 0 ever consumed** — the kiosk needs a portal session, so these may be the same problem. The missing-route theory was checked and ruled out.
+7. **The minors-policy conflict** — three surfaces disagree and it is a liability call for the operator: the ROE says all 12–17 need an on-site adult; `src/pages/Waiver.jsx` says 16–17 do **not**; `src/pages/Pricing.jsx` says under-16 only. The FAQ was aligned to the ROE 2026-08-01. Whichever way it resolves, the other two surfaces need to follow.
+8. **Phase 4 lifecycle** — blocked in practice on `MARKETING_POSTAL_ADDRESS`; the transactional abandoned-booking recovery is the one piece that is not.
 
 ## ⚠️ Operator-pending
 
@@ -200,7 +234,7 @@ Ordered by value. The 2026-07-31 section above has the detail behind each.
 
 0. **⭐ Flip the Cloudflare AI-crawler setting** — see the gate section at the top. Decided but unconfirmed; this is the highest-leverage item on the list and no code can substitute for it.
 1. **Replace `public/images/og-image.jpg` with a purpose-made 1200×630.** The file now exists (it did not before, while being referenced 18×), but it is `gallery-ghost-town-1.jpg` at 1777×1209 / 1.47:1, so platforms centre-crop ~139px off top and bottom. Dropping a proper 1.91:1 image at the same path needs **no code change**.
-2. **Apply `scripts/rename-echo-urban-blurb.sql`.** The sites row still reads `location_blurb = 'CQB Site — Echo Urban Warehouse'`, so "Echo Urban" — a venue that has never existed — still renders as the card subtitle on `/` and `/locations`. It is the last place that name survives. Script has before/after verification and a rollback.
+2. ✅ **DONE — the Echo Urban sites-row blurb is fixed.** Verified live 2026-08-01: all 4 sites clean (Trench Warfare reads "Trenches for Days!"). `scripts/rename-echo-urban-blurb.sql` was run and **deleted**. **Replacing it:** run `scripts/rename-private-hire-to-rental.sql` after the branch deploys — 3 rows, renames the `Private Hire` game-type chip to `Private Rental` to match the US-English pass.
 3. **Decide whether to publish an event.** All 5 are `published=0, past=1`, so `/api/events` returns `[]` and nothing is bookable. Six of the growth plan's 28 batches improve a checkout path that currently 409s for every event — their revenue contribution is exactly zero until something is on sale. The empty states now degrade honestly (#424), so this is a business decision, not a bug.
 
 ### Carried forward (unchanged by this session)
@@ -340,7 +374,7 @@ Applied **0078** (`persons.legal_name` + `ein_ciphertext`) and **0079** (rewrite
 
 **Event-weekend notes for the NEXT session (post-July-26):**
 - **Review invites fire the night of ~July 26** (18–48h after each event's end anchor). Check `/admin/bookings/:id` → "Review invite" row; manual (re)send button is live. ⚠️ `RESEND_WEBHOOK_SECRET` is still unset → suppression/bounce tracking inactive (operator-pending #2 below).
-- **First real reviews** will wake the dormant reviews feature (SSR aggregateRating appears once count ≥ 1; homepage Avg-Rating stat at ≥1; testimonial swap at ≥3 with comments). Run the SSR acceptance gate in the reviews section below. — ✅ **THIS HAPPENED:** 3 reviews arrived 2026-07-25/26; the 1★ was operator-hidden 2026-07-27, so the public aggregate is **2 / 4.5★**.
+- **First real reviews** will wake the dormant reviews feature (SSR aggregateRating appears once count ≥ 1; homepage Avg-Rating stat at ≥1; testimonial swap at ≥3 with comments). Run the SSR acceptance gate in the reviews section below. — ✅ **THIS HAPPENED:** 3 reviews arrived 2026-07-25/26; the 1★ was operator-hidden 2026-07-27, so the public aggregate was **2 / 4.5★** at that moment — **since 3 / 4.7★** (two more arrived; see the top of this file).
 - **When the operator archives the July events**, the archive dead-end applies (audit finding C1: `/games` requires `published=1` but end-of-life actions unpublish; `sales_close_at` is unenforced — an "archived" published event stays bookable by deep link). Decide the archive contract before archiving.
 - The kiosk (`/event`) remains dead end-to-end (audit A1) — the admin path (Today → per-event Scan/Roster/New Booking) is the operational system and got hardened this session.
 
@@ -396,7 +430,7 @@ Shipped an **attendee-verified post-event reviews** feature so real customer rat
 | 6 public UI (`/review` form + `/reviews` + event/home display; removed fake 4.9★) | [#358](https://github.com/bulletbiter99/air-action-sports/pull/358) | ✅ merged + deployed |
 | 7 docs (this) + `reviews-deploy.md` runbook | — | ✅ |
 
-`main` HEAD **`4fbbf4a`** (batches 1–6 code landed at `69e6a74`; Batch 7 docs at `4fbbf4a`) · **3149 / 276** tests · migrations **0001–0077** applied. The feature is **dormant** in production (no reviews exist yet; the invite cron's launch cutoff = 2026-06-28 + the 18–48h window mean the first invites go out ~2026-07-25 after **Operation Last Light** ends — nothing emails or displays until then). — ✅ **SUPERSEDED 2026-07-27:** it is no longer dormant. 23 invites went out (a day early — fixed in #392) and 3 reviews were submitted; one was hidden, so the public aggregate is **2 / 4.5★**.
+`main` HEAD **`4fbbf4a`** (batches 1–6 code landed at `69e6a74`; Batch 7 docs at `4fbbf4a`) · **3149 / 276** tests · migrations **0001–0077** applied. The feature is **dormant** in production (no reviews exist yet; the invite cron's launch cutoff = 2026-06-28 + the 18–48h window mean the first invites go out ~2026-07-25 after **Operation Last Light** ends — nothing emails or displays until then). — ✅ **SUPERSEDED 2026-07-27:** it is no longer dormant. 23 invites went out (a day early — fixed in #392) and 3 reviews were submitted; one was hidden, so the public aggregate was **2 / 4.5★** at that moment — **since 3 / 4.7★** (two more arrived; see the top of this file).
 
 **⚠️ Operator-pending / next-session TODO:**
 1. ✅ **RESOLVED 2026-07-01 — CAN-SPAM classification = TRANSACTIONAL + deliverability suppression (option B).** The invite ships without a postal-address/unsubscribe footer (one-per-booking, promotion-free, tied to a completed transaction); the sweep (`worker/lib/reviewInvites.js`) now skips addresses with a recorded hard bounce / spam complaint via `email_events.suppressed_marketing` (best-effort; NOT gated on the `customers.email_marketing` preference). See `docs/runbooks/reviews-deploy.md`.
@@ -423,14 +457,14 @@ Fresh-session entry point for Air Action Sports. **Updated 2026-06-27.** This se
 
 | Metric | Value |
 |---|---|
-| `main` HEAD | re-pull for exact (merged through **#416** — the timezone follow-ups close) |
-| Tests | **3611 / 304** all green |
+| `main` HEAD | **`414c556`** (merged through **#426**). ⚠️ Newer work sits **unmerged** on `content-truth-and-chunk-recovery` (7 commits, no PR yet) — see the header. |
+| Tests | **3689 / 313** all green on the branch (`main` alone is 3631 / 307) |
 | Build | clean · Lint **0 errors** (`npx eslint src worker tests scripts` — plain `npm run lint` also walks the gitignored `static-backup/`, which CI never sees and which reports 24 pre-existing errors). **Reproduce CI exactly with `TZ=UTC npx vitest run`** — the runner is UTC and a naive-ISO fixture is ambient-TZ-dependent. |
-| Production | deployed + verified through **#416** (Workers Builds) · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day + reviews + open-reads admin + event-day hardening + the full date_iso timezone fix + **all four admin-audit sprints** + **the timezone follow-ups (conflict narrowing + the Denver business calendar)** live. **Post-#404 archive contract:** archived (`past=1`) events now render on `/games` and their public detail pages **regardless of `published`** (prod verified serving 5 archived events) — and are **not bookable** (quote/checkout 409). A bare `/api/events` (no `include_past=1`) still filters to upcoming published events and can legitimately return `[]`. |
+| Production | deployed + verified through **#426** (Workers Builds) · **nothing from `content-truth-and-chunk-recovery` is live yet** · `https://airactionsport.com/api/health` → `{"ok":true,...}` — live Stripe + accounting suite + multi-day + reviews + open-reads admin + event-day hardening + the full date_iso timezone fix + **all four admin-audit sprints** + **the timezone follow-ups (conflict narrowing + the Denver business calendar)** live. **Post-#404 archive contract:** archived (`past=1`) events now render on `/games` and their public detail pages **regardless of `published`** (prod verified serving 5 archived events) — and are **not bookable** (quote/checkout 409). A bare `/api/events` (no `include_past=1`) still filters to upcoming published events and can legitimately return `[]`. |
 | Migrations on remote | **0001–0080 ALL applied** (0080 applied 2026-07-28; seeded SUA verified incl. an independent `body_sha256` recompute — agreement uploads work; the placeholder text still needs attorney review). |
-| Open PRs | 0 |
-| Open milestone | **None active, and nothing is blocking.** The **admin workflow audit is FULLY CLOSED** — all four sprints (Sprint 4: 2026-07-28, PRs #403–#411). **Both timezone follow-ups CLOSED 2026-07-28 (#412–#416).** Work menu: **growth plan** (not started) → the kiosk repair-or-retire decision. Operator activation: replace the placeholder SUA with attorney text, Resend plan upgrade, `MARKETING_POSTAL_ADDRESS`, `RESEND_WEBHOOK_SECRET` + webhook, `audit_log_fts` flag. |
-| Reviews | **LIVE with real data** — 3 submitted, 1 operator-hidden → public aggregate **2 / 4.5★**. |
+| Open PRs | 0 — but `content-truth-and-chunk-recovery` is **pushed and awaiting a PR** |
+| Open milestone | **None active. BLOCKING: the `content-truth-and-chunk-recovery` branch is pushed but unmerged with no PR.** Growth plan: first slice shipped 2026-07-31 (#418–#425); Phase 1 content truth + LocalBusiness enrichment + per-route meta shipped on the open branch. The **admin workflow audit is FULLY CLOSED** — all four sprints (Sprint 4: 2026-07-28, PRs #403–#411). **Both timezone follow-ups CLOSED 2026-07-28 (#412–#416).** Work menu: merge the branch → remaining growth-plan phases → the kiosk repair-or-retire decision. Operator activation: replace the placeholder SUA with attorney text, Resend plan upgrade, `MARKETING_POSTAL_ADDRESS`, `RESEND_WEBHOOK_SECRET` + webhook, `audit_log_fts` flag. |
+| Reviews | **LIVE with real data** — public aggregate **3 / 4.7★** as of 2026-07-31 (4 submitted, 1 operator-hidden). Re-read `GET /api/reviews/summary` live; it moves. |
 
 ---
 
@@ -708,9 +742,10 @@ A ~9-batch feature (PRs **#263–#266**, all merged + deployed) resolving feedba
 
 ```bash
 cd C:/Users/bulle/OneDrive/Desktop/Claude\ Code\ Projects/action-air-sports
-git checkout main && git pull origin main
+git checkout content-truth-and-chunk-recovery && git pull origin content-truth-and-chunk-recovery
+# ⚠️ 7 commits ahead of main, NOT merged, NO PR yet. Do NOT check out main — you would lose them.
 npm install
-TZ=UTC npm test -- --run | tail -3  # expect 3611 / 304 (TZ=UTC reproduces CI — see the Build row above)
+TZ=UTC npm test -- --run | tail -3  # expect 3689 / 313 on the branch (3631 / 307 on main). TZ=UTC reproduces CI.
 npm run build 2>&1 | tail -3        # expect clean
 curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 ```
@@ -722,7 +757,7 @@ curl -s https://airactionsport.com/api/health   # {"ok":true,...}
 | Path | Purpose |
 |---|---|
 | `docs/next-session.md` | THIS FILE — current state + work menu |
-| `docs/growth-plan-2026-07.md` | **conversion + LLM-discoverability roadmap** (6 phases; execution not started) |
+| `docs/growth-plan-2026-07.md` | conversion + LLM-discoverability roadmap. ⚠️ **PARTLY STALE** — Phase 1 content truth and two Phase 2 items shipped since it was written; this file supersedes it. |
 | `docs/admin-workflow-audit-2026-07.md` | **admin operator-journey audit** — **FULLY CLOSED 2026-07-28**, all four sprints (read as history; parked leftovers are named in its top banner) |
 | `worker/lib/capabilities.js` `requireReadAccess` | the open-reads model's greppable read-gate marker (#379) — reads open to any authed admin, loads caps for field-level masks |
 | `CLAUDE.md` | durable rules + per-milestone/session log (M1–M7 + post-M7 + M8 + **event-content session**) |
