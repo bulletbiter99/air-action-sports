@@ -138,14 +138,47 @@ function EventTileGroup({ event, showTitle }) {
           label="Rentals"
           desc="Equipment assignment + return"
         />
+        <ActionTile
+          to={`/admin/events/${encodeURIComponent(event.id)}/staffing`}
+          label="Staffing"
+          desc="Who is working — RSVP, roles, no-shows"
+        />
+        {/* The kiosk's ONLY entry point. /event and its 8 sub-routes were
+            reachable only by typing the URL from memory, which is why
+            event_day_sessions has never had a row. Opens in a new tab because
+            the kiosk is a separate full-screen shell a marshal keeps open on a
+            tablet for the whole op, not a page you navigate back from.
+
+            NOTE: an entry point alone does not make the kiosk work — it is
+            documented as dead end-to-end (audit A1) and needs a real
+            end-to-end pass before an op depends on it. This makes it
+            reachable and testable; it does not certify it. */}
+        <ActionTile
+          to="/event"
+          label="Event-day kiosk"
+          desc="Full-screen marshal mode — check-in, incidents, HQ"
+          newTab
+        />
       </div>
     </section>
   );
 }
 
-function ActionTile({ to, label, desc, accent }) {
+function ActionTile({ to, label, desc, accent, newTab }) {
+  const style = accent ? { ...tile, ...tileAccent } : tile;
+  // The kiosk is a separate full-screen shell, so it opens in its own tab and
+  // must not be a react-router <Link> — that would swap it into the admin SPA.
+  if (newTab) {
+    return (
+      <a href={to} target="_blank" rel="noopener noreferrer" style={style}>
+        <h2 style={tileLabel}>{label}</h2>
+        <p style={tileDesc}>{desc}</p>
+        <span style={tileArrow} aria-hidden="true">↗</span>
+      </a>
+    );
+  }
   return (
-    <Link to={to} style={accent ? { ...tile, ...tileAccent } : tile}>
+    <Link to={to} style={style}>
       <h2 style={tileLabel}>{label}</h2>
       <p style={tileDesc}>{desc}</p>
       <span style={tileArrow} aria-hidden="true">→</span>

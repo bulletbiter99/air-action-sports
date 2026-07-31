@@ -46,6 +46,7 @@ const AdminRentals = lazy(() => import('./admin/AdminRentals'));
 const AdminRentalQrSheet = lazy(() => import('./admin/AdminRentals').then((m) => ({ default: m.AdminRentalQrSheet })));
 const AdminRentalAssignments = lazy(() => import('./admin/AdminRentalAssignments'));
 const AdminEvents = lazy(() => import('./admin/AdminEvents'));
+const AdminEventStaffing = lazy(() => import('./admin/AdminEventStaffing'));
 const AdminPromoCodes = lazy(() => import('./admin/AdminPromoCodes'));
 const AdminExpenses = lazy(() => import('./admin/AdminExpenses'));
 const AdminBudgets = lazy(() => import('./admin/AdminBudgets'));
@@ -175,6 +176,12 @@ export default function App() {
             <Route path="rentals/qr-sheet" element={<AdminRentalQrSheet />} />
             <Route path="rentals/assignments" element={<AdminRentalAssignments />} />
             <Route path="events" element={<AdminEvents />} />
+            {/* AdminEventStaffing shipped in M5 R9 with a `/admin/events/:id/staffing`
+                header comment and was never routed — a fully-built page with no door,
+                while two cron sweeps (runEventStaffingReminderSweep and
+                runEventStaffingAutoDeclineSweep) have been emailing staff about
+                assignments no admin could see or manage. */}
+            <Route path="events/:id/staffing" element={<AdminEventStaffing />} />
             <Route path="promo-codes" element={<AdminPromoCodes />} />
             <Route path="expenses" element={<AdminExpenses />} />
             <Route path="budgets" element={<AdminBudgets />} />
