@@ -33,7 +33,7 @@ const CHUNK_ERROR_PATTERNS = [
   'importing a module script failed',
   // The HTML-served-as-JS case above surfaces as a parse error.
   'unexpected token',
-  // Defensive: bundler-flavoured variants.
+  // Defensive: bundler-flavored variants.
   'chunkloaderror',
   'loading chunk',
   'failed to import',

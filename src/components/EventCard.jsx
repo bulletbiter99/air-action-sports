@@ -23,7 +23,7 @@ export default function EventCard({ event }) {
             <strong>Time</strong>{event.time}
           </div>
           <div className="event-meta-item">
-            <strong>Slots</strong>{event.slots.total} Players
+            <strong>Spots</strong>{event.slots.total} Players
           </div>
           <div className="event-meta-item">
             <strong>From</strong>{event.price}
@@ -39,7 +39,7 @@ export default function EventCard({ event }) {
             </div>
           </>
         )}
-        <Link to={siteConfig.bookingLink} className="btn-book">&#9658; Book Slot</Link>
+        <Link to={siteConfig.bookingLink} className="btn-book">&#9658; Book Spot</Link>
       </div>
     </div>
   );

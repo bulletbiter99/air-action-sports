@@ -5,7 +5,7 @@
  * so on a slow connection every navigation showed the bare dark page background
  * until the chunk arrived, which reads as "the page just went black".
  *
- * Deliberately minimal: a centred pulse on the normal page background, sized to
+ * Deliberately minimal: a centered pulse on the normal page background, sized to
  * roughly the height of a page header so the layout does not jump when the real
  * content swaps in.
  */

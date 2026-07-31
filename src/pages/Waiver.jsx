@@ -505,11 +505,11 @@ export default function Waiver() {
             )}
           </div>
 
-          {/* Section 2 -- Acknowledgement of Risk. Body rendered from the
+          {/* Section 2 -- Acknowledgment of Risk. Body rendered from the
               versioned waiver_documents row so the text and its hash stay in
               sync with what the server will snapshot on submit. */}
           <div className="waiver-section">
-            <h3>2. Acknowledgement of Risk</h3>
+            <h3>2. Acknowledgment of Risk</h3>
             <div
               className="waiver-text"
               dangerouslySetInnerHTML={{ __html: waiverDoc?.bodyHtml || '' }}

@@ -76,7 +76,7 @@ export default function Contact() {
     <>
       <SEO
         title="Contact Us | Air Action Sports"
-        description="Get in touch with Air Action Sports. Enquiries about bookings, private hire, corporate events, and more."
+        description="Get in touch with Air Action Sports. Inquiries about bookings, private rental, corporate events, and more."
         canonical="https://airactionsport.com/contact"
         ogImage="https://airactionsport.com/images/og-image.jpg"
       />
@@ -186,9 +186,12 @@ export default function Contact() {
                   <option value="" disabled>
                     Select a subject
                   </option>
-                  <option value="general">General Enquiry</option>
+                  <option value="general">General Inquiry</option>
                   <option value="booking">Booking Question</option>
-                  <option value="private-hire">Private Hire</option>
+                  {/* The value is an API contract — worker/routes/inquiry.js
+                      allowlists it and FIELD_RENTAL_SUBJECTS routes on it. Only
+                      the label is copy. */}
+                  <option value="private-hire">Private Rental</option>
                   <option value="corporate">Corporate Events</option>
                   <option value="feedback">Feedback</option>
                   <option value="other">Other</option>
@@ -331,7 +334,7 @@ export default function Contact() {
 
             <div className="response-note">
               <p>
-                We aim to respond to all enquiries within 24 hours. For urgent
+                We aim to respond to all inquiries within 24 hours. For urgent
                 queries on event days, call us directly.
               </p>
             </div>
@@ -347,7 +350,7 @@ export default function Contact() {
       {/* CTA Band */}
       <div className="cta-band">
         <h2>Ready to Book?</h2>
-        <p>Skip the form and reserve your slot now.</p>
+        <p>Skip the form and reserve your spot now.</p>
         <Link to={siteConfig.bookingLink} className="btn-white">
           &#9658; Book Your Battle
         </Link>

@@ -10,7 +10,7 @@ export const faqCategories = [
       },
       {
         question: 'Do I need my own gear?',
-        answer: "Not necessarily — gear hire is available at selected events, and we're adding more rental stock. Hire packages include a replica weapon, full face protection, and a tactical vest. Check the event page or contact us to confirm hire before you book. You're welcome to bring your own gear if you prefer.",
+        answer: "Not necessarily — gear rental is available at selected events, and we're adding more rental stock. Rental packages include a replica weapon, full face protection, and a tactical vest. Check the event page or contact us to confirm rental before you book. You're welcome to bring your own gear if you prefer.",
       },
       {
         question: 'Can I come as a complete beginner?',
@@ -39,11 +39,11 @@ export const faqCategories = [
     items: [
       {
         question: 'What should I wear?',
-        answer: 'Wear long sleeves, sturdy boots, and dark or neutral colors. No shorts allowed on the field. Face protection is included with every hire package.',
+        answer: 'Wear long sleeves, sturdy boots, and dark or neutral colors. No shorts allowed on the field. Face protection is included with every rental package.',
       },
       {
         question: 'What time should I arrive?',
-        answer: 'Please arrive at least 30 minutes before the game start time. This gives you time to complete registration, collect any hire gear, and attend the mandatory safety briefing.',
+        answer: 'Please arrive at least 30 minutes before the game start time. This gives you time to complete registration, collect any rental gear, and attend the mandatory safety briefing.',
       },
       {
         question: 'Is there parking on site?',
@@ -76,7 +76,7 @@ export const faqCategories = [
       },
       {
         question: 'What protective gear is provided?',
-        answer: 'Hire packages include a full face mask and eye protection. We strongly recommend wearing gloves as well. If you are bringing your own protection, it must be ANSI Z87.1+ rated full-seal eye protection.',
+        answer: 'Rental packages include a full face mask and eye protection. We strongly recommend wearing gloves as well. If you are bringing your own protection, it must be ANSI Z87.1+ rated full-seal eye protection.',
       },
       {
         question: 'Are there marshals on the field?',
@@ -120,21 +120,21 @@ export const faqCategories = [
         answer: 'We accept both cash and card at the field. Online bookings can be paid by card at the time of booking.',
       },
       {
-        question: "What's included in gear hire?",
-        answer: 'Our gear hire package includes a full replica weapon, face mask with eye protection, a tactical vest, and 500 rounds of BBs. Extra BBs and upgraded replicas are available as add-ons.',
+        question: "What's included in gear rental?",
+        answer: 'Our gear rental package includes a full replica weapon, face mask with eye protection, a tactical vest, and 500 rounds of BBs. Extra BBs and upgraded replicas are available as add-ons.',
       },
     ],
   },
   {
-    title: 'Private Hire',
+    title: 'Private Rental',
     items: [
       {
         question: 'Can I book a whole site for a private event?',
-        answer: 'Yes, our sites are available for exclusive private hire. You\'ll have the entire venue to yourselves with dedicated staff on hand. Get in touch and we\'ll confirm which site best suits your group and date.',
+        answer: 'Yes, our sites are available for exclusive private rental. You\'ll have the entire venue to yourselves with dedicated staff on hand. Get in touch and we\'ll confirm which site best suits your group and date.',
       },
       {
-        question: "What's included in private hire?",
-        answer: 'Private hire includes exclusive site access, dedicated marshals, and custom game modes designed for your group. Gear hire can be arranged where it is available at your chosen site — just ask when you get in touch.',
+        question: "What's included in private rental?",
+        answer: 'Private rental includes exclusive site access, dedicated marshals, and custom game modes designed for your group. Gear rental can be arranged where it is available at your chosen site — just ask when you get in touch.',
       },
       {
         question: 'Do you do corporate events?',

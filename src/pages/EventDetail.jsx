@@ -133,7 +133,7 @@ export default function EventDetail() {
     <>
       <SEO
         title={`${event.title} — ${event.date.month.replace(' ', ' ')} ${event.date.day} | Air Action Sports`}
-        description={`${event.title} — a ${event.isMultiDay ? 'multi-day' : 'full-day'} airsoft event at ${event.location.split(' —')[0] || event.location} on ${dateDisplay}. Book your place now.`}
+        description={`${event.title} — a ${event.isMultiDay ? 'multi-day' : 'full-day'} airsoft event at ${event.location.split(' —')[0] || event.location} on ${dateDisplay}. Book your spot now.`}
         canonical={`https://airactionsport.com/events/${slug}`}
         ogImage="https://airactionsport.com/images/og-image.jpg"
       />
@@ -282,7 +282,7 @@ export default function EventDetail() {
                 : (
                   <>
                     <p>
-                      As twilight falls over {event.location.split(' —')[0] || 'the site'}, two factions prepare to clash in a high-stakes operation. {event.title} is a full-day airsoft event built around squad-based tactics and objective-driven gameplay. Expect fast rotations, flanking manoeuvres through buildings, and coordinated assaults on fortified positions.
+                      As twilight falls over {event.location.split(' —')[0] || 'the site'}, two factions prepare to clash in a high-stakes operation. {event.title} is a full-day airsoft event built around squad-based tactics and objective-driven gameplay. Expect fast rotations, flanking maneuvers through buildings, and coordinated assaults on fortified positions.
                     </p>
                     <p>
                       Teams will be briefed on mission objectives at staging. Communication, teamwork, and smart positioning will decide the outcome. Whether you're a seasoned operator or stepping onto the field for the first time, this event is designed to deliver intense, fair, and unforgettable gameplay from first light to last round.
@@ -318,7 +318,7 @@ export default function EventDetail() {
                 <li>Trained marshals on field</li>
                 <li>Free parking</li>
                 {/* Only claim rentals when this event actually lists them —
-                    hire is not available at every site, and the "see below"
+                    rentals are not available at every site, and the "see below"
                     pointed at a Rental Packages table that renders only when
                     event.rentals is set. */}
                 {event.rentals && event.rentals.length > 0 && (
@@ -490,7 +490,7 @@ export default function EventDetail() {
             )}
 
             {/* Terrain — omitted entirely when we have nothing true to say.
-                The old final `else` described EVERY unrecognised location as
+                The old final `else` described EVERY unrecognized location as
                 Foxtrot, so a Trench Warfare or Chem Plant event would have been
                 captioned "25-acre open field site". Each site is now matched
                 explicitly and an unknown one renders nothing rather than a
@@ -716,7 +716,7 @@ export default function EventDetail() {
                   <div className="event-loc">&#9679; {ev.location}</div>
                   <div className="event-meta">
                     <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
-                    <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
+                    <div className="event-meta-item"><strong>Spots</strong>{ev.slots.total} Players</div>
                     <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
                   </div>
                   <Link to={`/events/${ev.slug}`} className="btn-book">&#9658; View Details</Link>

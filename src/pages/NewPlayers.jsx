@@ -101,27 +101,27 @@ export default function NewPlayers() {
             <div>
               <div className="step-title">What Gear You Need</div>
               <div className="step-subtitle">
-                Own gear or hire &mdash; your choice
+                Own gear or rent &mdash; your choice
               </div>
             </div>
           </div>
           <div className="step-content">
             <p>
-              You don't need to own everything. Gear hire is available at
+              You don't need to own everything. Gear rental is available at
               selected events and we're adding more rental stock &mdash; check
-              the event page or contact us to confirm hire before you book.
+              the event page or contact us to confirm rental before you book.
             </p>
             <div className="gear-grid">
               <div className="gear-card">
                 <div className="gear-icon">&#128299;</div>
                 <div className="gear-name">Airsoft Replica</div>
-                <div className="gear-note">Hire available at selected events</div>
+                <div className="gear-note">Rentals available at selected events</div>
               </div>
               <div className="gear-card">
                 <div className="gear-icon">&#129405;</div>
                 <div className="gear-name">Face Protection</div>
                 <div className="gear-note">
-                  Full face mask included with hire
+                  Full face mask included with rental
                 </div>
               </div>
               <div className="gear-card">
@@ -142,7 +142,7 @@ export default function NewPlayers() {
             <div className="tip-box">
               <strong>Pro Tip</strong>
               <p>
-                If you're hiring gear, arrive 30 minutes early so marshals can
+                If you're renting gear, arrive 30 minutes early so marshals can
                 get you set up and fitted.
               </p>
             </div>
@@ -163,7 +163,7 @@ export default function NewPlayers() {
           <div className="step-content">
             <ul>
               <li>
-                Arrive 30 mins early &mdash; Registration, waiver, and gear hire
+                Arrive 30 mins early &mdash; Registration, waiver, and gear rental
               </li>
               <li>
                 Safety briefing &mdash; Rules, FPS limits, boundaries explained
@@ -178,7 +178,7 @@ export default function NewPlayers() {
               </li>
               <li>Breaks &mdash; Reload, rehydrate, share war stories</li>
               <li>
-                Pack up &mdash; Return hire gear, grab photos, book your next
+                Pack up &mdash; Return rental gear, grab photos, book your next
                 game
               </li>
             </ul>
@@ -201,7 +201,7 @@ export default function NewPlayers() {
                 game zones &mdash; prescription glasses alone do not count
               </li>
               <li>
-                Under 18s also wear a full-face mask; 18 and over wear a mask,
+                Players under 18 also wear a full-face mask; 18 and over wear a mask,
                 lower-face shield, or mouth guard
               </li>
               <li>Never blind fire (you must see your target)</li>

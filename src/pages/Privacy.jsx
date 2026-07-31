@@ -37,7 +37,7 @@ export default function Privacy() {
           </li>
           <li>
             <strong>Booking details</strong> &mdash; event preferences, group
-            size, gear hire requirements
+            size, gear rental requirements
           </li>
           <li>
             <strong>Usage data</strong> &mdash; pages visited, time spent,
@@ -51,7 +51,7 @@ export default function Privacy() {
 
         <h2>How We Use Your Information</h2>
         <ul>
-          <li>To process bookings and enquiries</li>
+          <li>To process bookings and inquiries</li>
           <li>To send event confirmations and updates</li>
           <li>
             To send newsletters (only if you subscribe &mdash; you can

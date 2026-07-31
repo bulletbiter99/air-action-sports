@@ -56,7 +56,7 @@ export default function About() {
               <p>
                 Air Action Sports started in 2024 with a group of friends, two
                 acres of woodland, and a box of rental guns. We wanted airsoft
-                events that didn't cut corners &mdash; proper marshalling, fair
+                events that didn't cut corners &mdash; proper marshaling, fair
                 play, and sites that actually felt immersive.
               </p>
               <p>
