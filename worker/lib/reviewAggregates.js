@@ -73,6 +73,27 @@ export function serializeJsonLd(obj) {
 const SITE_NAME = 'Air Action Sports';
 const SITE_DESC = 'Full-day airsoft events across varied outdoor and urban sites.';
 
+// Mirrors src/data/siteConfig.js. The worker cannot import from src/, so these
+// are duplicated deliberately — if the phone, email or socials change there,
+// change them here too. Every value below is already public on /contact.
+const SITE_PHONE = '+1-801-833-5127';
+const SITE_EMAIL = 'actionairsport@gmail.com';
+const SITE_SAME_AS = [
+    'https://www.facebook.com/groups/2545278778822344/',
+    'https://www.instagram.com/kaysaircombat/',
+];
+
+// Office hours as shown on /contact. Weekend hours are deliberately omitted —
+// "event days only" is not a fixed weekly window and schema.org has no way to
+// say "sometimes", so publishing Sat/Sun hours would be an outright claim that
+// we are open every weekend.
+const OFFICE_HOURS = {
+    '@type': 'OpeningHoursSpecification',
+    dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+    opens: '09:00',
+    closes: '17:00',
+};
+
 function ratingNode(aggregate) {
     return {
         '@type': 'AggregateRating',
@@ -83,8 +104,23 @@ function ratingNode(aggregate) {
     };
 }
 
-// Organization/LocalBusiness node for the home page. aggregate is required by
-// the caller (home injects only when it's non-null), but guarded defensively.
+// Organization/LocalBusiness node for the home page.
+//
+// `aggregate` is OPTIONAL. The business's identity does not depend on whether
+// anyone has reviewed it, and the caller no longer gates on it — a moderator
+// hiding the last visible review must not erase our name, phone and URL from
+// structured data. Only aggregateRating is conditional.
+//
+// NO `address` IS EMITTED, AND THAT IS DELIBERATE. Air Action Sports operates
+// across multiple sites and has no single storefront, and /faq states that exact
+// site addresses are shared only in the booking confirmation email because some
+// sites sit on private rural roads. There is also no address data to draw on:
+// the public sites API (worker/routes/sites.js formatPublicSite) exposes only
+// name/badge/photo/blurb/features/gameTypes — no street, locality or region.
+// Do not "complete" this node by inventing a PostalAddress; picking one site's
+// address would misrepresent a multi-site operation, and publishing any of them
+// would contradict a deliberate security decision. `areaServed` carries the
+// geography instead.
 export function buildOrgJsonLd({ siteUrl, aggregate }) {
     const obj = {
         '@context': 'https://schema.org',
@@ -92,6 +128,14 @@ export function buildOrgJsonLd({ siteUrl, aggregate }) {
         name: SITE_NAME,
         description: SITE_DESC,
         url: siteUrl,
+        telephone: SITE_PHONE,
+        email: SITE_EMAIL,
+        // Google treats an image as required for rich-result eligibility.
+        image: `${siteUrl}/images/og-image.jpg`,
+        logo: `${siteUrl}/images/og-image.jpg`,
+        sameAs: SITE_SAME_AS,
+        areaServed: { '@type': 'State', name: 'Utah' },
+        openingHoursSpecification: [OFFICE_HOURS],
     };
     if (aggregate) obj.aggregateRating = ratingNode(aggregate);
     return obj;

@@ -700,15 +700,21 @@ async function rewriteEventOg(request, env, slug) {
 }
 
 // Home page (0077, Batch 4): inject a real Organization/LocalBusiness JSON-LD
-// with the site-wide aggregateRating into the raw HTML so AI/search crawlers
-// (which don't run JS) see a genuine rating. Injected ONLY when published
-// reviews exist (getOrgReviewAggregate → null otherwise) → a no-op until the
-// first review accrues, and never an empty/zero rating.
+// into the raw HTML so AI/search crawlers (which don't run JS) see the business
+// identity and, when reviews exist, a genuine site-wide rating.
+//
+// The node is emitted UNCONDITIONALLY. It used to return early when
+// getOrgReviewAggregate() was null, which meant the company's name, phone, URL
+// and socials only existed in structured data as a side effect of having been
+// reviewed — so moderating away the last visible review (which has happened
+// once) would have silently deleted the whole node. Same backwards gating that
+// #421 fixed on the Event node. aggregateRating stays conditional: buildOrgJsonLd
+// omits it when aggregate is null, so we still never publish an empty or zero
+// rating.
 async function rewriteHomeJsonLd(request, env) {
     const origin = env.ASSETS ? await env.ASSETS.fetch(request) : null;
     if (!origin) return origin;
     const aggregate = await getOrgReviewAggregate(env);
-    if (!aggregate) return origin;
     const siteUrl = env.SITE_URL || 'https://airactionsport.com';
     const jsonLd = serializeJsonLd(buildOrgJsonLd({ siteUrl, aggregate }));
     return new HTMLRewriter()
