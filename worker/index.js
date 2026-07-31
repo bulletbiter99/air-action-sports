@@ -604,10 +604,21 @@ function parseEventSlug(pathname) {
 // tags never reach them. HTMLRewriter runs in the Worker and injects real values.
 async function rewriteEventOg(request, env, slug) {
     // Events currently use slug as id (legacy seeding). Try id first, then slug column.
+    //
+    // Visibility predicate MIRRORS the public detail route (worker/routes/events.js:110)
+    // byte-for-byte. Sprint 4 (#404) opened that route to archived events —
+    // `published = 1 OR past = 1` — because every end-of-life action sets
+    // published=0, so a published-only gate meant an archived event's page
+    // still rendered for humans while this function silently bailed, serving
+    // scrapers the generic site shell with no title, no OG image and no
+    // Event JSON-LD. With all five production events archived, that suppressed
+    // per-event unfurls and structured data site-wide, including Operation Last
+    // Light's real 4.7/3 aggregateRating. The two predicates must stay in sync:
+    // if the route's visibility contract changes again, change it here too.
     const row = await env.DB.prepare(
         `SELECT title, display_date, location, short_description,
                 cover_image_url, og_image_url, id, date_iso, end_date_iso
-         FROM events WHERE (id = ? OR slug = ?) AND published = 1 LIMIT 1`
+         FROM events WHERE (id = ? OR slug = ?) AND (published = 1 OR past = 1) LIMIT 1`
     ).bind(slug, slug).first();
 
     // No match — just serve the shell as-is; the SPA will render its 404.
