@@ -1,11 +1,17 @@
 // Reusable social-proof strip — drops onto any page (self-contained inline
-// styles, no page-CSS dependency). Reads from src/data/testimonials.js.
-// Used on high-intent pages (Event Detail, Locations) where a review near
-// the booking decision lifts conversion.
-import { testimonials } from '../data/testimonials';
+// styles, no page-CSS dependency). Used on high-intent pages (Event Detail,
+// Locations) where a review near the booking decision lifts conversion.
+//
+// Renders REAL attendee reviews via useTestimonials, or nothing at all. It
+// previously rendered a hardcoded array of invented quotes — one of which
+// praised a site that does not exist — on both live pages, at a permanent five
+// stars regardless of what anyone actually said. See src/hooks/useTestimonials.js
+// for why there is no fallback.
+import Stars from './Stars';
+import { useTestimonials } from '../hooks/useTestimonials';
 
-export default function SocialProof({ limit, heading = 'What Players Say' }) {
-  const items = limit ? testimonials.slice(0, limit) : testimonials;
+export default function SocialProof({ limit = 3, heading = 'What Players Say' }) {
+  const { items } = useTestimonials({ limit });
   if (!items.length) return null;
 
   return (
@@ -15,8 +21,10 @@ export default function SocialProof({ limit, heading = 'What Players Say' }) {
         <h2 style={title}>{heading}</h2>
         <div style={grid}>
           {items.map((t) => (
-            <figure key={t.initials} style={card}>
-              <div style={stars}>&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+            <figure key={t.key} style={card}>
+              {/* The real rating — a 4-star review rendered as 5 stars is a
+                  fabricated rating, not a rounding choice. */}
+              <div style={stars}><Stars rating={t.rating} size={16} /></div>
               <blockquote style={quote}>&ldquo;{t.text}&rdquo;</blockquote>
               <figcaption style={author}>
                 <span style={avatar}>{t.initials}</span>
@@ -39,7 +47,7 @@ const label = { color: 'var(--orange)', fontSize: 13, fontWeight: 700, letterSpa
 const title = { color: 'var(--cream)', fontSize: '1.75rem', margin: '0 0 1.75rem' };
 const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' };
 const card = { background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(200,184,154,0.12)', borderRadius: 4, padding: '1.5rem', margin: 0 };
-const stars = { color: 'var(--orange)', letterSpacing: 2, marginBottom: '0.75rem' };
+const stars = { marginBottom: '0.75rem' };
 const quote = { color: 'var(--tan-light)', fontSize: 14, lineHeight: 1.6, margin: '0 0 1.25rem' };
 const author = { display: 'flex', alignItems: 'center', gap: '0.75rem' };
 const avatar = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '50%', background: 'var(--orange)', color: 'var(--dark)', fontWeight: 800, fontSize: 13, flexShrink: 0 };
