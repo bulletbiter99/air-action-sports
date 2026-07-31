@@ -6,21 +6,12 @@ import CountdownTimer from '../components/CountdownTimer';
 import { siteConfig } from '../data/siteConfig';
 import { useEvents } from '../hooks/useEvents';
 import { useSites } from '../hooks/useSites';
-import { useReviews } from '../hooks/useReviews';
+import { useTestimonials } from '../hooks/useTestimonials';
 import { spotsSignal } from '../utils/eventSlots';
 import { locations } from '../data/locations';
-import { testimonials } from '../data/testimonials';
 import '../styles/pages/home.css';
 
 const MONTH_NAME = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-// Public display name ("Jane D.") → avatar initials ("JD") for live testimonials.
-function avatarInitials(name) {
-  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '★';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 function countdownLabel(ev) {
   if (!ev?.dateIso) return ev?.title || '';
@@ -35,14 +26,14 @@ export default function Home() {
   const { events } = useEvents({ includePast: false });
   const { sites } = useSites();
   // Real attendee rating + recent reviews for the hero stat + testimonials.
-  const { average: reviewAverage, count: reviewCount, reviews: recentReviews } = useReviews({
-    mode: 'summary',
-    recent: 6,
-  });
-  // Live testimonials require ≥3 published reviews that actually have a comment;
-  // otherwise fall back to the static curated set (kept, never retired).
-  const liveTestimonials = (recentReviews || []).filter((r) => r.comment && r.comment.trim());
-  const useLiveTestimonials = liveTestimonials.length >= 3;
+  // Shared with the SocialProof strip (Locations, EventDetail) so both surfaces
+  // agree on what the business's social proof is — they did not before, and
+  // Home showed real reviews while the others showed invented ones.
+  const {
+    items: testimonialItems,
+    average: reviewAverage,
+    count: reviewCount,
+  } = useTestimonials({ limit: 3 });
   const upcomingEvents = events.slice(0, 2);
   const featuredEvent = events[0] || null;
   // The home location previews reuse the same /images/* photos as the DB sites,
@@ -397,42 +388,33 @@ export default function Home() {
       {/* ============================================================
           TESTIMONIALS SECTION
           ============================================================ */}
+      {/* Omitted entirely until real reviews exist. The previous fallback to a
+          curated invented set meant one moderation hide could silently swap
+          genuine social proof for fabricated social proof. */}
+      {testimonialItems.length > 0 && (
       <section className="testimonials">
         <div className="container">
           <div className="section-label fade-in">&#9632; In the Field</div>
           <h2 className="section-title">Players Don't Lie.</h2>
           <div className="divider"></div>
           <div className="test-grid">
-            {useLiveTestimonials
-              ? liveTestimonials.slice(0, 3).map((r) => (
-                <div className="test-card" key={r.id}>
-                  <div className="test-stars"><Stars rating={r.rating} size={18} /></div>
-                  <p className="test-text">&ldquo;{r.comment}&rdquo;</p>
-                  <div className="test-author">
-                    <div className="test-avatar">{avatarInitials(r.authorName)}</div>
-                    <div>
-                      <div className="test-name">{r.authorName}</div>
-                      <div className="test-role">{r.event?.title || 'Verified player'}</div>
-                    </div>
+            {testimonialItems.map((t) => (
+              <div className="test-card" key={t.key}>
+                <div className="test-stars"><Stars rating={t.rating} size={18} /></div>
+                <p className="test-text">&ldquo;{t.text}&rdquo;</p>
+                <div className="test-author">
+                  <div className="test-avatar">{t.initials}</div>
+                  <div>
+                    <div className="test-name">{t.name}</div>
+                    <div className="test-role">{t.role}</div>
                   </div>
                 </div>
-              ))
-              : testimonials.map((t) => (
-                <div className="test-card" key={t.initials}>
-                  <div className="test-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-                  <p className="test-text">&ldquo;{t.text}&rdquo;</p>
-                  <div className="test-author">
-                    <div className="test-avatar">{t.initials}</div>
-                    <div>
-                      <div className="test-name">{t.name}</div>
-                      <div className="test-role">{t.role}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+              </div>
+            ))}
           </div>
         </div>
       </section>
+      )}
 
       {/* ============================================================
           CTA BAND
