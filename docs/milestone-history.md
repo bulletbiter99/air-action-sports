@@ -1,0 +1,977 @@
+Moved from CLAUDE.md on 2026-10-28.
+
+### Milestone 1 — Test Infrastructure (✓ closed 2026-05-06)
+
+**Status: complete.** Long-lived branch `milestone-1-test-infrastructure` was merged into `main` via merge commit `c4d67a6` (PR #14 on 2026-05-06). All 9 batches (PRs #2–#13) are on `main` as second-parent commits — `git log --first-parent main` skips them; `git log main` follows them. Sub-branches used `m1-batch-N-slug` naming (flat — sub-branch hierarchy under `milestone/...` was avoided due to git ref path collision).
+
+The milestone shipped 216 vitest unit tests + 7 Playwright smoke tests scaffolded across 60 files. CI on every PR. Test-gate map at [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json). Closing runbooks at [docs/runbooks/](docs/runbooks/).
+
+**Per-batch operating rules used during M1** (preserved here as a template for the next milestone):
+- Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing.
+- One commit per sub-PR. Conventional Commits with `test`/`chore`/`docs` types and `m<N>-<area>` scope.
+- 10-file cap per PR. Hard rule.
+- No `--force` ever. No rebases on shared branches. No direct commits to `main` or any `milestone-*` branch.
+- All tests use mocks (Vitest + Web Crypto). No live Stripe / Resend / D1 / `wrangler deploy` from Claude.
+- Stop-and-ask if a do-not-touch file appears to need editing or a test reveals current behavior conflicting with audit-documented behavior.
+
+**Final batch table (all merged on milestone branch; milestone merged to main as `c4d67a6`):**
+
+| Batch | What it ships | Squash on milestone | PR |
+|---|---|---|---|
+| **B1** Vitest setup + sanity test (5 files) | vitest.config.js, tests/setup.js, 4 mock helpers, tests/unit/health.test.js | `aa0cfb9` | #2 |
+| **B2a** Group A pricing core (8 files) | empty-cart / single-ticket-no-addon / multi-ticket-with-addon / percent-tax-fixed-fee / percent-fee-on-percent-tax / applies-to-tickets / applies-to-all / line-items-shape | `456d12e` | #3 |
+| **B2b** Group A pricing edges (7 files) | promo-percent / promo-fixed / per-unit-multipliers / capacity-errors / min-max-per-order / inactive-fee-excluded / cents-precision | `20dd620` | #4 |
+| **B3a** Group B webhook signature (6 files) | tests/helpers/stripeSignature.js + signature-verify-{valid,invalid,stale,multi-v1} + signature-constant-time | `95ac8ce` | #5 |
+| **B3b** Group B webhook handler (10 files) | tests/helpers/webhookFixture.js + 9 handler tests (idempotency, unknown-event-type, attendee-creation, ticket-types-sold-increment, promo-uses-increment, audit-log-emission, email-send-confirmation, email-send-admin-notify, waiver-auto-link-on-paid) | `8cf37a8` | #6 |
+| **B4a** Group C waiver validation (8 files) | tests/helpers/waiverFixture.js + erecords-consent / signature-must-match-name / 4× age-tier / jury-trial-initials-required (audit C25-31) | `b141d35` | #7 |
+| **B4b** Group C waiver effects (8 files) | row-doc-link-and-snapshot / row-claim-period / row-tier-flags / attendee-waiver-id-set / audit-log-waiver-signed / already-signed-409 / integrity-fail-on-{post,get} (audit C32-38) | `4a5a18a` | #8 |
+| **B5** Group D auto-link (9 files) | null-inputs / match-by-email-and-name / case-insensitive-email / whitespace-tolerant-name / claim-period-required / expired-claim-period-no-match / latest-by-signed-at / sibling-different-name-no-match / cross-flow-consistency (audit D39-46) | `0274bcc` | #9 |
+| **B6** Playwright smoke scaffold (4 files) | playwright.config.js, tests/e2e/setup.js, tests/e2e/smoke.test.js (7 audit-prescribed smoke tests), package.json devDep + test:e2e script | `4d19864` | #10 |
+| **B7** CI workflow + CONTRIBUTING (3 files) | .github/workflows/ci.yml (vitest+coverage on PR; lint with continue-on-error per audit pain-point #8), CONTRIBUTING.md, .github/PULL_REQUEST_TEMPLATE.md | `37329ba` | #11 |
+| **B8** Test gate map + CLAUDE.md (2 files) | scripts/test-gate-mapping.json (4 gates + 7 uncovered), CLAUDE.md gate-enforcement subsection | `b726104` | #12 |
+| **B9** Closing runbooks (3 files) | docs/runbooks/m1-baseline-coverage.txt, docs/runbooks/m1-rollback.md, docs/runbooks/m1-deploy.md | `358fe83` | #13 |
+| **milestone → main** | merge commit (preserves per-batch SHAs) | `c4d67a6` | #14 |
+
+**Final test count:** 216 unit tests across 54 files + 7 smoke tests scaffolded across 3 files = **223 tests across 60 files**.
+
+- Sanity: 3 tests, 1 file
+- Group A (pricing): 79 tests, 15 files — ✓ complete (B2a + B2b)
+- Group B (webhook signature + handler): 59 tests, 14 files — ✓ complete (B3a + B3b)
+- Group C (waiver validation + effects): 50 tests, 15 files — ✓ complete (B4a + B4b)
+- Group D (auto-link): 25 tests, 9 files — ✓ complete (B5)
+- Group I (Playwright smoke, scaffolded): 7 tests, 3 files — ✓ scaffolded (B6, operator-runnable)
+
+Audit Groups E (admin manual booking), F (auth), G (worker-level), H (cron) are **deferred to post-M1** — see `uncovered` in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) for the punch list and audit IDs.
+
+**Test runner:** Vitest 2.1.x, Node 20 env. Coverage via @vitest/coverage-v8. Playwright 1.59.x for B6 smoke (operator-triggered against deployed Worker; not in CI by default). [.github/workflows/ci.yml](.github/workflows/ci.yml) runs vitest + coverage on every PR to `main` or `milestone-*`; lint runs with `continue-on-error: true` until `eslint.config.js` is added (audit pain-point #8).
+
+**Conventions established across the milestone:**
+- All vitest tests under `tests/unit/<group>/*.test.js`. E2E under `tests/e2e/`.
+- Helpers in `tests/helpers/` (mockEnv, mockD1, mockStripe, mockResend, stripeSignature, webhookFixture, waiverFixture).
+- `globalThis.fetch` defaults to throw-on-unmocked in `tests/setup.js`. Tests opt in via `mockStripeFetch()` or `mockResendFetch()`.
+- `mockD1.__on(pattern, response, kind)` registers a handler. `pattern` is string-includes or regex. `response` can be a value or `(sql, args, kind) => value`.
+- Coverage folder `coverage/` is gitignored.
+- Web Crypto (`crypto.subtle`, `crypto.getRandomValues`) used directly — no polyfill needed in Node 20.
+
+**Post-M1 — what's next:**
+
+The audit prescribes 83 characterization tests across Groups A–I. M1 landed Groups A, B, C, D, and I (smoke scaffolded). **Groups E, F, G, H are deferred to a future milestone** — see the `uncovered` section of [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) for the punch list:
+
+- **Group E** — admin manual booking (audit E47–E53): `worker/routes/admin/bookings.js` POST /manual + POST /:id/refund.
+- **Group F** — auth (audit F54–F64): `worker/lib/auth.js` (verifyPassword, hashPassword, requireAuth, requireRole), `worker/lib/vendorToken.js`.
+- **Group G** — worker-level (audit G65–G70): `worker/index.js` serveUpload, rewriteEventOg.
+- **Group H** — cron (audit H71–H76): `worker/index.js` scheduled handler.
+
+Plus the **lint config gap** (audit pain-point #8 — eslint.config.js missing) so the CI lint step can become blocking.
+
+**Operator one-time setup (after M1 merged to main):**
+1. `npx playwright install chromium` (downloads the Chrome binary used by `npm run test:e2e`).
+2. Run the smoke suite once against production: `npm run test:e2e` — should be 6/7 passing (#79 skipped without `E2E_TEST_EVENT_SLUG`).
+3. Optional: tighten #79 by exporting `E2E_TEST_EVENT_SLUG=operation-nightfall` and re-running.
+
+### Milestone 2 — Shared Primitives + Cross-Route Fix (✓ closed 2026-05-07; merged to main as `7a87f28` via PR [#28](https://github.com/bulletbiter99/air-action-sports/pull/28))
+
+**Status: shipped.** The long-lived branch `milestone-2-shared-primitives` carried 11 squashed batch SHAs and was merged to `main` via merge commit `7a87f28` per [docs/runbooks/m2-deploy.md](docs/runbooks/m2-deploy.md). Migration `0021_feature_flags.sql` applied to remote D1 same day; density toggle visible + functional at `/admin/settings`. Sub-branches used flat `m2-batch-N-slug` naming (the M2 prompt's `milestone/2-shared-primitives/batch-N` form was rejected — git ref path collision; same workaround as M1).
+
+The milestone shipped **+255 vitest unit tests across +16 new files** (216 M1 baseline → 471), six new gated paths in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json), six shared admin primitives ready for M3+ reuse, the closure of the cross-route smell from audit §08 #7, and the feature-flag substrate end-to-end (lib + admin route + density toggle UI).
+
+**Per-batch operating rules used during M2** (same as M1):
+- Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing.
+- One commit per sub-PR. Conventional Commits with `m2-<area>` scope.
+- 10-file cap per PR. Hard rule. Splits used: B3 → 3a/3b, B4 → 4a/4b, B5 → 5a/5b/5c.
+- No `--force` ever. No rebases on shared branches. No direct commits to `main` or `milestone-2-shared-primitives`.
+- All tests use mocks (Vitest + mockD1 + mockEnv + mockStripe + mockResend). No live D1 / Stripe / Resend / `wrangler deploy` from Claude.
+- **No remote D1 migration apply from Claude.** Migration `0021_feature_flags.sql` ships in repo only; operator applies via `npx wrangler d1 migrations apply --remote` after milestone merges to main (see [m2-deploy.md](docs/runbooks/m2-deploy.md)).
+- Stop-and-ask if a do-not-touch file appears to need editing or a test reveals current behavior conflicting with audit-documented behavior.
+
+**Final batch table (all 11 merged on milestone; milestone → main merged 2026-05-07 as `7a87f28` via PR [#28](https://github.com/bulletbiter99/air-action-sports/pull/28)):**
+
+| Batch | What it ships | Squash on milestone | PR |
+|---|---|---|---|
+| **B1** FilterBar primitive + AdminFeedback proof (7 files) | `src/components/admin/FilterBar.{jsx,css}`, `src/hooks/useFilterState.js`, `src/hooks/useSavedViews.js`, 2 tests, AdminFeedback.jsx refactor | `658e95b` | [#16](https://github.com/bulletbiter99/air-action-sports/pull/16) |
+| **B2** writeAudit() helper + 5 admin call sites (4 files) | `worker/lib/auditLog.js` + test; refactored users.js (3 sites) + emailTemplates.js (2 sites) | `2cf1485` | [#17](https://github.com/bulletbiter99/air-action-sports/pull/17) |
+| **B3a** Money helpers + 6 admin sites (9 files) | `src/utils/money.js`, `worker/lib/money.js`, dual-import test (66 tests), 6 admin pages refactored | `1d3ed98` | [#18](https://github.com/bulletbiter99/air-action-sports/pull/18) |
+| **B3b** Email helpers + 4 admin sites (6 files) | `src/utils/email.js`, `worker/lib/email.js` extended, dual-import test (76 tests), 3 admin route files refactored | `f35a0ec` | [#19](https://github.com/bulletbiter99/air-action-sports/pull/19) |
+| **B4a** `findExistingValidWaiver` relocation [CRITICAL] (4 files) | `worker/lib/waiverLookup.js` (verbatim copy), webhooks.js (def removed + shim re-export), admin/bookings.js (new import path), gate map updated | `683f4a6` | [#20](https://github.com/bulletbiter99/air-action-sports/pull/20) |
+| **B4b** Re-target Group D test imports + drop shim (10 files) | 9 test files retargeted, webhooks.js shim removed | `36fda2b` | [#21](https://github.com/bulletbiter99/air-action-sports/pull/21) |
+| **B5a** Feature-flag substrate (4 files) | `migrations/0021_feature_flags.sql` (operator-applies-remote), `worker/lib/featureFlags.js` (isEnabled/listFlags/setUserOverride with graceful table-missing handling), 27+7 tests | `5e1f568` | [#22](https://github.com/bulletbiter99/air-action-sports/pull/22) |
+| **B5b** Feature-flag admin route + client hook (5 files) | `worker/routes/admin/featureFlags.js` (GET list / PUT override), worker/index.js mount, `src/admin/useFeatureFlag.js`, `tests/helpers/adminSession.js`, 7 route tests | `95983f4` | [#24](https://github.com/bulletbiter99/air-action-sports/pull/24) |
+| **B5c** Design tokens + density toggle UI (6 files) | `src/styles/tokens.css` (new), `src/styles/admin.css` (refactor — zero pixel diff target verified), AdminLayout.jsx (data-density attr), AdminSettings.jsx (toggle UI), useFeatureFlag.js extended (exists + setFeatureFlagOverride), 3 helper tests | `a6ab6e9` | [#25](https://github.com/bulletbiter99/air-action-sports/pull/25) |
+| **B6** Group E admin booking characterization tests (9 files) | `tests/helpers/adminBookingFixture.js` (new) + 7 audit tests (E47-E53) for `worker/routes/admin/bookings.js` (manual cash/comp/card branches, pricing parity, auto-link, refund Idempotency-Key, refund-rejects-cash) + gate map promotion | `d40e099` | [#26](https://github.com/bulletbiter99/air-action-sports/pull/26) |
+| **B7** Closing: rollback + deploy + baseline coverage runbooks + final docs (5 files) | `docs/runbooks/m2-{rollback,deploy,baseline-coverage}.{md,txt}`, CLAUDE.md + HANDOFF.md M2 closed-state update | `febadf0` | [#27](https://github.com/bulletbiter99/air-action-sports/pull/27) |
+| **milestone → main** | merge commit per [m2-deploy.md](docs/runbooks/m2-deploy.md) (preserves per-batch SHAs) | `7a87f28` | [#28](https://github.com/bulletbiter99/air-action-sports/pull/28) |
+
+**Final test count:** 471 unit tests across 70 files (216 M1 baseline + 255 new across M2 batches 1–6) + 7 Playwright smoke tests scaffolded across 3 files (M1) = **478 tests across 73 files**.
+
+- M1 carryover: 216 unit tests (sanity / pricing / webhook / waiver / auto-link)
+- B1 FilterBar: +45
+- B2 writeAudit: +16
+- B3a money: +66 (33 per target × 2 targets — client + worker mirror)
+- B3b email: +76 (38 per target × 2 targets)
+- B4a/4b: 0 (relocation; same 25 Group D tests, just retargeted import paths)
+- B5a feature-flags: +34 (27 main + 7 readiness)
+- B5b feature-flag route: +7
+- B5c density toggle: +3
+- B6 admin booking: +8 (7 audit-prescribed E47-E53 + 1 sibling negative case for auto-link)
+
+Audit Groups F (auth), G (worker-level), H (cron) remain **deferred to post-M2** — see `uncovered` in [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json) for the punch list.
+
+**Gated paths after M2** (in `scripts/test-gate-mapping.json gates`):
+- `worker/lib/pricing.js` (M1)
+- `worker/lib/stripe.js` (M1, signature subset)
+- `worker/routes/webhooks.js` (M1)
+- `worker/routes/waivers.js` (M1)
+- `worker/lib/waiverLookup.js` (NEW M2 B4a/4b)
+- `worker/routes/admin/bookings.js` (NEW M2 B6 — promoted from `uncovered`)
+
+**Operator-applies-remote action queued for M2 deploy:**
+After M2 merges to main, operator runs `npx wrangler d1 migrations apply air-action-sports-db --remote` to apply `migrations/0021_feature_flags.sql`. Until then, `worker/lib/featureFlags.js` returns `false`/`[]` gracefully on missing tables — the density toggle UI in B5c is hidden until migration applies. Documented in [docs/runbooks/m2-deploy.md](docs/runbooks/m2-deploy.md).
+
+**Critical do-not-touch handled in M2:**
+- B4a/4b moved `findExistingValidWaiver` from `worker/routes/webhooks.js` to `worker/lib/waiverLookup.js`. The function body is **byte-identical** to the original; only its location changed. Group D's 25 characterization tests pass identically. The cross-route import smell from audit §08 #7 is fully closed.
+- B2/B3a/B3b refactors only touched admin-side surfaces. Public-side files (Booking.jsx, Waiver.jsx, feedback.js, pricing.js, webhooks.js's webhook handler logic) are untouched.
+- B5b adds one route mount line to `worker/index.js` alongside the existing 17 admin mounts. The DNT-listed functions in worker/index.js (`serveUpload`, `rewriteEventOg`, `scheduled`, `withSecurityHeaders`) are untouched.
+
+**Conventions established / used during M2** (preserved as a template for the next milestone):
+- Conventional Commits with `m2-<area>` scope: `feat`, `refactor`, `test`, `chore`, `docs`.
+- Sub-branches: flat `m2-batch-N-slug` (NOT nested under `milestone-2-shared-primitives/...` — git ref path collision avoided, same as M1).
+- Dual-target testing pattern (B3a money, B3b email): `tests/unit/utils/<helper>.test.js` imports BOTH `src/utils/<helper>.js` AND `worker/lib/<helper>.js`, runs identical suite against each. Proves "same logic, same return shape" required when client + worker can't share code (Vite bundles src/ for SPA only).
+- Audit-log helper API: `writeAudit(env, { userId, action, targetType, targetId, meta, ipAddress? })`. The optional `ipAddress` selects between 6-col (admin routes) and 7-col (webhook + waivers) shape; M3+ refactors of those flows use the same helper.
+- Feature-flag lib API: `isEnabled(env, flagKey, user)`, `listFlags(env, user)`, `setUserOverride(env, flagKey, userId, enabled)`. Reads degrade gracefully on missing tables; writes throw loudly. 4 flag states: off/on/user_opt_in/role_scoped.
+- Feature-flag client API: `useFeatureFlag(key) → { enabled, exists, loading, refresh }` with module-level fetch cache. `setFeatureFlagOverride(key, enabled)` issues PUT + busts cache. Hide UI when `!exists` (graceful migration-unapplied state).
+- CSS density tokens: `:root` block at default values + `[data-density="compact"]` override block. Zero pixel diff at default verified via dev-server `getComputedStyle` probe.
+- Reusable test helpers: `adminSession.js` (cookie minting + user-row lookup binding) used by 7 admin route tests in B5b + 8 admin booking tests in B6. Same M1 helper-extraction pattern as `webhookFixture.js`/`waiverFixture.js`.
+
+**Resume the milestone in a fresh session (if any post-merge fix-up needed):**
+1. `git checkout milestone-2-shared-primitives && git pull origin milestone-2-shared-primitives`
+2. `npm install`
+3. `npm test` — confirm 471/471 passing
+4. Read this section + the relevant batch's row in the table above
+5. Use the post-merge SHA fill-in step in [m2-deploy.md](docs/runbooks/m2-deploy.md) for the small follow-up doc PR after milestone merges.
+
+**M2 stop-and-ask conditions** (preserved here as a checklist for any future related work):
+- A do-not-touch file needs modification beyond Batch 4's documented relocation (which is now complete).
+- A test fails after a refactor that should be behavior-preserving (signals real drift; investigate, don't "fix" the test).
+- Coverage on protected files drops from M2 baseline (per [docs/runbooks/m2-baseline-coverage.txt](docs/runbooks/m2-baseline-coverage.txt)).
+- A dependency missing from `package.json` that the original code path requires.
+
+**Post-M2 — what's next:**
+
+The audit prescribed 83 characterization tests across Groups A–I. M1 landed Groups A, B, C, D, and I (smoke scaffolded). M2 landed Group E. **Groups F, G, H remain deferred** — see the `uncovered` section of [scripts/test-gate-mapping.json](scripts/test-gate-mapping.json):
+
+- **Group F** — auth (audit F54–F64): `worker/lib/auth.js` (verifyPassword, hashPassword, requireAuth, requireRole), `worker/lib/vendorToken.js`.
+- **Group G** — worker-level (audit G65–G70): `worker/index.js` serveUpload, rewriteEventOg.
+- **Group H** — cron (audit H71–H76): `worker/index.js` scheduled handler.
+
+The **lint config gap** (audit pain-point #8 — `eslint.config.js` missing) was closed in M3 batch 0; lint is now blocking in CI.
+
+The admin-overhaul work (Phase 2 broader goal — see [docs/audit/10-open-questions.md](docs/audit/10-open-questions.md) #13, **resolved as A+B+C+incremental** per [docs/decisions.md](docs/decisions.md) D01) builds on M2's shared primitives. M3 closed 2026-05-07; M4 (IA reorganization) is the next coding milestone.
+
+### Milestone 3 — Customers Schema + Persona-Tailored AdminDashboard (✓ closed 2026-05-07; merged to main as `87da972` via PR [#53](https://github.com/bulletbiter99/air-action-sports/pull/53))
+
+Long-lived branch: `milestone/3-customers` (off `main` at `6323500`). Sub-branches use **flat `m3-batch-N-slug` naming** (the prompt's `milestone/3-customers/batch-N-slug` form was rejected — same git ref-collision workaround M1/M2 used). PRs from sub-branch to `milestone/3-customers`; milestone merges to `main` at close per `docs/runbooks/m3-deploy.md` (lands in B12).
+
+**Per-batch operating rules:**
+- Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing.
+- 10-file cap per PR. Hard rule.
+- Conventional Commits with `m3-<area>` scope.
+- No `--force`, no rebases on shared branches, no direct commits to `main` or `milestone/3-customers`.
+- All tests use M2 mock helpers. No live D1 / Stripe / Resend.
+- **No remote D1 migration apply from Claude.** Schema migrations land in repo only; tested via `wrangler dev --local` against the local D1 fixture (B1 establishes); operator applies remote per `docs/runbooks/m3-deploy.md`.
+- **Schema-then-code ordering enforced.** Migration goes in first, locally verified, *operator applies remote*, *then* dependent code lands in a subsequent batch. Never combine.
+
+**M3-specific do-not-touch (cumulative with audit DNT):**
+- `worker/routes/bookings.js` (public POST /checkout) — M6 territory
+- `worker/routes/waivers.js` (public waiver sign) — DNT
+- `worker/lib/stripe.js` — M6 territory; coverage already 93.93%
+
+**Status (as of 2026-05-07, post-B12 — M3 CLOSED):**
+
+| Batch | What it ships | Status | Squash on milestone |
+|---|---|---|---|
+| **B0** Hygiene + dogfood verification (10 files) | ESLint flat config + lint blocking; M2 staleness cleanup; decisions register; M2 primitive dogfood; coverage floor; M3 plan in this section | ✓ merged | `3afbb4c` ([#30](https://github.com/bulletbiter99/air-action-sports/pull/30)) |
+| **B1** Local D1 setup + staging seed (4 files) | `scripts/{seed-staging.sql,setup-local-d1.sh,teardown-local-d1.sh}`; CLAUDE.md "Local D1 setup" subsection | ✓ merged | `aee3791` ([#31](https://github.com/bulletbiter99/air-action-sports/pull/31)) |
+| **B2** `customerEmail.js` lib (dual-target, 5 files) | `worker/lib/customerEmail.js` + `src/utils/customerEmail.js` mirror + 62 tests; closes decision register #32 | ✓ merged | `0cfd436` ([#32](https://github.com/bulletbiter99/air-action-sports/pull/32)) |
+| **B3** Migration A — customers schema additive (1 file) | `migrations/0022_customers_schema.sql` — customers + customer_tags + segments + gdpr_deletions tables; nullable customer_id columns; indexes. **Migration applied to remote D1 2026-05-07 ✓** | ✓ merged | `0e06b85` ([#33](https://github.com/bulletbiter99/air-action-sports/pull/33)) |
+| **B4** Backfill script + tests (3 files) | `scripts/backfill-customers.js` (Node CLI + helpers); `scripts/backfill-customers.test.js` (operator-runnable integration test); `tests/unit/scripts/backfill.test.js` (31 vitest unit tests). Local-D1 integration verified end-to-end. **Backfill ran on remote 2026-05-07 ✓** (2 customers created from 2 bookings + 4 attendees; idempotent). | ✓ merged | `a3bfcc5` ([#34](https://github.com/bulletbiter99/air-action-sports/pull/34)) |
+| **B5** Dual-write code paths (6 files) | `worker/lib/customers.js` (NEW — `findOrCreateCustomerForBooking` + `recomputeCustomerDenormalizedFields`); `worker/lib/ids.js` adds `customerId()` generator; `worker/routes/webhooks.js` + `worker/routes/admin/bookings.js` wired (resolve customer_id pre-INSERT/UPDATE; recompute aggregates post-attendees + post-refund); `tests/unit/lib/customers.test.js` 11 new tests; `scripts/test-gate-mapping.json` adds `customers.js` gate. NO edits to `worker/routes/bookings.js` or `worker/lib/stripe.js` (M6 territory). | ✓ merged | `a4870f6` ([#36](https://github.com/bulletbiter99/air-action-sports/pull/36)) |
+| **B6** Migration C — NOT NULL + remove fallback (7 files) | `migrations/0023_customers_not_null.sql` (column-rename approach via SQLite 3.35+ `ALTER TABLE ADD COLUMN / DROP COLUMN / RENAME COLUMN` — table-level rebuild was rejected by D1's FK enforcement during `DROP TABLE`); `worker/lib/customers.js` drops `if (!cid) return;` guard; `worker/routes/admin/bookings.js` adds email-format 400 guard; `worker/routes/webhooks.js` cleanup; `scripts/backfill-customers.js` drops SQL `BEGIN`/`COMMIT` (D1 rejects them) + JSON-parse fix for wrangler stdout UI chars; `tests/unit/admin/manual-rejects-malformed-email.test.js` (NEW); `tests/unit/lib/customers.test.js` removes B5 null-no-op test. **Migration applied to remote D1 2026-05-07 ✓** (per the user's accelerated path: skipped 7-day window since dataset is tiny — 2 bookings, 0 malformed-email rows). | ✓ merged | `4c2e87f` ([#38](https://github.com/bulletbiter99/air-action-sports/pull/38)) |
+| **B7** Group F — auth characterization tests (6 files) | 11 audit-prescribed tests (F54-F64) + 2 extra defensive cases for `verifyVendorToken`. `tests/unit/auth/{password,auth,vendor-token}.test.js`; gate map promotes `worker/lib/{password,auth,vendorToken}.js` from `uncovered` to `gates`. Purely additive. | ✓ merged | `b4bece9` ([#40](https://github.com/bulletbiter99/air-action-sports/pull/40)) |
+| **B8a** Customers admin route + flag migration (7 files) | `worker/routes/admin/customers.js` (NEW — GET list, GET :id detail, POST merge with manager+ role); `worker/index.js` mounts route at `/api/admin/customers`; `migrations/0024_customers_entity_flag.sql` (NEW — flag `customers_entity` state=`off`); `tests/unit/admin/customers-route.test.js` (NEW — 11 tests covering pagination/search/archived filter/detail 404/merge happy-path/self-merge refuse/already-archived refuse/staff 403); gate map adds `worker/routes/admin/customers.js`. **Migration 0024 applied to remote 2026-05-07 ✓** (flag stays `off` until owner flips). | ✓ merged | `765f792` ([#42](https://github.com/bulletbiter99/air-action-sports/pull/42)) |
+| **B8b** Customers UI: list / detail / merge pages (7 files) | `src/admin/AdminCustomers.jsx` (list with FilterBar — search by email/name, archived enum filter active/archived/all, paginated table); `src/admin/AdminCustomerDetail.jsx` (detail with contact card, aggregates, comm prefs, notes, tags, bookings table, merge modal — type-ahead search for primary, debounced /api/admin/customers?q query, on submit POST /merge then redirect to primary); `src/admin/AdminCustomers.css` (page styling with density-aware table padding); `src/App.jsx` registers `/admin/customers` + `/admin/customers/:id` routes; `src/admin/AdminLayout.jsx` injects "Customers" sidebar entry under Insights, gated by `useFeatureFlag('customers_entity')` (flag is `off` in production so the entry is hidden by default; pages render a "feature not enabled" placeholder if visited directly). | ✓ merged | `203e640` ([#44](https://github.com/bulletbiter99/air-action-sports/pull/44)) |
+| **B9** Persona-tailored AdminDashboard (8 files) | `migrations/0025_new_admin_dashboard_flag.sql` (flag `new_admin_dashboard`, state=`off`); `src/admin/personaLayouts.js` (NEW — role→widget-key list config + `resolveLayout(user)` + `personaLabel(role)` helpers, owner=`[RevenueSummary, CronHealth, TodayEvents, RecentBookings]`, manager=`[TodayEvents, RecentBookings, CronHealth]`, staff=`[TodayEvents, RecentBookings]`); `src/admin/AdminDashboardPersona.jsx` (NEW — persona shell that resolves layout per `user.role` and renders widgets via the WIDGETS registry; preserves the +New Booking CTA from legacy for manager+); `src/admin/widgets/PersonaWidgets.jsx` (NEW — RevenueSummary/CronHealth/TodayEvents/RecentBookings, each self-contained data fetcher hitting existing /api/admin/analytics + /events + /bookings endpoints); `src/admin/widgets/PersonaWidgets.css`; `src/admin/AdminDashboard.jsx` (EDIT — adds flag-gated dispatcher at the top; legacy code path renamed to `AdminDashboardLegacy()` and falls through unchanged when flag is off; persona shell lazy-loaded so legacy bundle doesn't grow). **`npm run build` clean.** | pending | — |
+| **B10** System tag refresh cron (7 files) | `worker/lib/customerTags.js` (NEW — `computeSystemTags(customer, now)` pure helper + `runCustomerTagsSweep(env)` I/O wrapper using `db.batch()` for atomic clear+reinsert; 4 system tags v1: `vip` LTV>$500, `frequent` ≥5 bookings, `lapsed` no booking 180+ days, `new` first booking ≤30 days); `worker/index.js` scheduled() branches on `event.cron === '0 3 * * *'` to dispatch tag sweep vs the existing 15-min reminder/abandon/vendor sweeps; `wrangler.toml` adds `"0 3 * * *"` to `triggers.crons`; `tests/unit/lib/customer-tags.test.js` (NEW — 12 tests covering each tag threshold + multi-tag combinations + zero-customer + sweep summary shape); gate map adds `worker/lib/customerTags.js`. Test count 600 → 612. **The new cron registers automatically on Workers Builds redeploy** — no operator step needed. | ✓ merged | `1afb594` ([#48](https://github.com/bulletbiter99/air-action-sports/pull/48)) |
+| **B11** GDPR deletion workflow (4 files) | `worker/routes/admin/customers.js` (edit) — adds `POST /:id/gdpr-delete` (owner only); soft-archives with `archived_reason='gdpr_delete'`, redacts email/name/phone/notes/notes_sensitive, deletes customer_tags, writes `gdpr_deletions` audit row + `customer.gdpr_deleted` audit_log entry. `tests/unit/admin/customers-route.test.js` (edit) — 5 new tests (happy path verifies redact + archive + tags-delete + gdpr_deletions row + audit; 409 on already-archived; 404 unknown; 403 manager; 400 invalid requestedVia). `src/admin/AdminCustomerDetail.jsx` (edit) — owner-only GDPR delete button below the merge button; `<GdprDeleteModal>` requires typing the customer's email-or-id to confirm; submits `{ requestedVia, reason }` and reloads the page on success. CLAUDE.md/HANDOFF.md updates. Test count 612 → 617. | ✓ merged | `c7e5d33` ([#50](https://github.com/bulletbiter99/air-action-sports/pull/50)) |
+| **B12** Closing: runbooks + final docs (5 files) | `docs/runbooks/m3-baseline-coverage.txt` (NEW — full coverage snapshot post-M3 close, 617/80, gated paths inventory); `docs/runbooks/m3-deploy.md` (NEW — captures the actual deploy sequence used 2026-05-07: per-batch rolling brings-up, operator-driven remote D1 ops including the 4 migrations + 1 backfill, the three D1 quirks discovered mid-milestone — BEGIN/COMMIT rejection, FK enforcement on table rebuild, wrangler stdout JSON-parse fix); `docs/runbooks/m3-rollback.md` (NEW — 6-level decision tree from instant flag flip to full schema rollback, recipes for each B-batch, GDPR mis-fire recovery procedure); CLAUDE.md/HANDOFF.md M3 closed-state. | ✓ merged | `08b59de` ([#52](https://github.com/bulletbiter99/air-action-sports/pull/52)) |
+
+**Cumulative on milestone branch (after B12 — M3 closed):** 617 unit tests across 80 files (B8b/B9 added 0 tests; B10 added 12 tests for `customerTags.js`; B11 added 5 tests for the GDPR delete endpoint; B12 is docs-only, no test changes).
+
+**M3 closed state — what shipped end-to-end:**
+- 4 D1 migrations applied to remote: 0022 (customers schema), 0023 (NOT NULL on customer_id), 0024 (`customers_entity` flag), 0025 (`new_admin_dashboard` flag).
+- B4 backfill ran on remote: 2 customers created, 2 bookings + 4 attendees linked.
+- 6 new gated paths in `scripts/test-gate-mapping.json`: `customers.js` (lib), `password.js`, `auth.js`, `vendorToken.js`, `admin/customers.js`, `customerTags.js`.
+- 2 new feature flags shipped, both `state='off'` by default; flippable via SQL UPDATE per `docs/runbooks/m3-deploy.md`.
+- Persona-tailored AdminDashboard with legacy preserved as fallback.
+- Customers admin UI (list/detail/merge/GDPR-delete).
+- Nightly system-tag cron (03:00 UTC) refreshing `vip` / `frequent` / `lapsed` / `new` per customer.
+
+**Critical dependency chain (the migration cadence):**
+
+```
+B2 customerEmail.js → B3 schema A (operator applied 0022 to remote ✓)
+                    → B4 backfill script (tested locally ✓)
+                    → B5 dual-write code (merge to main; operator runs backfill on remote)
+                    → 7-day dual-write verification window (operator-driven)
+                    → B6 schema C (operator applies 0023)
+```
+
+B7 (Group F tests) is the only batch independent of the chain. B9/B10 have lighter dependencies. B8/B11 gate on B6's NOT NULL.
+
+**Operator-applies-remote actions** (cumulative):
+- ✓ Migration `0022_customers_schema.sql` applied 2026-05-07 (B3 closing step)
+- ⏳ Backfill `node scripts/backfill-customers.js --remote` — runs AFTER B5 merges to main and Workers Builds redeploys. The 7-day verification window starts after backfill completes.
+- ⏳ Migration `0023_customers_not_null.sql` — applied AFTER 7-day window verification (B6 closing step)
+- ⏳ `customers_entity` flag (B8 ships migration `0024`; flag stays `off` until owner flips)
+- ⏳ `new_admin_dashboard` flag (B9 ships migration `0025`; flag stays `off`)
+
+**Resume the milestone in a fresh session:**
+1. `git checkout milestone/3-customers && git pull origin milestone/3-customers`
+2. `npm install`
+3. `npm test` — confirm **617/617** passing across 80 files
+4. M3 is **closed**. The next milestone (M4 / Phase 2 next stage per `docs/decisions.md` D01) starts with IA reorganization. Read `docs/runbooks/m3-baseline-coverage.txt` + `docs/runbooks/m3-deploy.md` + `docs/runbooks/m3-rollback.md` for the closed-state reference if any post-M3 incident requires a rollback.
+5. Post the batch's plan; wait for "proceed"; create sub-branch `m3-batch-N-slug`; execute; PR; merge — repeat through B12
+
+For local-D1 work (B5+, B6's migration, B8 schema):
+```bash
+bash scripts/setup-local-d1.sh   # apply all 22 migrations + seed (idempotent)
+bash scripts/teardown-local-d1.sh  # nuke local D1 for fresh runs
+```
+
+The seed populates 50 bookings with deliberate email-distribution edge cases (Sarah's 8 Gmail dot-variants, Mike's 4 plus-aliases, john.doe vs johndoe yahoo split, malformed + null emails). B4's backfill collapses those to 38 customers; the integration test asserts.
+
+**Stop-and-ask conditions:**
+- A do-not-touch file needs modification beyond what the documented batches specify
+- The backfill script produces non-idempotent results across re-runs (correctness bug; halt)
+- A test fails after a behavior-preserving refactor (investigate, don't "fix" the test)
+- Coverage on any of the 12 gated files drops from M3 closing baseline (per [docs/runbooks/m3-baseline-coverage.txt](docs/runbooks/m3-baseline-coverage.txt))
+- Any production-data anomaly during local backfill testing
+
+### Milestone 5 — Staff Management + Event-Day Mode (✓ CLOSED + DEPLOYED 2026-05-08)
+
+**Long-lived branch:** `milestone/5-staff-event-day` (off `main` at `7594d9a`, M4 close). **Status: ✓ CLOSED + DEPLOYED.** All 16 rework PRs (#122-#140) merged to milestone branch + milestone merged to main as `1e74c15` (PR [#142](https://github.com/bulletbiter99/air-action-sports/pull/142)) on 2026-05-08. Hotfix PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) merged as `82fc839` to fix email_templates seed migrations (see Lesson #7 below). Verify-m5 reports **15/15 batches complete · 95/95 individual checks pass**.
+
+**Deploy state:** Production runs M5. `main` at `82fc839`. All 14 M5 migrations (0030-0043) applied to remote D1 on 2026-05-08. Latest Workers deployment `fb1d535b-d6ca-4cd0-ae98-c49601b27ab8` at 2026-05-08T22:50 UTC. See [HANDOFF.md §M5 deployed](HANDOFF.md) for the deploy outcome table + post-deploy smoke list.
+
+**Backstory:** the prior M5 session shipped 20 PRs (#101-#120) and declared the milestone closed, but a subsequent audit revealed substantial scope gaps: 21+ files spec'd in the M5 prompt that were never created, 3 cron sweeps not wired into `worker/index.js`, 8+ email templates not seeded, 4 broken UI states (Schedule tab "coming soon", IncidentReport posting to a non-existent endpoint, EventChecklist fake-mock state, EquipmentReturn damage-charge stub doing nothing), 5+ migrations not written, and B17 (AdminUsersLegacy decommission) skipped entirely. The rework session executed [docs/runbooks/m5-rework-plan.md](docs/runbooks/m5-rework-plan.md) batch by batch, with the [scripts/verify-m5-completeness.js](scripts/verify-m5-completeness.js) gate enforcing completeness on every PR.
+
+**Rework PR table** — 16 sub-PRs landed on `milestone/5-staff-event-day` over 2026-05-07 / 2026-05-08:
+
+| Batch | PR | Verify | What it shipped |
+|---|---|---|---|
+| R0a | [#122](https://github.com/bulletbiter99/air-action-sports/pull/122) | partial | Shared primitives `AdminPageHeader` + `EmptyState` + 4 admin pages (AdminAuditLog / AdminVendorContracts / AdminSettings / AdminRentalAssignments) |
+| R0b | [#123](https://github.com/bulletbiter99/air-action-sports/pull/123) | partial | 7 mid-size admin pages (Users / Waivers / Roster / TaxesFees / EmailTemplates / Vendors / PromoCodes) |
+| R0c | [#124](https://github.com/bulletbiter99/air-action-sports/pull/124) | **R0 8/8** | 5 largest admin pages (Events / Feedback / Scan / VendorPackages / Rentals); closes R0 fully — all 16 admin pages have all 7 M5 B0 scope items |
+| R4 | [#125](https://github.com/bulletbiter99/air-action-sports/pull/125) | **5/5** | Combined `route.test.js` split into 6 files (5 spec'd + archive); 5 new typeahead tests |
+| R5 | [#126](https://github.com/bulletbiter99/air-action-sports/pull/126) | **5/5** | 4 staff document route tests in `tests/unit/admin/staffDocuments/` |
+| R6 | [#127](https://github.com/bulletbiter99/air-action-sports/pull/127) | **2/2** | `requireAuth` extension: portal-cookie-only returns 403 with `portalCookieDetected: true`; F57 (no-cookie 401) preserved |
+| R8 | [#128](https://github.com/bulletbiter99/air-action-sports/pull/128) | **8/8** | `worker/lib/certifications.js` + `AdminStaffCertEditor.jsx` + `runCertExpirationSweep` cron + 3 templates (migration 0039) |
+| R9 | [#129](https://github.com/bulletbiter99/air-action-sports/pull/129) | **8/8** | `AdminEventStaffing.jsx` + `worker/lib/eventStaffing.js` + reminder cron + auto-decline cron + 2 templates (migration 0040) |
+| R10 | [#130](https://github.com/bulletbiter99/air-action-sports/pull/130) | **4/4** | Schedule tab activated + `worker/lib/laborEntries.js` + 30+15 tests; `ComingSoon` → `TabPlaceholder` rename |
+| R11 | [#133](https://github.com/bulletbiter99/air-action-sports/pull/133) | **6/6** | `AdminStaff1099Thresholds.jsx` + `worker/lib/thresholds1099.js` + auto-lock cron (March 1+) + `w9_reminder` template (migration 0041) + lib + route tests (+55 tests) |
+| R12 | [#134](https://github.com/bulletbiter99/air-action-sports/pull/134) | **6/6** | `EventDayContext.jsx` extracted + `event-day.css` (high-contrast palette, 64px tap targets) + `worker/lib/eventDaySession.js` (`requireEventDayAuth` + `bumpActivityCounter` + 30hr window) + `worker/routes/event-day/session.js` (start/heartbeat/end/me) (+60 tests) |
+| R13 | [#135](https://github.com/bulletbiter99/air-action-sports/pull/135) | **9/9** | `AttendeeDetail.jsx` + `WalkUpBooking.jsx` + `CameraPermissionExplainer.jsx` + `offlineQueue.js` + checkin.js + walkup.js routes + offline-queue + route tests (+43 tests) |
+| R14 | [#136](https://github.com/bulletbiter99/air-action-sports/pull/136) | **7/7** | incidents.js + roster.js + equipment-return.js routes (**fixes IncidentReport.jsx 404 production bug**) + RosterLookup/EquipmentReturn JSX endpoint switches (+32 tests) |
+| R15 | [#137](https://github.com/bulletbiter99/air-action-sports/pull/137) | **9/9** | `event_checklists` schema (migration 0042 + 3 default templates) + `worker/lib/eventChecklists.js` + checklists.js + hq.js routes + auto-instantiate hook in events.js + **EventChecklist.jsx rewired from fake mock to D1-persisted** + EventHQ.jsx switch to /api/event-day/hq (+33 tests) |
+| R16 | [#138](https://github.com/bulletbiter99/air-action-sports/pull/138) | **12/12** | `AdminBookingChargeQueue.jsx` + 2 routes + `worker/lib/bookingCharges.js` + 3 charge email templates + booking_confirmation baseline (migration 0043) + EquipmentReturn UI extension (damage-charge form replaces "M5 B16 will create" tooltip) + HMAC payment-link signing (+28 tests) |
+| R17 | [#139](https://github.com/bulletbiter99/air-action-sports/pull/139) | **3/3** | DELETED `AdminUsers.jsx` + `/admin/users` → `/admin/staff` redirect (`<Navigate replace>`) + sidebarConfig + AdminSettings link updates |
+| R18 | (this PR) | **3/3** | CLAUDE.md + HANDOFF.md M5 close-state + `m5-baseline-coverage.txt` refresh |
+
+**Rework metrics at close:**
+- **Tests: ~1538 across ~145 files** (was 1122 pre-rework; +165 from R0-R10, +251 from R11-R17)
+- **Lint:** 0 errors / ~390 warnings
+- **Build:** clean
+- **Verify-m5:** **15/15 batches complete · 95/95 checks pass**
+
+(The exact post-merge counts will be confirmed when the milestone branch reaches main; the numbers above are the verified per-batch deltas at time of R18 close. Each rework PR's verification gate is independently green.)
+
+**Operator-applies-remote backlog** (✓ all applied 2026-05-08):
+- **Migrations 0030-0043** — all 14 M5 migrations applied to remote D1 in order during Phase 4 of the deploy. Initial apply failed at **0033** (`NOT NULL constraint failed: email_templates.created_at`); resolved by hotfix PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) which added `id` + `created_at` to the 5 email_templates seed migrations (0033/0039/0040/0041/0043 — 11 rows total). Re-apply after hotfix landed all 14 cleanly. Per the d1_migrations table: `0030_staff_foundation` through `0043_charge_templates` all tracked applied.
+
+**Workers Builds redeploy** (post-merge) automatically registers the **3 new cron sweeps** that join the existing 03:00 UTC trigger:
+- `runCertExpirationSweep` (R8) — 60d/30d/7d cert renewal warnings to staff
+- `runEventStaffingReminderSweep` + `runEventStaffingAutoDeclineSweep` (R9) — pre-event reminders + auto-decline overdue invites
+- `runTaxYearAutoLockSweep` (R11) — locks previous tax year on March 1+; sends w9_reminder to threshold-meeting recipients missing EIN/legal_name
+
+**Lessons captured during rework** (durable; apply to any future M5+ milestone):
+
+1. **Verify-m5 cron-sweep regex requires `const NAME = ` declaration** in `worker/index.js`. Bare imports don't match. Pattern:
+   ```js
+   import { runMySweep as _runMySweep } from './lib/...';
+   const runMySweep = _runMySweep;  // verify-m5 detects this
+   ```
+   Used by R8 + R9 + R11.
+
+2. **Verify-m5 tab-active regex (`activeTab === 'X'.*ComingSoon` with `/s` flag) spans the whole file.** A helper named `ComingSoon` further down false-positives even after the JSX changes. R10 renamed to `TabPlaceholder`.
+
+3. **Don't hardcode SQL result column literals.** `INSERT ... VALUES (?, ?, ?, 'sent')` makes `args.toContain('sent')` assertions fail because the value is in the SQL string, not the args array. Always parameterize: `VALUES (?, ?, ?, ?)` and bind `'sent'` as the 4th arg. Caught + fixed in R9 mid-batch; applied uniformly thereafter.
+
+4. **`useMemo` inside JSX after an early return guard** violates `react-hooks/rules-of-hooks`. R0b had `<FilterBar schema={useMemo(() => CONST, [])} />` after `if (!isAuthenticated) return null;` — fix is move the `useMemo` to component top OR pass a module-level constant directly (the static-CONST case).
+
+5. **`requireAuth` extension** must preserve F57 (no-cookie 401). The new portal-cookie-only 403 branch only fires when `aas_session` is genuinely absent (parseCookieHeader returns falsy). Garbled admin cookie + portal cookie still goes through admin path → 401.
+
+6. **Per-batch verify-m5 + plan-mode-first prevented scope creep.** Each rework PR included the verify-script's specific batch output in the PR body proving the batch's gaps closed. The rework prompt's gate ("If the script doesn't pass, the rework batch isn't done") was the single load-bearing constraint that made the rework actually finish.
+
+7. **Production `email_templates.id` is `TEXT PRIMARY KEY` and `created_at` is `INTEGER NOT NULL` — both required.** Local D1 fixture has a more permissive schema, so migrations seeding `email_templates` rows pass unit tests but fail on remote apply if they omit these columns. **For any future migration that seeds `email_templates`, include `id='tpl_<slug>'` and `created_at=updated_at`** — match the dominant existing-row id convention (`tpl_event_reminder_24h`, `tpl_user_invite`). Surfaced during M5 Phase 4 deploy 2026-05-08 when migration 0033 hard-failed mid-apply with `NOT NULL constraint failed: email_templates.created_at`; required hotfix PR [#143](https://github.com/bulletbiter99/air-action-sports/pull/143) which added the missing columns to migrations 0033/0039/0040/0041/0043 (11 rows total). The hotfix-then-reapply pattern (operator-driven) is the safe recovery path for any future migration-NOT-NULL-mismatch failure.
+
+**M5-specific carry-forward facts** (durable artifacts for future milestones):
+
+- **Capability system** — `worker/lib/capabilities.js` is now DB-backed (R12-era M5 B2). Maps users.role_preset_key → role_preset_capabilities → capabilities. Legacy fallback to `LEGACY_ROLE_CAPABILITIES` preserved for users without `role_preset_key` (none on remote at M5 close — all 4 admin rows backfilled). M5 introduced ~75 capability keys + 10 role presets + 22 role rows.
+- **Person-side capability** — there is no `personHasCapability` lib yet. R13's bypass-waiver check is a hardcoded role-key allow-list (`lead_marshal`, `event_director`). Future M5+ polish can extract once a second capability surface emerges.
+- **Event-day session model** — `requireEventDayAuth` chains portal-cookie verify → event_day_sessions row lookup → portal_session ownership check → `isEventActive` (30-hour window from 00:00 UTC of `event.date_iso`). Auto-ends sessions on event_window_closed. The `bumpActivityCounter` helper (4 kinds: checkin / walkup / incident / equipment_return) feeds the HQ dashboard's per-staffer activity column.
+- **Damage charge fast-path** — Option B (email-link payment) wired end-to-end. **Stripe Checkout integration is M6 territory** per the migration 0038 schema comment. R16 ships the link generator + email; admin uses the queue's "Mark Paid" modal for Venmo/cash/check until M6 lands.
+- **Roster/Scan/Rentals (D09 → D10 evolution)** — M4 hid them from the sidebar; M5 R0 (D10) restored as standing nav with capability stubs. The /admin/today page still surfaces them as quick-action tiles when an event is live.
+- **Event-day mode entry point** — `/event` (kiosk shell). Sub-routes: `/event/check-in`, `/event/attendee/:qrToken` (R13), `/event/walkup` (R13), `/event/roster`, `/event/incident`, `/event/equipment-return`, `/event/checklist`, `/event/hq`. Gated by portal-cookie auth; Lead Marshal needs a portal magic-link from the M5 B6 staff portal flow.
+
+**Stop-and-ask conditions for any post-M5 work** (durable, not rework-specific):
+
+- A do-not-touch file needs modification beyond what's documented in [docs/audit/06-do-not-touch.md](docs/audit/06-do-not-touch.md) (the M5 rework added several gates; M3-era contract still applies).
+- Existing M5 capability tests fail after a `worker/lib/capabilities.js` edit — investigate before adapting tests.
+- Coverage on any of the M5-introduced gated paths drops from M5 close baseline (per [docs/runbooks/m5-baseline-coverage.txt](docs/runbooks/m5-baseline-coverage.txt)).
+- A future event-day route needs to bypass `requireEventDayAuth` — this is a security regression; reroute through admin-side instead.
+- A new cron sweep needs to be added — apply the const-alias pattern (lessons #1) so verify-m5 (or its successor) detects the wiring.
+- Migration syntax issue (D1 quirks: BEGIN/COMMIT keywords rejected; FK enforcement on table-rebuild — use column-rename pattern; wrangler stdout has UI chars before JSON, strip in scripts).
+
+**Resume from M5 close in a fresh session:**
+1. `git checkout main && git pull origin main` (after milestone merges) or `milestone/5-staff-event-day` for active development.
+2. `npm install`
+3. `npm test` — confirm test count matches m5-baseline-coverage.txt
+4. `npm run lint` — confirm 0 errors
+5. `npm run build` — confirm clean
+6. `node scripts/verify-m5-completeness.js` — should exit 0 (15/15)
+7. **M5 is CLOSED + DEPLOYED 2026-05-08.** Production at `82fc839`; all 14 migrations applied to remote; latest Workers deployment `fb1d535b...`. See `docs/runbooks/m5-{baseline-coverage.txt,deploy.md,rollback.md}` for the post-M5 reference. The deploy story (including the Phase 4 hotfix) is captured in HANDOFF.md §M5 deployed.
+
+---
+
+### Milestone 5.5 — Field Rentals (✓ CLOSED 2026-05-12; merged to main as `8decacc` via PR [#162](https://github.com/bulletbiter99/air-action-sports/pull/162))
+
+**Long-lived branch:** `milestone/5.5-field-rentals` (off `main` at `69e02d8`, M5 docs cleanup). **Status: ✓ CLOSED + DEPLOYED 2026-05-12.** All 11 batches (B1-B11 + B2-hotfix + B6.5) merged to milestone; milestone merged to `main` as `8decacc` via PR [#162](https://github.com/bulletbiter99/air-action-sports/pull/162). Workers Builds auto-deployed from main; operator applies migration 0053 + runs the post-deploy smoke per [docs/runbooks/m55-deploy.md](docs/runbooks/m55-deploy.md).
+
+**Sub-branches** use **flat `m55-batch-N-slug` naming** (same git ref-collision workaround M1-M5 used). The B6.5 batch was numbered to fit between B6 and B7 after a mid-milestone scope addition (the operator's "add/remove fields and locations" requirement surfaced after B2).
+
+**Operator acknowledgment** (from the M5.5 prompt): schema migrations + the public booking flow change in M6 are tested only via local `wrangler dev` before being applied to production. Recovery from a migration mishap requires reverting + restoring D1 from a Cloudflare automated backup at 24-hour granularity.
+
+**Per-batch operating rules** (preserved across all M5.5 batches):
+
+- Plan-mode-first per batch — write the plan, post it, wait for "proceed" before editing
+- **8-file cap per PR** (tighter than the M3/M4 10-file standard)
+- Conventional Commits with `m55-<area>` scope
+- No `--force`, no rebases on shared branches, no direct commits to `main` or milestone
+- All tests use M2 mock helpers + M5 adminSession helper. No live D1 / Stripe / Resend
+- **Pre-migration spot-check is mandatory** — every migration that touches an existing table must verify production schema matches local fixture before authoring (per Lesson #7)
+- Every `email_templates` seed must include `id='tpl_<slug>'` and `created_at=updated_at` (Lesson #7)
+- Between-batch handoff required — 5-bullet summary; operator confirms before next batch opens
+- Stop-and-ask if: a do-not-touch file needs touching, a spot-check reveals divergence, conflict-detection ambiguity surfaces, the inquiry-form audit (Batch 1) reveals an unexpected integration
+
+**Critical do-not-touch surfaces in M5.5** (cumulative with audit DNT):
+
+- `worker/routes/bookings.js` (public POST /checkout) — M6 territory
+- `worker/routes/waivers.js` (public waiver sign)
+- `worker/lib/stripe.js` — M6 territory
+- `worker/lib/auth.js`
+- `worker/lib/formatters.js` (`formatEvent` confirmed DNT in B3; explicit operator approval required to add `siteId` exposure)
+
+**Status (all 11 batches complete; 1997 tests / 161 files):**
+
+| Batch | What it ships | Squash on milestone | PR |
+|---|---|---|---|
+| **B1** Sites schema + inquiry-form audit (2 files) | `migrations/0044_sites_schema.sql` (sites + site_fields + site_blackouts) + `docs/m55-discovery/inquiry-form-audit.md` (recommendation: Path A reuse the form, route by subject) | `cd501e8` | [#145](https://github.com/bulletbiter99/air-action-sports/pull/145) |
+| **B2** events.site_id + sites seed + backfill (6 files) | `migrations/0045_events_site_id.sql` + `worker/lib/ids.js` extension (`siteId()`/`fieldId()`/`blackoutId()`) + `scripts/seed-sites.js` (Ghost Town Hiawatha UT 84545 + Foxtrot Kaysville UT 84037) + `scripts/backfill-events-site-id.js` (parses `events.location` only) + 46 tests | `c20bb1b` | [#146](https://github.com/bulletbiter99/air-action-sports/pull/146) |
+| **B2-hotfix** wrangler `--json --file` quirk (3 files) | scripts switched to `--command` for SELECT against remote (`--file` returns SUMMARY rows). CLAUDE.md D1 quirk #4 added. | `52fb5bf` | [#147](https://github.com/bulletbiter99/air-action-sports/pull/147) |
+| **B3** customers extension + event conflict detection (5 files) | `migrations/0046_customers_client_type.sql` (5 nullable B2B cols) + `worker/lib/eventConflicts.js` (whole-day window) + `worker/routes/admin/events.js` extension (POST/PUT conflict check + `acknowledgeConflicts`) + `src/admin/AdminEvents.jsx` conflict banner + 26 tests | `a61b66c` | [#148](https://github.com/bulletbiter99/air-action-sports/pull/148) |
+| **B4** field_rentals core schema (1 file) | `migrations/0047_field_rentals_core.sql` — 4 tables (customer_contacts + field_rental_recurrences + field_rentals ~50 cols + field_rental_contacts) + 14 indexes. Multi-field rentals via comma-separated `site_field_ids`; B10 sentinels pre-baked | `890f4d8` | [#149](https://github.com/bulletbiter99/air-action-sports/pull/149) |
+| **B5** documents + payments + SUA templates (1 file) | `migrations/0048_field_rentals_documents_payments.sql` — 3 tables: site_use_agreement_documents + field_rental_documents (kind discriminator) + field_rental_payments (off-platform; Stripe Invoices deferred to M6) | `575d42b` | [#150](https://github.com/bulletbiter99/air-action-sports/pull/150) |
+| **B6** capabilities seed + Site Coordinator role (1 file) | `migrations/0049_field_rentals_capabilities.sql` — 17 new caps + `site_coordinator` role_preset (tier 2) + 45 bindings | `efbe243` | [#151](https://github.com/bulletbiter99/air-action-sports/pull/151) |
+| **B6.5** AdminSites CRUD UI (8 files; first major code batch) | `worker/routes/admin/sites.js` (10 endpoints) + AdminSites + AdminSiteDetail + sidebar Sites entry + 24 route tests | `f1aff32` | [#152](https://github.com/bulletbiter99/air-action-sports/pull/152) |
+| **B7a** field rentals backend — list/detail/lifecycle (8 files) | `worker/lib/fieldRentals.js` (pure helpers) + `worker/routes/admin/fieldRentals.js` (8 endpoints) + `worker/lib/eventConflicts.js` excludeFieldRentalId edit + stale-column-name fix (scheduled_starts_at AS starts_at) + 7 ID generators in ids.js + 113 tests | `5b828b2` | [#155](https://github.com/bulletbiter99/air-action-sports/pull/155) |
+| **B7b** documents + payments backend + gate map (6 files) | `worker/routes/admin/fieldRentalDocuments.js` (upload/list/download/retire) + `worker/routes/admin/fieldRentalPayments.js` (record/list/update/refund + auto-flip agreed→paid + aggregate reversal on refund) + 4 new gated paths in scripts/test-gate-mapping.json + 45 tests | `47b5735` | [#156](https://github.com/bulletbiter99/air-action-sports/pull/156) |
+| **B8** field rentals frontend (8 files) | AdminFieldRentals list (FilterBar) + AdminFieldRentalDetail (2-col + 5 modals) + AdminFieldRentalNew (3-step wizard with conflict banner) + sidebar entry + 3 routes in App.jsx + `/api/admin/auth/me` extended with `capabilities[]` + 65 tests | `50b90b7` | [#157](https://github.com/bulletbiter99/air-action-sports/pull/157) |
+| **B9** customers.client_type NOT NULL + FR tab on detail (4 files) | `migrations/0050_customers_client_type_not_null.sql` (column-rename pattern, DEFAULT 'individual') + customers.js formatCustomer + GET /:id field_rentals JOIN + AdminCustomerDetail.jsx Business profile + Field Rentals sections + 9 tests | `0d75c9a` | [#158](https://github.com/bulletbiter99/air-action-sports/pull/158) |
+| **B10a** recurrence-generation cron + sentinel column (5 files) | `migrations/0051_cron_sentinels_and_business_caps.sql` (field_rentals.lead_stale_at + site_coordinator binding) + `worker/lib/fieldRentalRecurrences.js` (11 pure helpers incl. Denver TZ DST math + weekly/monthly_nth_weekday/custom dispatcher; 90-day horizon) + worker/index.js wire + 72 tests | `1493d66` | [#159](https://github.com/bulletbiter99/air-action-sports/pull/159) |
+| **B10b** COI + lead-stale crons + 4 email templates (6 files) | `migrations/0052_field_rental_cron_email_templates.sql` (4 templates) + `worker/lib/fieldRentalCron.js` (60d/30d/7d bucket sweeps + 14d/7d-cadence lead-stale) + emailSender.js +sendCoiAlert + sendLeadStaleAlert + worker/index.js wire + 41 tests | `8cf1364` | [#160](https://github.com/bulletbiter99/air-action-sports/pull/160) |
+| **B11** inquiry form + closing runbooks (8 files) | `worker/routes/inquiry.js` (POST /api/inquiry with honeypot + RL_FEEDBACK + subject-routed lead creation) + `migrations/0053_inquiry_notification_email_template.sql` + Contact.jsx fetch + states + 3 closing runbooks at docs/runbooks/m55-{deploy,rollback,baseline-coverage}.{md,txt} + 18 tests | `8fc2a1a` | [#161](https://github.com/bulletbiter99/air-action-sports/pull/161) |
+| **milestone → main** | regular merge (preserves per-batch SHAs as second-parent commits) — production at M5.5 close | `8decacc` | [#162](https://github.com/bulletbiter99/air-action-sports/pull/162) |
+
+**Cumulative through M5.5 close:** 1997 tests across 161 files (+459 / +15 vs M5 close at 1538 / 146). 10 D1 migrations applied to remote (0044-0053 — 9 mid-milestone + 0053 queued for post-merge operator apply). 17 new capabilities + `site_coordinator` role_preset + 46 new bindings. 5 new email templates (4 cron alerts + 1 inquiry notification). **3 new cron sweeps** (recurrence-generation, COI expiration alerts, lead-stale alerts) at 03:00 UTC alongside the existing 5. **27 new admin endpoints** across 4 router files + **1 new public route** (`POST /api/inquiry`). **6 new admin frontend pages** + 1 public page edit (`/contact`).
+
+**Production data state at close:** 2 sites seeded (Ghost Town + Foxtrot), 1 event (operation-nightfall) linked to Ghost Town, **0 field_rentals records** — first real exercise lands when the first /api/inquiry hits.
+
+**Lessons captured during M5.5** (durable; preserved here as carry-forward to M6+):
+
+1. **wrangler `--json --file` returns a SUMMARY row on remote**, not actual SELECT data. Use `--command` (not `--file`) for read queries against remote D1. Captured as D1 quirk #4 (see the D1 quirks subsection above).
+2. **M5 pre-seeded many M5.5 capabilities** in `0031_capabilities_seed.sql`. B6 spot-checked existing caps + bindings to avoid duplicates. Use `field_rentals.create.bypass_conflict` (existing) instead of duplicating as `field_rentals.override_conflict` (prompt name).
+3. **`formatEvent` is DNT** — B3 plumbed the conflict API without modifying it. The AdminEvents form doesn't yet expose `site_id`; future polish may need a side endpoint or operator approval to extend `formatEvent`.
+4. **Production schema rarely matches Surface 7 drafts perfectly.** Always spot-check `waiver_documents` + `vendor_contract_documents` before writing versioned-document tables. B5 verified `version INTEGER UNIQUE` + `effective_from INTEGER` + `created_by TEXT` (NOT `created_by_user_id`).
+5. **Sidebar entry additions shift index assertions** in `tests/unit/admin/sidebarConfig.test.js`. B6.5 + B8 both updated indices in-PR per the 8-file cap.
+6. **Pure-helper exports from JSX files** raise `react-refresh/only-export-components` warnings (advisory; not errors). M5.5 ships ~35 such warnings from the field-rentals JSX files. Same posture as M4 walkUpHelpers. Trade-off: vs. extracting a separate helpers.js file (cleaner lint, more files).
+7. **`Number(null) === 0` quirk** bit the date/time formatters in B8 + B10a. Always check `value == null` BEFORE `Number.isFinite(Number(value))` — otherwise null sneaks through as 0.
+8. **D1 column-rename pattern** (D1 quirk #2 from M3) used for B9 migration 0050 (client_type NOT NULL) and was atomic — the UPDATE step combined with DEFAULT 'individual' on the new column means the existing booking-flow `findOrCreateCustomerForBooking` keeps working unmodified.
+9. **/me capabilities surface** added in B8 (one new field on `/api/admin/auth/me` response). Frontend gates UI affordances client-side; server still enforces. Used by AdminFieldRentalNew "Submit anyway" conflict-override button gating.
+
+**M5.5-specific carry-forward facts** (durable artifacts for future milestones):
+
+- **Sites + fields seeded:** Ghost Town (Hiawatha UT 84545; one field "Ghost Town") and Foxtrot (Kaysville UT 84037; one field "Foxtrot"). The 1 production event (operation-nightfall) is linked to Ghost Town's site_id. CQB Building and Compound are NOT official locations.
+- **`events.site` column ≠ geographic location** — stores event SERIES branding (e.g. "Delta" for Operation Delta). The geographic signal is `events.location`. Backfill + conflict detection use `events.location` only.
+- **`events.site_id` is intentionally nullable** — events without a parseable site stay nullable. Conflict detection treats NULL `site_id` as "no field conflict".
+- **field_rentals.site_field_ids is comma-separated TEXT** (not a FK) — multi-field rentals possible. Integrity enforced at the route layer in B7a.
+- **`formatFieldRental` lives in `worker/lib/fieldRentals.js`** — distinct from `formatEvent` in `worker/lib/formatters.js` (DNT). Field rentals never go through the formatters.js public-site path.
+- **Field rentals → email recipient resolution**: `aas_site_coordinator_person_id` → person.email → fallback `env.ADMIN_NOTIFY_EMAIL`. Used by both COI alerts + lead-stale alerts. AAS-internal only; renter-facing alerts deferred.
+- **Public /contact form pipeline**: subject ∈ {private-hire, corporate} → lookup-or-create customer + create field_rentals lead row + send `[Field Rental Inquiry]` email; otherwise → audit + send `[General Inquiry]` email. Honeypot field `website` triggers silent 200 OK on bot fill. Rate-limited via existing `RL_FEEDBACK` binding.
+- **Cron sweep cadence:** all 8 sweeps run at 03:00 UTC daily (was 5 pre-M5.5). The 15-min cron (`*/15 * * * *`) is unchanged. Summary log key names: `tags`, `certs`, `staffReminders`, `staffAutoDecline`, `taxYearAutoLock`, `recurrenceGen`, `coiAlerts`, `leadStale`.
+- **Closing runbooks** at `docs/runbooks/m55-{deploy,rollback,baseline-coverage}.{md,txt}` — the deploy runbook documents the full M5.5 migration sequence + 6-item post-deploy smoke; rollback has a 4-level decision tree + per-migration inverse SQL; baseline coverage snapshots the close state with cumulative gated paths + capabilities inventory.
+
+**Stop-and-ask conditions during M5.5** (preserved for any future related work):
+
+- A do-not-touch file (`formatEvent`, `bookings.js`, `waivers.js`, `stripe.js`, `auth.js`) needs modification
+- Pre-migration spot-check reveals divergence between local fixture and production schema
+- Conflict detection logic creates ambiguous prompts (e.g. partial-day windows)
+- A test reveals current behavior conflicts with audit-documented behavior
+
+**Operator-applies-remote status at M5.5 close:**
+
+- ✅ **All 10 D1 migrations applied to remote** (0044-0049 mid-milestone 2026-05-11; 0050-0053 post-deploy 2026-05-12). Verified: 5 new email templates seeded; customers.client_type backfilled to 'individual' (2 rows); site_coordinator binding for customers.read.business_fields present (5 role-presets total: owner / event_director / booking_coordinator / bookkeeper / site_coordinator).
+- ⏳ **6-item smoke checklist** in `docs/runbooks/m55-deploy.md` — operator-driven manual verification (submit test /contact, verify operator email arrives + honeypot guard).
+
+**Known post-M5.5 polish backlog** (queued for next batch when operator is ready):
+
+1. **AES decryption surface for business_tax_id (EIN) + business_billing_address** — columns + caps + bindings exist; route extension + AdminCustomerDetail render + edit modal needed. AdminCustomerDetail.jsx stub messages still point to "lands in M5.5 B10" — that text is inaccurate post-deploy; the polish batch corrects it.
+2. **Admin POST /api/admin/customers + create modal** — phone-intake operator currently has no UI; SQL workaround acceptable until polish.
+3. **Monthly day_of_month recurrence pattern** — schema accepts `monthly_pattern.kind='day_of_month'` but the cron generator only handles `kind='nth_weekday'`.
+4. **/status route clearing `lead_stale_at` on transition** — current 7-day silence after revert acceptable but minor polish.
+5. **UNIQUE constraint on (recurrence_id, recurrence_instance_index)** — stronger idempotency on the recurrence cron.
+6. **AdminScan + AdminRoster `?event=` deep-link parsing** — M5 polish carryover; ~10 lines per file.
+
+**Resume from M5.5 close in a fresh session:**
+
+1. `git checkout main && git pull origin main`
+2. `npm install`
+3. `npm test` — confirm **1997 / 161** passing
+4. `npm run lint` — confirm 0 errors / ~440 warnings
+5. `npm run build` — confirm clean (~270ms)
+6. `curl https://airactionsport.com/api/health` — confirm `{"ok":true,...}`
+7. **M5.5 is CLOSED + DEPLOYED 2026-05-12.** Production at `8decacc`. See `docs/runbooks/m55-{baseline-coverage.txt,deploy.md,rollback.md}` for the post-M5.5 reference. **Use the prompt at [docs/m55-next-session.md](docs/m55-next-session.md)** for the post-M5.5 polish backlog OR move to M6 (Stripe live cutover + invoice integration for field rentals).
+
+---
+
+### Milestone 6 — Stripe Live Flow + Damage Charge Option A + Vendor Templates + Email Drafts (✓ CLOSED 2026-05-27; ⚠️ live-Stripe cutover REALLY DONE 2026-06-03 — the 2026-06-02 record was inaccurate; prod was in Stripe TEST mode until then, see the 2026-06-03 session section near the top)
+
+**Status: ✓ CLOSED** as of 2026-05-27. All 13 batches (B0/B0-followup/B1/B2/B3/B4/B5/B6/B7/B8/B9/B10/B11) merged + deployed to production. Sandbox-mode verification complete for all payment-flow batches; live verification (B5 $1 e2e, B6 real dispute, B7+B9 real saved PM) remains gated on operator-only cutover items 1-5 in [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md). No long-lived milestone branch — sequential feature PRs to main (per-batch rolling brings-up).
+
+Operator acknowledgment in effect: schema migrations + the public booking flow change in B5 are tested only via local `wrangler dev` against a local D1 file before being run against production. Recovery from a migration mishap requires reverting + restoring D1 from a Cloudflare 24-hour automated backup.
+
+**Per-batch operating rules** (tightened from M5):
+
+- Plan-mode-first per batch — write plan, post it, wait for ack before edits.
+- **8-file operating target, 10-file hard ceiling** (tightened from M1-M5's 10-file target).
+- **Mandatory between-batch 5-bullet closing summary.** No exceptions.
+- **Claude Code never executes `wrangler d1 execute --remote` for MUTATIONS.** Read-only `.schema` / `SELECT sql FROM sqlite_master` queries — operator was permissive at B0-followup (4 tables); default remains operator-runs-it.
+- **Pre-migration spot-check mandatory** for any batch creating or altering a table. Spot-check output → batch closing summary.
+- Conventional Commits with `m6-<area>` scope. Flat `m6-batch-N-slug` sub-branch naming.
+
+**M6 do-not-touch surfaces touched by design** (no other Critical surfaces in scope):
+
+| Surface | Batch | Note |
+|---|---|---|
+| `worker/routes/bookings.js` | **B5** | `setup_future_usage: 'off_session'` on Checkout Session creation. Live cutover + $1 e2e test required BEFORE B5 merges to main. |
+| `worker/lib/stripe.js` | **B5** | Helper updates. Group B characterization stays gated throughout (138/138 at M6 start). |
+| `worker/routes/webhooks.js` | **B6** | `charge.dispute.created` consumer added. Existing handlers untouched. |
+
+`worker/services/waiverService.js` (cited in the M6 prompt's DNT list) **does not exist** — verified at B0. The real waiver DNT surfaces are `worker/routes/waivers.js` and `worker/lib/waiverLookup.js`; M6 doesn't touch either.
+
+**Batch sequence:**
+
+| Batch | What | Status | PR / SHA |
+|---|---|---|---|
+| **B0** | Cutover runbook + spot-check log scaffold + staff labeling polish (Team → Staff, + New Person → + Add Staff, browser tab titles) | ✓ Closed + deployed | [#188](https://github.com/bulletbiter99/air-action-sports/pull/188) / `0206120` |
+| **B0-followup** | Spot-check log POPULATED with 4 captured schemas (email_templates, bookings, audit_log, customers); cutover runbook column-name fix | ✓ Closed (docs only) | [#191](https://github.com/bulletbiter99/air-action-sports/pull/191) / `9da716a` |
+| **B1** | Vendor package templates — admin library UI (list + create + soft-delete + sidebar entry under Settings) | ✓ Closed + deployed | [#189](https://github.com/bulletbiter99/air-action-sports/pull/189) / `f0cd431` |
+| **B2** | Vendor package templates — detail/edit composer + clone-to-event + latent-bug fix (kind default `'text'` → `'custom'`) | ✓ Closed + deployed | [#190](https://github.com/bulletbiter99/air-action-sports/pull/190) / `fd1e3ba` |
+| **B3** | Email template draft state — migration 0056 adds `email_templates.status TEXT NOT NULL DEFAULT 'published'`; `loadTemplate` filters drafts | ✓ Closed + deployed | [#193](https://github.com/bulletbiter99/air-action-sports/pull/193) / `65a6c83` |
+| **B4** | Admin UI — status toggle + draft badge + filter chips + preview-with-real-data (booking-flavored templates) | ✓ Closed + deployed | [#194](https://github.com/bulletbiter99/air-action-sports/pull/194) / `f3b845f` |
+| **B5** | Stripe `setup_future_usage: 'off_session'` on POST /checkout — Critical DNT touched additively; verifyWebhookSignature unchanged | ✓ Code closed + deployed; ⏳ live $1 e2e operator-gated | [#195](https://github.com/bulletbiter99/air-action-sports/pull/195) / `8a9d3dd` |
+| **B6** | `charge.dispute.created` webhook consumer — idempotent + orphan-safe; migration 0057 seeds `dispute_received` template | ✓ Code closed + deployed; ⏳ live verify needs real disputed payment | [#196](https://github.com/bulletbiter99/air-action-sports/pull/196) / `db7e7b8` |
+| **B7** | Damage charge Option A activation (off-session against saved PM) — chargeOffSessionForCharge + POST /:id/charge-card endpoint + 28 tests | ✓ Code closed + deployed; ⏳ live capture needs B5 cutover | [#198](https://github.com/bulletbiter99/air-action-sports/pull/198) / `c02d00fc` (deploy) |
+| **B8** | Damage charge admin UI polish — "Charge card" button + confirm modal + outcome banners on /admin/booking-charges | ✓ Closed + deployed | [#199](https://github.com/bulletbiter99/air-action-sports/pull/199) / `c02d00fc` (deploy) |
+| **B9** | Admin action: remove saved payment method (privacy compliance) — POST /:id/detach-saved-pm + UI on /admin/bookings/:id | ✓ Closed + deployed; ⏳ live verify needs real saved PM | [#200](https://github.com/bulletbiter99/air-action-sports/pull/200) / `e8372102` (deploy) |
+| **B10** | booking_confirmation template gains "Heads-up — Additional Charges May Apply" section (migration 0058) | ✓ Closed + deployed | [#197](https://github.com/bulletbiter99/air-action-sports/pull/197) / `954964c3` (deploy) |
+| **B11** | Closing runbooks (m6-baseline-coverage.txt / m6-deploy.md / m6-rollback.md) + decision register + CLAUDE.md M6 flips to CLOSED | ✓ Closed | this PR |
+
+**Cumulative state at M6 CLOSE (2026-05-27):**
+- Main HEAD: see `git log` for B11 merge SHA
+- Latest production worker: `e8372102-d9e3-4799-9678-261912192ab1` (B9 deploy)
+- Tests: **2292 across 184 files** (was 2135 / 173 at session start → +157 / +11)
+- Group A + Group B regression: **138 / 138** preserved (Critical DNT pin intact; expanded to 149/149 with B6 additions)
+- Lint: 0 errors / ~462 warnings
+- Build: clean (~255-290ms)
+- Migrations on remote: 0001–**0058** applied (M6 added 0056 [B3 status column], 0057 [B6 dispute template], 0058 [B10 booking_confirmation update])
+- Email templates total in prod: **34** (added `dispute_received` in B6; updated `booking_confirmation` in B10)
+- Sidebar Settings group: 7 sub-items (unchanged from B2)
+- Live cutover blockers: **5 operator-only items remain** — see [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md). B5/B6 live verification + B7/B9 live functionality are gated until those land.
+
+**Cumulative state by batch:**
+| At close of | Tests / Files | Worker version | Notes |
+|---|---|---|---|
+| Pre-M6 baseline | 2073 / 168 | (M5.5 close + admin staff suite) | — |
+| B0/B1/B2 | 2135 / 173 | `a6c147db` | Vendor templates |
+| B3+B4 | 2212 / 178 | `09c58ed1` | Email draft state |
+| B5 | 2231 / 180 | `ba6545c2` | Stripe setup_future_usage |
+| B6 | 2251 / 182 | `518af64a` | Dispute consumer |
+| B10 | 2251 / 182 | `954964c3` | booking_confirmation copy |
+| B7+B8 | 2279 / 184 | `c02d00fc` | Damage charge Option A + UI |
+| B9 | 2292 / 184 | `e8372102` | Remove saved PM |
+| B11 | 2292 / 184 | (this PR) | Closing runbooks |
+
+**Schema spot-checks captured 2026-05-25** (in [docs/m6-discovery/spot-check-log.md](docs/m6-discovery/spot-check-log.md)):
+
+- ✅ `email_templates` — Lesson #7 prereqs MET (`id TEXT PRIMARY KEY`, `created_at INTEGER NOT NULL`). B3's planned ALTER is safe.
+- ✅ `audit_log` — production has **7 columns** including `ip_address` (NOT 6 as the M5 post-deploy carry-forward note in this file claims — see Lessons section below). M2 `writeAudit()` handles both shapes; no code change needed.
+- ✅ `customers` — M5.5 B3+B9 shape; no `stripe_customer_id` column (B7 may add).
+- ✅ `bookings` — column is `stripe_payment_intent` (no `_id` suffix); cutover runbook updated.
+
+**Operator-side pre-flight items STILL PENDING from B0** (not blocking B3 code, but DMARC at minimum should land before B3 merges since B3 leads into deliverability-sensitive sends):
+
+1. M5.5 smoke checklist (6 items in `docs/runbooks/m55-deploy.md`)
+2. Overnight cron 8-key summary check
+3. **DMARC + Resend DKIM/SPF DNS records**
+4. Cloudflare Always-Use-HTTPS toggle confirmation
+5. Vendor/charge table existence query (gates B6/B7, not B3)
+
+**Lessons captured during M6 work** (durable across future milestones):
+
+1. **`.schema` is a sqlite3 shell command, not real SQL.** D1's HTTP API rejects `wrangler d1 execute --remote --command=".schema X"` with `near ".": syntax error`. Use `SELECT sql FROM sqlite_master WHERE tbl_name='X' AND sql IS NOT NULL` to query CREATE TABLE statements directly. (Discovered at B0-followup.)
+
+2. **Audit log is 7-col, not 6.** Production `audit_log` includes `ip_address` (nullable TEXT). The M5 post-deploy carry-forward note further down this file says "6 columns" — that was inaccurate. M2 `writeAudit()` in `worker/lib/auditLog.js` already handles both shapes via the `ipAddress` argument presence (6-col INSERT if undefined, 7-col INSERT if provided including null). No code change needed.
+
+3. **vendor_package_sections.kind has a CHECK enum** (`'overview', 'schedule', 'map', 'contact', 'custom'`). Templates store kind as plaintext JSON, but downstream INSERTs into the sections table will violate the CHECK if kind isn't in the enum. B1's `normalizeSections` defaulted kind to `'text'` which would have failed at clone time. B2 fixed: kind defaults to `'custom'` and unknown values coerce to `'custom'`. Pattern lesson: when designing a JSON-stored field that downstream code INSERTs into a CHECK-constrained column, the JSON normalizer must produce values inside the enum.
+
+4. **Helper extraction can be deferred to a later batch as a budget lever.** B1 deferred `worker/lib/vendorPackageTemplates.js` (helper module) to stay within the file target; B2 then created it and reused parseSections / normalizeSections / cloneTemplateSections in both PUT and clone routes. Clean pattern when two batches share logic.
+
+5. **`worker/routes/bookings.js` POST /checkout returns `{ stripeUrl, bookingId }`** (not `{ url }`). Test fixtures must match the field names exactly. (B5 author session.)
+
+6. **`rateLimit` middleware no-ops without `CF-Connecting-IP` header** — tests exercising rate-limit gating must set the header. The default key function returns empty string when the header is absent, and the middleware short-circuits via `if (!key) return next();`. (B5 test author.)
+
+7. **`worker/lib/templates.js` `loadTemplate(db, slug, { includeDrafts })`** — B3's surgical extension. Default behavior filters drafts (returns null when row.status='draft'); admin preview opts in. All 13+ named senders in emailSender.js continue to call `loadTemplate(env.DB, slug)` without modification — drafts return null, senders return their existing `{ skipped: 'template_missing' }` shape. Pattern lesson: when you need to filter at a chokepoint without touching DNT callers, make the filter opt-OUT-only via a default-false flag.
+
+8. **`unknown-event-type.test.js` is a milestone-only pin.** When a new event handler lands, remove that event from `NON_COMPLETION_EVENTS` and add it to the handler's dedicated test file. B6 demonstrated the pattern with `charge.dispute.created` — also added the four sibling dispute lifecycle events (closed/updated/funds_withdrawn/funds_reinstated) to the unhandled list so they remain pinned as "still no-op".
+
+9. **Idempotency pattern for Stripe webhook redelivery: LIKE on audit_log meta_json.** B6's dispute consumer issues `SELECT id FROM audit_log WHERE action='dispute.received' AND meta_json LIKE '%"dispute_id":"<id>"%' LIMIT 1` before INSERTing. Returns immediately if a prior row exists. Stripe redelivers on 5xx + on operator-initiated resends; this prevents duplicate audit + duplicate email.
+
+10. **Migration UPDATE on existing seed rows works without code redeploy.** B10's migration 0058 changed `email_templates.booking_confirmation.body_html` and `body_text` via a single UPDATE statement. The renderer reads body from D1 each fetch — no code changes, no redeploy. Pattern lesson: pure content changes to existing template rows are zero-code zero-risk. (Lesson #7's seeding pattern doesn't apply to UPDATE-only migrations.)
+
+11. **Admin pages never go network-idle** — the M4 `useWidgetData` cadence + `useTodayActive` shared subscription keep polling, which makes Claude_in_Chrome's `screenshot` / `read_page` / `get_page_text` / `find` tools time out (they wait for chrome.scripting `document_idle`). Workaround: use `javascript_tool` for inspection (different injection mode, no idle wait). Memory `feedback_browser_verification.md` updated this session with this guidance.
+
+**Stop-and-ask triggers** (durable, from the M6 prompt):
+
+1. Stripe live cutover not confirmed before B5 merge.
+2. Any change to `worker/routes/bookings.js` causes Group A or B test fail.
+3. `setup_future_usage` breaks webhook signature verification.
+4. Email template seed missing `id='tpl_<slug>'` or `created_at=updated_at` (Lesson #7).
+5. DNT file needs modification beyond documented B5/B6 changes.
+6. Pre-migration spot-check reveals production schema differs from local fixture.
+7. 8-file operating target exceeded.
+8. Damage charge Option A hits a Stripe edge case not covered by fixtures.
+
+**Resume M6 in a fresh session:**
+
+1. `git checkout main && git pull origin main` (current HEAD: B10 merge post-PR #197)
+2. `npm install`
+3. `npm test` → confirm **2251 / 182** passing
+4. `npm run lint` → confirm 0 errors / 460 warnings
+5. `npm run build` → confirm clean
+6. `curl https://airactionsport.com/api/health` → `{"ok":true,...}`
+7. **Read [docs/m6-next-session.md](docs/m6-next-session.md) for the next-session prompt** + [docs/m6-batch-tracker.md](docs/m6-batch-tracker.md) for full batch status + [docs/m6-operator-cutover-checklist.md](docs/m6-operator-cutover-checklist.md) for the 5 operator-only gates.
+
+**Recommended next steps in fresh session:**
+   - **First**: confirm operator-side live cutover items 1-5 status. If complete, immediately run the $1 live e2e to validate B5+B6.
+   - **Then**: B7 (damage charge Option A activation) → B8 (admin UI polish) → B9 (remove saved PM) → B11 (closing runbooks).
+   - **Parallel work OK without cutover**: any of the M5.5 polish backlog items, HR coordinator role_preset, past-games archive page. B7-B9 can also develop against sandbox if you choose (their live verification waits for cutover regardless).
+
+---
+
+### Post-M6 polish session — 2026-05-27 (8 PRs)
+
+Single-session sprint clearing the post-M6 backlog from `docs/next-session.md`. Knocked out all polish tracks (B/C/D), shipped Marketing milestone B1 (Segments), plus a sidebar-entry follow-up. **All 8 PRs open + green; operator merges + Workers Builds auto-deploys.** Full details in memory `post_m6_polish_session.md`; key state captured here.
+
+**PRs opened:**
+
+| PR | Track | Migration | Notes |
+|---|---|---|---|
+| [#202](https://github.com/bulletbiter99/air-action-sports/pull/202) | B — HR coordinator preset | 0059 applied ✓ | Data-only; tier-2 preset + 3 cap bindings |
+| [#203](https://github.com/bulletbiter99/air-action-sports/pull/203) | D-3 — Lead-stale clear + scan `?event=` deep-link | — | 4 UPDATE statements + 2 JSX integrations |
+| [#204](https://github.com/bulletbiter99/air-action-sports/pull/204) | D-1a — Customers AES decryption surface | — | GET decrypts EIN+billing; PUT /:id/business edits |
+| [#205](https://github.com/bulletbiter99/air-action-sports/pull/205) | D-1b — Admin POST customers + create modal | — | Phone-intake operator flow; base = D-1a branch |
+| [#206](https://github.com/bulletbiter99/air-action-sports/pull/206) | D-2 — Recurrence `day_of_month` + UNIQUE constraint | 0060 applied ✓ | UNIQUE catches race conditions silently |
+| [#207](https://github.com/bulletbiter99/air-action-sports/pull/207) | C — Past-games archive page | 0061 applied ✓ | `/games` + `/admin/event-archive`; new `events.archive.write` cap |
+| [#208](https://github.com/bulletbiter99/air-action-sports/pull/208) | Marketing B1 — Customer Segments | — | Reuses `segments` table from 0022; locks query_json contract for B2+ |
+| [#209](https://github.com/bulletbiter99/air-action-sports/pull/209) | Sidebar Event Archive entry (Track C follow-up) | — | 2 files; sidebar entry under Settings group |
+
+**Totals shipped:** ~5,000 LOC across ~38 files · +131 new tests (M6 baseline 2292 → 2341 on largest branch) · 3 D1 migrations live on remote · 1 new capability + 2 role bindings · 0 DNT violations.
+
+**Per-batch operating rules** (same as M6, no deviation):
+- Plan-mode-first per batch
+- 8-file operating target / 10-file hard ceiling — used branch-chains (D-1b off D-1a) and inline-styles (JSX) to fit
+- Conventional Commits with track-aware scope (`polish(...)` / `feat(marketing)` / `feat(archive)`)
+- All migrations spot-checked before applying — caught the `capabilities.category` column-name mismatch before any partial-apply damage
+
+**Durable lessons added** (full details in memory `post_m6_polish_session.md`):
+
+1. **`capabilities` table column is `category`, NOT `scope`** — added as D1 quirk #5 in the subsection above. Always spot-check before authoring any migration that seeds caps.
+
+2. **`hasCapability` is sync — needs `user.capabilities` preloaded** via `listCapabilities(c.env, user.id)` for routes that don't use `requireCapability` middleware. Without preload, falls through to `LEGACY_ROLE_CAPABILITIES` which only has 5 bookings-related caps; any M5+ capability check returns false. Caught in D-1a test failures; documented in [worker/routes/admin/customers.js](worker/routes/admin/customers.js) post-fix.
+
+3. **Branch-chains work cleanly for dependent PRs.** D-1b branched off D-1a's branch (not main) so it inherited the encrypt import D-1a added; `gh pr create --base <prereq-branch>` sets the GitHub base correctly. When D-1a merges, D-1b auto-bases. Avoids merge conflicts on shared file edits.
+
+4. **Sidebar test indices are brittle — M5 R0c pattern keeps recurring.** Any sidebar entry addition triggers 3-5 line test updates. Future M7 candidate: refactor `sidebarConfig.test.js` to use `find((e) => e.to === '/admin/foo')` instead of index-based asserts. (Marketing B1 + Sidebar Event Archive PRs both hit this.)
+
+5. **`npm run lint` hits dist/ files** (24k pre-existing errors from minified output). Files actually touched show 0 errors. Use `npx eslint <files>` to verify your changes; don't trust the global lint output. ESLint config needs a `dist/` ignore — M7 candidate.
+
+**Untracked items in working tree to NOT commit:**
+- `marketing/` (folder, pre-existing)
+- `public/images/logo-hero-fallback.png.PNG` (pre-existing)
+
+These have been in the working tree since before this session. PR commits explicitly stage by file name (never `git add -A`).
+
+**Suggested merge order when operator reviews:**
+1. #202 HR preset (data-only, zero risk)
+2. #207 Past-games archive (migration already applied; backend additive)
+3. #209 Sidebar Event Archive (depends on #207's page existing)
+4. #206 Recurrence + UNIQUE (migration already applied)
+5. #203 Lead-stale + deep-links (no migration)
+6. #204 D-1a Customers AES (no migration)
+7. #205 D-1b Customers POST (auto-bases on #204 merge)
+8. #208 Marketing B1 (no migration; sidebar conflict with #209 resolves trivially)
+
+**Post-M6 polish merged 2026-05-27:** all 9 PRs (#202-#211 less #205-replaced-by-#211) landed on main. Test count on main: **2424 / 192**. Migrations on remote: 0001-0061.
+
+---
+
+### Milestone 7 — Reports + Audit Log Full-Text Search + Virtualized Tables (✓ CLOSED + DEPLOYED 2026-05-31)
+
+**Long-lived branch:** `milestone/7-reports-search-virtualized` (off `main` at `1e6062b` Marketing B1 merge). Sub-branches use **flat `m7-batch-N-slug` naming** (same git ref-collision workaround M1-M5.5 used). PRs target the milestone branch; milestone merges to main at M7 close in Batch 12 per the M3-era pattern.
+
+**Status: ✓ CLOSED + DEPLOYED 2026-05-31.** All 12 batches merged (0–10, 11a, 11b) + Batch 12 close; milestone `milestone/7-reports-search-virtualized` merged to `main` → Workers Builds auto-deployed. Tests **2561 / 200** at close (+ 6 admin visual baselines + 7 public). Reports surface (0–5, 17 reports / 4 personas) + audit-log FTS5 (6) + virtualized tables (7) + Resend bounce/complaint consumer (8) + admin visual baselines (9) + bounce/complaint alert emails (10) + Reports custom date range (11a) + sticky list headers (11b). **Batch 11 was split: 11a + 11b shipped; 11c (cosmetic Reports polish — dateFormat extraction, export loading state, friendlier error copy, money-format consistency) was DEFERRED post-M7.** Migrations 0062/0063/0064 applied to remote pre-deploy; **0065 (email_events) + 0066 (alert templates) ship in-repo, operator-applies post-deploy** (safe: the consuming code is behind the unset `RESEND_WEBHOOK_SECRET`). **Operator-pending to fully activate the deferred features: see [docs/runbooks/m7-deploy.md](docs/runbooks/m7-deploy.md)** (apply 0065/0066; set RESEND_WEBHOOK_SECRET + Resend dashboard webhook; flip `audit_log_fts` flag on; eyeball the 4 sticky-header lists + Reports custom range). Carried from M6: live-Stripe cutover items 1-5. Closing runbooks at `docs/runbooks/m7-{deploy,rollback,baseline-coverage}.{md,txt}`.
+
+**Per-batch operating rules** (preserved from M7 prompt):
+- Plan-mode-first per batch — write plan, post it, wait for "proceed" before editing
+- **8-file operating target, 10-file hard ceiling**. Split upfront (1a/1b) if larger
+- Conventional Commits with `m7-<area>` scope
+- No `--force`, no rebases on shared branches, no direct commits to `main` or milestone
+- All tests use M2 mock helpers + post-M5.5 personFixture/bindCapabilities
+- **No remote D1 mutations from Claude Code** — operator applies migrations after PR merges
+- **No `wrangler deploy` from Claude Code** — milestone branch doesn't auto-deploy; main auto-deploys via Workers Builds
+- DNT files extended additively only (new functions/endpoints/`else if` branches — never modify existing)
+- Mandatory between-batch 5-bullet closing summary; operator confirms before next batch
+- Every `email_templates` seed (Batch 10): `id='tpl_<slug>'` + `slug='<slug>'` + `created_at=updated_at` per Lesson #7
+- Pre-migration spot-check mandatory before any table-touching migration
+
+**M7 do-not-touch surfaces** (no Critical DNT crossings in M7):
+- `worker/routes/bookings.js` (public POST /checkout) — M6 ground, NOT modified
+- `worker/routes/waivers.js` — NOT modified
+- `worker/lib/stripe.js` — NOT modified
+- `worker/lib/auth.js` — NOT modified
+- The 10 existing email senders in `worker/lib/emailSender.js` — only APPEND new senders (Batch 10 adds sendBounceAlert + sendComplaintAlert as 11th + 12th)
+- `worker/routes/webhooks.js` extended additively in Batch 8 (new `else if` branches for `email.bounced` + `email.complained`, matching M6's `charge.dispute.created` pattern)
+
+**Batch status (11 done, 1 remaining):**
+
+| Batch | What | Migration | PR | Status |
+|---|---|---|---|---|
+| **0** | Pre-flight verification + reports scope summary | — | [#212](https://github.com/bulletbiter99/air-action-sports/pull/212) | ✓ merged |
+| **1a** | Reports shell backend (caps + 16-endpoint stub + sidebar) | 0062 (applied) | [#213](https://github.com/bulletbiter99/air-action-sports/pull/213) | ✓ merged |
+| **1b** | Reports shell UI (4-tab strip + ReportLayout/EmptyState/Filters + route) | — | [#214](https://github.com/bulletbiter99/air-action-sports/pull/214) | ✓ merged |
+| **2** | Owner reports backend + UI (5 reports) | — | [#216](https://github.com/bulletbiter99/air-action-sports/pull/216) | ✓ merged |
+| **3** | Bookkeeper reports (3 reports + 1099 deep-link) | — | [#217](https://github.com/bulletbiter99/air-action-sports/pull/217) | ✓ merged |
+| **4** | Marketing reports (4 reports) | — | [#218](https://github.com/bulletbiter99/air-action-sports/pull/218) | ✓ merged |
+| **5** | Site Coordinator reports (4 reports) | — | [#219](https://github.com/bulletbiter99/air-action-sports/pull/219) | ✓ merged |
+| **6** | Audit-log full-text search (FTS5), flag-gated | 0063 + 0064 (applied) | [#220](https://github.com/bulletbiter99/air-action-sports/pull/220) | ✓ merged |
+| **7** | Virtualized tables (TanStack Virtual: Roster/Events/PromoCodes/RentalAssignments) | — | [#221](https://github.com/bulletbiter99/air-action-sports/pull/221) | ✓ merged · visual verify operator-pending |
+| **8** | Resend bounce/complaint webhook consumer (signed `/api/webhooks/resend`; `email_events` table; auto-suppress marketing on hard bounce/complaint) | **0065** | [#223](https://github.com/bulletbiter99/air-action-sports/pull/223) | ✓ merged |
+| **9** | Admin visual regression baselines (M4 B11 deferral resolved — local-serve + Playwright route-mock harness; 6 linux baselines seeded) | — | [#224](https://github.com/bulletbiter99/air-action-sports/pull/224) | ✓ merged |
+| **10** | Bounce/complaint admin alert emails (sendBounceAlert/sendComplaintAlert; hard-bounce + complaint only; self-alert guard) | **0066** | [#225](https://github.com/bulletbiter99/air-action-sports/pull/225) | ✓ merged |
+| **11a** | Reports custom date range + shared `reportData.js` query extraction | — | [#227](https://github.com/bulletbiter99/air-action-sports/pull/227) | ✓ merged |
+| **11b** | Virtualized lists: sticky scrollbar-aligned headers (VirtualizedList `header` prop) | — | [#228](https://github.com/bulletbiter99/air-action-sports/pull/228) | ✓ merged · operator eyeball pending |
+| ~~11c~~ | Cosmetic Reports polish (dateFormat extraction, export loading, error copy, money-format) | — | — | DEFERRED post-M7 |
+| **12** | Closing runbooks + baseline coverage + doc flips + milestone→main deploy | — | this batch | ✓ closed |
+
+**M7 cumulative at close:** test count 2424 → **2561 / 200 files** (B1a–7 +89 → 2513; B8 +33 → 2546; B9 +0 [Playwright]; B10 +12 → 2558; **B11a +3** custom-range → 2561; B11b +0 [JSX]) + 6 admin visual baselines + 7 public. Gated paths added in M7: `worker/lib/reports.js`, `worker/routes/admin/reports.js` (B2), `worker/lib/auditSearch.js`, `worker/routes/admin/auditLog.js` (B6), `worker/lib/resendWebhook.js`, `worker/lib/emailEvents.js` (B8), + the `worker/routes/webhooks.js` gate extended with the `/resend` consumer test (B8). New non-vitest surface: the admin visual-regression harness (`playwright.admin.config.js` + `tests/visual-admin/`, B9) with its own `visual-admin` CI job. Full snapshot: [docs/runbooks/m7-baseline-coverage.txt](docs/runbooks/m7-baseline-coverage.txt).
+
+**Migration sequence:** M7 starts at 0062 because the post-M6 polish session consumed 0059 (HR preset) / 0060 (field_rentals UNIQUE) / 0061 (event_archive_links). All three are applied to remote and now on main via merged PRs.
+
+**Reports scope** (17 reports across 4 personas; full detail in `docs/m7-discovery/reports-scope.md`):
+- **Owner (5):** revenue trends MTD/QTD/YTD, retention by event series, refund rate by period, repeat customers, AOV trend
+- **Bookkeeper (3 + link):** payouts summary, tax/fee summary, period comparison; 1099 thresholds tab links to existing M5 `/admin/staff/1099-thresholds` (no duplication)
+- **Marketing (4):** conversion funnel by event, promo code performance, customer cohorts by acquisition month, channel attribution
+- **Site Coordinator (4):** field rental revenue by site, COI compliance status, lead-to-booking conversion rate, recurrence retention (90/180/365d)
+
+**Capability bundles** (seeded in migration 0062):
+- `owner`: all 5 `reports.read.*` + `reports.export` (6 caps)
+- `bookkeeper`: `reports.read` + bookkeeper tab + **owner tab** (financial overlap) + export (4 caps)
+- `marketing_manager`: `reports.read` + marketing tab + export (3 caps)
+- `site_coordinator`: `reports.read` + site_coordinator tab + export (3 caps)
+- Other presets (event_director, booking_coordinator, generic_manager, staff, read_only_auditor): no `reports.*` — nav entry hidden via sidebar gate
+
+**Sidebar gating note:** the legacy stub `CAPABILITY_TO_LEGACY_ROLE` in `src/admin/sidebarConfig.js` maps `reports.read: 'manager'` — coarse-grained. The Reports page itself uses the DB-backed `/me` capability array for accurate tab visibility. A future M8 refactor should consume `/me` capabilities directly in the sidebar so site_coordinator (not a "manager" in the legacy hierarchy) sees the nav entry.
+
+**Sidebar index after Batch 1a** (M5 R0c carry-forward — operator should expect sidebar test updates per new entry):
+- Operational cluster: Analytics (14), Reports (15), Segments (16), Feedback (17), Promo Codes (18), Vendors (19), sep (20)
+- Settings group index: 21
+- `getVisibleItems` owner test: 22 visible items
+
+**Operator actions (post-deploy — M7 closed + deployed 2026-05-31):** full detail in [docs/runbooks/m7-deploy.md](docs/runbooks/m7-deploy.md).
+- Migrations **0062/0063/0064 APPLIED pre-deploy** (reports caps / FTS5 index / flag `state='off'`).
+- **Apply migrations 0065 (email_events) + 0066 (alert templates) to remote** — safe (the consuming code is behind the unset `RESEND_WEBHOOK_SECRET`).
+- **`wrangler secret put RESEND_WEBHOOK_SECRET`** + add the Resend dashboard webhook → `https://airactionsport.com/api/webhooks/resend` (subscribe `email.bounced` + `email.complained`). Until then `/resend` safely returns 500; once live, the bounce/complaint consumer + Batch-10 alert emails fire end-to-end.
+- **Flip the FTS flag on** — `UPDATE feature_flags SET state='on', updated_at=strftime('%s','now')*1000 WHERE key='audit_log_fts';` (until then audit search uses the LIKE fallback).
+- **Eyeball (no automated coverage):** the 4 virtualized lists' sticky headers (`/admin/events`, `/admin/roster?event=…`, `/admin/promo-codes`, `/admin/rentals/assignments`) + the Reports custom-range UI (`/admin/reports` → Period → Custom range). Closes the pending Batch-7 + 11b visual checks.
+- **Batch 9 admin baselines** are on main (6 linux PNGs under `tests/visual-admin/admin.spec.js-snapshots/`); the `visual-admin` CI job runs against them on every PR. Refresh by labeling a PR `capture-baselines`.
+
+**Carry-forward observations / lessons** (added in Batches 0/1a/1b):
+
+1. **Batch 0 confirmed Lesson #7 prereqs** for `email_templates`: `id TEXT PRIMARY KEY` + `created_at INTEGER NOT NULL` both present. NO `name` column (CLAUDE.md uses informally for `slug`).
+2. **All 7 M7-relevant tables spot-checked** — no schema mismatches that would break planned report queries. See `docs/m7-pre-flight-verification.md`.
+3. **`audit_log` is 7-col** (M6 lesson confirmed; matters for Batch 6 FTS5 trigger). INSERT-only by design — Batch 6's FTS5 mirror needs only an INSERT trigger.
+4. **Migration numbering shifted** from M7 prompt's 0059-0063 to 0062-0066 because post-M6 polish session consumed 0059-0061.
+5. **Sidebar shifts in 1a follow M5 R0c pattern**: any sidebar entry addition triggers 3-5 line test updates. M7 sidebar test now expects 22 visible items for owner.
+6. **JSX shell components deferred unit tests** (1b) per project no-RTL convention. M8 candidate: install RTL + backfill tests for AdminReports, ReportLayout, ReportEmptyState, ReportFilters, plus older M3+ admin pages without coverage.
+7. **Resend webhooks need a sibling signed route, not an `else if` on `/stripe`** (Batch 8). Resend signs svix-style (`svix-id`/`svix-timestamp`/`svix-signature`, HMAC-SHA256 over a `whsec_` secret), incompatible with the Stripe verifier. `worker/lib/resendWebhook.js` is the svix verify; `/api/webhooks/resend` is the new route; the existing `/stripe` handler stays byte-untouched. The recipient email is NOT a valid Resend tag value (tags allow only `[a-zA-Z0-9_-]`) — keep it in subject/body.
+8. **Admin visual regression via local-serve + route-mock** (Batch 9) dissolves the M4 B11 deferral: the admin shell gates client-side on `/api/admin/auth/me`, so a Playwright `page.route` mock returning an owner authenticates the shell with no SESSION_SECRET/creds, and empty/zero data → deterministic empty-state baselines. Separate `playwright.admin.config.js` + `tests/visual-admin/` keep it isolated from the public suite. Admin pages never go network-idle (they poll), so `prepareAdminPage` waits on a stable element, not `networkidle`. Baselines are CI-generated (linux) only — never commit local PNGs.
+9. **Append-only senders + emailContext/waitUntil** (Batch 10): new alert senders append to `emailSender.js` (existing senders untouched); the B8 handler returns an `emailContext` for alert-worthy events (hard bounce / complaint, NOT customer-gated → orphans alert) and the `/resend` route queues `waitUntil(sendResendAlert)` — same shape as the M6 dispute alert. A self-alert guard skips when the recipient is `ADMIN_NOTIFY_EMAIL` (prevents a loop if an alert email itself bounces).
+
+**Resume after M7 close (fresh session):**
+1. `git checkout main && git pull origin main`  (M7 is merged + deployed; the milestone branch is closed)
+2. `npm install`
+3. `npm test -- --run` — confirm **2561 / 200** passing
+4. `npm run build` — confirm clean (~260ms)
+5. `curl https://airactionsport.com/api/health` — confirm `{"ok":true,...}`
+6. **Read [`docs/next-session.md`](docs/next-session.md)** for the post-M7 work menu + the operator-pending items in [docs/runbooks/m7-deploy.md](docs/runbooks/m7-deploy.md).
+7. Post-M7 candidates: the deferred **11c cosmetic Reports polish** (dateFormat extraction, export loading state, friendlier error copy, money-format consistency); representative-data admin visual baselines (so CI covers the populated tables); the Marketing milestone B2+ (Segments shipped in B1); or a new milestone.
+
+**Stop-and-ask conditions during M7** (durable):
+- A do-not-touch file needs modification beyond appending a new branch/function/endpoint
+- A migration's local-test passes but a production schema spot-check reveals divergence (Lesson #7 / D1 quirk #5)
+- Audit log full-text search performance falls below 1s p95 at production volumes (Batch 6 gate)
+- Virtualized tables (Batch 7) produce visual diff against captured baselines — investigate before continuing
+- Coverage on any gated file drops from M6 baseline
+- A `visual-admin` baseline diff appears (Batch 9 harness) — note it uses Playwright route-mock auth (no cookie injection / SESSION_SECRET) serving the built SPA locally; a diff there usually means a real admin-shell render change, so investigate before re-capturing
+
+---
+
+### Milestone 4 — Bookings + Detail Workspace + New Admin Shell (✓ CLOSED 2026-05-07)
+
+Long-lived branch: `milestone/4-bookings-ia-completion` (off `main` at `87da972`, M3 close). Sub-branches use **flat `m4-batch-N-slug` naming** — same git ref-collision workaround M1/M2/M3 used. Per-batch rolling brings-up to main (every batch goes live on main soon after milestone-merge, not held until close).
+
+**Per-batch operating rules** (preserved from M3):
+- Plan-mode-first per batch
+- 10-file cap per PR (split a/b/c when needed — B1, B2, B3, B4 all split; B4 split a/b/c/d/e/f for the persona widget set)
+- Conventional Commits with `m4-<area>` scope
+- No `--force`, no rebases on shared branches, no direct commits to `main` or `milestone/4-bookings-ia-completion`
+- All tests use M2 mock helpers; no live D1 / Stripe / Resend
+- **No remote D1 migration apply from Claude Code by default.** Operator pre-authorizes per-batch (0026 / 0027 / 0028 / 0029 all applied with explicit operator authorization in-session).
+- Schema-then-code ordering enforced for migrations
+- Existing Group E tests must stay green on every batch that touches `worker/routes/admin/bookings.js`
+
+**Status (as of 2026-05-07 — through B7):**
+
+| Batch | What it ships | Main merge commit | PR |
+|---|---|---|---|
+| **B0** Reality audit + decisions reconciliation (6 files) | `docs/m4-discovery/{persona-dashboard-audit,sidebar-ia-audit,m3-invariants-check,decisions-register-reconciliation}.md`; `docs/decisions.md` D04-D07 captured (D04 legacy AdminDashboard removed, D05 PII gated by `bookings.read.pii`, D06 external refund always notifies, D07 `refund_recorded_external` template seed); `CLAUDE.md` D1-quirks subsection promoted | `fca7e2b` | [#56](https://github.com/bulletbiter99/air-action-sports/pull/56) |
+| **B1a** Group G worker-level tests (5 files) | `tests/unit/worker/{serveUpload,rewriteEventOg,scheduled}.test.js` + `tests/helpers/workerEnvFixture.js` (HTMLRewriter mock + ASSETS binding + ctx). Promotes `worker/index.js` from `uncovered` to `gates` for the G surface. **+57 tests** (617 → 674/83). | `44908cf` | [#58](https://github.com/bulletbiter99/air-action-sports/pull/58) |
+| **B1b** Visual regression suite + CI gating (8 files) | `tests/visual/public.spec.js` (7 surfaces) + `tests/visual/helpers.js` + extended `playwright.config.js` (visual project at 1440×900) + `.github/workflows/{ci.yml,capture-baselines.yml}` (label-driven baseline capture) + `docs/runbooks/visual-regression.md` + `docs/decisions.md` D08+D09 (persona model + Roster/Scan/Rentals collapse). 7 PNG baselines committed via the labeled-PR workflow. **No vitest count change.** | `e72cd97` | [#60](https://github.com/bulletbiter99/air-action-sports/pull/60) |
+| **B2a** Saved-views D1 substrate (8 files) | `migrations/0026_saved_views.sql` + `worker/routes/admin/savedViews.js` (4 endpoints; table-missing graceful) + worker/index.js mount + `src/hooks/useSavedViews.js` rewritten to API-backed (preserves M2 hook surface) + 35 new tests (route + imperative helpers per useFeatureFlag pattern) − 8 obsolete localStorage tests. **Migration 0026 applied to remote D1 ✓.** Includes inline fix to `tests/visual/helpers.js` (`waitForLoadState('networkidle')` to fix home.png flake surfaced on B2a's PR run). **+27 net tests** (674 → 701/85). | `d92cb3b` | [#62](https://github.com/bulletbiter99/air-action-sports/pull/62) |
+| **B2b** /admin/bookings list page + rich filter API + bulk + CSV export (8 files) | `src/admin/AdminBookings.jsx` + `.css` + `src/App.jsx` route; `worker/routes/admin/bookings.js` extended with `payment_method`/`has_refund`/`waiver_status`/`min_amount`/`max_amount`/`customer_id` filters + `POST /bulk/resend-confirmation` + `POST /bulk/resend-waiver-request` + `GET /export.csv`; 3 test files (29 tests). All 8 Group E tests pass unchanged. **+29 net tests** (701 → 730/88). | `e2dbc6c` | [#64](https://github.com/bulletbiter99/air-action-sports/pull/64) |
+| **B3a** Backend for detail view + external refund + PII masking (8 files) | `migrations/0027_bookings_refund_external.sql` (4 nullable columns + `refund_recorded_external` template seed); `worker/lib/emailSender.js` `sendRefundRecordedExternal` (additive — DNT 9 senders untouched); `worker/lib/capabilities.js` (NEW — `hasCapability(user, cap)` stub, M5 will formalize); `worker/lib/formatters.js` extended with 4 refund_external fields; `worker/routes/admin/bookings.js` extends GET /:id (customer card + activity log + PII masking + audit) + adds POST /:id/refund-external (5 methods: cash/venmo/paypal/comp/waived); 26 new tests. **Migration 0027 applied to remote D1 ✓.** All 8 Group E tests pass unchanged. **+26 net tests** (730 → 756/90). | `961d12a` | [#66](https://github.com/bulletbiter99/air-action-sports/pull/66) |
+| **B3b** /admin/bookings/:id detail workspace + 2 refund modals (5 files) | `src/admin/AdminBookingsDetail.jsx` (two-column layout per Surface 2; AttendeeRow inline edit) + `.css` (density-token aware) + `src/admin/AdminBookingRefund.jsx` (Stripe — required reason field) + `src/admin/AdminBookingExternalRefund.jsx` (out-of-band — method dropdown + reference + reason; persistent D06 always-notify banner) + `src/App.jsx` route. Wires up the View button on /admin/bookings (which 404'd post-B2b). **No vitest count change** (pure frontend; RTL not installed). | `955ffbb` | [#68](https://github.com/bulletbiter99/air-action-sports/pull/68) |
+| **B3c** Docs hygiene + handoff refresh (B3c/12) | CLAUDE.md M4 section + HANDOFF.md §10/§12/§14 + Prompt for fresh session refresh. No code changes. | `79f535d` (PR [#69](https://github.com/bulletbiter99/air-action-sports/pull/69)) → main `661e19f` ([#70](https://github.com/bulletbiter99/air-action-sports/pull/70)) | done |
+| **B4a** Migration 0028 — `users.persona` column + role-based backfill (1 file) | `migrations/0028_users_persona.sql` — nullable `users.persona TEXT` column with CHECK enumerating the 6 D08 personas (owner / booking_coordinator / marketing / bookkeeper / generic_manager / staff); existing rows backfilled per D08 (owner→owner, manager→generic_manager, staff→staff). Schema-only batch. **Migration 0028 applied to remote D1 ✓ 2026-05-07.** No vitest count change. | `497e808` (PR [#71](https://github.com/bulletbiter99/air-action-sports/pull/71)) → main `de0e05d` ([#72](https://github.com/bulletbiter99/air-action-sports/pull/72)) | done |
+| **B4b** Foundation: `/api/admin/today/active` + `useWidgetData` cadence primitive + personaLayouts rewire (10 files) | `worker/routes/admin/dashboard.js` (NEW — GET /api/admin/today/active returning `{ activeEventToday, eventId, checkInOpen }`; checkInOpen stubbed to false until time-string parsing in a future batch); `worker/index.js` mount; `src/hooks/useWidgetData.js` (NEW — `useWidgetData(url, { tier })` 5min/30s/10s + `useTodayActive()` shared subscription + `intervalForTier` pure helper for testing); `src/admin/personaLayouts.js` (rewired to read `user.persona` first, fall back to `roleDerivedDefault(role)`; 6 personas registered with alias-only entries for the 3 not yet implemented; `personaLabel()` extended for all 6); `src/admin/AdminDashboardPersona.jsx` (1 line — read user.persona for label); `src/admin/widgets/PersonaWidgets.jsx` (4 existing widgets wrapped in useWidgetData, no visual change); 3 new test files (today-active.test.js 11 + personaLayouts.test.js 27 + useWidgetData.test.js 14 = +52 tests); `scripts/test-gate-mapping.json` (3 new gates). Visual regression CI confirmed pixel-equivalent. | `44b3fa8` (PR [#73](https://github.com/bulletbiter99/air-action-sports/pull/73)) → main `301f30e` ([#74](https://github.com/bulletbiter99/air-action-sports/pull/74)) | done |
+| **B4c** Booking Coordinator persona widgets (4 files) | 5 new BC widget components in `PersonaWidgets.jsx` — BookingCoordinatorKPIs (4-stat grid via /analytics/overview + /promo-codes), BookingsNeedingAction (compact table from /bookings?waiver_status=missing), TodayCheckIns (gates on useTodayActive + per-event scan/roster links), QuickActions (4-tile static link grid), RecentFeedback (5 newest from /feedback?status=new); `personaLayouts.js` flips `booking_coordinator: null` → concrete 5-widget array; CSS for tiles + feedback items + density-aware compact mode; personaLayouts.test.js gets 2 modified assertions + 2 new BC layout tests. | `b5efb8c` (PR [#75](https://github.com/bulletbiter99/air-action-sports/pull/75)) → main `5dc1a7e` ([#76](https://github.com/bulletbiter99/air-action-sports/pull/76)) | done |
+| **B4d** Owner extension widgets + 2 new endpoints + ?period=mtd (10 files) | 2 new endpoints in `worker/routes/admin/dashboard.js`: `GET /upcoming-readiness` (top-3 events with capacity + waiver bars), `GET /action-queue` (4-count owner-triage shape: missing waivers / pending vendor countersigns / new feedback / refunds in last 7 days). `worker/routes/admin/analytics.js` extends `/overview` with `?period=mtd` filter (filters bookings by `paid_at >= month_start_ms`; default `lifetime` preserves pre-B4d behavior; backward compatible). 3 new owner widgets in PersonaWidgets.jsx — UpcomingEventsReadiness (uses CapacityBar helper), ActionQueue (4-stat grid with deep-links), RecentActivity (last 10 audit log entries via existing /audit-log). RevenueSummary modified to fetch `?period=mtd`; header reads "Revenue (this month)". `personaLayouts.js` owner array expands 4 → 7 widgets. 3 new test files (upcoming-readiness.test.js 8 + action-queue.test.js 6 + analytics-mtd.test.js 7 + persona test additions = +22 tests). `scripts/test-gate-mapping.json` extends dashboard.js gate + adds analytics.js gate. | `b649dac` (PR [#77](https://github.com/bulletbiter99/air-action-sports/pull/77)) → main `971d42f` ([#78](https://github.com/bulletbiter99/air-action-sports/pull/78)) | done |
+| **B4e** Marketing persona widgets + /analytics/funnel (7 files) | New endpoint `GET /api/admin/analytics/funnel?days=30` — 4-step Created→Paid→Waivers→CheckedIn checkout funnel for trailing N-day window (1-365 clamp; same window_start_ms binds to all 4 queries). 5 new Marketing widgets in PersonaWidgets.jsx — MarketingKPIs (4-stat grid: Conversion% / Promo uses / AOV / Email opens "Pending · M5" via PendingStat helper), ConversionFunnel (vertical 4-step bar chart with proportional widths + per-step "% from prev" hint), UpcomingEventsFillRate (top-5 upcoming events via existing /per-event with client-side past=false filter; reuses CapacityBar from B4d), PromoCodePerformance (top-5 active codes via /promo-codes with client-side sort), AssetLibraryShortcut (static "Coming in M5" tile). Reuses RecentFeedback from B4c (no marketing-specific tag column today). Marketing layout 6 widgets total; 5 new + 1 reused. New CSS class `.admin-persona-widget__pending` for degraded "Coming in M5" state. analytics-funnel.test.js 11 tests + persona test additions = +12 net. | `875fb7f` (PR [#79](https://github.com/bulletbiter99/air-action-sports/pull/79)) → main `2f1ea13` ([#80](https://github.com/bulletbiter99/air-action-sports/pull/80)) | done |
+| **B4f** Bookkeeper persona widgets + tax/fee totals on /overview (6 files) | `worker/routes/admin/analytics.js` extends `/overview` byStatus + totals with `taxCents` + `feeCents` aggregations (additive; tolerates existing callers; respects ?event_id + ?period=mtd). 5 new Bookkeeper widgets in PersonaWidgets.jsx — BookkeeperKPIs (4-stat MTD grid: Gross / Refunds / Net / Stripe payout "Pending · M6"), RevenueTrend (90-day daily revenue bar chart via /sales-series + reuses existing BarChart SVG primitive from src/admin/charts.jsx — no chart-library deps), TaxFeeSummary (2-stat tile via extended /overview totals), RefundActivity (compact table of 5 most recent refunds with red-orange tint + deep-link to /admin/bookings/:id), Staff1099Thresholds (static "Coming in M5" placeholder). `personaLayouts.js` flips `bookkeeper: null` → concrete 5-widget array — **all 6 personas now concrete; no alias-only entries remain.** personaLayouts.test.js consolidates "all 6 personas concrete" assertion; analytics-mtd.test.js gets 4 new tax/fee tests + 1 modified shape assertion = +5 net tests. | `6aa7fa3` (PR [#81](https://github.com/bulletbiter99/air-action-sports/pull/81)) → main `73eb30b` ([#82](https://github.com/bulletbiter99/air-action-sports/pull/82)) | done |
+| **B5** Sidebar / IA reorganization (Surface 1) (5 files) | `src/admin/sidebarConfig.js` (NEW — config-as-code SIDEBAR array per Surface 1: Home / Today (dynamic) / Events / Bookings / Customers (flag-gated) / separator / Settings collapsible group with 10 sub-items including Overview / Taxes / Email / Team / Audit / Waivers / Vendors / Promo Codes / Analytics / Feedback) + `getVisibleItems` filter helper + `loadSidebarExpand`/`saveSidebarExpand` localStorage helpers (namespaced `aas:admin:sidebar:expand:*`); `src/admin/AdminLayout.jsx` Sidebar component reads new config when `new_admin_dashboard='on'`, falls through to legacy NAV_SECTIONS when off — `<NewSidebarNav>` + `<SidebarItem>` + `<SidebarGroup>` internal helpers; SidebarGroup is collapsible with chevron toggle + localStorage persistence; SidebarItem renders Today with orange-pulse dot when `activeEventToday=true` (a11y aria-label + prefers-reduced-motion respect). `src/styles/admin.css` adds separator + group toggle + chevron rotate + pulse keyframes + sub-item indent. **Per D09**: Roster/Scan/Rentals routes stay alive but hidden from sidebar (resurface inside /admin/today when B12 ships that page). 24 new tests in sidebarConfig.test.js (registry + getVisibleItems + localStorage helpers; in-memory localStorage mock installed in beforeEach since vitest's node env has no localStorage). +1 new gate in test-gate-mapping.json. | `0a7c5c3` (PR [#83](https://github.com/bulletbiter99/air-action-sports/pull/83)) → main `69f3e83` ([#84](https://github.com/bulletbiter99/air-action-sports/pull/84)) | done |
+| **B6** Walk-up booking speed wins (banner + typeahead + recall) (8 files) | 3 features all flag-gated by `new_admin_dashboard`: (1) **CheckInBanner** (`src/admin/CheckInBanner.jsx`) — top-of-shell banner via `useTodayActive()` shared subscription; pulse dot + "Open scan →" deep-link when `activeEventToday=true`; session-dismissible. (2) **CustomerTypeahead** (`src/admin/CustomerTypeahead.jsx`) — debounced 250ms combobox on `/admin/new-booking` email field; queries `/api/admin/customers?q=` (skips < 2 chars); arrow-key nav + click/enter to select + escape closes + outside-click closes; "+ Create new customer" escape hatch. (3) **Recall hint** in AdminNewBooking — when typeahead picks a customer, fetches `/api/admin/customers/:id`, auto-fills name+phone, shows inline "Repeat customer · Last booked X · Y ago" hint with "View customer →" deep-link. Pure helpers in `src/admin/walkUpHelpers.js`: `pickRecallableBookings`, `formatBookingHint`, `formatRelativeAge`. CSS for banner + dropdown + recall hint. 27 tests in walkUpHelpers.test.js. +1 gate. | `7bddaca` (PR [#85](https://github.com/bulletbiter99/air-action-sports/pull/85)) → main `1c0806b` ([#86](https://github.com/bulletbiter99/air-action-sports/pull/86)) | done |
+| **B7** Command Palette (Cmd+K) + migration 0029 (7 files) | `migrations/0029_command_palette_flag.sql` (NEW — `command_palette` feature flag row, state='off'); `src/admin/commandRegistry.js` (NEW — pure helpers `commandsFromSidebar(SIDEBAR, ctx)` deriving flat command list from B5's SIDEBAR + `filterCommands` substring match with prefix-priority sort); `src/admin/CommandPalette.jsx` (NEW — centered modal following FeedbackModal pattern with autofocused input + arrow-key nav + escape close + click-outside close + monospace route hints + footer kbd chips + mobile responsive); `src/admin/AdminLayout.jsx` adds global `(metaKey|ctrlKey)+k` listener with `preventDefault` (wins race against Firefox Cmd+K binding) when `command_palette` flag on, mounts `<CommandPalette>` next to `<FeedbackModal>`; `src/styles/admin.css` adds backdrop / modal / option / category-badge / route-hint / footer kbd styles. Orthogonal to `new_admin_dashboard` — has its own flag for independent rollout. **Migration 0029 applied to remote D1 ✓ 2026-05-07.** 18 new tests in commandRegistry.test.js. +1 gate. | `f2c2d1e` (PR [#87](https://github.com/bulletbiter99/air-action-sports/pull/87)) → main `59aaa4d` ([#88](https://github.com/bulletbiter99/air-action-sports/pull/88)) | done |
+| **B7c** Session handoff refresh | HANDOFF.md §10/§12/§14 + prompt block refreshed for M4 B0-B7 state; CLAUDE.md M4 batch table refreshed with B4-B7 SHAs/PRs. No code changes; docs hygiene only. | `e95ff1a` (PR [#89](https://github.com/bulletbiter99/air-action-sports/pull/89)) → main `55be926` ([#90](https://github.com/bulletbiter99/air-action-sports/pull/90)) | done |
+| **B8** Atomic ancillary flag rollout | SQL UPDATEs only — `command_palette` → `state='on'`, `customers_entity` → `state='on'` on remote D1. **Pre-flip discovery**: `customers_entity` + `new_admin_dashboard` were already at `role_scoped='owner'` outside any documented batch (updated_at ~16h before B8). For the current admin set (4 users, all `role='owner'`), `role_scoped='owner'` was already effectively `on`; B8 formalizes `customers_entity` and opens it to any future non-owner admin. `command_palette` flipped from `off` to `on` (true new behavior — Cmd+K live for all admins). `new_admin_dashboard` left at `role_scoped='owner'` for B9 to resolve. Docs PR only; tests/lint/build unchanged (918/100, 0 errors / 293 warnings, ~232ms). | `4b0260c` (PR [#91](https://github.com/bulletbiter99/air-action-sports/pull/91)) → main `6eaa3e5` ([#92](https://github.com/bulletbiter99/air-action-sports/pull/92)) | done |
+| **B9** `new_admin_dashboard` → `on` | SQL UPDATE only — `new_admin_dashboard` `role_scoped='owner'` → `state='on'`, `role_scope=NULL` on remote D1. Operator chose the direct path; `user_opt_in` detour declined since no non-owner admin exists today to dogfood for. For the current admin set (4 users, all `role='owner'`), this is functionally a no-op — same persona dashboard + sidebar config + walk-up speed wins they've been seeing since the undocumented pre-B8 `role_scoped='owner'` flip. Semantic shift: any future non-owner admin (manager / staff role) automatically gets the new shell. Docs PR only; tests/lint/build unchanged (918/100, 0 errors / 293 warnings). | `beec625` (PR [#93](https://github.com/bulletbiter99/air-action-sports/pull/93)) → main `159142a` ([#94](https://github.com/bulletbiter99/air-action-sports/pull/94)) | done |
+| **B10** Collapsed | No work needed — B9 took the direct `role_scoped='owner'` → `on` path, skipping the `user_opt_in` detour. The B10 slot is intentionally empty so future readers can see the rollout sequence: B8 (atomic ancillary) → B9 (new shell) → (skipped) → B11 (deferred) → B12a/b/c (closing). | n/a | collapsed |
+| **B11** Deferred | Admin visual regression baselines deferred to post-M4. Cost-benefit unfavorable: implementing CI-integrated admin baselines requires either (a) cookie injection with SESSION_SECRET in CI secrets (forgery-vector risk) or (b) login-flow with real admin credentials in env vars. Either approach is ~7-10 files of engineering for marginal value, since B12 only removes dead code paths (already unreachable for ~17h+ in production). Manual `/admin` smoke after B12 deploy covers the residual risk. Future milestone (M5+) can add admin visual regression when the engineering complexity is justified. | n/a | deferred |
+| **B12a** Legacy dispatcher + Legacy AdminDashboard removal | Pure dead-code deletion. `src/admin/AdminDashboard.jsx` collapsed from 671 lines to 6 (re-exports `AdminDashboardPersona` directly). `src/admin/AdminLayout.jsx` removes `NAV_SECTIONS` constant + the `useFeatureFlag('new_admin_dashboard')` dispatcher branch in `Sidebar` + the `{newAdminDashboard && <CheckInBanner />}` gate (now unconditional render). The new sidebar config (`sidebarConfig.js`) becomes the sole production path. Tests unchanged (918/100; legacy code wasn't reachable). Lint warnings DROP from 293 → 281 (-12; removed JSX-component false-positives for deleted helpers `CronHealth`, `StatusBadge`, `MethodBadge`, `BookingDetailModal`, `AttendeeRow`, `RefundConfirmModal`, `Row`, `StatCard`). Build bundle DROPS by ~23 kB (the legacy `AdminDashboard-*.js` chunk gone; AdminDashboard now IS the persona shell). Remaining `useFeatureFlag` calls for the 3 M4 flags untouched (B12b cleanup). DB unchanged (B12b/c handle flag-row DELETE). | `356347c` (PR [#95](https://github.com/bulletbiter99/air-action-sports/pull/95)) → main `cd4749c` ([#96](https://github.com/bulletbiter99/air-action-sports/pull/96)) | done |
+| **B12b** Flag-check removal + flag-row DELETE | Removes the now-redundant `useFeatureFlag(...)` calls for the 3 M4 flags from 6 source files. AdminLayout.jsx — drops `command_palette` + `customers_entity` calls; Cmd+K listener + CommandPalette mount become unconditional; Sidebar's NewSidebarNav drops the customersEnabled prop. AdminCustomers.jsx + AdminCustomerDetail.jsx — drop the `customers_entity` page guards; pages always render. CommandPalette.jsx — drops `customers_entity` plumbing through commandsFromSidebar. sidebarConfig.js — drops `requiresFlag: 'customers_entity'` from the Customers item; getVisibleItems' filter logic stays for forward-compat. AdminNewBooking.jsx — drops the `new_admin_dashboard` ternary gating CustomerTypeahead vs plain email input + the recall-hint conjunction. Tests: sidebarConfig.test.js drops 2 flag-off tests + adds 1 forward-compat synthetic test; commandRegistry.test.js modifies 2 tests for new always-present semantics. **Test count: 918 → 917** (-1 net). Lint warnings unchanged at 281. Build clean (~247ms). Operator ran `DELETE FROM feature_flags WHERE key IN ('command_palette', 'customers_entity', 'new_admin_dashboard');` post-deploy 2026-05-07; 3 rows DELETEd; only `density_compact` remains. | `1152ca3` (PR [#97](https://github.com/bulletbiter99/air-action-sports/pull/97)) → main `5c71b03` ([#98](https://github.com/bulletbiter99/air-action-sports/pull/98)) | done |
+| **B12c** Closing — `/admin/today` page + runbooks (this batch) | New `src/admin/AdminToday.jsx` (~150 lines, inline styles): 3 render states based on `useTodayActive()` — loading, no-event-today (empty card), active-event-today (header + 3 quick-action tiles to Roster / Scan / Rentals with `?event=eventId` deep-links), ambiguous (2+ events today; pointer to /admin/events). `src/App.jsx` registers `/admin/today` route + lazy-imports AdminToday alongside existing admin routes. `src/admin/sidebarConfig.js` comment block updated to reflect the page is live. **3 closing runbooks** at `docs/runbooks/`: `m4-baseline-coverage.txt` (test/lint/bundle snapshot at M4 close, all 28 gated paths inventoried), `m4-deploy.md` (the actual M4 deploy sequence including rolling brings-up, 4 migrations, 2 SQL UPDATE flag flips, 1 SQL DELETE), `m4-rollback.md` (decision tree, per-batch revert SHAs with hazards, schema rollback recipes for migrations 0026-0029, deep-link param parsing flagged as M5 polish not rollback). 8 files. Test count unchanged (917/100). Lint warnings ~281 (no new false-positives expected). Bundle adds small AdminToday chunk (~3-5 kB). **Known M5 polish item**: AdminScan + AdminRoster don't yet parse `?event=` query param — deep-links navigate but don't pre-select. Documented in m4-rollback.md. | pending | pending |
+
+**Cumulative through B12c — M4 CLOSED 2026-05-07:** **917 unit tests across 100 files** (+300 vs M3 close). 7 visual regression baselines captured and CI-gated at 1% threshold. **28 gated paths** in `scripts/test-gate-mapping.json` (M3's 12 + M4's 9 new + 7 carryover). **4 D1 migrations applied to remote in M4**: 0026 (saved_views), 0027 (bookings_refund_external + email template seed), 0028 (users.persona column + role-based backfill), 0029 (command_palette flag). **B8 + B9 in-place SQL flips on remote D1** (no migration files; mutations of seeded `feature_flags` rows): B8 → `command_palette` `off` → `on` and `customers_entity` `role_scoped='owner'` → `on`; B9 → `new_admin_dashboard` `role_scoped='owner'` → `on`. **All 3 M4 flag rows DELETEd** post-B12b deploy 2026-05-07; only `density_compact` remains. 9 decision-register entries (D01-D09). Lint: 0 errors / **287 warnings** (+6 from B12b — new JSX false-positives for AdminToday's internal helper components `NoEventTodayState`, `AmbiguousState`, `ActiveEventTodayView`, `ActionTile`). **Bundle**: AdminDashboard chunk 28.09 kB (persona shell as the only path); AdminToday chunk added in B12c (small; <5 kB). **Closing runbooks** at `docs/runbooks/m4-{baseline-coverage.txt,deploy.md,rollback.md}`.
+
+**M4-specific carry-forward facts:**
+- **Persona model decision (D08)**: `users.persona` column added in B4a maps job-title personas (owner / booking_coordinator / marketing / bookkeeper / generic_manager / staff) separately from the role hierarchy that drives capability gating. All 4 admin user rows on remote backfilled to `persona='owner'` (mapping from `role='owner'`). Override via SQL UPDATE to test other personas.
+- **Roster/Scan/Rentals (D09)**: routes stay alive (deep-link works); sidebar hides them by default. **As of B12c**: they resurface as quick-action tiles inside `/admin/today` (live page, `src/admin/AdminToday.jsx`) when `activeEventToday=true`. B4c's TodayCheckIns widget + B6's CheckInBanner deep-link to `/admin/scan?event=...`. **Known M5 polish**: AdminScan + AdminRoster don't yet parse the `?event=` query param — links navigate but don't pre-select; operator picks via dropdown.
+- **`/api/admin/today/active` endpoint** (B4b): contract `{ activeEventToday, eventId, checkInOpen }`. checkInOpen is stubbed to `false` — refining requires parsing `events.check_in` / `events.first_game` time strings into tz-aware instants; deferred. Three consumers: useTodayActive shared subscription (powers PersonaWidgets cadence + dynamic Today sidebar item + CheckInBanner).
+- **`/api/admin/dashboard/upcoming-readiness` + `/action-queue`** (B4d): owner-persona endpoints. Top-3 upcoming events with capacity/waiver bars + 4-count action queue. Lightweight COUNT queries; no caching.
+- **`/api/admin/analytics/overview`** extended in M4: B4d added `?period=mtd` (current-month scoping), B4f added `taxCents` + `feeCents` aggregations to byStatus rows + totals. All additive — no breaking changes to existing callers.
+- **`/api/admin/analytics/funnel?days=N`** (B4e): 4-step Created→Paid→Waivers→CheckedIn checkout funnel. Powers Marketing's ConversionFunnel widget. Step 4 lags reality (future events in window haven't happened) — documented in code; acceptable for trend indicator.
+- **Bookings workspace is feature-complete** as of B3b. Sidebar entry shipped in B5 (when `new_admin_dashboard='on'`); pre-flag, navigable via direct URL or via View button on /admin/bookings.
+- **All 6 personas have concrete widget sets** as of B4f: owner (7), generic_manager (3 M3 baseline), staff (2 M3 baseline), booking_coordinator (5), marketing (6 — 5 new + RecentFeedback reused), bookkeeper (5).
+- **Capabilities stub** (`worker/lib/capabilities.js`) maps the M3-era 3-role hierarchy. M5 will replace with a DB-backed query when role hierarchy expands. Capabilities introduced in M4: `bookings.read.pii`, `bookings.email`, `bookings.export`, `bookings.refund`, `bookings.refund.external`.
+- **Visual regression baseline capture flow** is CI-driven, not local. Label any UI-changing PR with `capture-baselines` to refresh; bot commits new PNGs back via `.github/workflows/capture-baselines.yml`. After bot push, manually re-trigger CI (push an empty commit) — GitHub anti-recursion blocks GITHUB_TOKEN-pushed commits from auto-firing `pull_request: synchronize`. Documented in [docs/runbooks/visual-regression.md](docs/runbooks/visual-regression.md).
+- **PII masking pattern**: server-side. `worker/routes/admin/bookings.js` GET /:id checks `hasCapability(user, 'bookings.read.pii')` and returns full or masked email/phone accordingly. Audit row `customer_pii.unmasked` written per call when capability is exercised. Frontend renders whatever server returns + a "(masked)" UX badge when `viewerCanSeePII === false`. No client-side click-to-reveal interaction in M4.
+- **B5 sidebar + B6 walk-up speed wins + B7 Command Palette** all flag-gated originally. **As of B12b** (post-cleanup): all `useFeatureFlag('command_palette')` / `useFeatureFlag('customers_entity')` / `useFeatureFlag('new_admin_dashboard')` call sites are removed; conditionals are unconditional renders. The 3 flag rows in `feature_flags` D1 table are now orphans (no consumer) pending the operator-driven `DELETE FROM feature_flags WHERE key IN (...)` post-deploy. **B12a deleted** legacy `AdminDashboardLegacy()` + `NAV_SECTIONS` source code (was dead at runtime since B9; physically removed). **B12b deleted** the surviving flag-check call sites (CheckInBanner gate; Cmd+K listener gate; CommandPalette mount gate; Customers page guards on the list + detail pages; Customers sidebar entry's requiresFlag; CustomerTypeahead vs plain-email-input ternary on /admin/new-booking; recall hint conjunction). Pre-B8 production state had `customers_entity` and `new_admin_dashboard` both at `role_scoped='owner'` outside any documented batch — HANDOFF.md §12 was inaccurate; B8's docs PR corrected it.
+- **`useWidgetData` cadence primitive** (B4b, `src/hooks/useWidgetData.js`): shared module-level `useTodayActive()` subscription + `useWidgetData(url, { tier })` with tiers static/live (5min default → 30s when `activeEventToday=true` → 10s when `checkInOpen=true`). Visibility-aware (pauses when `document.visibilityState='hidden'`). All persona dashboard widgets use this pattern.
+- **Sidebar config-as-code** (B5, `src/admin/sidebarConfig.js`): single source of truth for nav. Adding a sidebar item automatically surfaces in the Command Palette via `commandsFromSidebar` (B7).
+
+**Resume the milestone in a fresh session:**
+1. `git checkout main && git pull origin main` (or `milestone/4-bookings-ia-completion` for active development)
+2. `npm install`
+3. `npm test` — confirm **917/100 passing**
+4. `npm run lint` — confirm 0 errors / **287 warnings** (M4 close baseline)
+5. `npm run build` — confirm clean (~250ms)
+6. `curl https://airactionsport.com/api/health` — confirm `{"ok":true,...}`
+7. **M4 is CLOSED.** Remaining work is operational, not code. See `docs/runbooks/m4-{baseline-coverage.txt,deploy.md,rollback.md}` for the post-M4 reference. Next priorities (from HANDOFF.md §11 pre-launch checklist):
+   - Stripe sandbox → live cutover + $1 e2e test.
+   - DMARC + Resend DKIM/SPF DNS records (booking confirmation emails currently may land in spam).
+   - Cloudflare Always-Use-HTTPS toggle.
+   - Operation Nightfall content seed (cover images, custom questions, email-template review).
+   - Second-admin invite (for backup access).
+   - Comp-ticket dry run.
+   - Optional post-M4 code work: AdminScan + AdminRoster `useSearchParams()` parsing for `?event=` deep-links (~10 lines per file); Audit Group H cron tests; admin visual regression baselines (B11 deferral).
+8. Read this Milestone 4 section + the relevant batch's row above + the M4 plan in this CLAUDE.md if not yet executed.
+
+**Stop-and-ask conditions during M4:**
+- A do-not-touch file needs modification beyond what the documented batches specify (DNT list mirrors `docs/audit/06-do-not-touch.md`)
+- Existing Group E tests fail after a `worker/routes/admin/bookings.js` edit (do-not-touch contract violation)
+- A test fails after a behavior-preserving refactor (investigate, don't "fix" the test)
+- Coverage on any gated file drops from M3 + B3a baseline
+- Visual regression on a public baseline after a non-public-touching batch (would indicate a regression we missed)
+- Migration syntax issue (M3 D1 quirks: BEGIN/COMMIT keywords rejected; FK enforcement on table-rebuild — use column-rename pattern)
+
+---
+
+### Post-M5.5 fix — staff create flow + missing M5 wiring (2026-05-12)
+
+Surfaced when the operator reported the "+ New Person" button on `/admin/staff` led to a blank page. Diagnosis uncovered **four** layered M5 gaps that all shipped at close but never worked end-to-end:
+
+1. **`persons` table was empty in production** — the M5 B3 backfill (`scripts/backfill-persons.js`) was never run on remote. CLAUDE.md M5 section had no operator-applies entry for it.
+2. **`createPersonForUser` runtime hook was dead code** — `worker/routes/admin/personsHelpers.js` exported the helper meant to fire from invite-accept, but nothing imported it. Brand-new admins would get a `users` row but no matching `persons` row.
+3. **`/admin/staff/new` route didn't exist** — neither a route, a form, nor a `POST /api/admin/staff` endpoint. The button shipped without its destination.
+4. **`users.role_preset_key` was NULL for all 4 admins**, so the M5 cap system fell through to `LEGACY_ROLE_CAPABILITIES.owner` (5 booking-only caps from M4) — none of `staff.read`, `staff.write`, `staff.invite`, etc. were granted. Every admin route in M5+ (`/admin/staff`, `/admin/staff/*`, `/admin/booking-charges`, `/admin/event-staffing`) returned 403 in production. CLAUDE.md M5 R12 narrative claimed all 4 admin rows had been backfilled — they hadn't.
+
+Compounding (1) and (2): both `scripts/backfill-persons.js` and `personsHelpers.js` had hard-coded `INSERT INTO audit_log (id, action, actor_user_id, target_type, target_id, meta, ...)` statements — production schema is `(user_id, action, target_type, target_id, meta_json, created_at)` with `id INTEGER PRIMARY KEY AUTOINCREMENT`. The script would have failed even if run. `backfill-persons.js` also pre-dated the M5.5 B2 discovery of wrangler's `--json --file` SUMMARY-row quirk on `--remote` reads.
+
+**What this fix landed:**
+
+- **A (data restoration)** — Fixed `scripts/backfill-persons.js`: split `exec()` into `wranglerQuery()` (`--command` for SELECT reads, M5.5 D1 quirk #4) and `wranglerExecute()` (`--file` for multi-statement writes); rewrote the audit_log INSERT to the production 6-col shape. Ran `node scripts/backfill-persons.js --remote` → minted 4 persons + 4 person_roles + 4 audit_log rows for the existing admins (Paul, Rebecca, Adam, Bradley); all assigned primary role `role_event_director`. `/admin/staff` now lists the team.
+- **B (runtime hook)** — `worker/routes/admin/personsHelpers.js` audit emission now goes through `writeAudit()` (correct shape). Imported + called from `worker/routes/admin/auth.js` in both the `/setup` (first-owner bootstrap) and `/accept-invite` handlers inside try/catch so the user-creation flow doesn't fail if person creation hits an unexpected issue. Future admin invites auto-mint their person row.
+- **C (create flow)** — Added `POST /api/admin/staff` (gated by `staff.write`) and `GET /api/admin/staff/roles-catalog` (gated by `staff.read`) in `worker/routes/admin/staff.js`. New form at `src/admin/AdminStaffNew.jsx`, route registered at `/admin/staff/new` before `staff/:id` in `src/App.jsx`. Roles-catalog endpoint also retires the "endpoint not yet implemented" fallback in the AdminStaffDetail Roles-tab modal.
+- **D (role-preset backfill)** — Direct SQL: `UPDATE users SET role_preset_key = 'owner' WHERE role = 'owner' AND role_preset_key IS NULL` (4 rows changed). The 4 admins are the literal platform owners, so the `owner` preset is the right call (26 caps incl. all `staff.*` + `staff.notes.write_sensitive`) — not `event_director` (which is what `legacyRoleToRolePreset()` in `worker/lib/users.js` would have mapped them to, but which lacks `staff.notes.write_sensitive`). Verified via dev-server browser: `/admin/staff` now returns 200 with all 4 names + `viewerCanSeePii=true`.
+- **E (global-CSS nav leak)** — `src/styles/global.css` had a bare `nav { position: fixed; top: 0; width: 100%; ... }` rule meant for the public Navbar but applying to every `<nav>` in the app. The profile-page tab nav (`AdminStaffDetail.jsx`) was escaping to a fixed band at the top of the viewport. `admin.css` already had an override comment acknowledging the leak for the sidebar (`nav.admin-sidebar-nav`); pattern would have repeated indefinitely for every new admin `<nav>`. **Fix:** rename global rule to `.site-nav { ... }`, add the class to `src/components/Navbar.jsx` only, drop the now-redundant resets in `admin.css`. Pixel-identical on the public site (visual regression CI passed); profile tab nav now sits at `y~307` inside the content column.
+- **Deploy-fix (Cloudflare bundle)** — Prong B's wiring made `worker/index.js` transitively import `scripts/backfill-persons.js`, which has top-level `import { execSync } from 'node:child_process'` (and other Node-only modules). Cloudflare Workers can't load `node:*`. First wrangler deploy after the PR merge failed with `Uncaught Error: No such module "node:child_process"`. **Fix:** inlined the 13-line pure `legacyRoleToPersonRoleId` switch in `personsHelpers.js`, dropped the cross-file import. Worker bundle no longer reaches into the CLI script. Pre-fix the import was invisible because nothing in the worker imported personsHelpers.js — Prong B's import made it real.
+
+**Tests added (+25):**
+- `tests/unit/admin/personsHelpers.test.js` — 14 tests: input guards, idempotency, role-mapping per legacy role, full_name fallback chain, audit emission with correct shape.
+- `tests/unit/admin/staff/create.test.js` — 11 tests: 403 without `staff.write`, 6 validation 400s, 2 happy paths (minimal + full), 2 roles-catalog (403 + 200 ordered list).
+
+**Gate map** updated: `worker/routes/admin/staff.js` and `worker/routes/admin/personsHelpers.js` both promoted to gated entries.
+
+**Carry-forward lessons** (durable, apply to any future milestone):
+
+1. **A helper-without-an-import is a tripwire.** If a file's docstring says "called from X for Y purpose," grep for the import in X — if there's none, the feature is dead in production. The runtime hook + the schema mismatch went undetected because both lived only in code that was never exercised.
+2. **Backfill scripts authored before D1 quirk #4 (M5.5 B2) are quietly broken on `--remote` reads.** Any script that uses `wrangler d1 execute ... --json --file=` for a SELECT will see a summary row, not data — the `users=1 existing=1` dry-run looks plausible while actually doing nothing. Audit such scripts before running.
+3. **`audit_log` schema in production has 6 columns + AUTOINCREMENT id, not 7 + TEXT id.** Any new INSERT must go through `writeAudit()` (worker/lib/auditLog.js), not raw SQL. Two prior bugs (this and the M5 hotfix PR #143 email_templates issue) had the same shape: a feature shipped against a schema that never matched production.
+4. **Pure-helper tests catch shape bugs but not wire-up bugs.** `tests/unit/scripts/backfillPersons.test.js` tested `legacyRoleToPersonRoleId` + `planBackfill` + `randomId` — all pure — and stayed green while the CLI portion was broken in two independent ways. Future-state: integration smokes for the I/O surface, not just pure helpers.
+5. **Bare element selectors in global stylesheets leak across the app.** `nav { position: fixed; ... }` was scoped by intent to the public site but applied everywhere. `admin.css` had a one-page workaround for the sidebar (`nav.admin-sidebar-nav` resetting position/width/etc.) — that workaround was a signal the global was wrong, not a fix. Whenever you add a global rule for a specific component, scope it to a class (e.g. `.site-nav`).
+6. **A file's top-level imports always run when the module loads.** Even if the worker only uses ONE pure helper from a file, the bundle includes ALL of that file's top-level imports. A Node CLI script with `import 'node:child_process'` will break Cloudflare deploy if reachable from `worker/index.js`. Options when sharing helpers across worker + CLI: (a) inline the helper in the worker-side file, (b) extract to a pure-imports-only file, or (c) make Node-only imports lazy via dynamic `await import(...)` inside the `if (isMain)` block.
+
+**Operator-applied + deployed status:**
+- ✅ Backfill ran 2026-05-12; 4 persons + 4 person_roles minted to remote.
+- ✅ `users.role_preset_key='owner'` SQL UPDATE applied 2026-05-12; 4 rows changed. All staff.* caps now resolve via the M5 capability path (no longer falling through to LEGACY_ROLE_CAPABILITIES).
+- ✅ PR #165 merged as `d70952a` 2026-05-12; deploy-fix follow-up at `cd27867`.
+- ✅ Manual `npm run build && wrangler deploy` executed (Workers Builds CI also ran, succeeded post-deploy-fix). **Production Worker version `866dd1ef-106a-4373-8051-bfe27d45c3f4`** live at 2026-05-12 18:11 UTC.
+- ✅ Browser smoke (Claude_in_Chrome MCP): `/admin/staff` returns 200 with 4 admins listed; `/admin/staff/<id>` renders 8 tabs inline (the E nav-fix); `/admin/staff/new` renders the create form with all 22 roles in the catalog dropdown.
+
+**No new D1 migrations** in this fix — code-only + 2 remote D1 data mutations (4 person inserts + 4 user role_preset_key updates) already applied.
+
+---
+
+### Continued post-M5.5 work — 2026-05-12 (late afternoon → evening)
+
+Same operator session continued after the wiring-fix above. Nine more PRs landed, covering: the per-tab fill-out for `/admin/staff/:id` (P1 → P4), three UX/security follow-ups, two small public-side fixes, and one new feature (email-bound batch promo codes with migration 0054).
+
+**Production at session close: Worker version `6b680a02-966b-4056-af5b-3e7d2fce9c1f` at ~22:55 UTC, from `main` SHA `eb89f13`.**
+
+| # | PR | Headline | Merge SHA |
+|---|---|---|---|
+| 1 | [#167](https://github.com/bulletbiter99/air-action-sports/pull/167) | **P1** — Profile edit modal + Notes sensitive-textarea gating | `ed9a0a5` |
+| 2 | [#168](https://github.com/bulletbiter99/air-action-sports/pull/168) | **P3** — Access tab: portal sessions list + revoke + invite | `cc5d2e9` |
+| 3 | [#169](https://github.com/bulletbiter99/air-action-sports/pull/169) | **P2** — Documents tab: per-person ack list + admin override | `c1fa2ff` |
+| 4 | [#170](https://github.com/bulletbiter99/air-action-sports/pull/170) | **P4** — Issues tab: incidents filed-by + involving | `116577b` |
+| 5 | [#171](https://github.com/bulletbiter99/air-action-sports/pull/171) | Portal invite confirm modal (UX fix) | `396006a` |
+| 6 | [#172](https://github.com/bulletbiter99/air-action-sports/pull/172) | Gate portal invite on `staff.invite` capability (not role hierarchy); remove cap from booking_coordinator preset | `7eb2e70` |
+| 7 | [#173](https://github.com/bulletbiter99/air-action-sports/pull/173) | Home hero headline: "Lock & Load Up." → "Live Airsoft Events" | `342d654` |
+| 8 | [#174](https://github.com/bulletbiter99/air-action-sports/pull/174) | Event create: normalize slug input (no rejection on apostrophes/spaces/capitals) | `19e1a78` |
+| 9 | [#175](https://github.com/bulletbiter99/air-action-sports/pull/175) | Email-bound single-use promo codes + batch-create modal (migration 0054) | `eb89f13` |
+
+**Cumulative test count: 2073 across 168 files** (M5.5 close baseline 1997/161 → +76). Lint 0 errors. Build clean.
+
+#### Admin staff suite — all 8 tabs at 100%
+
+PRs #167-#170 closed the placeholder gap on `/admin/staff/:id`. State transition:
+
+| Tab | Before | After |
+|---|---|---|
+| Profile | view-only ("inline edit form coming…") | Edit modal with 8 fields (full_name, preferred_name, pronouns, email, phone, status, hired_at, separated_at). Existing PUT endpoint was already wired; UI now exposes it. |
+| Roles | functional | functional (unchanged, but unblocked by post-M5.5 wiring fix above) |
+| Documents | "coming in Batch 5" placeholder | `GET /api/admin/staff-documents/for-person/:personId` (server-computes 5 statuses: required_pending / required_acked / required_stale / optional_acked / available) + `POST /:id/acknowledge-for-person` for admin override acks (gated on `staff.documents.assign`). |
+| Notes | half-broken (sensitive textarea hidden when null; wrong cap) | Both textareas render when `staff.notes.read_sensitive` granted; write enabled when `staff.notes.write_sensitive` granted. `formatPerson()` now exposes `viewerCanSeeSensitiveNotes` + `viewerCanWriteSensitiveNotes` flags. |
+| Access | "coming in Batch 6" placeholder | `GET /api/admin/staff/:id/portal-sessions` (status: pending/active/expired/revoked) + `POST /:id/portal-sessions/:sid/revoke`. UI: table + confirm modal before send-invite + revoke action. |
+| Issues | "coming in Batch 14" placeholder | `GET /api/admin/staff/:id/incidents` joining `incidents` + `incident_persons`. UI: two sections (filed-by / involving) with inline narrative expand. |
+| Certifications | functional | functional (unchanged) |
+| Schedule | functional | functional (unchanged) |
+
+#### Capability-based gating swap (PR #172)
+
+Previously `AccessTab.canInvite = hasRole('manager')` — coarse 3-level role hierarchy. Now:
+
+- `AdminContext` plumbs `capabilities[]` from `/api/admin/auth/me` (was already returned by the backend; just unwired). Exposes `hasCapability(cap)` from `useAdmin()`.
+- `AccessTab.canInvite = hasCapability('staff.invite')`.
+- SQL on remote D1: `DELETE FROM role_preset_capabilities WHERE capability_key='staff.invite' AND role_preset_key='booking_coordinator';` — now bound to `owner` + `event_director` only.
+- HR coordinator preset doesn't exist yet. When onboarding HR, operator runs: `INSERT INTO role_presets (key, name) VALUES ('hr_coordinator', 'HR Coordinator');` + appropriate `role_preset_capabilities` bindings + `UPDATE users SET role_preset_key='hr_coordinator' WHERE email='…';`
+
+#### Migration 0054 — promo_codes_email_binding (PR #175, APPLIED TO REMOTE this session)
+
+- `ALTER TABLE promo_codes ADD COLUMN restricted_to_email TEXT NULL` — when set, `resolvePromoCode()` in `worker/routes/bookings.js` rejects the code at `/checkout` if `buyer.email` doesn't match (case-insensitive). `/quote` previews soft when no email provided. `pricing.js` (Critical DNT) NOT touched.
+- Seed `promo_code_issued` email template (with id + created_at per Lesson #7).
+- New endpoint `POST /api/admin/promo-codes/batch` (manager+, capped at 500 recipients) generates N single-use codes, each bound to one recipient email + random 6-char Crockford-style suffix (no 0/O/1/I). Optional `sendToSelfFirst` prepends admin's email as a dry-run preview.
+- New helper module `src/admin/promoCodeBatchHelpers.js` (pure): `parseEmailList(text)` returns `{ valid, invalid, duplicates }` with case-insensitive dedup; `formatDiscountDisplay(type, value)` for the confirm modal.
+- New `BatchPromoModal` in `AdminPromoCodes.jsx` with chip parser, send-to-self toggle, send-emails toggle (default on), and a **hard confirmation modal** before any emails fire (⚠ "This cannot be undone").
+
+#### Public-side tweaks
+
+- **Home hero headline** (PR #173): `<h1>Lock &amp;<span>Load Up.</span></h1>` → `<h1>Live Airsoft<span>Events</span></h1>`. No CSS changes — span retains `color: var(--orange); display: block;`. Visual regression passed under 1% diff threshold.
+- **Event slug normalization** (PR #174): `parseEventBody()` now calls `slugify()` transparently instead of regex-rejecting non-conforming input. `Operation '68` → `operation-68`. Only rejects when the input slugifies to empty (`!!!` etc.). Same code path covers POST + PUT.
+
+#### Carry-forward lessons (durable additions)
+
+7. **Capability-based gating > role hierarchy.** `hasRole('manager')` is a quick proxy but coarse; capabilities (`hasCapability('staff.invite')`) let the operator tune access via SQL on `role_preset_capabilities` without code changes. Backend already enforces — frontend should mirror.
+8. **Hard confirmation before destructive irreversible action.** The batch-promo-code modal pattern (preview + ⚠ warning + explicit "Yes, send N emails" button) prevents accidental click-throughs on email blasts. Re-use for any future bulk action that touches recipients or external services.
+9. **Single-email-per-code beats list-per-code.** When you need single-use + recipient-bound, generate N codes (one per recipient with its own random suffix) — cleaner audit trail than one shared code with a list of allowed emails. The redemption check stays trivial (single column lookup), and "Bob shares his code with Alice" gets rejected naturally.
+10. **Send-to-self-first dry-run is cheap insurance.** A toggle that prepends the admin's email as recipient #0 lets them preview the actual email content before fanning out. Trivial to wire; big confidence boost.
+
+#### Operator follow-ups queued for the next session
+
+- **HR coordinator role_preset** doesn't exist yet — see the SQL pattern above.
+- **Past-games / event archive page** discussed in this session but deferred. Phased plan in conversation: phase 1 = public archive + external video/photo links (YouTube embeds + Drive shared links) without R2 plumbing; phase 2 = R2-hosted images + bulk admin upload tooling; phase 3 = optional video hosting in R2. Recommend phase 1 first (~6 files).
+- **Original M5.5 polish backlog** from [docs/m55-next-session.md](docs/m55-next-session.md) Fork A unchanged: AES decryption surface for `business_tax_id` (EIN) + `business_billing_address`; Admin POST customers (create modal); monthly day_of_month recurrence pattern; `/status` route clearing `lead_stale_at`; UNIQUE constraint on (recurrence_id, recurrence_instance_index); AdminScan + AdminRoster `?event=` deep-link parsing.
+
+#### Gate map additions
+
+`scripts/test-gate-mapping.json` updated to reflect the new tests added this session:
+- `worker/routes/admin/staff.js` gate extended: `access.test.js`, `profile-edit.test.js`, `issues.test.js` added alongside existing list/detail/typeahead/roles/notes/archive/create.
+- `worker/routes/admin/staffDocuments.js` promoted to a gated entry with tests: `create.test.js`, `list.test.js`, `retire.test.js`, `role-tag.test.js`, `for-person.test.js`.
