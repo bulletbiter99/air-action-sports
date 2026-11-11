@@ -21,13 +21,13 @@
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.26",
     "@zxing/browser": "^0.1.5",
-    "docx": "^9.6.1",
-    "hono": "^4.12.14",
+    "docx": "^9.15.3",
+    "hono": "^4.13.17",
     "qrcode": "^1.5.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-helmet-async": "^3.0.0",
-    "react-router-dom": "^7.14.0"
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
