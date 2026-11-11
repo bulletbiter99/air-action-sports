@@ -1,6 +1,6 @@
 ---
 name: deploy-air-action-sports
-description: Build and deploy the Air Action Sports Worker to Cloudflare, then verify /api/health returns ok. Handles the Cloudflare API token from .claude/.env, runs the Vite build, invokes wrangler deploy, and confirms the deploy is live. Trigger whenever the user says "deploy", "ship it", "push to production", "redeploy", "update the live site", "push the change", or any variant indicating they want the current working tree's changes live on air-action-sports.bulletbiter99.workers.dev. Also trigger proactively after a completed code change when the user mentions wanting to see it live.
+description: Build and deploy the Air Action Sports Worker to Cloudflare, then verify /api/health returns ok. Handles the Cloudflare API token from .claude/.env, runs the Vite build, invokes wrangler deploy, and confirms the deploy is live. Trigger whenever the user says "deploy", "ship it", "push to production", "redeploy", "update the live site", "push the change", or any variant indicating they want the current working tree's changes live on airactionsport.com. Also trigger proactively after a completed code change when the user mentions wanting to see it live.
 ---
 
 # Deploy Air Action Sports
@@ -19,7 +19,7 @@ Do NOT trigger for:
 1. Build the React frontend with Vite (`npm run build`)
 2. Load the Cloudflare API token from `.claude/.env`
 3. Invoke `wrangler deploy` (uploads Worker + `dist/` static assets in one shot)
-4. Verify `curl https://air-action-sports.bulletbiter99.workers.dev/api/health` returns `{"ok":true,...}`
+4. Verify `curl https://airactionsport.com/api/health` returns `{"ok":true,...}`
 5. Report the new version ID and a one-line status to the user
 
 ## Command
@@ -33,7 +33,7 @@ npm run build && source .claude/.env && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOK
 Then separately verify health:
 
 ```bash
-curl -s https://air-action-sports.bulletbiter99.workers.dev/api/health
+curl -s https://airactionsport.com/api/health
 ```
 
 ## Expected output
@@ -43,7 +43,6 @@ A successful deploy ends with something like:
 ```
 Uploaded air-action-sports (6.59 sec)
 Deployed air-action-sports triggers (0.96 sec)
-  https://air-action-sports.bulletbiter99.workers.dev
   schedule: */15 * * * *
 Current Version ID: <uuid>
 ```
@@ -53,6 +52,8 @@ Health check should return `{"ok":true,"ts":<unix-ms>}`.
 Report to the user: new version ID + confirmation that health is green.
 
 ## Things to know
+
+- **The site lives only at `https://airactionsport.com`.** Since 2026-11 `wrangler.toml` sets `workers_dev = false` and `preview_urls = false`, so `air-action-sports.bulletbiter99.workers.dev` and the per-PR preview hosts no longer answer, and wrangler no longer prints a workers.dev URL. Verify health and pages on the real domain. Do not re-enable either key to "get a URL to test on" — those hosts bypassed the zone's AI-crawler block. The custom domain is managed in the Cloudflare dashboard, which is why there is no `routes` key.
 
 - **Do not skip the build.** Wrangler uploads `dist/` as static assets. If you skip `npm run build` you ship the previous build's frontend with the new Worker code — silent mismatch.
 - **The `&&` chain matters.** A `;` would plow through a build failure and deploy broken code. `&&` is the safety net.

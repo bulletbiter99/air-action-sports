@@ -186,7 +186,7 @@ npm test
 # merge to main. It should pass (npm ci + npm run build, no test step).
 
 # 4. Production smoke (operator).
-curl -fsSL https://air-action-sports.bulletbiter99.workers.dev/api/health
+curl -fsSL https://airactionsport.com/api/health
 # Expect: HTTP 200, {"ok":true,...}.
 
 # 5. Operator-triggered Playwright smoke (one-time).

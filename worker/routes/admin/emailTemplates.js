@@ -46,17 +46,17 @@ function sampleVars() {
         player_count: 4,
         total_paid: '320.00',
         booking_id: 'bk_SAMPLE12345',
-        waiver_link: 'https://air-action-sports.bulletbiter99.workers.dev/booking/success?token=bk_SAMPLE12345',
+        waiver_link: 'https://airactionsport.com/booking/success?token=bk_SAMPLE12345',
         player_email: 'jane@example.com',
         player_phone: '+1 555 0123',
-        admin_link: 'https://air-action-sports.bulletbiter99.workers.dev/admin',
+        admin_link: 'https://airactionsport.com/admin',
         check_in: '6:30 AM – 8:00 AM',
         first_game: '8:30 AM',
         display_name: 'Jane',
-        reset_link: 'https://air-action-sports.bulletbiter99.workers.dev/admin/reset-password?token=SAMPLE',
+        reset_link: 'https://airactionsport.com/admin/reset-password?token=SAMPLE',
         inviter_name: 'Paul',
         role: 'staff',
-        accept_link: 'https://air-action-sports.bulletbiter99.workers.dev/admin/accept-invite?token=SAMPLE',
+        accept_link: 'https://airactionsport.com/admin/accept-invite?token=SAMPLE',
     };
 }
 

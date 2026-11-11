@@ -34,8 +34,9 @@ This file is the entry point for any Claude session working in this repository. 
 - **Diagnosis signal (durable):** `bookings.stripe_session_id` prefix — `cs_test_` vs `cs_live_` — is the source of truth for which Stripe mode a booking used (`wrangler secret list` shows only names, never values, so it can't tell test from live).
 - operator set live `STRIPE_WEBHOOK_SECRET` then `STRIPE_SECRET_KEY` (webhook-secret-before-API-key = safe order, so there's never a window where real cards charge but bookings can't confirm)
 - Stripe Checkout for payments — **LIVE since 2026-06-03; production takes real money, so never run a "test" checkout against it**
-- **AI crawlers are blocked at the Cloudflare edge.**
+- **AI training crawlers (GPTBot, ClaudeBot, …) are blocked at the Cloudflare edge; AI search crawlers (OAI-SearchBot, PerplexityBot) are allowed** — the operator's `ai-train=no` policy. Measure it on `airactionsport.com` only.
 - **Editing `public/robots.txt` cannot change this** — the managed block is prepended at the edge and is not in the repo. Fix is Cloudflare → Security → Bots → AI Scrapers & Crawlers.
+- **`airactionsport.com` is the only host.** `wrangler.toml` sets `workers_dev = false` + `preview_urls = false` (2026-11): the old workers.dev URL and per-PR preview URLs were full copies of the site outside the zone's bot management, so the edge block above didn't apply there. Never re-enable them to get a test URL; verify deploys on the real domain. Pinned by `tests/unit/config/workersDevDisabled.test.js`.
 - **Production can change underneath a session** — the operator added a 4th site and flipped Foxtrot to `open` mid-session. Re-read `/api/sites` and `/api/events` live rather than trusting any doc.
 - **Replacing an event image = a NEW content-hashed key + repoint the D1 `*_image_url` column, NOT an in-place overwrite.**
 - `UPDATE` the column (reversible), and leave the old object **orphaned — don't hard-delete casually** (its bytes are the only copy; the operator hands you the *new* file)
