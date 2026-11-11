@@ -11,9 +11,19 @@
   text-align: center; padding: 6rem 2rem 4rem;
   position: relative; overflow: hidden;
 }
+/* Responsive derivatives come from `scripts/optimize-images.js`. In every rule
+   below the plain url() is declared FIRST as the fallback: browsers without
+   unprefixed image-set() ignore the second declaration and use the first, so
+   they still get a correctly-sized file rather than the original.
+   The hero fallback stays PNG because the source carries real transparency. */
 .hero-bg-photo {
   position: absolute; inset: 0; z-index: 0;
-  background-image: url('/images/logo-hero-fallback.png');
+  background-image: url('/images/logo-hero-fallback-1920.png');
+  background-image: image-set(
+    url('/images/logo-hero-fallback-1920.avif') type('image/avif'),
+    url('/images/logo-hero-fallback-1920.webp') type('image/webp'),
+    url('/images/logo-hero-fallback-1920.png') type('image/png')
+  );
   background-size: contain; background-position: center;
   background-repeat: no-repeat;
   background-color: #000;
@@ -95,17 +105,35 @@
 /* 16:9 to match the admin site focal-point picker (and the /locations photo),
    so the home preview crops to the same focal point the operator set. */
 .loc-photo { aspect-ratio: 16 / 9; position: relative; overflow: hidden; background-color: var(--olive-dark); }
+/* These cards are 16:9 inside a minmax(300px, 1fr) grid, so they render at
+   roughly 300-500 CSS px. The 1000w tier covers that to 2x DPR; the 768px
+   breakpoint below drops to 500w. */
 .loc-photo-placeholder {
   width: 100%; height: 100%;
-  background-image: url('/images/ghost-town.jpg');
+  background-image: url('/images/ghost-town-1000.jpg');
+  background-image: image-set(
+    url('/images/ghost-town-1000.avif') type('image/avif'),
+    url('/images/ghost-town-1000.webp') type('image/webp'),
+    url('/images/ghost-town-1000.jpg') type('image/jpeg')
+  );
   background-size: cover; background-position: center;
   background-color: var(--olive-dark);
 }
 .loc-photo-placeholder.site2 {
-  background-image: url('/images/trench-warfare.jpg');
+  background-image: url('/images/trench-warfare-1000.jpg');
+  background-image: image-set(
+    url('/images/trench-warfare-1000.avif') type('image/avif'),
+    url('/images/trench-warfare-1000.webp') type('image/webp'),
+    url('/images/trench-warfare-1000.jpg') type('image/jpeg')
+  );
 }
 .loc-photo-placeholder.site3 {
-  background-image: url('/images/foxtrot-fields.jpeg');
+  background-image: url('/images/foxtrot-fields-1000.jpg');
+  background-image: image-set(
+    url('/images/foxtrot-fields-1000.avif') type('image/avif'),
+    url('/images/foxtrot-fields-1000.webp') type('image/webp'),
+    url('/images/foxtrot-fields-1000.jpg') type('image/jpeg')
+  );
 }
 .loc-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(20,22,18,0.15), rgba(20,22,18,0.65)); }
 .loc-photo-label { position: absolute; bottom: 10px; left: 12px; z-index: 1; font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--tan); border: 1px solid rgba(200,184,154,0.3); padding: 3px 8px; background: rgba(20,22,18,0.6); }
@@ -131,11 +159,18 @@
 .gallery-item:last-child { grid-column: span 2; }
 .gallery-photo { width: 100%; height: 100%; background-size: cover; background-position: center; transition: transform 0.4s ease; }
 .gallery-item:hover .gallery-photo { transform: scale(1.04); }
-.g1 { background-image: url('/images/gallery-ghost-town-1.jpg'); background-color: #3a4035; }
-.g2 { background-image: url('/images/gallery-ghost-town-2.jpg'); background-color: #2f3a2b; }
-.g3 { background-image: url('/images/gallery-ghost-town-3.jpg'); background-color: #384038; }
-.g4 { background-image: url('/images/gallery-foxtrot-1.jpg'); background-color: #2a3328; }
-.g5 { background-image: url('/images/gallery-foxtrot-2.jpg'); background-color: #353d30; }
+/* Gallery tiles sit in 220px-tall rows (180px under 768px), so the 800w tier
+   is already generous; the breakpoint below drops to 400w. */
+.g1 { background-color: #3a4035; background-image: url('/images/gallery-ghost-town-1-800.jpg');
+  background-image: image-set(url('/images/gallery-ghost-town-1-800.avif') type('image/avif'), url('/images/gallery-ghost-town-1-800.webp') type('image/webp'), url('/images/gallery-ghost-town-1-800.jpg') type('image/jpeg')); }
+.g2 { background-color: #2f3a2b; background-image: url('/images/gallery-ghost-town-2-800.jpg');
+  background-image: image-set(url('/images/gallery-ghost-town-2-800.avif') type('image/avif'), url('/images/gallery-ghost-town-2-800.webp') type('image/webp'), url('/images/gallery-ghost-town-2-800.jpg') type('image/jpeg')); }
+.g3 { background-color: #384038; background-image: url('/images/gallery-ghost-town-3-800.jpg');
+  background-image: image-set(url('/images/gallery-ghost-town-3-800.avif') type('image/avif'), url('/images/gallery-ghost-town-3-800.webp') type('image/webp'), url('/images/gallery-ghost-town-3-800.jpg') type('image/jpeg')); }
+.g4 { background-color: #2a3328; background-image: url('/images/gallery-foxtrot-1-800.jpg');
+  background-image: image-set(url('/images/gallery-foxtrot-1-800.avif') type('image/avif'), url('/images/gallery-foxtrot-1-800.webp') type('image/webp'), url('/images/gallery-foxtrot-1-800.jpg') type('image/jpeg')); }
+.g5 { background-color: #353d30; background-image: url('/images/gallery-foxtrot-2-800.jpg');
+  background-image: image-set(url('/images/gallery-foxtrot-2-800.avif') type('image/avif'), url('/images/gallery-foxtrot-2-800.webp') type('image/webp'), url('/images/gallery-foxtrot-2-800.jpg') type('image/jpeg')); }
 .gallery-item::after { content: ''; position: absolute; inset: 0; background: rgba(20,22,18,0.35); transition: background 0.3s; }
 .gallery-item:hover::after { background: rgba(20,22,18,0.15); }
 .gallery-overlay { position: absolute; bottom: 0; left: 0; right: 0; z-index: 1; padding: 1rem; background: linear-gradient(transparent, rgba(20,22,18,0.85)); }
@@ -197,4 +232,38 @@
   .gallery-grid { grid-template-columns: 1fr 1fr; grid-template-rows: 180px 180px 180px; }
   .gallery-item:first-child,
   .gallery-item:last-child { grid-column: span 1; }
+
+  /* Smaller image tiers on phones — this is where the mobile LCP win lands.
+     Tiles are ~190 CSS px wide here and site cards ~360, so 400w/500w cover
+     2x DPR with room to spare. */
+  .hero-bg-photo {
+    background-image: url('/images/logo-hero-fallback-1920.png');
+    background-image: image-set(
+      url('/images/logo-hero-fallback-1024.avif') type('image/avif'),
+      url('/images/logo-hero-fallback-1024.webp') type('image/webp'),
+      url('/images/logo-hero-fallback-1920.png') type('image/png')
+    );
+  }
+  .loc-photo-placeholder {
+    background-image: url('/images/ghost-town-1000.jpg');
+    background-image: image-set(url('/images/ghost-town-500.avif') type('image/avif'), url('/images/ghost-town-500.webp') type('image/webp'), url('/images/ghost-town-1000.jpg') type('image/jpeg'));
+  }
+  .loc-photo-placeholder.site2 {
+    background-image: url('/images/trench-warfare-1000.jpg');
+    background-image: image-set(url('/images/trench-warfare-500.avif') type('image/avif'), url('/images/trench-warfare-500.webp') type('image/webp'), url('/images/trench-warfare-1000.jpg') type('image/jpeg'));
+  }
+  .loc-photo-placeholder.site3 {
+    background-image: url('/images/foxtrot-fields-1000.jpg');
+    background-image: image-set(url('/images/foxtrot-fields-500.avif') type('image/avif'), url('/images/foxtrot-fields-500.webp') type('image/webp'), url('/images/foxtrot-fields-1000.jpg') type('image/jpeg'));
+  }
+  .g1 { background-image: url('/images/gallery-ghost-town-1-800.jpg');
+    background-image: image-set(url('/images/gallery-ghost-town-1-400.avif') type('image/avif'), url('/images/gallery-ghost-town-1-400.webp') type('image/webp'), url('/images/gallery-ghost-town-1-800.jpg') type('image/jpeg')); }
+  .g2 { background-image: url('/images/gallery-ghost-town-2-800.jpg');
+    background-image: image-set(url('/images/gallery-ghost-town-2-400.avif') type('image/avif'), url('/images/gallery-ghost-town-2-400.webp') type('image/webp'), url('/images/gallery-ghost-town-2-800.jpg') type('image/jpeg')); }
+  .g3 { background-image: url('/images/gallery-ghost-town-3-800.jpg');
+    background-image: image-set(url('/images/gallery-ghost-town-3-400.avif') type('image/avif'), url('/images/gallery-ghost-town-3-400.webp') type('image/webp'), url('/images/gallery-ghost-town-3-800.jpg') type('image/jpeg')); }
+  .g4 { background-image: url('/images/gallery-foxtrot-1-800.jpg');
+    background-image: image-set(url('/images/gallery-foxtrot-1-400.avif') type('image/avif'), url('/images/gallery-foxtrot-1-400.webp') type('image/webp'), url('/images/gallery-foxtrot-1-800.jpg') type('image/jpeg')); }
+  .g5 { background-image: url('/images/gallery-foxtrot-2-800.jpg');
+    background-image: image-set(url('/images/gallery-foxtrot-2-400.avif') type('image/avif'), url('/images/gallery-foxtrot-2-400.webp') type('image/webp'), url('/images/gallery-foxtrot-2-800.jpg') type('image/jpeg')); }
 }
