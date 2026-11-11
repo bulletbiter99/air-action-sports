@@ -372,14 +372,14 @@ export default function Booking() {
         </div>
       </div>
 
-      {/* Private Hire (kept from original) */}
+      {/* Private Rental (kept from original) */}
       <section className="private-hire">
         <div className="container">
-          <div className="section-label">&#9632; Private Hire</div>
-          <h2 className="section-title">Exclusive Site Hire.</h2>
+          <div className="section-label">&#9632; Private Rental</div>
+          <h2 className="section-title">Exclusive Site Rental.</h2>
           <div className="divider"></div>
           <p className="section-sub" style={{ marginBottom: '1.5rem' }}>
-            Looking to book an entire site for your group? We offer exclusive private hire for corporate team-building days, birthday battles, and special occasions.
+            Looking to book an entire site for your group? We offer exclusive private rental for corporate team-building days, birthday battles, and special occasions.
           </p>
           <div className="private-hire-features">
             <div className="private-hire-feature">&#9632; Full Site Exclusive</div>
@@ -387,7 +387,7 @@ export default function Booking() {
             <div className="private-hire-feature">&#9632; Dedicated Marshals</div>
           </div>
           <Link to="/contact" className="btn-primary" style={{ display: 'inline-block', marginTop: '1rem' }}>
-            &#9658; Enquire About Private Hire
+            &#9658; Inquire About Private Rental
           </Link>
         </div>
       </section>

@@ -5,6 +5,7 @@ import FeedbackModal from '../components/FeedbackModal';
 import FilterBar from '../components/admin/FilterBar.jsx';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import EmptyState from '../components/admin/EmptyState.jsx';
+import { useFilterState } from '../hooks/useFilterState.js';
 
 const TYPE_LABEL = { bug: 'Bug', feature: 'Feature', usability: 'Usability', other: 'Other' };
 const STATUS_LABEL = {
@@ -45,7 +46,11 @@ export default function AdminFeedback() {
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState({ new: 0, triaged: 0, inProgress: 0, resolved: 0, total: 0 });
   const [loadingList, setLoadingList] = useState(false);
-  const [filters, setFilters] = useState({ status: '', type: '', priority: '', q: '' });
+  // Seeded from the URL so the dashboard's "New feedback" deep-link
+  // (?status=new) arrives applied. `q` is deliberately not in the schema — it is
+  // a FilterBar search prop, not a chip — so it lives in state without being
+  // encoded into the URL.
+  const [filters, setFilters] = useFilterState(FEEDBACK_FILTER_SCHEMA, { status: '', type: '', priority: '', q: '' });
   const [selected, setSelected] = useState(null);
   const [submitOpen, setSubmitOpen] = useState(false);
 

@@ -24,6 +24,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext';
 import FilterBar from '../components/admin/FilterBar.jsx';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import { useFilterState } from '../hooks/useFilterState.js';
 import { formatMoney } from '../utils/money.js';
 import './AdminBookings.css';
 
@@ -83,7 +84,11 @@ export default function AdminBookings() {
     const { isAuthenticated, hasRole } = useAdmin();
     const navigate = useNavigate();
 
-    const [filters, setFilters] = useState({});
+    // URL is the source of truth for the schema'd filters, so the owner
+    // dashboard's deep-links (?waiver_status=missing&status=paid) actually
+    // arrive applied, and any filtered view is bookmarkable. Unknown query keys
+    // are ignored by parseFilters.
+    const [filters, setFilters] = useFilterState(FILTER_SCHEMA);
     const [search, setSearch] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');

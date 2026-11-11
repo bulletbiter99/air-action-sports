@@ -191,13 +191,25 @@ test.describe('admin visual baselines — populated tables', () => {
         await installAdminMocks(page, {
             overrides: [{ match: '/api/admin/taxes-fees', body: { taxesFees: mockTaxFeeList() } }],
         });
-        await page.goto('/admin/taxes-fees');
+        // /admin/SETTINGS/taxes-fees — the route is nested under settings
+        // (src/App.jsx). The bare '/admin/taxes-fees' used here before never
+        // matched, so this test 404'd, the old NotFound auto-redirected to '/',
+        // and the captured "baseline" was the public HOME PAGE (1440x4680).
+        // It asserted nothing about taxes & fees for as long as it existed.
+        await page.goto('/admin/settings/taxes-fees');
         await prepareAdminPage(page, TABLE);
         // Two .admin-table-wrap groups render (Taxes then Fees); wait for a
         // Fees-group row (renders last) so the full-page screenshot captures the
-        // settled height — a bare .admin-table-wrap wait raced a short capture
-        // (baseline came out 1440×900 vs the real 1440×5556).
-        await page.getByText('Card Processing').first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+        // settled height. 1440×900 is the CORRECT size for this page — it is
+        // short and fits the viewport. (An earlier note here cited "the real
+        // 1440×5556"; that was the accidental home-page capture described
+        // above, not this page. Don't "fix" a 900px baseline.)
+        //
+        // No .catch() on this wait: swallowing the timeout is what let the
+        // broken-URL capture through silently for so long — the wait failed,
+        // the shot was taken anyway, and a home page became the baseline. If
+        // the Fees row never renders, this test must fail loudly.
+        await page.getByText('Card Processing').first().waitFor({ state: 'visible', timeout: 10_000 });
         await shot(page, 'admin-taxes-fees-populated.png');
     });
 });

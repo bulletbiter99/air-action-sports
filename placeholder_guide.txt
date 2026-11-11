@@ -98,7 +98,7 @@
      Current: "Delta Base", "Woodland Site — 15 acres"
 
  [ ] Site 2 — name, address/description, acreage, open/coming soon badge
-     Current: "Trench Warfare", "CQB Site — Echo Urban Warehouse"
+     Current: "Trench Warfare", "Trenches for Days!"
 
  [ ] Site 3 — name, address/description, acreage, open/coming soon badge
      Current: "Foxtrot Fields", "Open Field Site — 25 acres"

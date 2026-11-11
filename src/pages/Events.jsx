@@ -41,7 +41,7 @@ export default function Events() {
     <>
       <SEO
         title="Events Calendar | Air Action Sports"
-        description="Browse upcoming airsoft events at Air Action Sports. Milsim, skirmish, and open play sessions across multiple sites. Book your slot today."
+        description="Browse upcoming airsoft events at Air Action Sports. Milsim, skirmish, and open play sessions across multiple sites. Book your spot today."
         canonical="https://airactionsport.com/events"
         ogImage="https://airactionsport.com/images/og-image.jpg"
       />
@@ -50,7 +50,7 @@ export default function Events() {
         <div className="section-label">&#9632; Events Calendar</div>
         <h1 className="section-title">Upcoming Operations.</h1>
         <div className="divider"></div>
-        <p className="section-sub">Check dates, pick your battle, and book your slot. Events fill up fast &mdash; don't miss out.</p>
+        <p className="section-sub">Check dates, pick your battle, and book your spot. Events fill up fast &mdash; don't miss out.</p>
 
         {/* Filter Bar */}
         <div className="filter-bar">
@@ -122,7 +122,7 @@ export default function Events() {
                 )}
                 <div className="event-meta">
                   <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
-                  <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
+                  <div className="event-meta-item"><strong>Spots</strong>{ev.slots.total} Players</div>
                   <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
                 </div>
                 {sig && (
@@ -179,7 +179,7 @@ export default function Events() {
                   <div className="event-loc">&#9679; {ev.location}</div>
                   <div className="event-meta">
                     <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
-                    <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
+                    <div className="event-meta-item"><strong>Spots</strong>{ev.slots.total} Players</div>
                     <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
                   </div>
                   <span className="event-complete">Event Complete</span>
@@ -194,8 +194,8 @@ export default function Events() {
       {/* CTA Band */}
       <div className="cta-band">
         <h2>Want a Custom Event?</h2>
-        <p>We build bespoke operations for groups, corporate teams, and private parties.</p>
-        <Link to="/contact" className="btn-white">&#9658; Enquire Now</Link>
+        <p>We build custom operations for groups, corporate teams, and private parties.</p>
+        <Link to="/contact" className="btn-white">&#9658; Inquire Now</Link>
       </div>
     </>
   );

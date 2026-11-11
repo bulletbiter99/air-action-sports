@@ -1,5 +1,11 @@
 # Attendee-Verified Reviews — Deploy & Activation Runbook
 
+> ## STATUS: LIVE, not dormant (updated 2026-08-01)
+>
+> Reviews arrived 2026-07-25/26. Public aggregate **3 / 4.7★** as of 2026-07-31 (4 submitted, 1 operator-hidden) — always re-read `GET /api/reviews/summary` rather than trusting a figure written here. The "Dormancy" section below describes guards that **already fired as designed**; they are the standing blast protection, not a pending gate.
+>
+> Two other things below are now stale: **both SSR JSON-LD nodes are emitted UNCONDITIONALLY** (the per-event `Event` node un-gated in #421, the home `LocalBusiness` node un-gated + enriched 2026-08-01) — only `aggregateRating` is conditional; and the Home testimonials have **no static fallback**, because `src/data/testimonials.js` was deleted in #420.
+
 The reviews feature **closed + deployed 2026-06-30** (`main` HEAD `69e6a74`, **3149 / 276** tests,
 migrations **0001–0077**). Design bible: [`../reviews-feature-spec.md`](../reviews-feature-spec.md).
 Cloudflare Workers Builds auto-deploys on push to `main`.
@@ -30,7 +36,7 @@ Cloudflare Workers Builds auto-deploys on push to `main`.
   fallback), and the **removal of the fabricated `4.9★/50` client JSON-LD from `Home.jsx`**. The hero
   "Avg. Rating" stat now wires to the real `summary.average` and is omitted at zero reviews.
 
-## Dormancy — nothing emails or displays until ~2026-07-25
+## Dormancy — RESOLVED (kept for the guard descriptions)
 Three independent guards keep the invite cron inert until the first real event ends:
 1. **Window floor** — only events whose end is within `[now-48h, now-18h]` are candidates, so every
    pre-existing event (ended long ago) is excluded.

@@ -8,7 +8,7 @@
 
 ## About the Company
 
-Air Action Sport, LLC is a Utah-based airsoft event organizer running large-scale milsim and skirmish events across multiple operating sites — currently Ghost Town (Hiawatha, UT) and Foxtrot Fields, with additional locations planned. We host events for up to 350 players, providing professional marshaling, on-site medical, chronograph services, rental gear, and an end-to-end digital booking platform with QR-coded ticketing and waiver management.
+Air Action Sport, LLC is a Utah-based airsoft event organizer running large-scale milsim and skirmish events across multiple operating sites — currently Ghost Town (Hiawatha, UT), Foxtrot, Trench Warfare and The Chem Plant, with additional locations planned (re-read `GET /api/sites` live; the list drifts, and gear rental is NOT offered at every site). We host events for up to 350 players, providing professional marshaling, on-site medical, chronograph services, rental gear, and an end-to-end digital booking platform with QR-coded ticketing and waiver management.
 
 We compete on the strength of our event production: well-run safety briefings, fair refereeing, immersive scenarios, and operational reliability. Every role on this team supports that mission.
 

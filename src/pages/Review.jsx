@@ -257,7 +257,7 @@ export default function Review() {
                   maxLength={MAX_TITLE}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Best day out this year"
+                  placeholder="Best day this year"
                 />
                 <span className="review-char">{title.length}/{MAX_TITLE}</span>
               </div>

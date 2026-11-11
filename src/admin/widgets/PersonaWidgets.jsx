@@ -973,7 +973,12 @@ export function RefundActivity() {
                     </tbody>
                 </table>
             )}
-            <Link to="/admin/bookings?has_refund=true" className="admin-persona-widget__link">
+            {/* status=refunded, NOT has_refund=true. The API supports
+                has_refund, but it is absent from AdminBookings' FILTER_SCHEMA,
+                so parseFilters drops it and the page would open unfiltered.
+                status=refunded is the same view its "Refund queue" quick filter
+                uses. */}
+            <Link to="/admin/bookings?status=refunded" className="admin-persona-widget__link">
                 View all refunds →
             </Link>
         </section>

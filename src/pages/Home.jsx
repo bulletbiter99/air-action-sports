@@ -48,7 +48,7 @@ export default function Home() {
           were removed here so there is no fabricated/duplicate rating. */}
       <SEO
         title="Air Action Sports — Airsoft Events Across Multiple Elite Outdoor Sites"
-        description="Air Action Sports runs tactical airsoft events across multiple outdoor sites. Milsim, skirmish, and private hire. Book your next battle today."
+        description="Air Action Sports runs tactical airsoft events across multiple outdoor sites. Milsim, skirmish, and private rental. Book your next battle today."
         canonical="https://airactionsport.com/"
         ogImage="https://airactionsport.com/images/og-image.jpg"
       />
@@ -118,7 +118,7 @@ export default function Home() {
             {countdownLabel(featuredEvent)}
           </div>
           <CountdownTimer targetDate={featuredEvent.dateIso} />
-          <div className="countdown-sub">&#9632; Limited slots available &mdash; secure your position now &#9632;</div>
+          <div className="countdown-sub">&#9632; Limited spots available &mdash; secure your position now &#9632;</div>
         </div>
       )}
 
@@ -148,7 +148,7 @@ export default function Home() {
                   <div className="event-loc">&#9679; {ev.location}</div>
                   <div className="event-meta">
                     <div className="event-meta-item"><strong>Time</strong>{ev.time}</div>
-                    <div className="event-meta-item"><strong>Slots</strong>{ev.slots.total} Players</div>
+                    <div className="event-meta-item"><strong>Spots</strong>{ev.slots.total} Players</div>
                     <div className="event-meta-item"><strong>From</strong>{ev.price}</div>
                   </div>
                   {sig && (
@@ -190,7 +190,7 @@ export default function Home() {
               </div>
               <div className="about-card">
                 <div className="about-card-icon">&#128110;</div>
-                <div className="about-card-title">Marshalled Games</div>
+                <div className="about-card-title">Marshaled Games</div>
               </div>
               <div className="about-card">
                 <div className="about-card-icon">&#127937;</div>
@@ -239,10 +239,10 @@ export default function Home() {
               <div className="game-num">03</div>
               <div className="game-title">Private Events</div>
               <p className="game-desc">
-                Book a whole site for your group. Birthday battles, stag dos, corporate team-building, or custom game modes. Your site, your rules, our marshals.
+                Book a whole site for your group. Birthday battles, bachelor parties, corporate team-building, or custom game modes. Your site, your rules, our marshals.
               </p>
               <div className="game-tags">
-                <span className="tag">Private Hire</span>
+                <span className="tag">Private Rental</span>
                 <span className="tag">Corporate</span>
                 <span className="tag">Custom Games</span>
               </div>
@@ -257,7 +257,7 @@ export default function Home() {
       <section className="locations" id="locations">
         <div className="container">
           <div className="section-label fade-in">&#9632; Our Sites</div>
-          <h2 className="section-title">Multiple Theatres of War.</h2>
+          <h2 className="section-title">Multiple Theaters of War.</h2>
           <div className="divider"></div>
           <p className="section-sub">Every site is a different mission. Explore our growing network of battle-ready properties.</p>
           {/* Driven by the sites API, same source as /locations. It previously
@@ -375,8 +375,8 @@ export default function Home() {
             </div>
             <div className="why-item">
               <div className="why-icon">&#127979;</div>
-              <div className="why-title">Gear Hire Available</div>
-              <p className="why-desc">Don't own kit? No problem. Quality loaner gear available for all skill levels at every site.</p>
+              <div className="why-title">Gear Rental Available</div>
+              <p className="why-desc">Don't own gear? No problem. Quality loaner gear available for all skill levels at every site.</p>
             </div>
             <div className="why-item">
               <div className="why-icon">&#127758;</div>
@@ -395,8 +395,8 @@ export default function Home() {
             </div>
             <div className="why-item">
               <div className="why-icon">&#127881;</div>
-              <div className="why-title">Private Event Hire</div>
-              <p className="why-desc">Birthday battles, team-building days, stag dos. Book a whole site exclusively for your group.</p>
+              <div className="why-title">Private Event Rental</div>
+              <p className="why-desc">Birthday battles, team-building days, bachelor parties. Book a whole site exclusively for your group.</p>
             </div>
           </div>
         </div>
@@ -438,7 +438,7 @@ export default function Home() {
           ============================================================ */}
       <div className="cta-band">
         <h2>Ready to Deploy?</h2>
-        <p>Slots go fast. Don't miss the next operation.</p>
+        <p>Spots go fast. Don't miss the next operation.</p>
         <Link to={featuredEvent ? `${siteConfig.bookingLink}?event=${featuredEvent.slug}` : siteConfig.bookingLink} className="btn-white">&#9658; Book Your Battle Now</Link>
       </div>
     </>

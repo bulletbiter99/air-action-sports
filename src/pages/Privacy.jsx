@@ -18,7 +18,6 @@ export default function Privacy() {
         <p className="updated">Last updated: April 2026</p>
 
         <h2>Who We Are</h2>
-        {/* PLACEHOLDER: Update with real business details */}
         <p>
           Air Action Sports operates airsoft events across multiple outdoor
           sites. This privacy policy explains how we collect, use, and protect
@@ -37,7 +36,7 @@ export default function Privacy() {
           </li>
           <li>
             <strong>Booking details</strong> &mdash; event preferences, group
-            size, gear hire requirements
+            size, gear rental requirements
           </li>
           <li>
             <strong>Usage data</strong> &mdash; pages visited, time spent,
@@ -51,7 +50,7 @@ export default function Privacy() {
 
         <h2>How We Use Your Information</h2>
         <ul>
-          <li>To process bookings and enquiries</li>
+          <li>To process bookings and inquiries</li>
           <li>To send event confirmations and updates</li>
           <li>
             To send newsletters (only if you subscribe &mdash; you can
@@ -98,7 +97,6 @@ export default function Privacy() {
         </ul>
 
         <h2>Contact</h2>
-        {/* PLACEHOLDER: Update with real contact email */}
         <p>
           If you have questions about this policy or want to exercise your data
           rights, contact us at{' '}

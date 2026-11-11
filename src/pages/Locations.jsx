@@ -19,7 +19,7 @@ export default function Locations() {
 
       <div className="page-content">
         <div className="section-label">&#9632; Our Sites</div>
-        <h1 className="section-title">Multiple Theatres of War.</h1>
+        <h1 className="section-title">Multiple Theaters of War.</h1>
         <div className="divider"></div>
         <p className="section-sub">
           From dense woodland to tight urban quarters, each of our sites delivers a unique tactical experience. Explore the venues below and find the battlefield that suits your style.
@@ -74,7 +74,7 @@ export default function Locations() {
             </div>
 
             <div className="site-cta">
-              <Link to={site.badge === 'open' ? siteConfig.bookingLink : '/contact'} className="btn-primary">&#9658; {site.badge === 'open' ? 'Book This Site' : 'Register Interest'}</Link>
+              <Link to={site.badge === 'open' ? siteConfig.bookingLink : '/contact'} className="btn-primary">&#9658; {site.badge === 'open' ? 'Book This Site' : 'Register Your Interest'}</Link>
             </div>
           </div>
         ))}

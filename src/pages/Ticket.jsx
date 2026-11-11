@@ -96,7 +96,22 @@ export default function Ticket() {
         <div style={instructions}>
           <div style={eyebrow}>Before you arrive</div>
           <ol style={{ margin: '6pt 0 0', paddingLeft: 18, fontSize: '11pt', lineHeight: 1.5 }}>
-            <li>Sign your waiver online if you haven't: <strong>{event.title ? `airactionsport.com/waiver?token=${(attendee.qrToken || '').slice(0, 8)}…` : ''}</strong></li>
+            {/* The FULL token. This is a printed ticket, so the only way a
+                customer can use this link is by typing it — a token truncated
+                to 8 characters plus an ellipsis (what this used to print)
+                cannot resolve, and the QR above encodes the bare token for
+                staff check-in scanners, not a waiver URL. Long but usable beats
+                short and broken. Gated on the token, not on event.title, which
+                the URL never depended on. */}
+            {attendee.qrToken && (
+              <li>
+                Sign your waiver online if you haven&rsquo;t:
+                <br />
+                <strong style={waiverUrl}>
+                  airactionsport.com/waiver?token={attendee.qrToken}
+                </strong>
+              </li>
+            )}
             <li>Bring photo ID (for the booking buyer)</li>
             <li>Wear clothes for outdoor activity and the day's weather</li>
             <li>Arrive during the check-in window for safety briefing</li>
@@ -132,6 +147,9 @@ const qrWrap = { textAlign: 'center', margin: '12pt 0' };
 const qrImg = { width: '2.5in', height: '2.5in', border: '1px solid #ddd' };
 const qrCaption = { marginTop: '4pt', fontSize: '10pt', color: '#555' };
 const instructions = { marginTop: '14pt', padding: '12pt', background: '#fafafa', border: '1px solid #eee' };
+// Monospace so a hand-typed token is unambiguous (l vs 1, O vs 0), and
+// break-all so a long URL wraps inside the print column instead of clipping.
+const waiverUrl = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '9.5pt', wordBreak: 'break-all' };
 const footer = { marginTop: '16pt', paddingTop: '10pt', borderTop: '1px solid #eee', fontSize: '8pt', color: '#999', display: 'flex', justifyContent: 'space-between' };
 const errorShell = { textAlign: 'center', padding: '4rem', color: '#555', fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh' };
 const printBtn = { padding: '10px 18px', background: '#d4541a', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, letterSpacing: 1, cursor: 'pointer' };

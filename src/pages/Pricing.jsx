@@ -140,14 +140,14 @@ export default function Pricing() {
         {/* Note Box */}
         <div className="note-box">
           <strong>Please Note</strong>
-          <p>All admission prices include full-day gameplay, safety briefing, and marshal support. Rental packages are separate from admission. Under 16s must be accompanied by a paying adult. A completed waiver is required and will be emailed to you after booking.</p>
+          <p>All admission prices include full-day gameplay, safety briefing, and marshal support. Rental packages are separate from admission. Players under 16 must be accompanied by a paying adult. A completed waiver is required and will be emailed to you after booking.</p>
         </div>
       </div>
 
       {/* CTA Band */}
       <div className="cta-band">
         <h2>Ready to Book?</h2>
-        <p>Pick your event and lock in your slot.</p>
+        <p>Pick your event and lock in your spot.</p>
         <Link to="/events" className="btn-white">&#9658; View Events</Link>
       </div>
     </>

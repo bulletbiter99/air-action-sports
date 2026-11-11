@@ -1,5 +1,9 @@
 # Surface 7 — Open follow-ups
 
+> ## SUPERSEDED — pre-M5.5 design substrate. NOT a live TODO list.
+>
+> Items 1, 2, 5 and 8 SHIPPED. #1 the inquiry-form audit (`docs/m55-discovery/inquiry-form-audit.md`) + `POST /api/inquiry`; #2 as **`events.site_id`** (migration 0045 + backfill) with conflict detection in **`worker/lib/eventConflicts.js`** — NOT `events.field_id`, and NOT the `worker/lib/fieldRentalConflict.js` proposed below, which never existed; #5 as the migration-0080 SUA placeholder seed + `docs/runbooks/sua-template.md` (only attorney review remains); #8 as the B4 recurrence API + UI (#409). Items 3, 4, 6 and 7 were never picked up. Current state: [`docs/next-session.md`](../next-session.md).
+
 Items captured here are explicitly NOT in scope for the Surface 7 design as transcribed in `surface-7-field-rentals.md` and `surface-7-schema.md`, but they are prerequisites for an M5.5 batch 1 to start cleanly. Each one needs an audit + decision before the rental-side work can ship.
 
 ---

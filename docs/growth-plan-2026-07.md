@@ -6,6 +6,15 @@
 >
 > - **The AI-crawler premise is not a code problem.** GPTBot, ClaudeBot, PerplexityBot and OAI-SearchBot are **403'd at the Cloudflare edge**, and Cloudflare injects a managed `robots.txt` disallowing them. No change in this repo can fix that; `public/robots.txt` is not the file being served for those directives. Everything in Phase 2 is real for Google/Bing/social scrapers and invisible to AI assistants until the dashboard toggle flips.
 > - **Already shipped** (2026-07-31, PRs #418–#425): the archived-event OG/JSON-LD fix, Event JSON-LD un-gated for events without reviews, the missing `og-image.jpg`, a D1-generated sitemap, fabricated testimonials deleted, the false 50% cancellation credit removed, honest empty states, and home site cards driven by the sites API.
+>
+> ### Also shipped 2026-08-01 (branch `content-truth-and-chunk-recovery`, unmerged)
+>
+> Treat every body claim below about these as **already fixed**:
+> - **Phase 1 content truth is largely DONE.** `faq.js` and `About.jsx` no longer carry the fabricated copy this plan indicts — face-mask/FPS/age/gear-rental claims corrected against the ROE, the fake About team + Mission Log deleted, "Echo Urban" purged, the site converted to US English. Still open: the 4 proposed new FAQ entries.
+> - **The hero-stat batch is CANCELLED.** The operator confirmed **5+ Battle Sites / 2k+ Players Deployed / 50+ Events Run are REAL** historical figures — do not delete or restate them. (The "2 Utah battlefields" copy this plan proposes is also wrong: production has 4 sites.) Adding **Utah** to the hero + SEO title is still worth doing.
+> - **Phase 2:** LocalBusiness enrichment DONE (telephone/email/image/logo/sameAs/areaServed/hours) and **un-gated from reviews**; the **per-route meta map** DONE (`worker/lib/staticMeta.js`, 14 routes). A structured **`PostalAddress` is now a deliberate NON-GOAL** — multi-site, no storefront, addresses withheld by policy; a test pins its absence. Still open: `offers`, real 404 status, llms.txt, IndexNow.
+> - **All-in pricing: DEFERRED** by operator decision until an event is live (memory `all-in-pricing-deferred`).
+> - **Reviews are live** (3 / 4.7★), and there are currently **zero bookable events** — all 5 are `published=0, past=1`.
 > - **`WHERE published = 1` recipes in Phase 2 are wrong** — use `published = 1 OR past = 1`, mirroring `worker/routes/events.js`. Archived events are permanently public since #404.
 > - **Do NOT change `eventStatus` for past events** (no valid schema.org value exists) and **do NOT "fix" the JSON-LD `startDate` timezone** (it is a recorded decision, not the `date_iso` bug).
 > - **This plan omits all-in pricing**, which its own research names as an FTC Junk Fees Rule requirement for live-event tickets. Treat that as a missing batch.

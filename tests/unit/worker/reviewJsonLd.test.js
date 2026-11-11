@@ -15,8 +15,21 @@
 // never emit an empty or zero aggregateRating, so the marked-up rating always
 // equals the visible one (Google's review-snippet policy).
 //
-// The HOME Organization node is deliberately still review-gated here and is
-// unchanged by that decision.
+// CONTRACT CHANGE (2026-08, this session): the HOME Organization node is now
+// emitted unconditionally too, reversing the note that previously sat here
+// saying it was "deliberately still review-gated".
+//
+// That gate was defensible while the node held only name/description/url — with
+// no rating it carried nothing a crawler could not read off the page, so
+// emitting nothing kept review-less home renders byte-identical. The node now
+// also carries telephone, email, image, logo, sameAs, areaServed and office
+// hours, none of which depend on anyone having reviewed the business. Leaving
+// the gate would mean a moderator hiding the last visible review silently
+// deletes the company's phone number and socials from structured data — and a
+// review HAS been hidden in production before.
+//
+// The gate that actually mattered is preserved in both nodes: never emit an
+// empty or zero aggregateRating.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import workerEntry from '../../../worker/index.js';
@@ -49,10 +62,45 @@ describe('home Organization JSON-LD injection (Batch 4)', () => {
         expect(content).toContain('"reviewCount":"10"');
     });
 
-    it('injects NOTHING on the home page when there are zero reviews', async () => {
+    it('carries the contact identity, and NO address', async () => {
+        env.DB.__on(ORG, { average: 4.8, count: 10 }, 'first');
+        await workerEntry.fetch(new Request('https://airactionsport.com/'), env, ctx);
+        const content = headContent(rewriter);
+
+        expect(content).toContain('"telephone":"+1-801-833-5127"');
+        expect(content).toContain('"email":"actionairsport@gmail.com"');
+        expect(content).toContain('"image":"https://airactionsport.com/images/og-image.jpg"');
+        expect(content).toContain('facebook.com/groups/2545278778822344');
+        expect(content).toContain('instagram.com/kaysaircombat');
+        expect(content).toContain('"areaServed"');
+
+        // Air Action Sports runs across multiple sites and has no storefront,
+        // and /faq says exact site addresses are given only in the booking
+        // confirmation because some sit on private rural roads. Emitting a
+        // PostalAddress would either invent one or leak one. areaServed carries
+        // the geography instead. If this assertion ever fails, someone has
+        // "completed" the node with an address — that is the bug, not this test.
+        expect(content).not.toContain('PostalAddress');
+        expect(content).not.toContain('streetAddress');
+    });
+
+    it('STILL emits the Organization node with zero reviews, minus the rating', async () => {
         env.DB.__on(ORG, { average: null, count: 0 }, 'first');
         await workerEntry.fetch(new Request('https://airactionsport.com/'), env, ctx);
-        expect(rewriter.calls).toHaveLength(0);   // rewriter never constructed
+
+        // The business has a name, a phone and a URL whether or not anyone has
+        // reviewed it. Gating identity on reviews meant one moderation action
+        // could erase the whole node.
+        expect(rewriter.calls.map((c) => c.selector)).toContain('head');
+        const content = headContent(rewriter);
+        expect(content).toContain('"@type":"LocalBusiness"');
+        expect(content).toContain('"telephone":"+1-801-833-5127"');
+
+        // But no rating, and no empty rating scaffold — a zero or valueless
+        // AggregateRating would misrepresent the business and violate the
+        // review-snippet policy.
+        expect(content).not.toContain('aggregateRating');
+        expect(content).not.toContain('ratingValue');
     });
 });
 

@@ -2,7 +2,7 @@
 >
 > Everything below is historical. The project is now a **React 19 + Vite SPA served from a single
 > Cloudflare Worker** (Hono router, D1, R2, Stripe Checkout on **live** keys, Resend), with a large
-> admin application, ~3,567 tests, and 80 D1 migrations. There is no single `index.html` you can
+> admin application, ~3,700 tests, and 80 D1 migrations. There is no single `index.html` you can
 > edit, and there very much is a build step.
 >
 > **Start here instead:** [`docs/next-session.md`](docs/next-session.md) for current state, then
@@ -33,7 +33,7 @@ air-action-sports/
 └── images/
     ├── YOUR-HERO-IMAGE.jpg       ← Hero section full-bleed background
     ├── YOUR-SITE-1-IMAGE.jpg     ← Delta Base location card photo
-    ├── trench-warfare.jpg        ← Trench Warfare (Echo Urban) location card photo
+    ├── trench-warfare.jpg        ← Trench Warfare location card photo
     ├── YOUR-SITE-3-IMAGE.jpg     ← Foxtrot Fields location card photo
     ├── YOUR-GALLERY-1.jpg        ← Gallery mosaic photo 1 (wide)
     ├── YOUR-GALLERY-2.jpg        ← Gallery mosaic photo 2
