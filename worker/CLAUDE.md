@@ -1,0 +1,11 @@
+Moved from CLAUDE.md on 2026-10-28.
+
+## Standing rules (carried over)
+
+- **`unixepoch(x,'utc')` / `,'localtime'` is a NO-OP in D1 and fails SILENTLY.** SQLite's modifiers read the host process TZ; a Worker's host is UTC. Verified against production — bare, `'utc'` and `'localtime'` return identical integers in both January and July. The single most likely way to "fix" this and ship it still broken.
+- **A hardcoded `-06:00` is wrong ~4 months a year.** The 6h skew was 6h only because July is MDT.
+- **Never cross a calendar boundary by adding fixed milliseconds.** DST days are 23/25h; DST weeks 6d23h/7d1h. Three distinct pinned failure shapes this session: a duplicated Monday in a 13-week grid, an 8-step walk through a 7-day week (double-allocating budget), and a custom-range end landing an hour off midnight. Calendar-step on Denver date parts (`denverAddDays`), then resolve back.
+- **`Number(null) === 0` (M5.5 lesson #7) bites new code too** — `rollupByDenverMonth` filed NULL timestamps into `1969-12` until the nullish check moved before `Number()`. Nullish-check BEFORE coercion, always.
+- **`worker/lib/eventTime.js` is the canonical resolver** (client mirror `src/utils/eventTime.js`, dual-target tested — do NOT import `worker/` from `src/`): `eventInstantMs`, `denverDateFor`, `denverWallClockWindow`, `eventStartsWithin`, `toDenverWallClock`.
+- **Widening a `LIMIT`-guarded range is not a free safety margin.** An adversarial review caught a **high-severity regression the fix itself introduced**: padding the window plus an `ORDER BY date_iso` front-loaded the LIMIT with already-closed rows whose sentinel was still NULL (reachable via send-failure rollback, big-event overflow, admin reschedule), starving due rows into a silent no-op sweep. Bounds are exact off-transition for exactly this reason.
+- **`hasCapability` is sync — needs `user.capabilities` preloaded** via `listCapabilities(c.env, user.id)` for routes that don't use `requireCapability` middleware. Without preload, falls through to `LEGACY_ROLE_CAPABILITIES` which only has 5 bookings-related caps; any M5+ capability check returns false. Caught in D-1a test failures; documented in [worker/routes/admin/customers.js](worker/routes/admin/customers.js) post-fix.
