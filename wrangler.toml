@@ -2,6 +2,26 @@ name = "air-action-sports"
 main = "worker/index.js"
 compatibility_date = "2026-04-03"
 
+# The site is served ONLY at https://airactionsport.com (a Workers Custom
+# Domain managed in the Cloudflare dashboard — deliberately not a `routes` key
+# here, which is the documented pattern for dashboard-managed domains).
+#
+# workers_dev = false turns off air-action-sports.bulletbiter99.workers.dev.
+# preview_urls = false turns off the per-version and per-branch preview hosts
+# (<id>-air-action-sports… / <branch>-air-action-sports…) that every PR build
+# used to publish. Both were full public copies of the site that bypassed the
+# zone's bot management, so AI training crawlers blocked on the real domain
+# (ai-train=no) could read everything there. Preview versions also ran
+# unmerged code against the production D1/R2 bindings.
+#
+# Both keys MUST stay top-level (above the first [table]) — under a table they
+# silently become something else. preview_urls must be explicit: when omitted,
+# Wrangler keeps the existing "enabled" setting. Toggling either one off only
+# in the dashboard is undone by the next deploy. Pinned by
+# tests/unit/config/workersDevDisabled.test.js.
+workers_dev = false
+preview_urls = false
+
 [build]
 command = "npm run build"
 

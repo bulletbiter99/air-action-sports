@@ -447,7 +447,7 @@ M5 deliverables live: Staff portal (magic-link auth + `/portal/me`), event-day k
 
 ## 1. What this is
 
-A full booking + waiver + admin system for Air Action Sports (airsoft events), built as a replacement for Peek Pro to avoid the 6% platform fee. Deployed live at **https://airactionsport.com** (custom domain; the `air-action-sports.bulletbiter99.workers.dev` fallback URL still resolves).
+A full booking + waiver + admin system for Air Action Sports (airsoft events), built as a replacement for Peek Pro to avoid the 6% platform fee. Deployed live at **https://airactionsport.com** (custom domain — the only host; the old `air-action-sports.bulletbiter99.workers.dev` URL and per-PR preview URLs were turned off in 2026-11 via `wrangler.toml` `workers_dev = false` / `preview_urls = false`).
 
 Business economics:
 - Peek charged ~$12.78 in fees on an $80 booking (16%)
@@ -602,7 +602,7 @@ Bindings:
 - `SESSION_SECRET` — 32 random bytes, used to sign admin session cookies
 
 **Public vars** (in `wrangler.toml [vars]`):
-- `SITE_URL` — `https://air-action-sports.bulletbiter99.workers.dev`
+- `SITE_URL` — `https://airactionsport.com`
 - `FROM_EMAIL` — `Air Action Sports <noreply@airactionsport.com>`
 - `REPLY_TO_EMAIL` — `actionairsport@gmail.com`
 - `ADMIN_NOTIFY_EMAIL` — `actionairsport@gmail.com`
@@ -972,7 +972,7 @@ All roadmap work is shipped. The remaining items are **operational**, not code:
 - **`/api/admin/analytics/overview`** extended with `?period=mtd` (B4d) for current-month scoping AND `taxCents` + `feeCents` totals (B4f). Backward compatible — existing callers that omit `?period` still get lifetime totals; new `taxCents`/`feeCents` fields are additive. **`/api/admin/analytics/funnel?days=N`** added in B4e: 4-step Created→Paid→Waivers→Checked-in funnel for the trailing window.
 - **Stripe API version pin**: `2026-04-22.dahlia` via `Stripe-Version` header in `worker/lib/stripe.js stripeFetch()`. Applies to every outbound Stripe call. Updates require both a Stripe-dashboard rollover and a code change in lockstep.
 - **Waiver document live**: `wd_v4` (corporate-wide release of liability + 4-tier age policy + 365-day Claim Period). wd_v1 thru wd_v3 retired. Edit at `/admin/waivers` (owner only) — creates a new version, retires the previous; past signers stay pinned to whatever they signed.
-- **Custom domain live**: `https://airactionsport.com` is attached to the Worker (DNS via Cloudflare). `SITE_URL` env var, OG meta tags, and email links all use the custom domain. The `air-action-sports.bulletbiter99.workers.dev` fallback URL still resolves but is no longer canonical.
+- **Custom domain live**: `https://airactionsport.com` is attached to the Worker (DNS via Cloudflare). `SITE_URL` env var, OG meta tags, and email links all use the custom domain. The old `air-action-sports.bulletbiter99.workers.dev` URL was turned off in 2026-11 (`workers_dev = false`).
 - **`/.well-known/security.txt`** served as a static asset per RFC 9116 — disclosure contact `actionairsport@gmail.com`, expires 2027-05-06.
 - **Cloudflare DNS / Email config (partial)**: SPF set for Cloudflare Email Routing only (incoming mail forwards from `@airactionsport.com` to Gmail). **DMARC missing — booking confirmation emails may land in spam until added** (see §11 pre-launch checklist). Resend DKIM not yet configured for outbound transactional mail from `noreply@airactionsport.com`.
 
@@ -1122,8 +1122,8 @@ paths listed in scripts/test-gate-mapping.json `gates` for the file
 you're touching.
 
 Production: https://airactionsport.com (custom domain, Cloudflare Worker,
-auto-deploy on `git push origin main`). The .workers.dev fallback URL
-still resolves but is no longer canonical.
+auto-deploy on `git push origin main`). The old .workers.dev URL and
+per-PR preview URLs are turned off (wrangler.toml, 2026-11).
 
 
 Production: https://airactionsport.com (custom domain, Cloudflare Worker,

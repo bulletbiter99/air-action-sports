@@ -131,7 +131,7 @@ gh run list --branch main --limit 5
 
 # Production verification (full rollback only — only if main is auto-deployed
 # via Cloudflare Workers Builds).
-curl -fsSL https://air-action-sports.bulletbiter99.workers.dev/api/health
+curl -fsSL https://airactionsport.com/api/health
 # Expect: HTTP 200 + {"ok":true,...}.
 
 # Optional: operator-run smoke if Playwright is set up locally.
