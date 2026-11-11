@@ -191,7 +191,12 @@ test.describe('admin visual baselines — populated tables', () => {
         await installAdminMocks(page, {
             overrides: [{ match: '/api/admin/taxes-fees', body: { taxesFees: mockTaxFeeList() } }],
         });
-        await page.goto('/admin/taxes-fees');
+        // /admin/SETTINGS/taxes-fees — the route is nested under settings
+        // (src/App.jsx). The bare '/admin/taxes-fees' used here before never
+        // matched, so this test 404'd, the old NotFound auto-redirected to '/',
+        // and the captured "baseline" was the public HOME PAGE (1440x4680).
+        // It asserted nothing about taxes & fees for as long as it existed.
+        await page.goto('/admin/settings/taxes-fees');
         await prepareAdminPage(page, TABLE);
         // Two .admin-table-wrap groups render (Taxes then Fees); wait for a
         // Fees-group row (renders last) so the full-page screenshot captures the
