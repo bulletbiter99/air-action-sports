@@ -72,7 +72,20 @@ jobs:
 
   visual:
     name: Visual regression (Playwright)
-    runs-on: ubuntu-latest
+    # Pinned, NOT ubuntu-latest: GitHub rolled ubuntu-latest to Ubuntu 26.04, which
+    # the pinned Playwright refuses ("Playwright does not support chromium on
+    # ubuntu26.04-x64"), so every Playwright job started failing at the browser
+    # install step regardless of what a PR changed.
+    #
+    # Pinned to 24.04 rather than bumping Playwright because the baseline PNGs in
+    # this repo were captured on 24.04 (2026-07-31). A newer runner or a newer
+    # Playwright revs Chromium and would invalidate ALL baselines, not just the
+    # ones a PR legitimately shifts.
+    #
+    # Keep this value in lockstep across ci.yml's two Playwright jobs and
+    # capture-baselines.yml — capture and compare must run on the same OS or
+    # every comparison is meaningless.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -125,7 +138,9 @@ jobs:
 
   visual-admin:
     name: Admin visual regression (Playwright)
-    runs-on: ubuntu-latest
+    # Pinned to match the `visual` job above — see the note there. Capture and
+    # compare must run on the same OS.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:

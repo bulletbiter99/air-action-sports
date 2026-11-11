@@ -38,7 +38,10 @@ concurrency:
 jobs:
   capture:
     if: github.event.label.name == 'capture-baselines'
-    runs-on: ubuntu-latest
+    # Pinned to match ci.yml's Playwright jobs — see the note on `visual` there.
+    # Baselines captured here are compared by those jobs, so the OS must match
+    # exactly; ubuntu-latest (now 26.04) also breaks the Playwright install.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
