@@ -200,9 +200,16 @@ test.describe('admin visual baselines — populated tables', () => {
         await prepareAdminPage(page, TABLE);
         // Two .admin-table-wrap groups render (Taxes then Fees); wait for a
         // Fees-group row (renders last) so the full-page screenshot captures the
-        // settled height — a bare .admin-table-wrap wait raced a short capture
-        // (baseline came out 1440×900 vs the real 1440×5556).
-        await page.getByText('Card Processing').first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+        // settled height. 1440×900 is the CORRECT size for this page — it is
+        // short and fits the viewport. (An earlier note here cited "the real
+        // 1440×5556"; that was the accidental home-page capture described
+        // above, not this page. Don't "fix" a 900px baseline.)
+        //
+        // No .catch() on this wait: swallowing the timeout is what let the
+        // broken-URL capture through silently for so long — the wait failed,
+        // the shot was taken anyway, and a home page became the baseline. If
+        // the Fees row never renders, this test must fail loudly.
+        await page.getByText('Card Processing').first().waitFor({ state: 'visible', timeout: 10_000 });
         await shot(page, 'admin-taxes-fees-populated.png');
     });
 });
